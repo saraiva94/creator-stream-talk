@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import ChatBox from "@/components/ChatBox";
 import Navbar from "@/components/Navbar";
+import { VideoOverlay } from "@/components/VideoOverlay";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, ArrowLeft, Circle } from "lucide-react";
@@ -28,6 +29,9 @@ const Room = () => {
   const [room, setRoom] = useState<RoomData | null>(null);
   const [loading, setLoading] = useState(true);
   const [participants, setParticipants] = useState(0);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,6 +46,15 @@ const Room = () => {
         return;
       }
       setUser(session.user);
+
+      // Check subscription status
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_subscribed")
+        .eq("id", session.user.id)
+        .single();
+
+      setIsSubscribed(profile?.is_subscribed || false);
     };
     checkAuth();
   }, [navigate, toast]);
@@ -160,6 +173,25 @@ const Room = () => {
     };
   }, [room?.id]);
 
+  // 10 second timer for non-subscribers
+  useEffect(() => {
+    if (!user || isSubscribed) return;
+
+    const timer = setTimeout(() => {
+      setShowOverlay(true);
+    }, 10000);
+
+    return () => clearTimeout(timer);
+  }, [user, isSubscribed]);
+
+  const handleSubscribe = () => {
+    navigate("/subscribe");
+  };
+
+  const handleLogin = () => {
+    navigate("/auth");
+  };
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -211,7 +243,7 @@ const Room = () => {
           </div>
 
           {/* Video Player Placeholder */}
-          <div className="flex-1 bg-secondary flex items-center justify-center">
+          <div className="flex-1 bg-secondary flex items-center justify-center relative">
             <div className="text-center space-y-4">
               <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
                 {room.profiles.avatar_url ? (
@@ -238,6 +270,20 @@ const Room = () => {
                 </p>
               </div>
             </div>
+
+            {/* Blur overlay after 10 seconds for non-subscribers */}
+            {showOverlay && !isSubscribed && (
+              <div className="absolute inset-0 backdrop-blur-md">
+                <VideoOverlay
+                  title="Assine para continuar"
+                  description="Assine para continuar assistindo e interagir com o criador no chat ao vivo."
+                  primaryButtonText="Assinar"
+                  onPrimaryClick={handleSubscribe}
+                  secondaryButtonText="Entrar na conta"
+                  onSecondaryClick={handleLogin}
+                />
+              </div>
+            )}
           </div>
 
           <div className="p-4 border-t border-border">
@@ -249,7 +295,10 @@ const Room = () => {
         </div>
 
         {/* Chat Section */}
-        <div className="w-full lg:w-96 h-[400px] lg:h-auto">
+        <div className="w-full lg:w-96 h-[400px] lg:h-auto relative" ref={chatRef}>
+          {showOverlay && !isSubscribed && (
+            <div className="absolute inset-0 backdrop-blur-md z-10" />
+          )}
           <ChatBox roomId={room.id} currentUserId={user.id} />
         </div>
       </div>

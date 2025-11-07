@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import CreatorCard from "@/components/CreatorCard";
 import Navbar from "@/components/Navbar";
-import { Users } from "lucide-react";
+import { VideoOverlay } from "@/components/VideoOverlay";
+import { Users, Play } from "lucide-react";
 
 interface Creator {
   id: string;
@@ -17,9 +19,13 @@ interface Creator {
 }
 
 const Home = () => {
+  const navigate = useNavigate();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [featuredCreator, setFeaturedCreator] = useState<Creator | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const getUser = async () => {
@@ -55,6 +61,11 @@ const Home = () => {
       }
 
       setCreators(data || []);
+      
+      // Set featured creator (first online creator)
+      const featured = data?.find((c) => c.is_streaming) || data?.[0];
+      setFeaturedCreator(featured || null);
+      
       setLoading(false);
     };
 
@@ -80,6 +91,26 @@ const Home = () => {
     };
   }, []);
 
+  // 10 second preview timer
+  useEffect(() => {
+    if (!featuredCreator) return;
+
+    const timer = setTimeout(() => {
+      setShowOverlay(true);
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+      }
+    }, 10000);
+
+    return () => clearTimeout(timer);
+  }, [featuredCreator]);
+
+  const handleEnterRoom = () => {
+    if (featuredCreator) {
+      navigate(`/room/${featuredCreator.id}`);
+    }
+  };
+
   const onlineCreators = creators.filter((c) => c.is_streaming);
   const offlineCreators = creators.filter((c) => !c.is_streaming);
 
@@ -96,6 +127,56 @@ const Home = () => {
           </div>
         ) : (
           <>
+            {/* Featured Live Preview */}
+            {featuredCreator && (
+              <section className="mb-12">
+                <div className="relative aspect-video rounded-lg overflow-hidden bg-secondary border border-border">
+                  {/* Video Player Placeholder */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center space-y-4">
+                      <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+                        {featuredCreator.profiles?.avatar_url ? (
+                          <img
+                            src={featuredCreator.profiles.avatar_url}
+                            alt={featuredCreator.display_name}
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : (
+                          <Play className="h-12 w-12 text-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold mb-1">{featuredCreator.display_name}</h2>
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <div className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                            <span className="text-sm font-semibold">AO VIVO</span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">•</span>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            <span className="text-sm">{featuredCreator.viewer_count} espectadores</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Blur overlay after 10 seconds */}
+                  {showOverlay && (
+                    <div className="absolute inset-0 backdrop-blur-md">
+                      <VideoOverlay
+                        title="Continue assistindo"
+                        description="Entre na sala do criador para continuar assistindo esta live."
+                        primaryButtonText="Entrar na sala"
+                        onPrimaryClick={handleEnterRoom}
+                      />
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
             {onlineCreators.length > 0 && (
               <section className="mb-12">
                 <div className="flex items-center gap-2 mb-6">
