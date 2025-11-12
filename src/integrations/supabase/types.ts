@@ -14,6 +14,127 @@ export type Database = {
   }
   public: {
     Tables: {
+      banned_users: {
+        Row: {
+          banned_by: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_permanent: boolean | null
+          reason: string | null
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          banned_by: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean | null
+          reason?: string | null
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          banned_by?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_permanent?: boolean | null
+          reason?: string | null
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "banned_users_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_settings: {
+        Row: {
+          banned_words: string[] | null
+          id: string
+          room_id: string
+          slow_mode_duration: number | null
+          slow_mode_enabled: boolean | null
+          subscribers_only: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          banned_words?: string[] | null
+          id?: string
+          room_id: string
+          slow_mode_duration?: number | null
+          slow_mode_enabled?: boolean | null
+          subscribers_only?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          banned_words?: string[] | null
+          id?: string
+          room_id?: string
+          slow_mode_duration?: number | null
+          slow_mode_enabled?: boolean | null
+          subscribers_only?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_settings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_bank_accounts: {
+        Row: {
+          account_holder_name: string
+          account_number: string
+          account_type: string
+          bank_name: string
+          created_at: string
+          creator_id: string
+          document_number: string
+          id: string
+          is_active: boolean | null
+          routing_number: string
+          updated_at: string
+        }
+        Insert: {
+          account_holder_name: string
+          account_number: string
+          account_type: string
+          bank_name: string
+          created_at?: string
+          creator_id: string
+          document_number: string
+          id?: string
+          is_active?: boolean | null
+          routing_number: string
+          updated_at?: string
+        }
+        Update: {
+          account_holder_name?: string
+          account_number?: string
+          account_type?: string
+          bank_name?: string
+          created_at?: string
+          creator_id?: string
+          document_number?: string
+          id?: string
+          is_active?: boolean | null
+          routing_number?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       creator_profiles: {
         Row: {
           bio: string | null
@@ -51,6 +172,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      financial_settings: {
+        Row: {
+          affiliate_percentage: number
+          creator_percentage: number
+          id: string
+          platform_percentage: number
+          subscription_price: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          affiliate_percentage?: number
+          creator_percentage?: number
+          id?: string
+          platform_percentage?: number
+          subscription_price?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          affiliate_percentage?: number
+          creator_percentage?: number
+          id?: string
+          platform_percentage?: number
+          subscription_price?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       messages: {
         Row: {
@@ -91,30 +242,116 @@ export type Database = {
           },
         ]
       }
+      payout_requests: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          bank_account_id: string | null
+          created_at: string
+          creator_id: string
+          id: string
+          paid_at: string | null
+          status: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          bank_account_id?: string | null
+          created_at?: string
+          creator_id: string
+          id?: string
+          paid_at?: string | null
+          status?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          bank_account_id?: string | null
+          created_at?: string
+          creator_id?: string
+          id?: string
+          paid_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_requests_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "creator_bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
+          balance: number | null
           created_at: string
           id: string
           is_subscribed: boolean | null
+          referral_code: string | null
+          referred_by: string | null
           updated_at: string
           username: string
         }
         Insert: {
           avatar_url?: string | null
+          balance?: number | null
           created_at?: string
           id: string
           is_subscribed?: boolean | null
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
           username: string
         }
         Update: {
           avatar_url?: string | null
+          balance?: number | null
           created_at?: string
           id?: string
           is_subscribed?: boolean | null
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
           username?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          commission_earned: number | null
+          created_at: string
+          id: string
+          referral_code: string
+          referred_id: string
+          referrer_id: string
+          status: string
+        }
+        Insert: {
+          commission_earned?: number | null
+          created_at?: string
+          id?: string
+          referral_code: string
+          referred_id: string
+          referrer_id: string
+          status?: string
+        }
+        Update: {
+          commission_earned?: number | null
+          created_at?: string
+          id?: string
+          referral_code?: string
+          referred_id?: string
+          referrer_id?: string
+          status?: string
         }
         Relationships: []
       }
@@ -192,15 +429,123 @@ export type Database = {
           },
         ]
       }
+      subscriptions: {
+        Row: {
+          cancelled_at: string | null
+          creator_id: string
+          expires_at: string | null
+          id: string
+          started_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          creator_id: string
+          expires_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          creator_id?: string
+          expires_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          affiliate_amount: number | null
+          affiliate_id: string | null
+          amount: number
+          created_at: string
+          creator_amount: number | null
+          creator_id: string | null
+          external_id: string | null
+          id: string
+          metadata: Json | null
+          payment_method: string | null
+          platform_amount: number | null
+          status: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          affiliate_amount?: number | null
+          affiliate_id?: string | null
+          amount: number
+          created_at?: string
+          creator_amount?: number | null
+          creator_id?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_method?: string | null
+          platform_amount?: number | null
+          status?: string
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          affiliate_amount?: number | null
+          affiliate_id?: string | null
+          amount?: number
+          created_at?: string
+          creator_amount?: number | null
+          creator_id?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_method?: string | null
+          platform_amount?: number | null
+          status?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "creator" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -327,6 +672,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "creator", "viewer"],
+    },
   },
 } as const
