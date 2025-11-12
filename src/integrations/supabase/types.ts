@@ -139,6 +139,8 @@ export type Database = {
         Row: {
           bio: string | null
           created_at: string
+          daily_room_name: string | null
+          daily_room_url: string | null
           display_name: string
           id: string
           is_streaming: boolean | null
@@ -148,6 +150,8 @@ export type Database = {
         Insert: {
           bio?: string | null
           created_at?: string
+          daily_room_name?: string | null
+          daily_room_url?: string | null
           display_name: string
           id: string
           is_streaming?: boolean | null
@@ -157,6 +161,8 @@ export type Database = {
         Update: {
           bio?: string | null
           created_at?: string
+          daily_room_name?: string | null
+          daily_room_url?: string | null
           display_name?: string
           id?: string
           is_streaming?: boolean | null
@@ -241,6 +247,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          read: boolean | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       payout_requests: {
         Row: {
@@ -395,27 +431,33 @@ export type Database = {
         Row: {
           created_at: string
           creator_id: string
+          daily_room_name: string | null
           ended_at: string | null
           id: string
           is_active: boolean | null
+          stream_key: string | null
           title: string
           viewer_count: number | null
         }
         Insert: {
           created_at?: string
           creator_id: string
+          daily_room_name?: string | null
           ended_at?: string | null
           id?: string
           is_active?: boolean | null
+          stream_key?: string | null
           title: string
           viewer_count?: number | null
         }
         Update: {
           created_at?: string
           creator_id?: string
+          daily_room_name?: string | null
           ended_at?: string | null
           id?: string
           is_active?: boolean | null
+          stream_key?: string | null
           title?: string
           viewer_count?: number | null
         }
@@ -541,6 +583,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      increment_balance: {
+        Args: { _amount: number; _user_id: string }
+        Returns: undefined
+      }
+      is_subscribed_to_creator: {
+        Args: { _creator_id: string; _user_id: string }
         Returns: boolean
       }
     }
