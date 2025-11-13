@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import DailyVideoPlayer from "@/components/DailyVideoPlayer";
 import ChatBox from "@/components/ChatBox";
 import ChatModerationPanel from "@/components/ChatModerationPanel";
+import DeviceSelector from "@/components/DeviceSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -299,8 +300,9 @@ const LiveManagement = () => {
             )}
           </div>
 
-          {/* Moderation Panel */}
-          <div>
+          {/* Moderation Panel & Device Settings */}
+          <div className="space-y-6">
+            <DeviceSelector />
             {room && (
               <ChatModerationPanel roomId={room.id} creatorId={user.id} />
             )}

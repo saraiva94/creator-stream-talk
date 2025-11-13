@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import CreatorCard from "@/components/CreatorCard";
+import LivePreviewCard from "@/components/LivePreviewCard";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -15,6 +15,7 @@ interface Creator {
   bio: string | null;
   is_streaming: boolean;
   viewer_count: number;
+  daily_room_url: string | null;
   profiles: {
     username: string;
     avatar_url: string | null;
@@ -71,6 +72,7 @@ const Home = () => {
           bio,
           is_streaming,
           viewer_count,
+          daily_room_url,
           profiles!inner (username, avatar_url)
         `)
         .order("is_streaming", { ascending: false })
@@ -136,10 +138,11 @@ const Home = () => {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {onlineCreators.map((creator) => (
-                    <CreatorCard
+                    <LivePreviewCard
                       key={creator.id}
                       creator={creator}
-                      onEnter={() => handleEnterRoom(creator.id)}
+                      isLoggedIn={!!user}
+                      onLoginRequired={() => setShowLoginDialog(true)}
                     />
                   ))}
                 </div>
@@ -153,10 +156,11 @@ const Home = () => {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {offlineCreators.map((creator) => (
-                    <CreatorCard
+                    <LivePreviewCard
                       key={creator.id}
                       creator={creator}
-                      onEnter={() => handleEnterRoom(creator.id)}
+                      isLoggedIn={!!user}
+                      onLoginRequired={() => setShowLoginDialog(true)}
                     />
                   ))}
                 </div>
