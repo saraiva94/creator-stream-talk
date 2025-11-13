@@ -212,12 +212,23 @@ const Dashboard = () => {
       if (error) throw error;
 
       setIsStreaming(checked);
-      toast({
-        title: checked ? "Transmissão ativada!" : "Transmissão desativada",
-        description: checked
-          ? "Seu status agora está como AO VIVO"
-          : "Você ficou offline",
-      });
+      
+      if (checked) {
+        toast({
+          title: "Transmissão ativada!",
+          description: "Redirecionando para painel de controle...",
+        });
+        
+        // Redirect to live management page
+        setTimeout(() => {
+          navigate("/live-management");
+        }, 1000);
+      } else {
+        toast({
+          title: "Transmissão desativada",
+          description: "Você ficou offline",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Erro ao alterar status",

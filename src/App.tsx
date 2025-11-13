@@ -13,6 +13,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
+import LiveManagement from "./pages/LiveManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/room/:creatorId" element={<Room />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/live-management" element={<LiveManagement />} />
             <Route path="/subscribe" element={<Subscribe />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Admin />} />

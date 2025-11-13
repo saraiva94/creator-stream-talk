@@ -179,6 +179,45 @@ export type Database = {
           },
         ]
       }
+      email_queue: {
+        Row: {
+          created_at: string | null
+          email_type: string
+          error: string | null
+          html_content: string
+          id: string
+          sent_at: string | null
+          status: string | null
+          subject: string
+          to_email: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_type: string
+          error?: string | null
+          html_content: string
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+          to_email: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_type?: string
+          error?: string | null
+          html_content?: string
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+          to_email?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       financial_settings: {
         Row: {
           affiliate_percentage: number

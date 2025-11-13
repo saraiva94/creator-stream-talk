@@ -25,6 +25,7 @@ const Profile = () => {
     gender: "",
     avatar_url: "",
   });
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -56,6 +57,42 @@ const Profile = () => {
 
     checkAuth();
   }, [navigate]);
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${Math.random()}.${fileExt}`;
+
+    setUploading(true);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      setProfile({ ...profile, avatar_url: publicUrl });
+
+      toast({
+        title: "Imagem enviada!",
+        description: "Lembre-se de salvar as alterações.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro no upload",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleUpdateProfile = async () => {
     if (!profile.username.trim()) {
@@ -126,23 +163,40 @@ const Profile = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <Label>Foto de Perfil</Label>
+              <div className="flex items-center gap-4">
+                {profile.avatar_url && (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Avatar"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-primary"
+                  />
+                )}
+                <div className="flex-1">
+                  <Input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploading}
+                    className="cursor-pointer"
+                  />
+                  {uploading && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Enviando imagem...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="username">Nome de Usuário *</Label>
               <Input
                 id="username"
                 value={profile.username}
                 onChange={(e) => setProfile({ ...profile, username: e.target.value })}
                 placeholder="seu_usuario"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="avatar">URL da Foto de Perfil</Label>
-              <Input
-                id="avatar"
-                type="url"
-                value={profile.avatar_url}
-                onChange={(e) => setProfile({ ...profile, avatar_url: e.target.value })}
-                placeholder="https://exemplo.com/foto.jpg"
               />
             </div>
 
