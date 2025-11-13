@@ -11,6 +11,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Video, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import ChatModerationPanel from "@/components/ChatModerationPanel";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,6 +35,8 @@ const Dashboard = () => {
   const [tags, setTags] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
+  const [showGoLiveDialog, setShowGoLiveDialog] = useState(false);
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -49,6 +62,20 @@ const Dashboard = () => {
         setTags(creatorData.tags?.join(", ") || "");
         setIsStreaming(creatorData.is_streaming);
         setDailyRoomUrl(creatorData.daily_room_url);
+
+        // Get current room if streaming
+        if (creatorData.is_streaming) {
+          const { data: roomData } = await supabase
+            .from("rooms")
+            .select("id")
+            .eq("creator_id", session.user.id)
+            .eq("is_active", true)
+            .single();
+          
+          if (roomData) {
+            setCurrentRoomId(roomData.id);
+          }
+        }
       }
 
       setLoading(false);
@@ -123,6 +150,19 @@ const Dashboard = () => {
     }
   };
 
+  const handleToggleStreamingRequest = (checked: boolean) => {
+    if (checked) {
+      setShowGoLiveDialog(true);
+    } else {
+      handleToggleStreaming(false);
+    }
+  };
+
+  const handleConfirmGoLive = () => {
+    setShowGoLiveDialog(false);
+    handleToggleStreaming(true);
+  };
+
   const handleToggleStreaming = async (checked: boolean) => {
     setLoading(true);
     try {
@@ -146,6 +186,22 @@ const Dashboard = () => {
           .from("creator_profiles")
           .update({ daily_room_url: roomUrl })
           .eq("id", user.id);
+
+        // Create room record
+        const { data: newRoom } = await supabase
+          .from("rooms")
+          .insert({
+            creator_id: user.id,
+            title: displayName,
+            daily_room_name: roomData.name,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (newRoom) {
+          setCurrentRoomId(newRoom.id);
+        }
       }
 
       const { error } = await supabase
@@ -272,7 +328,7 @@ const Dashboard = () => {
                   </div>
                   <Switch
                     checked={isStreaming}
-                    onCheckedChange={handleToggleStreaming}
+                    onCheckedChange={handleToggleStreamingRequest}
                     disabled={loading}
                   />
                 </div>
@@ -325,7 +381,7 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {isStreaming && dailyRoomUrl && (
+            {isStreaming && dailyRoomUrl && currentRoomId && (
               <>
                 <Card className="border-border shadow-card bg-gradient-card">
                   <CardHeader>
@@ -340,6 +396,8 @@ const Dashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                <ChatModerationPanel roomId={currentRoomId} creatorId={user.id} />
 
                 <Card className="border-border shadow-card">
                   <CardHeader>
@@ -374,6 +432,23 @@ const Dashboard = () => {
           </div>
         )}
       </main>
+
+      <AlertDialog open={showGoLiveDialog} onOpenChange={setShowGoLiveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Iniciar Transmissão ao Vivo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a ficar online. Seus espectadores poderão ver sua transmissão assim que você confirmar. Sua câmera e microfone serão ativados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmGoLive}>
+              Sim, Ficar Online
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

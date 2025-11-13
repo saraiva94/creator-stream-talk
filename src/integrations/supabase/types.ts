@@ -329,7 +329,9 @@ export type Database = {
         Row: {
           avatar_url: string | null
           balance: number | null
+          bio: string | null
           created_at: string
+          gender: string | null
           id: string
           is_subscribed: boolean | null
           language: string | null
@@ -337,11 +339,14 @@ export type Database = {
           referred_by: string | null
           updated_at: string
           username: string
+          website: string | null
         }
         Insert: {
           avatar_url?: string | null
           balance?: number | null
+          bio?: string | null
           created_at?: string
+          gender?: string | null
           id: string
           is_subscribed?: boolean | null
           language?: string | null
@@ -349,11 +354,14 @@ export type Database = {
           referred_by?: string | null
           updated_at?: string
           username: string
+          website?: string | null
         }
         Update: {
           avatar_url?: string | null
           balance?: number | null
+          bio?: string | null
           created_at?: string
+          gender?: string | null
           id?: string
           is_subscribed?: boolean | null
           language?: string | null
@@ -361,6 +369,7 @@ export type Database = {
           referred_by?: string | null
           updated_at?: string
           username?: string
+          website?: string | null
         }
         Relationships: []
       }

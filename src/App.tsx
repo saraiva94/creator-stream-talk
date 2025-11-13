@@ -12,6 +12,7 @@ import Subscribe from "./pages/Subscribe";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/affiliate" element={<Affiliate />} />
+            <Route path="/profile" element={<Profile />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

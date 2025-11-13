@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Video, LogOut, User, Shield } from "lucide-react";
+import { Video, LogOut, User, Shield, Home, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LanguageSelector } from "./LanguageSelector";
@@ -75,20 +75,28 @@ const Navbar = ({ user }: NavbarProps) => {
                     </Button>
                   </Link>
                 )}
-                <Link to="/dashboard">
+                <Link to="/">
+                  <Button variant="ghost" size="sm">
+                    <Home className="h-4 w-4 mr-2" />
+                    Início
+                  </Button>
+                </Link>
+                <Link to="/profile">
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4 mr-2" />
-                    {t.nav.dashboard}
+                    Perfil
+                  </Button>
+                </Link>
+                <Link to="/dashboard">
+                  <Button variant="ghost" size="sm">
+                    <Video className="h-4 w-4 mr-2" />
+                    Painel do Criador
                   </Button>
                 </Link>
                 <Link to="/affiliate">
                   <Button variant="ghost" size="sm">
+                    <DollarSign className="h-4 w-4 mr-2" />
                     Afiliados
-                  </Button>
-                </Link>
-                <Link to="/subscribe">
-                  <Button variant="ghost" size="sm">
-                    Assinar
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
