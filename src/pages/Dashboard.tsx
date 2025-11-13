@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
+import DailyVideoPlayer from "@/components/DailyVideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ const Dashboard = () => {
   const [bio, setBio] = useState("");
   const [tags, setTags] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -46,6 +48,7 @@ const Dashboard = () => {
         setBio(creatorData.bio || "");
         setTags(creatorData.tags?.join(", ") || "");
         setIsStreaming(creatorData.is_streaming);
+        setDailyRoomUrl(creatorData.daily_room_url);
       }
 
       setLoading(false);
@@ -123,6 +126,28 @@ const Dashboard = () => {
   const handleToggleStreaming = async (checked: boolean) => {
     setLoading(true);
     try {
+      let roomUrl = dailyRoomUrl;
+
+      // Create Daily.co room if going live and no room exists
+      if (checked && !roomUrl) {
+        const { data: roomData, error: roomError } = await supabase.functions.invoke(
+          "create-daily-room",
+          {
+            body: { roomTitle: displayName },
+          }
+        );
+
+        if (roomError) throw roomError;
+        roomUrl = roomData.url;
+        setDailyRoomUrl(roomUrl);
+
+        // Update creator profile with room URL
+        await supabase
+          .from("creator_profiles")
+          .update({ daily_room_url: roomUrl })
+          .eq("id", user.id);
+      }
+
       const { error } = await supabase
         .from("creator_profiles")
         .update({ is_streaming: checked })
@@ -300,35 +325,51 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {isStreaming && (
-              <Card className="border-border shadow-card bg-gradient-card">
-                <CardHeader>
-                  <CardTitle>Sua Sala</CardTitle>
-                  <CardDescription>
-                    Compartilhe este link com seus espectadores
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={`${window.location.origin}/room/${user.id}`}
-                      readOnly
-                    />
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${window.location.origin}/room/${user.id}`
-                        );
-                        toast({
-                          title: "Link copiado!",
-                        });
-                      }}
-                    >
-                      Copiar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+            {isStreaming && dailyRoomUrl && (
+              <>
+                <Card className="border-border shadow-card bg-gradient-card">
+                  <CardHeader>
+                    <CardTitle>Sua Transmissão</CardTitle>
+                    <CardDescription>
+                      Controle sua câmera, microfone e compartilhamento de tela
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="aspect-video bg-secondary rounded-lg overflow-hidden">
+                      <DailyVideoPlayer roomUrl={dailyRoomUrl} isCreator={true} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border shadow-card">
+                  <CardHeader>
+                    <CardTitle>Compartilhe sua Sala</CardTitle>
+                    <CardDescription>
+                      Envie este link para seus espectadores
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={`${window.location.origin}/room/${user.id}`}
+                        readOnly
+                      />
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `${window.location.origin}/room/${user.id}`
+                          );
+                          toast({
+                            title: "Link copiado!",
+                          });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
             )}
           </div>
         )}

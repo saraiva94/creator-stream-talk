@@ -81,6 +81,16 @@ const Navbar = ({ user }: NavbarProps) => {
                     {t.nav.dashboard}
                   </Button>
                 </Link>
+                <Link to="/affiliate">
+                  <Button variant="ghost" size="sm">
+                    Afiliados
+                  </Button>
+                </Link>
+                <Link to="/subscribe">
+                  <Button variant="ghost" size="sm">
+                    Assinar
+                  </Button>
+                </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   {t.nav.logout}

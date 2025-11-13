@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send } from "lucide-react";
+import { Send, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import SuperChatDialog from "./SuperChatDialog";
 
 interface Message {
   id: string;
@@ -19,12 +20,14 @@ interface Message {
 interface ChatBoxProps {
   roomId: string;
   currentUserId: string;
+  creatorId: string;
 }
 
-const ChatBox = ({ roomId, currentUserId }: ChatBoxProps) => {
+const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showSuperChat, setShowSuperChat] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -151,6 +154,15 @@ const ChatBox = ({ roomId, currentUserId }: ChatBoxProps) => {
 
       <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
         <div className="flex gap-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            onClick={() => setShowSuperChat(true)}
+            title="Enviar SuperChat"
+          >
+            <Coins className="h-4 w-4" />
+          </Button>
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -163,6 +175,13 @@ const ChatBox = ({ roomId, currentUserId }: ChatBoxProps) => {
           </Button>
         </div>
       </form>
+
+      <SuperChatDialog
+        open={showSuperChat}
+        onOpenChange={setShowSuperChat}
+        creatorId={creatorId}
+        userId={currentUserId}
+      />
     </div>
   );
 };

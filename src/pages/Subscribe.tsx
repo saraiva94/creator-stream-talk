@@ -29,28 +29,29 @@ const Subscribe = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_subscribed: true })
-        .eq("id", user.id);
+      // Call edge function to create Mercado Pago payment
+      const { data, error } = await supabase.functions.invoke("create-payment", {
+        body: {
+          creatorId: null, // Global subscription
+          userId: user.id,
+          type: "subscription",
+        },
+      });
 
       if (error) throw error;
 
-      toast({
-        title: "Assinatura ativada!",
-        description: "Agora você tem acesso completo a todas as lives.",
-      });
-
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
+      // Redirect to Mercado Pago checkout
+      if (data?.init_point) {
+        window.location.href = data.init_point;
+      } else {
+        throw new Error("Não foi possível gerar o link de pagamento");
+      }
     } catch (error: any) {
       toast({
-        title: "Erro ao ativar assinatura",
+        title: "Erro ao processar assinatura",
         description: error.message,
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
   };

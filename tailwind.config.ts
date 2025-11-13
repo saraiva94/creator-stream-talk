@@ -56,12 +56,12 @@ export default {
       backgroundImage: {
         'gradient-primary': 'var(--gradient-primary)',
         'gradient-card': 'var(--gradient-card)',
-        'gradient-gold-shine': 'var(--gradient-gold-shine)',
+        'gradient-purple-shine': 'var(--gradient-purple-shine)',
       },
       boxShadow: {
         'glow': 'var(--shadow-glow)',
         'card': 'var(--shadow-card)',
-        'gold': 'var(--shadow-gold)',
+        'purple': 'var(--shadow-purple)',
       },
       transitionTimingFunction: {
         'smooth': 'var(--transition-smooth)',

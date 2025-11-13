@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ChatBox from "@/components/ChatBox";
 import Navbar from "@/components/Navbar";
 import { VideoOverlay } from "@/components/VideoOverlay";
+import DailyVideoPlayer from "@/components/DailyVideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, ArrowLeft, Circle } from "lucide-react";
@@ -31,6 +32,7 @@ const Room = () => {
   const [participants, setParticipants] = useState(0);
   const [showOverlay, setShowOverlay] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,6 +116,11 @@ const Room = () => {
         ...roomData,
         profiles: creatorData.profiles,
       });
+
+      // Get Daily.co room URL from creator profile
+      if (creatorData.daily_room_url) {
+        setDailyRoomUrl(creatorData.daily_room_url);
+      }
 
       // Join room
       await supabase.from("room_participants").insert({
@@ -242,34 +249,34 @@ const Room = () => {
             </div>
           </div>
 
-          {/* Video Player Placeholder */}
+          {/* Video Player */}
           <div className="flex-1 bg-secondary flex items-center justify-center relative">
-            <div className="text-center space-y-4">
-              <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
-                {room.profiles.avatar_url ? (
-                  <img
-                    src={room.profiles.avatar_url}
-                    alt={room.profiles.username}
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                ) : (
-                  <Users className="h-12 w-12 text-primary" />
-                )}
+            {dailyRoomUrl ? (
+              <DailyVideoPlayer roomUrl={dailyRoomUrl} isCreator={false} />
+            ) : (
+              <div className="text-center space-y-4">
+                <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mx-auto">
+                  {room.profiles.avatar_url ? (
+                    <img
+                      src={room.profiles.avatar_url}
+                      alt={room.profiles.username}
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : (
+                    <Users className="h-12 w-12 text-primary" />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">{room.title}</h2>
+                  <p className="text-muted-foreground">
+                    @{room.profiles.username}
+                  </p>
+                </div>
+                <div className="text-sm text-muted-foreground max-w-md">
+                  <p>O criador ainda não iniciou a transmissão</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold mb-1">{room.title}</h2>
-                <p className="text-muted-foreground">
-                  @{room.profiles.username}
-                </p>
-              </div>
-              <div className="text-sm text-muted-foreground max-w-md">
-                <p>
-                  Espaço reservado para player de vídeo WebRTC.
-                  <br />
-                  Integre com serviços como Agora, Twilio ou Daily.co
-                </p>
-              </div>
-            </div>
+            )}
 
             {/* Blur overlay after 10 seconds for non-subscribers */}
             {showOverlay && !isSubscribed && (
@@ -299,7 +306,7 @@ const Room = () => {
           {showOverlay && !isSubscribed && (
             <div className="absolute inset-0 backdrop-blur-md z-10" />
           )}
-          <ChatBox roomId={room.id} currentUserId={user.id} />
+          <ChatBox roomId={room.id} currentUserId={user.id} creatorId={room.creator_id} />
         </div>
       </div>
     </div>
