@@ -8,45 +8,50 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
+    /* Bitcoin-inspired black and gold theme */
+    --background: 0 0% 0%; /* Pure black #000000 */
     --foreground: 0 0% 98%;
 
-    --card: 240 10% 7%;
+    --card: 0 0% 5%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 240 10% 7%;
+    --popover: 0 0% 8%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 263 70% 60%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 263 70% 70%;
+    --primary: 51 100% 50%; /* Bitcoin gold #FFD700 */
+    --primary-foreground: 0 0% 0%;
+    --primary-glow: 51 100% 60%;
 
-    --secondary: 240 4% 16%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 51 100% 50%;
 
-    --muted: 240 5% 26%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
 
-    --accent: 12 6% 15%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 51 100% 50%;
+    --accent-foreground: 0 0% 0%;
 
     --success: 142 76% 36%;
-    --success-foreground: 0 0% 98%;
+    --success-foreground: 0 0% 0%;
 
-    --destructive: 0 62.8% 50.6%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 6% 20%;
-    --input: 240 6% 20%;
-    --ring: 263 70% 60%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 51 100% 50%;
 
     --radius: 0.75rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(263 70% 60%), hsl(263 70% 70%));
-    --gradient-card: linear-gradient(180deg, hsl(240 10% 7%), hsl(240 10% 5%));
+    /* Bitcoin-themed gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(51 100% 50%), hsl(45 100% 55%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 5%), hsl(0 0% 2%));
+    --gradient-gold-shine: linear-gradient(90deg, hsl(51 100% 45%), hsl(51 100% 60%), hsl(51 100% 45%));
     
-    --shadow-glow: 0 0 40px hsl(263 70% 60% / 0.3);
-    --shadow-card: 0 8px 24px hsl(240 10% 3.9% / 0.4);
+    /* Bitcoin-themed shadows */
+    --shadow-glow: 0 0 40px hsl(51 100% 50% / 0.3);
+    --shadow-gold: 0 4px 24px hsl(51 100% 50% / 0.2);
+    --shadow-card: 0 8px 32px hsl(0 0% 0% / 0.6);
     
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }

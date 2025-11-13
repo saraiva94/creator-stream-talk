@@ -332,6 +332,7 @@ export type Database = {
           created_at: string
           id: string
           is_subscribed: boolean | null
+          language: string | null
           referral_code: string | null
           referred_by: string | null
           updated_at: string
@@ -343,6 +344,7 @@ export type Database = {
           created_at?: string
           id: string
           is_subscribed?: boolean | null
+          language?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
@@ -354,6 +356,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_subscribed?: boolean | null
+          language?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string

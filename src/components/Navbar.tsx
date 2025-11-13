@@ -1,8 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Video, LogOut, User } from "lucide-react";
+import { Video, LogOut, User, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { LanguageSelector } from "./LanguageSelector";
+import { useLanguage } from "@/hooks/useLanguage";
+import { useState, useEffect } from "react";
 
 interface NavbarProps {
   user?: {
@@ -14,20 +17,37 @@ interface NavbarProps {
 const Navbar = ({ user }: NavbarProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      checkAdminStatus();
+    }
+  }, [user]);
+
+  const checkAdminStatus = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+    setIsAdmin(data?.some(r => r.role === "admin") || false);
+  };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       toast({
-        title: "Erro ao sair",
+        title: "Error signing out",
         description: error.message,
         variant: "destructive",
       });
       return;
     }
     toast({
-      title: "Até logo!",
-      description: "Você foi desconectado.",
+      title: "Goodbye!",
+      description: "You have been signed out.",
     });
     navigate("/auth");
   };
@@ -38,28 +58,37 @@ const Navbar = ({ user }: NavbarProps) => {
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <Video className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              LiveStream
+            <span className="text-2xl font-bold text-primary">
+              Stream Live Hub
             </span>
           </Link>
 
           <div className="flex items-center gap-4">
+            <LanguageSelector />
             {user ? (
               <>
+                {isAdmin && (
+                  <Link to="/admin">
+                    <Button variant="ghost" size="sm">
+                      <Shield className="h-4 w-4 mr-2" />
+                      Admin
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/dashboard">
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4 mr-2" />
-                    Dashboard
+                    {t.nav.dashboard}
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
-                  Sair
+                  {t.nav.logout}
                 </Button>
               </>
             ) : (
               <Link to="/auth">
-                <Button>Entrar</Button>
+                <Button>{t.nav.login}</Button>
               </Link>
             )}
           </div>
