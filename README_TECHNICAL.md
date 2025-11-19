@@ -1,419 +1,117 @@
-# Stream Live Hub - Technical Documentation
+# Creator Stream Talk – Technical Reference
 
-## 🏗️ Architecture Overview
+This document summarizes how to work on the codebase after the migration to the Jitsi streaming architecture.
 
-Stream Live Hub is a full-stack live streaming platform built with:
-- **Frontend**: React + TypeScript + Vite + Tailwind CSS
-- **Backend**: Supabase (PostgreSQL + Edge Functions + Storage + Realtime)
-- **Video Streaming**: Daily.co WebRTC
-- **Payments**: Mercado Pago API
-- **Email**: Resend API
+## 1. Stack Summary
+- **Frontend**: React 18 + TypeScript + Vite + Tailwind + shadcn/ui (see `src/`).
+- **Backend**: Express + TypeScript (see `backend/`) with Supabase Auth validation, Mercado Pago integration, and Jitsi room orchestration.
+- **Database**: Supabase Postgres with migrations in `supabase/migrations/`, cron config in `supabase/config.toml`, and Edge Functions in `supabase/functions/`.
+- **Streaming**: Jitsi Meet public rooms built from backend-generated `room_name` slugs.
+- **Payments**: Mercado Pago checkout preferences + webhook approvals.
+- **Emails**: Resend transactional templates.
 
-## 📂 Project Structure
-
+## 2. Project Structure
 ```
-stream-live-hub/
-├── src/
-│   ├── components/          # Reusable React components
-│   │   ├── ui/             # shadcn-ui components
-│   │   ├── ChatBox.tsx     # Live chat component
-│   │   ├── ChatModerationPanel.tsx  # Chat moderation controls
-│   │   ├── CreatorCard.tsx # Creator profile card
-│   │   ├── DailyVideoPlayer.tsx     # Video player with Daily.co
-│   │   ├── Navbar.tsx      # Navigation bar
-│   │   ├── SuperChatDialog.tsx      # SuperChat payment dialog
-│   │   └── VideoPreview.tsx         # 30s preview component
-│   │
-│   ├── pages/              # Page components (routes)
-│   │   ├── Auth.tsx        # Login/signup page
-│   │   ├── Home.tsx        # Public homepage
-│   │   ├── Dashboard.tsx   # Creator dashboard
-│   │   ├── LiveManagement.tsx  # Live control panel
-│   │   ├── Room.tsx        # Viewer live room
-│   │   ├── Profile.tsx     # User profile management
-│   │   ├── Affiliate.tsx   # Affiliate dashboard
-│   │   ├── Subscribe.tsx   # Subscription page
-│   │   └── Admin.tsx       # Admin panel
-│   │
-│   ├── hooks/              # Custom React hooks
-│   │   ├── useLanguage.tsx # i18n hook
-│   │   └── use-toast.ts    # Toast notifications
-│   │
-│   ├── lib/                # Utility functions
-│   │   ├── utils.ts        # General utilities
-│   │   ├── payments.ts     # Payment helpers
-│   │   ├── daily.ts        # Daily.co helpers
-│   │   └── i18n.ts         # Internationalization
-│   │
-│   ├── integrations/       # External integrations
-│   │   └── supabase/       # Supabase client & types
-│   │
-│   └── index.css           # Global styles & design tokens
-│
-├── supabase/
-│   ├── functions/          # Edge Functions (serverless)
-│   │   ├── create-daily-room/      # Create Daily.co rooms
-│   │   ├── create-payment/         # Mercado Pago payments
-│   │   ├── mercadopago-webhook/    # Payment webhooks
-│   │   ├── send-email/             # Email sender
-│   │   └── send-notification-email/ # Notification emails
-│   │
-│   ├── migrations/         # Database schema migrations
-│   └── config.toml         # Supabase configuration
-│
-└── public/                 # Static assets
+creator-stream-talk/
+├─ src/
+│  ├─ components/          # shadcn/ui wrappers + UI primitives
+│  ├─ hooks/               # useLanguage, toast helpers, etc.
+│  ├─ integrations/
+│  │   └─ supabase/        # frontend Supabase client & types
+│  ├─ lib/                 # client utilities (payments, formatting)
+│  ├─ pages/               # routed screens (Home, Dashboard, Room, etc.)
+│  ├─ App.tsx              # Router + providers
+│  └─ main.tsx             # SPA bootstrap
+├─ backend/
+│  ├─ src/controllers/     # HTTP handlers (lives, payments, creators, admin)
+│  ├─ src/routes/          # Express routers (status, lives, payments, email)
+│  ├─ src/services/        # supabaseService, mercadoPagoService, jitsiService, emailService
+│  ├─ src/middleware/      # auth, cors, rate-limit, raw-body, domain guard, error handler
+│  ├─ src/lib/             # env loader, logger, responses, Supabase client
+│  ├─ src/shared/          # liveMonitorCore, Mercado Pago signature helper
+│  └─ index.ts             # Express entrypoint (dual-mode local + Vercel)
+├─ supabase/
+│  ├─ migrations/          # SQL migrations (room_name, revenue, withdrawals, etc.)
+│  ├─ functions/
+│  │   ├─ create-payment/  # Mercado Pago helper
+│  │   └─ monitor-lives/   # Cron-invoked heartbeat enforcement
+│  └─ config.toml          # Cron schedule (monitor every 1 minute)
+├─ scripts/
+│  └─ printWebhookUrls.ts  # Prints resolved base + webhook URLs
+└─ vercel.json             # Serverless routing & RAW_BODY config
 ```
 
-## 🗄️ Database Schema
-
-### Core Tables
-
-#### `profiles`
-User profile information
-- `id` (uuid, PK) - References auth.users
-- `username` (text) - Unique username
-- `avatar_url` (text) - Profile image URL
-- `website` (text) - Personal website
-- `bio` (text) - User biography
-- `gender` (text) - Gender identity
-- `balance` (numeric) - Account balance
-- `referral_code` (text) - Unique referral code
-- `referred_by` (uuid) - Referrer user ID
-
-#### `user_roles`
-Role-based access control
-- `id` (uuid, PK)
-- `user_id` (uuid, FK → auth.users)
-- `role` (app_role enum) - 'admin', 'creator', 'viewer'
-
-#### `creator_profiles`
-Creator-specific data
-- `id` (uuid, PK, FK → profiles)
-- `display_name` (text) - Public display name
-- `bio` (text) - Creator bio
-- `tags` (text[]) - Content tags
-- `is_streaming` (boolean) - Current streaming status
-- `viewer_count` (integer) - Current viewers
-- `daily_room_url` (text) - Daily.co room URL
-- `daily_room_name` (text) - Daily.co room name
-
-#### `rooms`
-Live streaming rooms
-- `id` (uuid, PK)
-- `creator_id` (uuid, FK → profiles)
-- `title` (text) - Stream title
-- `is_active` (boolean) - Active status
-- `viewer_count` (integer) - Current viewers
-- `daily_room_name` (text) - Daily.co room name
-- `created_at` (timestamp)
-- `ended_at` (timestamp)
-
-#### `subscriptions`
-User subscriptions to creators
-- `id` (uuid, PK)
-- `user_id` (uuid, FK → profiles)
-- `creator_id` (uuid, FK → profiles)
-- `status` (text) - 'active', 'cancelled', 'expired'
-- `started_at` (timestamp)
-- `expires_at` (timestamp)
-- `cancelled_at` (timestamp)
-
-#### `transactions`
-Financial transactions
-- `id` (uuid, PK)
-- `user_id` (uuid, FK → profiles) - Payer
-- `creator_id` (uuid, FK → profiles) - Payee
-- `affiliate_id` (uuid, FK → profiles) - Affiliate (if any)
-- `type` (text) - 'subscription', 'superchat'
-- `amount` (numeric) - Total amount
-- `creator_amount` (numeric) - Creator's share
-- `platform_amount` (numeric) - Platform's share
-- `affiliate_amount` (numeric) - Affiliate's share
-- `status` (text) - 'pending', 'approved', 'failed'
-- `external_id` (text) - Mercado Pago ID
-- `metadata` (jsonb) - Additional data
-
-#### `messages`
-Chat messages
-- `id` (uuid, PK)
-- `room_id` (uuid, FK → rooms)
-- `user_id` (uuid, FK → profiles)
-- `content` (text) - Message content
-- `created_at` (timestamp)
-
-#### `chat_settings`
-Chat moderation settings
-- `id` (uuid, PK)
-- `room_id` (uuid, FK → rooms)
-- `subscribers_only` (boolean)
-- `slow_mode_enabled` (boolean)
-- `slow_mode_duration` (integer) - Seconds between messages
-- `banned_words` (text[])
-
-#### `banned_users`
-Banned users from rooms
-- `id` (uuid, PK)
-- `room_id` (uuid, FK → rooms)
-- `user_id` (uuid, FK → profiles)
-- `banned_by` (uuid, FK → profiles)
-- `is_permanent` (boolean)
-- `reason` (text)
-- `expires_at` (timestamp)
-
-#### `payout_requests`
-Creator payout requests
-- `id` (uuid, PK)
-- `creator_id` (uuid, FK → profiles)
-- `amount` (numeric)
-- `status` (text) - 'pending', 'approved', 'paid', 'rejected'
-- `bank_account_id` (uuid, FK → creator_bank_accounts)
-- `approved_by` (uuid, FK → profiles)
-- `approved_at` (timestamp)
-- `paid_at` (timestamp)
-- `admin_notes` (text)
-
-## 🔐 Row Level Security (RLS)
-
-All tables have RLS enabled with policies ensuring:
-- Users can only read/write their own data
-- Creators can manage their own rooms and settings
-- Admins have full access (using `has_role()` function)
-
-### Key Security Functions
-
-```sql
--- Check if user has specific role
-CREATE FUNCTION has_role(_user_id uuid, _role app_role)
-RETURNS boolean
-SECURITY DEFINER
-SET search_path = public;
-
--- Check if user is subscribed to creator
-CREATE FUNCTION is_subscribed_to_creator(_user_id uuid, _creator_id uuid)
-RETURNS boolean
-SECURITY DEFINER
-SET search_path = public;
-```
-
-## 🌐 Edge Functions
-
-### `create-daily-room`
-Creates Daily.co video rooms for live streaming
-- **Method**: POST
-- **Auth**: Required
-- **Body**: `{ roomTitle: string }`
-- **Returns**: `{ room: DailyRoom }`
-
-### `create-payment`
-Creates Mercado Pago payment links
-- **Method**: POST
-- **Auth**: Required
-- **Body**: `{ creatorId, userId, type, amount?, description? }`
-- **Returns**: `{ init_point: string }`
-
-### `mercadopago-webhook`
-Handles Mercado Pago payment notifications
-- **Method**: POST
-- **Auth**: Public (webhook)
-- **Body**: Mercado Pago webhook payload
-- **Actions**: Updates transactions, subscriptions, balances
-
-### `send-notification-email`
-Sends transactional emails via Resend
-- **Method**: POST
-- **Auth**: Required
-- **Body**: `{ to, subject, html, type }`
-- **Returns**: `{ emailId }`
-
-## 🎨 Design System
-
-Theme colors defined in `src/index.css`:
-
-```css
-:root {
-  --background: 0 0% 0%;        /* Pure black */
-  --foreground: 0 0% 98%;       /* Almost white */
-  --primary: 270 80% 55%;       /* Vibrant purple #8B45F0 */
-  --primary-glow: 270 80% 65%;  /* Lighter purple */
-  --secondary: 0 0% 10%;        /* Dark gray */
-  --muted: 0 0% 15%;            /* Medium gray */
-  --accent: 270 80% 55%;        /* Accent purple */
-  --success: 142 76% 36%;       /* Green */
-  --destructive: 0 84% 60%;     /* Red */
-  --border: 0 0% 15%;           /* Border gray */
-}
-```
-
-## 🔧 Environment Variables
-
-Create `.env` file (auto-generated by Supabase):
-
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_SUPABASE_PROJECT_ID=your-project-id
-```
-
-### Supabase Secrets
-
-Set these in Supabase Dashboard → Project Settings → Edge Functions:
-
-```
-MERCADOPAGO_ACCESS_TOKEN=APP_USR-xxx
-DAILY_API_KEY=xxx
-RESEND_API_KEY=re_xxx
-```
-
-## 🚀 Deployment
-
-### Frontend (Lovable / Vercel)
-
-1. Connect repository to Lovable or Vercel
-2. Set environment variables
-3. Deploy automatically on git push
-
-### Backend (Supabase)
-
-Edge functions deploy automatically when you push to git.
-
-To manually deploy:
-
-```bash
-supabase functions deploy create-daily-room
-supabase functions deploy create-payment
-supabase functions deploy mercadopago-webhook
-supabase functions deploy send-notification-email
-```
-
-### Database Migrations
-
-Migrations run automatically in Lovable Cloud.
-
-To manually run:
-
-```bash
-supabase db push
-```
-
-## 🔄 Real-time Features
-
-Supabase Realtime is enabled for:
-- `messages` - Live chat
-- `room_participants` - Viewer count
-- `transactions` - Revenue updates
-
-Enable realtime on a table:
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.table_name;
-```
-
-## 🧪 Testing
-
-### Test User Flows
-
-1. **Viewer Registration**
-   - Sign up as viewer
-   - Browse creators
-   - Watch preview (30s)
-   - Subscribe to creator
-   - Join live room
-   - Send chat messages
-   - Send SuperChat
-
-2. **Creator Workflow**
-   - Sign up as creator
-   - Set up profile (upload avatar, bio)
-   - Go live (camera/mic permissions)
-   - Monitor viewer count
-   - Moderate chat
-   - Check revenue
-   - Request payout
-
-3. **Admin Operations**
-   - Log in as admin
-   - View all users
-   - Manage financial settings
-   - Approve payouts
-   - View analytics
-
-## 🐛 Common Issues
-
-### "Invalid JWT" errors
-- Check Supabase anon key is correct
-- Verify user session is active
-
-### "RLS policy violation"
-- Check user has correct role
-- Verify user_id matches auth.uid()
-
-### Payments not processing
-- Check Mercado Pago API key
-- Verify webhook URL is public
-- Check transaction status in database
-
-### Video not streaming
-- Check Daily.co API key
-- Verify browser camera/mic permissions
-- Check daily_room_url is set
-
-## 📊 Analytics & Monitoring
-
-Monitor via Supabase Dashboard:
-- Database queries (Logs → Database)
-- Edge function logs (Logs → Edge Functions)
-- Authentication events (Authentication → Users)
-- Storage usage (Storage → Usage)
-
-## 🔗 External APIs
-
-### Daily.co
-- **Docs**: https://docs.daily.co/
-- **API Key**: Set in Supabase secrets
-- **Rate Limits**: 100 rooms/hour on free tier
-
-### Mercado Pago
-- **Docs**: https://www.mercadopago.com.br/developers
-- **API Key**: `MERCADOPAGO_ACCESS_TOKEN`
-- **Webhook**: `https://your-project.supabase.co/functions/v1/mercadopago-webhook`
-
-### Resend
-- **Docs**: https://resend.com/docs
-- **API Key**: `RESEND_API_KEY`
-- **From Email**: Must be verified domain
-
-## 👨‍💻 Development Tips
-
-- Use TypeScript for type safety
-- Follow existing component patterns
-- Keep components small and focused
-- Use shadcn-ui components for UI
-- Follow RLS patterns for security
-- Test with different user roles
-- Use Supabase Studio for database management
-
-## 📝 Code Style
-
-- **React**: Functional components with hooks
-- **TypeScript**: Strict mode enabled
-- **Naming**: camelCase for variables, PascalCase for components
-- **CSS**: Tailwind utility classes + semantic tokens
-- **Imports**: Organized (React → libraries → components → utils)
-
-## 🆘 Support
-
-For technical issues:
-1. Check Supabase logs
-2. Review RLS policies
-3. Verify environment variables
-4. Test API keys
-5. Check browser console for errors
-
-## 🔄 Update Process
-
-1. Pull latest changes from git
-2. Review migration files in `supabase/migrations/`
-3. Deploy edge functions if changed
-4. Test in staging environment
-5. Deploy to production
-6. Monitor logs for errors
+## 3. Backend API (Key Endpoints)
+| Endpoint | Auth | Description |
+| --- | --- | --- |
+| `GET /status`, `/status/health`, `/status/version` | public | Health surfaces + build info. |
+| `GET /status/diagnostics`, `/status/checklist` | admin token | Deep readiness data (Supabase, Mercado Pago, Resend, CORS, canonical URLs, monitor state). |
+| `GET /lives/public` | public | Lists active/scheduled lives with pricing/status info. |
+| `GET /lives/creator` | creator | Creator’s own lives + lifecycle state. |
+| `POST /lives/start` | creator | Generates/stores `room_name`, transitions to `waiting_for_host`, returns `{ roomName, jitsiUrl }`. |
+| `GET /lives/:liveId/info` | auth | Returns metadata + `jitsiUrl` for creators or entitled viewers. |
+| `POST /lives/access` | auth | After payment approval, returns `{ accessUrl: https://meet.jit.si/<room_name> }`. |
+| `POST /payments/create` | auth | Creates Mercado Pago checkout preference + pending payment row. |
+| `POST /payments/webhook` | Mercado Pago | Validates HMAC, processes approvals, grants access, credits balances, sends emails. |
+| `POST /email/send` | auth | Triggers Resend transactional emails. |
+| `POST /creators/register` | auth | Promotes profile to creator, handles referral code. |
+| `GET /creators/balance`, `/commissions`, `/referrals` | creator | Finance dashboards + referral analytics. |
+| `POST /creators/referral-code` | creator | Creates or returns a referral link. |
+| `POST /creators/withdraw`, `GET /creators/withdraw/history` | creator | Withdrawal request + history. |
+| `/admin/withdrawals/*` | admin | Finance workflows to approve/reject/pay withdrawals. |
+
+All non-public routes enforce Supabase Auth via `requireAuth`, return `{ success, data }` envelopes, and include structured logging.
+
+## 4. Streaming Flow (Jitsi)
+1. **Creator starts a live**
+   - `POST /lives/start` → `jitsiService.createPrivateRoom` generates `room_name` and persists it on the `lives` row.
+   - Response contains the slug plus `https://meet.jit.si/<room_name>` so the frontend can embed the room.
+2. **Viewer purchases access**
+   - `POST /payments/create` returns Mercado Pago `init_point`.
+   - After checkout, Mercado Pago sends a webhook that the backend validates and processes.
+3. **Access grant**
+   - Approved webhook inserts `live_access` and credits balances/commissions.
+   - Emails include the same Jitsi URL for the viewer.
+4. **Viewer joins**
+   - `POST /lives/access` checks entitlement and responds with `{ accessUrl }` pointing to the Jitsi meeting.
+5. **Inactivity monitor**
+   - Supabase Edge Function `monitor-lives` runs every minute, reads `live_heartbeat`, and ends stale lives (transition to `ending`/`ended` and logs `live_end_log`).
+
+## 5. Supabase Schema Highlights
+- `lives` – includes `room_name`, `price`, revenue percentages, lifecycle state, `is_active`, `ended_at`.
+- `payments` – payment ledger with Mercado Pago metadata and webhook idempotency keys.
+- `live_access` – viewer entitlements (unique `(user_id, live_id)` constraint).
+- `creator_balance`, `commissions`, `referral_links`, `referral_conversions`, `platform_revenue` – monetization + affiliate accounting.
+- `withdrawals`, `withdrawal_audit_log` – payout workflow with admin RLS policies.
+- `live_heartbeat`, `live_end_log` – inactivity tracking for the cron-based monitor.
+- `webhook_events` – stores `idempotency_key` + SHA-256 body hash for Mercado Pago webhooks.
+All tables enforce RLS policies matching the backend’s expectations (creators can only see their data, service role can perform privileged inserts/updates).
+
+## 6. Environment & Diagnostics
+See `.env.example` for the authoritative list. Highlights:
+- `PUBLIC_BASE_URL` (optional) → canonical deployment host; falls back to `https://<VERCEL_URL>` or `http://localhost:<port>`.
+- `MERCADOPAGO_WEBHOOK_URL` must equal `${PUBLIC_BASE_URL}/payments/webhook`; diagnostics report mismatches and operators can confirm via `npm run print:webhook-urls`.
+- `/status/diagnostics` exposes `env`, `urlConsistency`, `jitsi` block (mode + sample URL), CORS whitelist, logger level, rate-limit state, and monitor snapshot pulled from Supabase.
+- `/status/checklist` is the deploy runbook: env coverage, table existence, webhook readiness, rate-limit + auth/admin enforcement, cron configuration.
+
+## 7. Development Tips
+- **Auth**: Use Supabase Auth tokens (from the frontend or CLI) to call creator routes; never pass IDs manually.
+- **Raw-body webhooks**: Keep `backend/src/middleware/rawBodyParsers.ts` attached to `/payments/webhook` so HMAC validation succeeds locally and on Vercel. `vercel.json` sets `RAW_BODY=true` for the function bundle.
+- **CORS**: Update `ALLOWED_ORIGINS` when testing from different dev domains; unknown origins are blocked and logged.
+- **Logging**: Set `LOG_LEVEL=debug` for verbose request logs in dev; production defaults to `info` but still emits structured business events.
+- **Cron monitor**: Supabase cron (configured in `supabase/config.toml`) invokes `monitor-lives` every minute; adjust `schedule` there if environments require a different cadence.
+
+## 8. Testing & Build Commands
+- `npm run dev` – Frontend dev server.
+- `npm run backend:dev` – Backend watcher via `ts-node-dev`.
+- `npm run backend:build` – Type-check + compile Express API.
+- `npm run build` – Frontend production build.
+- `npm run print:webhook-urls` – Prints canonical base + webhook URLs using the current env.
+
+## 9. Future Enhancements
+- Secure Jitsi rooms using JWTs or custom moderators once needed.
+- Add viewer chat, moderation, and subscription management to the frontend.
+- Surface platform revenue + accounting exports via dedicated admin endpoints.
+- Introduce automated Mercado Pago refund/chargeback handling.
+
+This README reflects the Jitsi-based backend and should remain in sync with `ARCHITECTURE.md` and the Supabase migrations. Update it whenever new routes, schema changes, or deployment requirements land.

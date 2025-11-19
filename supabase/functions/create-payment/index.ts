@@ -29,13 +29,15 @@ serve(async (req) => {
     // Create Mercado Pago preference
     const mpToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')!;
     
+    const currency = Deno.env.get('MERCADOPAGO_CURRENCY') || 'USD';
+
     const preference = {
       items: [
         {
           title: description || 'Assinatura Premium',
           quantity: 1,
           unit_price: paymentAmount,
-          currency_id: 'BRL'
+          currency_id: currency
         }
       ],
       back_urls: {
