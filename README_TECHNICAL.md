@@ -38,20 +38,15 @@ creator-stream-talk/
 │  └─ config.toml          # Cron schedule (monitor every 1 minute)
 ├─ scripts/
 │  └─ printWebhookUrls.ts  # Prints resolved base + webhook URLs
-└─ vercel.json             # SPA + API rewrites for Vercel (backend at /api/*)
+└─ vercel.json             # Serverless routing & RAW_BODY config
 ```
-
-### Vercel deployment shape
-- **Backend**: Express serverless function bundled from `backend/index.ts`, reachable at `/api/*` via `vercel.json` rewrites. RAW_BODY is enabled for Mercado Pago webhooks. Build with `npm run backend:build` (invoked by `npm run vercel-build`).
-- **Frontend**: Vite SPA built to `dist/`; all non-API routes rewrite to `/index.html` for client-side routing (`/`, `/dashboard`, `/live/:liveId`, payment callbacks, etc.).
-- **Base URL config**: Set `VITE_API_BASE_URL=https://<domain>/api` (or rely on `window.location.origin` during local dev with the same prefix) so the client targets the routed API.
 
 ## 3. Backend API (Key Endpoints)
 | Endpoint | Auth | Description |
 | --- | --- | --- |
 | `GET /status`, `/status/health`, `/status/version` | public | Health surfaces + build info. |
 | `GET /status/diagnostics`, `/status/checklist` | admin token | Deep readiness data (Supabase, Mercado Pago, Resend, CORS, canonical URLs, monitor state). |
-| `GET /lives` (alias `/lives/public`) | public | Lists active/scheduled lives with pricing/status info. |
+| `GET /lives/public` | public | Lists active/scheduled lives with pricing/status info. |
 | `GET /lives/creator` | creator | Creator’s own lives + lifecycle state. |
 | `POST /lives/start` | creator | Generates/stores `room_name`, transitions to `waiting_for_host`, returns `{ roomName, jitsiUrl }`. |
 | `GET /lives/:liveId/info` | auth | Returns metadata + `jitsiUrl` for creators or entitled viewers. |
@@ -94,19 +89,10 @@ All tables enforce RLS policies matching the backend’s expectations (creators 
 
 ## 6. Environment & Diagnostics
 See `.env.example` for the authoritative list. Highlights:
-- **Backend (required)**: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `MERCADOPAGO_ACCESS_TOKEN` (alias `MERCADO_PAGO_ACCESS_TOKEN`), `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_WEBHOOK_URL`, `MERCADOPAGO_CURRENCY`, `RESEND_API_KEY`, `EMAIL_LOCALE`, `PUBLIC_BASE_URL`, `ALLOWED_ORIGINS`, `ALLOWED_WEBHOOK_DOMAIN`, `HEARTBEAT_INTERVAL_MS`, `HEARTBEAT_TOLERANCE_MS`, `BACKEND_PORT`, `LOG_LEVEL`.
-- **Frontend (required)**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`; optional `VITE_API_BASE_URL` (defaults to `<origin>/api`).
-- `MERCADOPAGO_WEBHOOK_URL` must equal `${PUBLIC_BASE_URL}/api/payments/webhook`; diagnostics report mismatches and operators can confirm via `npm run print:webhook-urls`.
+- `PUBLIC_BASE_URL` (optional) → canonical deployment host; falls back to `https://<VERCEL_URL>` or `http://localhost:<port>`.
+- `MERCADOPAGO_WEBHOOK_URL` must equal `${PUBLIC_BASE_URL}/payments/webhook`; diagnostics report mismatches and operators can confirm via `npm run print:webhook-urls`.
 - `/status/diagnostics` exposes `env`, `urlConsistency`, `jitsi` block (mode + sample URL), CORS whitelist, logger level, rate-limit state, and monitor snapshot pulled from Supabase.
 - `/status/checklist` is the deploy runbook: env coverage, table existence, webhook readiness, rate-limit + auth/admin enforcement, cron configuration.
-
-## 6.1 Deployment checklist (Vercel)
-1. Provision all backend env vars in Vercel Project Settings (Production/Preview) as listed in `.env.example` (including `PUBLIC_BASE_URL`, `ALLOWED_WEBHOOK_DOMAIN`, heartbeat interval/tolerance).
-2. Set `VITE_API_BASE_URL=https://<your-domain>/api` so the SPA calls the routed Express function.
-3. Ensure `MERCADOPAGO_WEBHOOK_URL` matches `${PUBLIC_BASE_URL}/api/payments/webhook` (diagnostics warn on mismatch).
-4. Deploy with `vercel.json` present; Vercel will run `npm run vercel-build` (backend + frontend) and publish `dist/` as the SPA output.
-5. Confirm `/status/diagnostics` and `/status/checklist` return `ok` in the deployed environment.
-6. Verify SPA routes (`/`, `/dashboard`, `/live/:id`, payment callbacks) resolve to `index.html` while `/api/*` endpoints respond via Express.
 
 ## 7. Development Tips
 - **Auth**: Use Supabase Auth tokens (from the frontend or CLI) to call creator routes; never pass IDs manually.
@@ -121,7 +107,6 @@ See `.env.example` for the authoritative list. Highlights:
 - `npm run backend:build` – Type-check + compile Express API.
 - `npm run build` – Frontend production build.
 - `npm run print:webhook-urls` – Prints canonical base + webhook URLs using the current env.
-- `npm run vercel-build` – Runs backend + frontend builds for the Vercel pipeline.
 
 ## 9. Future Enhancements
 - Secure Jitsi rooms using JWTs or custom moderators once needed.

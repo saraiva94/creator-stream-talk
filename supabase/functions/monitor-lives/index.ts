@@ -22,12 +22,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-const pollIntervalMs = Number(
-  Deno.env.get('HEARTBEAT_INTERVAL_MS') ?? Deno.env.get('HEARTBEAT_INTERVAL') ?? '60000',
-);
-const toleranceMs = Number(
-  Deno.env.get('HEARTBEAT_TOLERANCE_MS') ?? Deno.env.get('HEARTBEAT_TOLERANCE') ?? '600000',
-);
+const pollIntervalMs = Number(Deno.env.get('HEARTBEAT_POLL_INTERVAL_MS') ?? '60000');
 
 const normalizeStatus = (value: unknown): LiveLifecycleStatus | null => {
   if (!value || typeof value !== 'string') {
@@ -154,10 +149,7 @@ const transitionToEndingAndClose = async (
 
 const runMonitorCycle = async () => {
   const summaries = await fetchActiveLivesWithHeartbeat();
-  const evaluation = evaluateLiveHeartbeats(summaries, Date.now(), {
-    hostAbsentThresholdMs: toleranceMs,
-    cameraInactiveThresholdMs: toleranceMs * 2,
-  });
+  const evaluation = evaluateLiveHeartbeats(summaries);
   const endedLives: { liveId: string; reason: string }[] = [];
 
   for (const candidate of evaluation.endedLives) {

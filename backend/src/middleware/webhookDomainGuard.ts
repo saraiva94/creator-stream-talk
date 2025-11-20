@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import logger from '../lib/logger';
-import { getAllowedWebhookDomain, getPublicBaseUrl } from '../lib/env';
+import { getPublicBaseUrl } from '../lib/env';
 
 export type WebhookKind = 'mercadopago';
 
@@ -22,11 +22,6 @@ const normalizeHost = (value?: string | null): string | null => {
 
 const getExpectedHost = (): { origin: string | null; host: string | null } => {
   try {
-    const configuredHost = getAllowedWebhookDomain();
-    if (configuredHost) {
-      return { origin: configuredHost, host: configuredHost };
-    }
-
     const origin = getPublicBaseUrl();
     const { host } = new URL(origin);
     return { origin, host: host.toLowerCase() };

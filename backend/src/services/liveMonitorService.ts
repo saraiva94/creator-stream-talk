@@ -1,5 +1,5 @@
 import logger from '../lib/logger';
-import { getHeartbeatIntervalMs, getHeartbeatToleranceMs } from '../lib/env';
+import { getHeartbeatPollInterval } from '../lib/env';
 import { evaluateLiveHeartbeats } from '../shared/liveMonitorCore';
 import {
   countActiveLives,
@@ -28,11 +28,7 @@ const transitionToEndingAndClose = async (
 
 export const evaluateAndTerminateInactiveLives = async () => {
   const summaries = await getActiveLivesWithHeartbeat();
-  const toleranceMs = getHeartbeatToleranceMs();
-  const evaluation = evaluateLiveHeartbeats(summaries, Date.now(), {
-    hostAbsentThresholdMs: toleranceMs,
-    cameraInactiveThresholdMs: toleranceMs * 2,
-  });
+  const evaluation = evaluateLiveHeartbeats(summaries);
   const endedLives: { liveId: string; reason: string }[] = [];
 
   for (const candidate of evaluation.endedLives) {
@@ -63,7 +59,7 @@ export const getMonitorSnapshot = async () => {
     schedule: MONITOR_SCHEDULE,
     running: false,
     enabled: true,
-    intervalMs: getHeartbeatIntervalMs(),
+    intervalMs: getHeartbeatPollInterval(),
     lastHeartbeatRun,
     lastActiveLives: activeLives,
   };
