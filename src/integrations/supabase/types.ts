@@ -4,777 +4,551 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[]
+  | Json[];
 
-export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
-  }
+export interface Database {
   public: {
     Tables: {
-      banned_users: {
-        Row: {
-          banned_by: string
-          created_at: string
-          expires_at: string | null
-          id: string
-          is_permanent: boolean | null
-          reason: string | null
-          room_id: string
-          user_id: string
-        }
-        Insert: {
-          banned_by: string
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          is_permanent?: boolean | null
-          reason?: string | null
-          room_id: string
-          user_id: string
-        }
-        Update: {
-          banned_by?: string
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          is_permanent?: boolean | null
-          reason?: string | null
-          room_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "banned_users_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "rooms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      chat_settings: {
-        Row: {
-          banned_words: string[] | null
-          id: string
-          room_id: string
-          slow_mode_duration: number | null
-          slow_mode_enabled: boolean | null
-          subscribers_only: boolean | null
-          updated_at: string
-        }
-        Insert: {
-          banned_words?: string[] | null
-          id?: string
-          room_id: string
-          slow_mode_duration?: number | null
-          slow_mode_enabled?: boolean | null
-          subscribers_only?: boolean | null
-          updated_at?: string
-        }
-        Update: {
-          banned_words?: string[] | null
-          id?: string
-          room_id?: string
-          slow_mode_duration?: number | null
-          slow_mode_enabled?: boolean | null
-          subscribers_only?: boolean | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chat_settings_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: true
-            referencedRelation: "rooms"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      creator_bank_accounts: {
-        Row: {
-          account_holder_name: string
-          account_number: string
-          account_type: string
-          bank_name: string
-          created_at: string
-          creator_id: string
-          document_number: string
-          id: string
-          is_active: boolean | null
-          routing_number: string
-          updated_at: string
-        }
-        Insert: {
-          account_holder_name: string
-          account_number: string
-          account_type: string
-          bank_name: string
-          created_at?: string
-          creator_id: string
-          document_number: string
-          id?: string
-          is_active?: boolean | null
-          routing_number: string
-          updated_at?: string
-        }
-        Update: {
-          account_holder_name?: string
-          account_number?: string
-          account_type?: string
-          bank_name?: string
-          created_at?: string
-          creator_id?: string
-          document_number?: string
-          id?: string
-          is_active?: boolean | null
-          routing_number?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      creator_profiles: {
-        Row: {
-          bio: string | null
-          created_at: string
-          daily_room_name: string | null
-          daily_room_url: string | null
-          display_name: string
-          id: string
-          is_streaming: boolean | null
-          tags: string[] | null
-          viewer_count: number | null
-        }
-        Insert: {
-          bio?: string | null
-          created_at?: string
-          daily_room_name?: string | null
-          daily_room_url?: string | null
-          display_name: string
-          id: string
-          is_streaming?: boolean | null
-          tags?: string[] | null
-          viewer_count?: number | null
-        }
-        Update: {
-          bio?: string | null
-          created_at?: string
-          daily_room_name?: string | null
-          daily_room_url?: string | null
-          display_name?: string
-          id?: string
-          is_streaming?: boolean | null
-          tags?: string[] | null
-          viewer_count?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "creator_profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      email_queue: {
-        Row: {
-          created_at: string | null
-          email_type: string
-          error: string | null
-          html_content: string
-          id: string
-          sent_at: string | null
-          status: string | null
-          subject: string
-          to_email: string
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          email_type: string
-          error?: string | null
-          html_content: string
-          id?: string
-          sent_at?: string | null
-          status?: string | null
-          subject: string
-          to_email: string
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          email_type?: string
-          error?: string | null
-          html_content?: string
-          id?: string
-          sent_at?: string | null
-          status?: string | null
-          subject?: string
-          to_email?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      financial_settings: {
-        Row: {
-          affiliate_percentage: number
-          creator_percentage: number
-          id: string
-          platform_percentage: number
-          subscription_price: number
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          affiliate_percentage?: number
-          creator_percentage?: number
-          id?: string
-          platform_percentage?: number
-          subscription_price?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          affiliate_percentage?: number
-          creator_percentage?: number
-          id?: string
-          platform_percentage?: number
-          subscription_price?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      messages: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          room_id: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          room_id: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          room_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "messages_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "rooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      notifications: {
-        Row: {
-          created_at: string
-          id: string
-          message: string
-          read: boolean | null
-          title: string
-          type: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message: string
-          read?: boolean | null
-          title: string
-          type: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message?: string
-          read?: boolean | null
-          title?: string
-          type?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      payout_requests: {
-        Row: {
-          admin_notes: string | null
-          amount: number
-          approved_at: string | null
-          approved_by: string | null
-          bank_account_id: string | null
-          created_at: string
-          creator_id: string
-          id: string
-          paid_at: string | null
-          status: string
-        }
-        Insert: {
-          admin_notes?: string | null
-          amount: number
-          approved_at?: string | null
-          approved_by?: string | null
-          bank_account_id?: string | null
-          created_at?: string
-          creator_id: string
-          id?: string
-          paid_at?: string | null
-          status?: string
-        }
-        Update: {
-          admin_notes?: string | null
-          amount?: number
-          approved_at?: string | null
-          approved_by?: string | null
-          bank_account_id?: string | null
-          created_at?: string
-          creator_id?: string
-          id?: string
-          paid_at?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payout_requests_bank_account_id_fkey"
-            columns: ["bank_account_id"]
-            isOneToOne: false
-            referencedRelation: "creator_bank_accounts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
-          avatar_url: string | null
-          balance: number | null
-          bio: string | null
-          created_at: string
-          gender: string | null
-          id: string
-          is_subscribed: boolean | null
-          language: string | null
-          referral_code: string | null
-          referred_by: string | null
-          updated_at: string
-          username: string
-          website: string | null
-        }
+          id: string;
+          email: string;
+          username: string | null;
+          avatar_url: string | null;
+          created_at: string;
+        };
         Insert: {
-          avatar_url?: string | null
-          balance?: number | null
-          bio?: string | null
-          created_at?: string
-          gender?: string | null
-          id: string
-          is_subscribed?: boolean | null
-          language?: string | null
-          referral_code?: string | null
-          referred_by?: string | null
-          updated_at?: string
-          username: string
-          website?: string | null
-        }
+          id?: string;
+          email: string;
+          username?: string | null;
+          avatar_url?: string | null;
+          created_at?: string;
+        };
         Update: {
-          avatar_url?: string | null
-          balance?: number | null
-          bio?: string | null
-          created_at?: string
-          gender?: string | null
-          id?: string
-          is_subscribed?: boolean | null
-          language?: string | null
-          referral_code?: string | null
-          referred_by?: string | null
-          updated_at?: string
-          username?: string
-          website?: string | null
-        }
-        Relationships: []
-      }
-      referrals: {
+          id?: string;
+          email?: string;
+          username?: string | null;
+          avatar_url?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      creators: {
         Row: {
-          commission_earned: number | null
-          created_at: string
-          id: string
-          referral_code: string
-          referred_id: string
-          referrer_id: string
-          status: string
-        }
+          id: string;
+          user_id: string;
+          bio: string | null;
+          price_per_minute: number | null;
+          created_at: string;
+        };
         Insert: {
-          commission_earned?: number | null
-          created_at?: string
-          id?: string
-          referral_code: string
-          referred_id: string
-          referrer_id: string
-          status?: string
-        }
+          id?: string;
+          user_id: string;
+          bio?: string | null;
+          price_per_minute?: number | null;
+          created_at?: string;
+        };
         Update: {
-          commission_earned?: number | null
-          created_at?: string
-          id?: string
-          referral_code?: string
-          referred_id?: string
-          referrer_id?: string
-          status?: string
-        }
-        Relationships: []
-      }
-      room_participants: {
-        Row: {
-          id: string
-          joined_at: string
-          room_id: string
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          joined_at?: string
-          room_id: string
-          user_id: string
-        }
-        Update: {
-          id?: string
-          joined_at?: string
-          room_id?: string
-          user_id?: string
-        }
+          id?: string;
+          user_id?: string;
+          bio?: string | null;
+          price_per_minute?: number | null;
+          created_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "room_participants_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "rooms"
-            referencedColumns: ["id"]
+            foreignKeyName: 'creators_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
           },
-          {
-            foreignKeyName: "room_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      rooms: {
+        ];
+      };
+      lives: {
         Row: {
-          created_at: string
-          creator_id: string
-          daily_room_name: string | null
-          ended_at: string | null
-          id: string
-          is_active: boolean | null
-          stream_key: string | null
-          title: string
-          viewer_count: number | null
-        }
+          id: string;
+          creator_id: string;
+          title: string | null;
+          description: string | null;
+          price: number | null;
+          room_name: string | null;
+          is_active: boolean | null;
+          status: string | null;
+          creator_percent: number | null;
+          affiliate_percent: number | null;
+          platform_percent: number | null;
+          created_at: string | null;
+          ended_at: string | null;
+        };
         Insert: {
-          created_at?: string
-          creator_id: string
-          daily_room_name?: string | null
-          ended_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          stream_key?: string | null
-          title: string
-          viewer_count?: number | null
-        }
+          id?: string;
+          creator_id: string;
+          title?: string | null;
+          description?: string | null;
+          price?: number | null;
+          room_name?: string | null;
+          is_active?: boolean | null;
+          status?: string | null;
+          creator_percent?: number | null;
+          affiliate_percent?: number | null;
+          platform_percent?: number | null;
+          created_at?: string | null;
+          ended_at?: string | null;
+        };
         Update: {
-          created_at?: string
-          creator_id?: string
-          daily_room_name?: string | null
-          ended_at?: string | null
-          id?: string
-          is_active?: boolean | null
-          stream_key?: string | null
-          title?: string
-          viewer_count?: number | null
-        }
+          id?: string;
+          creator_id?: string;
+          title?: string | null;
+          description?: string | null;
+          price?: number | null;
+          room_name?: string | null;
+          is_active?: boolean | null;
+          status?: string | null;
+          creator_percent?: number | null;
+          affiliate_percent?: number | null;
+          platform_percent?: number | null;
+          created_at?: string | null;
+          ended_at?: string | null;
+        };
         Relationships: [
           {
-            foreignKeyName: "rooms_creator_id_fkey"
-            columns: ["creator_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
+            foreignKeyName: 'lives_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
           },
-        ]
-      }
-      subscriptions: {
+        ];
+      };
+      payments: {
         Row: {
-          cancelled_at: string | null
-          creator_id: string
-          expires_at: string | null
-          id: string
-          started_at: string
-          status: string
-          user_id: string
-        }
+          id: string;
+          user_id: string;
+          live_id: string;
+          amount: number;
+          status: string;
+          created_at: string;
+        };
         Insert: {
-          cancelled_at?: string | null
-          creator_id: string
-          expires_at?: string | null
-          id?: string
-          started_at?: string
-          status?: string
-          user_id: string
-        }
+          id?: string;
+          user_id: string;
+          live_id: string;
+          amount: number;
+          status: string;
+          created_at?: string;
+        };
         Update: {
-          cancelled_at?: string | null
-          creator_id?: string
-          expires_at?: string | null
-          id?: string
-          started_at?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      transactions: {
+          id?: string;
+          user_id?: string;
+          live_id?: string;
+          amount?: number;
+          status?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'payments_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'payments_live_id_fkey';
+            columns: ['live_id'];
+            referencedRelation: 'lives';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      live_access: {
         Row: {
-          affiliate_amount: number | null
-          affiliate_id: string | null
-          amount: number
-          created_at: string
-          creator_amount: number | null
-          creator_id: string | null
-          external_id: string | null
-          id: string
-          metadata: Json | null
-          payment_method: string | null
-          platform_amount: number | null
-          status: string
-          type: string
-          user_id: string | null
-        }
+          id: string;
+          user_id: string;
+          live_id: string;
+          granted_at: string;
+        };
         Insert: {
-          affiliate_amount?: number | null
-          affiliate_id?: string | null
-          amount: number
-          created_at?: string
-          creator_amount?: number | null
-          creator_id?: string | null
-          external_id?: string | null
-          id?: string
-          metadata?: Json | null
-          payment_method?: string | null
-          platform_amount?: number | null
-          status?: string
-          type: string
-          user_id?: string | null
-        }
+          id?: string;
+          user_id: string;
+          live_id: string;
+          granted_at?: string;
+        };
         Update: {
-          affiliate_amount?: number | null
-          affiliate_id?: string | null
-          amount?: number
-          created_at?: string
-          creator_amount?: number | null
-          creator_id?: string | null
-          external_id?: string | null
-          id?: string
-          metadata?: Json | null
-          payment_method?: string | null
-          platform_amount?: number | null
-          status?: string
-          type?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      user_roles: {
+          id?: string;
+          user_id?: string;
+          live_id?: string;
+          granted_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'live_access_user_id_fkey';
+            columns: ['user_id'];
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'live_access_live_id_fkey';
+            columns: ['live_id'];
+            referencedRelation: 'lives';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      commissions: {
         Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
+          id: string;
+          creator_id: string;
+          payment_id: string;
+          commission_amount: number;
+          created_at: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
+          id?: string;
+          creator_id: string;
+          payment_id: string;
+          commission_amount: number;
+          created_at?: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      increment_balance: {
-        Args: { _amount: number; _user_id: string }
-        Returns: undefined
-      }
-      is_subscribed_to_creator: {
-        Args: { _creator_id: string; _user_id: string }
-        Returns: boolean
-      }
-    }
-    Enums: {
-      app_role: "admin" | "creator" | "viewer"
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
+          id?: string;
+          creator_id?: string;
+          payment_id?: string;
+          commission_amount?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'commissions_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'commissions_payment_id_fkey';
+            columns: ['payment_id'];
+            referencedRelation: 'payments';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      referral_links: {
+        Row: {
+          id: string;
+          creator_id: string;
+          code: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          creator_id: string;
+          code: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          creator_id?: string;
+          code?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'referral_links_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      referral_conversions: {
+        Row: {
+          id: string;
+          referral_code: string;
+          parent_creator_id: string;
+          new_creator_id: string;
+          commission_amount: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          referral_code: string;
+          parent_creator_id: string;
+          new_creator_id: string;
+          commission_amount?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          referral_code?: string;
+          parent_creator_id?: string;
+          new_creator_id?: string;
+          commission_amount?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'referral_conversions_parent_creator_id_fkey';
+            columns: ['parent_creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'referral_conversions_new_creator_id_fkey';
+            columns: ['new_creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      creator_balance: {
+        Row: {
+          id: string;
+          creator_id: string;
+          balance: number;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          creator_id: string;
+          balance?: number;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          creator_id?: string;
+          balance?: number;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'creator_balance_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      affiliate_balance: {
+        Row: {
+          id: string;
+          creator_id: string;
+          balance: number;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          creator_id: string;
+          balance?: number;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          creator_id?: string;
+          balance?: number;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'affiliate_balance_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      withdrawals: {
+        Row: {
+          id: string;
+          creator_id: string;
+          amount: number;
+          status: string;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          creator_id: string;
+          amount: number;
+          status?: string;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          creator_id?: string;
+          amount?: number;
+          status?: string;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'withdrawals_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      withdrawal_audit_log: {
+        Row: {
+          id: string;
+          withdrawal_id: string;
+          status: string;
+          admin_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          withdrawal_id: string;
+          status: string;
+          admin_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          withdrawal_id?: string;
+          status?: string;
+          admin_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'withdrawal_audit_log_withdrawal_id_fkey';
+            columns: ['withdrawal_id'];
+            referencedRelation: 'withdrawals';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      platform_revenue: {
+        Row: {
+          id: string;
+          payment_id: string;
+          amount: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          payment_id: string;
+          amount: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          payment_id?: string;
+          amount?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'platform_revenue_payment_id_fkey';
+            columns: ['payment_id'];
+            referencedRelation: 'payments';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      webhook_events: {
+        Row: {
+          idempotency_key: string;
+          body_hash: string | null;
+          processed_at: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          idempotency_key: string;
+          body_hash?: string | null;
+          processed_at?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          idempotency_key?: string;
+          body_hash?: string | null;
+          processed_at?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      live_heartbeat: {
+        Row: {
+          id: string;
+          live_id: string;
+          creator_id: string;
+          last_heartbeat: string;
+          camera_active: boolean;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          live_id: string;
+          creator_id: string;
+          last_heartbeat: string;
+          camera_active?: boolean;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          live_id?: string;
+          creator_id?: string;
+          last_heartbeat?: string;
+          camera_active?: boolean;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'live_heartbeat_live_id_fkey';
+            columns: ['live_id'];
+            referencedRelation: 'lives';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'live_heartbeat_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      live_end_log: {
+        Row: {
+          id: string;
+          live_id: string;
+          creator_id: string;
+          reason: string | null;
+          ended_at: string;
+        };
+        Insert: {
+          id?: string;
+          live_id: string;
+          creator_id: string;
+          reason?: string | null;
+          ended_at?: string;
+        };
+        Update: {
+          id?: string;
+          live_id?: string;
+          creator_id?: string;
+          reason?: string | null;
+          ended_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'live_end_log_live_id_fkey';
+            columns: ['live_id'];
+            referencedRelation: 'lives';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'live_end_log_creator_id_fkey';
+            columns: ['creator_id'];
+            referencedRelation: 'creators';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+    };
+    Views: {};
+    Functions: {};
+    Enums: {};
+    CompositeTypes: {};
+  };
 }
-
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
-
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
-
-export type Tables<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
-    }
-    ? R
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
-      }
-      ? R
-      : never
-    : never
-
-export type TablesInsert<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
-    }
-    ? I
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
-      }
-      ? I
-      : never
-    : never
-
-export type TablesUpdate<
-  DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
-> = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
-    }
-    ? U
-    : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
-      }
-      ? U
-      : never
-    : never
-
-export type Enums<
-  DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
-> = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
-
-export type CompositeTypes<
-  PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
-  }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
-> = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
-}
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
-
-export const Constants = {
-  public: {
-    Enums: {
-      app_role: ["admin", "creator", "viewer"],
-    },
-  },
-} as const

@@ -105,12 +105,4 @@ FOR EACH ROW
 WHEN (NEW.type = 'subscription' AND NEW.status = 'completed')
 EXECUTE FUNCTION public.handle_affiliate_bonus();
 
--- Add daily_room_name to creator_profiles for Daily.co integration
-ALTER TABLE public.creator_profiles
-ADD COLUMN IF NOT EXISTS daily_room_name text,
-ADD COLUMN IF NOT EXISTS daily_room_url text;
-
--- Add stream_key to rooms for streaming
-ALTER TABLE public.rooms
-ADD COLUMN IF NOT EXISTS stream_key text,
-ADD COLUMN IF NOT EXISTS daily_room_name text;
+-- Room metadata is now handled via the lives table using a generic room_name column.

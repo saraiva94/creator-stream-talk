@@ -53,20 +53,3 @@ export const sendEmail = async (
     throw error;
   }
 };
-
-export const createDailyRoom = async (roomTitle: string) => {
-  try {
-    const { data, error } = await supabase.functions.invoke('create-daily-room', {
-      body: {
-        roomTitle
-      }
-    });
-
-    if (error) throw error;
-    
-    return data;
-  } catch (error) {
-    console.error('Error creating Daily room:', error);
-    throw error;
-  }
-};

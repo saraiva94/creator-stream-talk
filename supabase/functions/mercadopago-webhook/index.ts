@@ -23,7 +23,11 @@ serve(async (req) => {
       const paymentId = payload.data.id;
       
       // Fetch payment details from Mercado Pago
-      const mpToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')!;
+      const mpToken =
+        Deno.env.get('MERCADOPAGO_ACCESS_TOKEN') ?? Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
+      if (!mpToken) {
+        throw new Error('Missing Mercado Pago access token (MERCADOPAGO_ACCESS_TOKEN or MERCADO_PAGO_ACCESS_TOKEN)');
+      }
       const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
         headers: {
           'Authorization': `Bearer ${mpToken}`
