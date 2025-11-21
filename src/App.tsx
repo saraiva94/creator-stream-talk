@@ -4,45 +4,53 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/hooks/useLanguage";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import ConnectivityOverlay from "@/components/ConnectivityOverlay";
+import { CreditsProvider } from "@/contexts/CreditsContext";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
-import Room from "./pages/Room";
 import Dashboard from "./pages/Dashboard";
 import Subscribe from "./pages/Subscribe";
 import ResetPassword from "./pages/ResetPassword";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
-import LiveManagement from "./pages/LiveManagement";
 import NotFound from "./pages/NotFound";
+import LiveViewer from "./pages/LiveViewer";
+import RegistrationCheckoutPage from "./pages/RegistrationCheckoutPage";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <LanguageProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/room/:creatorId" element={<Room />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/live-management" element={<LiveManagement />} />
-            <Route path="/subscribe" element={<Subscribe />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/affiliate" element={<Affiliate />} />
-            <Route path="/profile" element={<Profile />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </LanguageProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
+        <CreditsProvider>
+          <TooltipProvider>
+            <ConnectivityOverlay />
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/live/:liveId" element={<LiveViewer />} />
+                <Route path="/register" element={<RegistrationCheckoutPage />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/subscribe" element={<Subscribe />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/affiliate" element={<Affiliate />} />
+                <Route path="/profile" element={<Profile />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </CreditsProvider>
+      </LanguageProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
