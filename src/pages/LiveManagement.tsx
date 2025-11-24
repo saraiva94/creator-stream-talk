@@ -31,14 +31,14 @@ const LiveManagement = () => {
       }
       setUser(session.user);
 
-      // Check if user is a creator
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id);
+      // Get creator profile (align with backend guard)
+      const { data: creatorProfile, error: creatorError } = await supabase
+        .from("creator_profiles")
+        .select("*, profiles(username)")
+        .eq("id", session.user.id)
+        .maybeSingle();
 
-      const isCreator = roles?.some(r => r.role === "creator");
-      if (!isCreator) {
+      if (creatorError || !creatorProfile) {
         toast({
           title: "Acesso negado",
           description: "Apenas criadores podem acessar esta página",
@@ -47,13 +47,6 @@ const LiveManagement = () => {
         navigate("/");
         return;
       }
-
-      // Get creator profile
-      const { data: creatorProfile } = await supabase
-        .from("creator_profiles")
-        .select("*, profiles(username)")
-        .eq("id", session.user.id)
-        .single();
 
       if (!creatorProfile?.daily_room_url) {
         toast({

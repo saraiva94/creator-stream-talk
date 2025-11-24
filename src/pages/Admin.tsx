@@ -44,14 +44,37 @@ const Admin = () => {
 
       setUser(session.user);
 
-      // Check if user has admin role
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id);
+      const rolesFromMeta = (() => {
+        const metaRoles = (session.user.app_metadata as any)?.roles || (session.user.user_metadata as any)?.roles;
+        const primaryRole =
+          (session.user.app_metadata as any)?.app_role ||
+          (session.user.user_metadata as any)?.app_role ||
+          (session.user.app_metadata as any)?.role ||
+          (session.user.user_metadata as any)?.role;
 
-      const hasAdminRole = roles?.some(r => r.role === "admin");
-      
+        const normalized = new Set<string>();
+        if (Array.isArray(metaRoles)) {
+          metaRoles.forEach((r) => normalized.add(String(r).toLowerCase()));
+        } else if (typeof metaRoles === "string") {
+          normalized.add(metaRoles.toLowerCase());
+        }
+        if (primaryRole) {
+          normalized.add(String(primaryRole).toLowerCase());
+        }
+        return normalized;
+      })();
+
+      let hasAdminRole = rolesFromMeta.has("admin");
+
+      if (!hasAdminRole) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id);
+
+        hasAdminRole = roles?.some((r) => r.role === "admin") || false;
+      }
+
       if (!hasAdminRole) {
         toast({
           title: "Access Denied",

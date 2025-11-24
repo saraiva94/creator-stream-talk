@@ -15,6 +15,11 @@ import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
 import LiveManagement from "./pages/LiveManagement";
 import NotFound from "./pages/NotFound";
+import CreatorDashboard from "./pages/CreatorDashboard";
+import CreatorLives from "./pages/CreatorLives";
+import CreatorHistory from "./pages/CreatorHistory";
+import CreatorSettings from "./pages/CreatorSettings";
+import CreatorPayouts from "./pages/CreatorPayouts";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +41,11 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/affiliate" element={<Affiliate />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/creator/dashboard" element={<CreatorDashboard />} />
+            <Route path="/creator/lives" element={<CreatorLives />} />
+            <Route path="/creator/history" element={<CreatorHistory />} />
+            <Route path="/creator/settings" element={<CreatorSettings />} />
+            <Route path="/creator/payouts" element={<CreatorPayouts />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

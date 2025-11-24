@@ -28,3 +28,4 @@ backend/dist
 # Environment configuration
 .env
 .env.local
+.aider*
