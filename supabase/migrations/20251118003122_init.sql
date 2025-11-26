@@ -67,21 +67,21 @@ alter table public.payments enable row level security;
 alter table public.live_access enable row level security;
 alter table public.commissions enable row level security;
 
-create policy if not exists "Users can view own profile" on public.profiles
+create policy "Users can view own profile" on public.profiles
 for select using (auth.uid() = id);
 
-create policy if not exists "Users can update own profile" on public.profiles
+create policy "Users can update own profile" on public.profiles
 for update using (auth.uid() = id)
 with check (auth.uid() = id);
 
-create policy if not exists "Creators can update own creator info" on public.creators
+create policy "Creators can update own creator info" on public.creators
 for update using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
-create policy if not exists "Public can view creators" on public.creators
+create policy "Public can view creators" on public.creators
 for select using (true);
 
-create policy if not exists "Creators can update own lives" on public.lives
+create policy "Creators can update own lives" on public.lives
 for update using (
     exists (
         select 1 from public.creators c
@@ -97,22 +97,22 @@ with check (
     )
 );
 
-create policy if not exists "Public can view active lives" on public.lives
+create policy "Public can view active lives" on public.lives
 for select using (is_active);
 
-create policy if not exists "Users view own payments" on public.payments
+create policy "Users view own payments" on public.payments
 for select using (auth.uid() = user_id);
 
-create policy if not exists "Service role inserts payments" on public.payments
+create policy "Service role inserts payments" on public.payments
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Users view own live access" on public.live_access
+create policy "Users view own live access" on public.live_access
 for select using (auth.uid() = user_id);
 
-create policy if not exists "Service role inserts live access" on public.live_access
+create policy "Service role inserts live access" on public.live_access
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Creators view own commissions" on public.commissions
+create policy "Creators view own commissions" on public.commissions
 for select using (
     exists (
         select 1 from public.creators c
@@ -121,5 +121,5 @@ for select using (
     )
 );
 
-create policy if not exists "Service role inserts commissions" on public.commissions
+create policy "Service role inserts commissions" on public.commissions
 for insert with check (auth.role() = 'service_role');

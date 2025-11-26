@@ -12,7 +12,7 @@ create index if not exists live_heartbeat_creator_id_idx on public.live_heartbea
 
 alter table public.live_heartbeat enable row level security;
 
-create policy if not exists "Service role manages live heartbeat" on public.live_heartbeat
+create policy "Service role manages live heartbeat" on public.live_heartbeat
   for all using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');
 
@@ -33,7 +33,7 @@ create index if not exists live_end_log_creator_id_idx on public.live_end_log(cr
 
 alter table public.live_end_log enable row level security;
 
-create policy if not exists "Creators view own live end log" on public.live_end_log
+create policy "Creators view own live end log" on public.live_end_log
   for select using (
     exists (
       select 1 from public.creators c
@@ -42,6 +42,6 @@ create policy if not exists "Creators view own live end log" on public.live_end_
     )
   );
 
-create policy if not exists "Service role writes live end log" on public.live_end_log
+create policy "Service role writes live end log" on public.live_end_log
   for all using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');

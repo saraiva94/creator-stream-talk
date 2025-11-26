@@ -13,11 +13,11 @@ create index if not exists withdrawal_audit_log_withdrawal_idx on public.withdra
 
 alter table public.withdrawal_audit_log enable row level security;
 
-create policy if not exists "Service role manages withdrawal audit log" on public.withdrawal_audit_log
+create policy "Service role manages withdrawal audit log" on public.withdrawal_audit_log
 for all using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
 
-create policy if not exists "Admins audit withdrawals" on public.withdrawal_audit_log
+create policy "Admins audit withdrawals" on public.withdrawal_audit_log
 for all using (
   coalesce((auth.jwt() ->> 'app_role'), (auth.jwt() ->> 'role'), '') = 'admin'
 )
@@ -25,7 +25,7 @@ with check (
   coalesce((auth.jwt() ->> 'app_role'), (auth.jwt() ->> 'role'), '') = 'admin'
 );
 
-create policy if not exists "Admins manage withdrawals" on public.withdrawals
+create policy "Admins manage withdrawals" on public.withdrawals
 for all using (
   coalesce((auth.jwt() ->> 'app_role'), (auth.jwt() ->> 'role'), '') = 'admin'
 )

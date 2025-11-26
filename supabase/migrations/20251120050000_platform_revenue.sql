@@ -9,12 +9,12 @@ create unique index if not exists platform_revenue_payment_idx on public.platfor
 
 alter table public.platform_revenue enable row level security;
 
-create policy if not exists "Service role views platform revenue" on public.platform_revenue
+create policy "Service role views platform revenue" on public.platform_revenue
 for select using (auth.role() = 'service_role');
 
-create policy if not exists "Service role inserts platform revenue" on public.platform_revenue
+create policy "Service role inserts platform revenue" on public.platform_revenue
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Service role updates platform revenue" on public.platform_revenue
+create policy "Service role updates platform revenue" on public.platform_revenue
 for update using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
