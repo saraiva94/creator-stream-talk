@@ -1,6 +1,6 @@
 import logger from '../lib/logger';
 import { supabase } from '../lib/supabaseClient';
-import type { Tables } from '../../supabaseTypes';
+import type { Tables } from '../types/supabaseTypes';
 
 type CreditsWalletRow = Tables<'credits_wallet'>;
 type CreditPurchaseRow = Tables<'credit_purchases'>;

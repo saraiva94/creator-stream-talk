@@ -26,3 +26,5 @@ Visão simples do produto e como operar o painel admin.
 - **Pagar saque de criador**: ir em `/admin/payouts` → Aprovar; se necessário, marcar como pago no fluxo existente.
 - **Ver afiliados funcionando**: peça que um usuário copie o link em Profile (painel de afiliado), crie um novo usuário via link e confira a comissão no painel de afiliados.
 - **Testar como usuário**: comprar créditos (checkout Mercado Pago), entrar em live, ver créditos sendo consumidos; ao zerar, o acesso é cortado. Após a live, o criador verá ganhos e poderá pedir saque.
+
+Para detalhes técnicos e variáveis `.env`, consulte o `README_TECHNICAL.md`.

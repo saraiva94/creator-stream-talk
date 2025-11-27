@@ -16,6 +16,6 @@ app.use(requestLogger);
 app.use('/', routes);
 app.use(errorHandler);
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Backend listening on port ${port}`);
 });

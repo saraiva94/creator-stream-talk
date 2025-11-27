@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Tables } from '../../supabaseTypes';
+import type { Database, Tables } from '../types/supabaseTypes';
 
 type CreatorEarningsRow = Tables<'creator_earnings'>;
 type LivesRow = Tables<'lives'>;

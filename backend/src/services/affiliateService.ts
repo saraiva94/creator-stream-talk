@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import type { Tables } from '../../supabaseTypes';
+import type { Tables } from '../types/supabaseTypes';
 
 type ReferralRow = Tables<'referrals'>;
 type TransactionsRow = Tables<'transactions'>;

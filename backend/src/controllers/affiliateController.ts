@@ -129,8 +129,16 @@ export const getAffiliateLink = async (req: Request, res: Response, next: NextFu
       referralCode = updated?.referral_code ?? candidate;
     }
 
+    if (!referralCode) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to resolve affiliate referral code',
+      });
+    }
+
     const baseUrl = process.env.PUBLIC_SITE_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
-    const url = `${baseUrl.replace(/\/$/, '')}/signup?ref=${encodeURIComponent(referralCode)}`;
+    const cleanedBase = baseUrl.replace(/\/$/, '');
+    const url = `${cleanedBase}/signup?ref=${encodeURIComponent(referralCode)}`;
 
     return respondSuccess(res, 200, { code: referralCode, url });
   } catch (error) {

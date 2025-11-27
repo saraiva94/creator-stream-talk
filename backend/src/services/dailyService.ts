@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { getEnv } from '../lib/env';
 
 const DAILY_API_BASE = 'https://api.daily.co/v1';

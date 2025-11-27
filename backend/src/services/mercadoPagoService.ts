@@ -1,9 +1,9 @@
-import fetch, { RequestInit } from 'node-fetch';
 import { getEnv } from '../lib/env';
 import logger from '../lib/logger';
 import { supabase } from '../lib/supabaseClient';
 import { registerCreditPurchase } from './creditsWalletService';
 import { registerAffiliatePayoutForSignup } from './affiliateService';
+type RequestInit = globalThis.RequestInit;
 
 const MERCADOPAGO_API_BASE = 'https://api.mercadopago.com';
 

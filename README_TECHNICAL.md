@@ -20,8 +20,18 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
    npm install
    cd backend && npm install && cd ..
    ```
-3. **Variáveis `.env`**
-   - Raiz: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BACKEND_PORT`, `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`.
+3. **Variáveis `.env` (raiz)**
+   - Copie `.env.example` para `.env`.
+   - Preencha:
+     - `VITE_SUPABASE_URL`
+     - `VITE_SUPABASE_PUBLISHABLE_KEY`
+     - `VITE_SUPABASE_PROJECT_ID`
+     - `SUPABASE_URL`
+     - `SUPABASE_SERVICE_ROLE_KEY`
+     - `BACKEND_PORT`
+     - `MERCADOPAGO_ACCESS_TOKEN`
+     - `MERCADOPAGO_PUBLIC_KEY`
+   - Frontend usa apenas as variáveis `VITE_*`; o backend lê `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` via `backend/src/lib/env.ts`.
    - Opcional: `PUBLIC_SITE_URL`, `MERCADOPAGO_WEBHOOK_URL`, `ALLOWED_ORIGINS`, `LOG_LEVEL`.
 4. **Linkar Supabase**
    ```bash

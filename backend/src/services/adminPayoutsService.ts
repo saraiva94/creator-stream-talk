@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
-import type { Tables } from '../../supabaseTypes';
+import type { Tables } from '../types/supabaseTypes';
 
 type PayoutRequestRow = Tables<'payout_requests'>;
 type CreatorWalletRow = Tables<'creator_wallet'>;
