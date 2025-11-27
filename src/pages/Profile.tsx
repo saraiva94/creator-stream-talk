@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { User, Globe } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
+import AffiliateDashboardPanel from "@/components/user/affiliate/AffiliateDashboardPanel";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -148,7 +150,7 @@ const Profile = () => {
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
 
-      <main className="container mx-auto px-4 py-8 max-w-2xl">
+      <main className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
         <div className="flex items-center gap-3 mb-8">
           <User className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold">Meu Perfil</h1>
@@ -252,6 +254,10 @@ const Profile = () => {
             </Button>
           </CardContent>
         </Card>
+
+        <UserCreditsWalletPanel />
+
+        <AffiliateDashboardPanel />
       </main>
     </div>
   );

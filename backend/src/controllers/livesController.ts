@@ -13,6 +13,7 @@ import {
 import { parseWithZod } from '../validation/utils';
 import { liveIdentifierSchema } from '../validation/livesSchemas';
 import { createPrivateRoom, generateAccessLink } from '../services/jitsiService';
+import { supabase } from '../lib/supabaseClient';
 
 export const getPublicLivesController = async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -48,6 +49,20 @@ export const startLiveController = async (req: Request, res: Response, next: Nex
 
     const { liveId } = parseWithZod(liveIdentifierSchema, req.body ?? {});
     const live = await ensureCreatorOwnsLive(liveId, profileId);
+
+    const { data: approvalRow, error: approvalError } = await supabase
+      .from('creator_profiles')
+      .select('is_verified')
+      .eq('id', profileId)
+      .maybeSingle();
+
+    if (approvalError) {
+      throw new Error(`Failed to verify creator approval: ${approvalError.message}`);
+    }
+
+    if (!approvalRow || approvalRow.is_verified !== true) {
+      return respondError(res, 403, 'Creator not approved for live streaming');
+    }
 
     if (live.status === 'ended') {
       return respondError(res, 409, 'This live has already ended');

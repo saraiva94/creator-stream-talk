@@ -20,6 +20,7 @@ import CreatorLives from "./pages/CreatorLives";
 import CreatorHistory from "./pages/CreatorHistory";
 import CreatorSettings from "./pages/CreatorSettings";
 import CreatorPayouts from "./pages/CreatorPayouts";
+import AdminCreators from "./pages/AdminCreators";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/subscribe" element={<Subscribe />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/creators" element={<AdminCreators />} />
             <Route path="/affiliate" element={<Affiliate />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/creator/dashboard" element={<CreatorDashboard />} />

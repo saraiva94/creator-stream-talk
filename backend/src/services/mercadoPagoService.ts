@@ -1,6 +1,9 @@
 import fetch, { RequestInit } from 'node-fetch';
 import { getEnv } from '../lib/env';
+import logger from '../lib/logger';
 import { supabase } from '../lib/supabaseClient';
+import { registerCreditPurchase } from './creditsWalletService';
+import { registerAffiliatePayoutForSignup } from './affiliateService';
 
 const MERCADOPAGO_API_BASE = 'https://api.mercadopago.com';
 
@@ -102,11 +105,15 @@ const resolvePaymentId = (payload: WebhookPayload): string | undefined => {
   return payload?.data?.id || payload?.resource?.split('/').pop();
 };
 
+type PaymentDetailsResponse = {
+  status: string;
+  metadata?: Record<string, string>;
+  transaction_amount?: number;
+  external_reference?: string | null;
+};
+
 const fetchPaymentDetails = async (paymentId: string) => {
-  return request<{ status: string; metadata?: Record<string, string> }>(
-    `/v1/payments/${paymentId}`,
-    { method: 'GET' },
-  );
+  return request<PaymentDetailsResponse>(`/v1/payments/${paymentId}`, { method: 'GET' });
 };
 
 const persistApprovedPayment = async (liveId: string, userId: string) => {
@@ -148,12 +155,66 @@ export const handlePaymentWebhook = async (
   const metadata = paymentDetails.metadata || {};
   const liveId = metadata.liveId || metadata.live_id;
   const userId = metadata.userId || metadata.user_id;
+  const profileId = metadata.profileId || metadata.profile_id || userId;
+  const purchaseType = (metadata.purchaseType || metadata.purchase_type || metadata.product || '').toLowerCase();
+  const amountCents = resolveAmountCents(paymentDetails.transaction_amount);
+
+  if (purchaseType === 'credits') {
+    if (!profileId) {
+      throw new Error('Payment metadata missing profileId for credits purchase.');
+    }
+
+    const amountCentsRaw = paymentDetails.transaction_amount ?? null;
+    const amountCents = Number.isFinite(amountCentsRaw) ? Math.round((amountCentsRaw as number) * 100) : NaN;
+
+    if (!Number.isFinite(amountCents) || amountCents <= 0) {
+      throw new Error('Invalid amount for credits purchase.');
+    }
+
+    const credits = calculateCreditsFromAmount(amountCents);
+
+    await registerCreditPurchase({
+      profileId,
+      credits,
+      amountCents,
+      paymentId: paymentDetails.external_reference || paymentId,
+    });
+
+    logger.info({
+      event: 'credits.purchase.approved',
+      profileId,
+      paymentId,
+      externalReference: paymentDetails.external_reference,
+      amountCents,
+      credits,
+    });
+
+    return { processed: true, mode: 'credits' };
+  }
 
   if (!liveId || !userId) {
     throw new Error('Payment metadata missing liveId or userId.');
   }
 
+  if (purchaseType === 'registration' && userId) {
+    await registerAffiliatePayoutForSignup({
+      newUserId: userId,
+      paymentId,
+      amountCents: Number.isFinite(amountCents) ? amountCents : undefined,
+    });
+  }
+
   await persistApprovedPayment(liveId, userId);
 
-  return { processed: true };
+  return { processed: true, mode: 'live_access' };
+};
+
+const resolveAmountCents = (transactionAmount?: number | null) => {
+  if (!Number.isFinite(transactionAmount as number)) return NaN;
+  return Math.round((transactionAmount as number) * 100);
+};
+
+export const calculateCreditsFromAmount = (amountCents: number) => {
+  // 180 credits for each R$5.00 (500 cents). Assume amount_cents is a multiple of 500.
+  return Math.round((amountCents / 500) * 180);
 };

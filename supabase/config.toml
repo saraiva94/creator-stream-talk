@@ -1,11 +1,4 @@
-project_id = "enacciilzvifhqpenhlz"
+project_id = "wtqsbhuvlvapwqmzcaxf"
 
 [functions."monitor-lives"]
 verify_jwt = false
-
-[cron]
-
-[[cron.jobs]]
-name = "monitor-lives"
-schedule = "* * * * *"
-command = "curl --fail --silent https://enacciilzvifhqpenhlz.functions.supabase.co/monitor-lives"

@@ -1,117 +1,100 @@
-# Creator Stream Talk – Technical Reference
+# Creator Stream Talk — Technical README
 
-This document summarizes how to work on the codebase after the migration to the Jitsi streaming architecture.
+Este documento consolida stack, setup e fluxos críticos (créditos, monetização, afiliados, lives) para desenvolvimento.
 
-## 1. Stack Summary
-- **Frontend**: React 18 + TypeScript + Vite + Tailwind + shadcn/ui (see `src/`).
-- **Backend**: Express + TypeScript (see `backend/`) with Supabase Auth validation, Mercado Pago integration, and Jitsi room orchestration.
-- **Database**: Supabase Postgres with migrations in `supabase/migrations/`, cron config in `supabase/config.toml`, and Edge Functions in `supabase/functions/`.
-- **Streaming**: Jitsi Meet public rooms built from backend-generated `room_name` slugs.
-- **Payments**: Mercado Pago checkout preferences + webhook approvals.
-- **Emails**: Resend transactional templates.
+## 1) Stack & Arquitetura
+- **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui (`src/`), roteado em `src/App.tsx`, cliente Supabase em `src/integrations/supabase/client.ts`.
+- **Backend:** Node/Express + TypeScript (`backend/`), Supabase Auth via middleware `requireAuth`, rotas em `backend/src/routes/`, serviços em `backend/src/services/`.
+- **Supabase:** Postgres com RLS, migrações SQL em `supabase/migrations/`, Edge Function `monitor-lives` (cron em `supabase/config.toml`), funções auxiliares (create-payment, mercadopago-webhook).
+- **Mercado Pago:** Checkout preference + webhook (`/payments/webhook`) para creditar acessos, créditos e afiliados.
+- **Créditos:** Armazenados como inteiros em `credits_wallet`; ledger em `credit_purchases`; consumo por sessão em `live_consumption`; earnings em `creator_earnings`; wallets em `creator_wallet`.
 
-## 2. Project Structure
-```
-creator-stream-talk/
-├─ src/
-│  ├─ components/          # shadcn/ui wrappers + UI primitives
-│  ├─ hooks/               # useLanguage, toast helpers, etc.
-│  ├─ integrations/
-│  │   └─ supabase/        # frontend Supabase client & types
-│  ├─ lib/                 # client utilities (payments, formatting)
-│  ├─ pages/               # routed screens (Home, Dashboard, Room, etc.)
-│  ├─ App.tsx              # Router + providers
-│  └─ main.tsx             # SPA bootstrap
-├─ backend/
-│  ├─ src/controllers/     # HTTP handlers (lives, payments, creators, admin)
-│  ├─ src/routes/          # Express routers (status, lives, payments, email)
-│  ├─ src/services/        # supabaseService, mercadoPagoService, jitsiService, emailService
-│  ├─ src/middleware/      # auth, cors, rate-limit, raw-body, domain guard, error handler
-│  ├─ src/lib/             # env loader, logger, responses, Supabase client
-│  ├─ src/shared/          # liveMonitorCore, Mercado Pago signature helper
-│  └─ index.ts             # Express entrypoint (dual-mode local + Vercel)
-├─ supabase/
-│  ├─ migrations/          # SQL migrations (room_name, revenue, withdrawals, etc.)
-│  ├─ functions/
-│  │   ├─ create-payment/  # Mercado Pago helper
-│  │   └─ monitor-lives/   # Cron-invoked heartbeat enforcement
-│  └─ config.toml          # Cron schedule (monitor every 1 minute)
-├─ scripts/
-│  └─ printWebhookUrls.ts  # Prints resolved base + webhook URLs
-└─ vercel.json             # Serverless routing & RAW_BODY config
-```
+## 2) Setup Local (passo a passo)
+1. **Clonar**
+   ```bash
+   git clone <repo-url>
+   cd creator-stream-talk
+   ```
+2. **Instalar deps**
+   ```bash
+   npm install
+   cd backend && npm install && cd ..
+   ```
+3. **Variáveis `.env`**
+   - Raiz: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BACKEND_PORT`, `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`.
+   - Opcional: `PUBLIC_SITE_URL`, `MERCADOPAGO_WEBHOOK_URL`, `ALLOWED_ORIGINS`, `LOG_LEVEL`.
+4. **Linkar Supabase**
+   ```bash
+   npx supabase login
+   npx supabase link --project-ref <project-ref>
+   ```
+5. **Aplicar migrações**
+   ```bash
+   npx supabase db push
+   ```
+6. **Gerar tipos**
+   ```bash
+   npx supabase gen types typescript --linked > supabaseTypes.ts
+   npx supabase gen types typescript --linked > src/integrations/supabase/types.ts
+   ```
+7. **Rodar backend**
+   ```bash
+   cd backend
+   npm run dev   # ts-node-dev
+   ```
+8. **Rodar frontend**
+   ```bash
+   npm run dev   # Vite
+   ```
+9. **monitor-lives (cron)**
+   - Config em `supabase/config.toml` (cron a cada 1 min chamando `functions/monitor-lives`).
+   - Em dev, pode chamar manualmente via Supabase Functions ou HTTP (POST/GET) para validar ciclo.
 
-## 3. Backend API (Key Endpoints)
-| Endpoint | Auth | Description |
-| --- | --- | --- |
-| `GET /status`, `/status/health`, `/status/version` | public | Health surfaces + build info. |
-| `GET /status/diagnostics`, `/status/checklist` | admin token | Deep readiness data (Supabase, Mercado Pago, Resend, CORS, canonical URLs, monitor state). |
-| `GET /lives/public` | public | Lists active/scheduled lives with pricing/status info. |
-| `GET /lives/creator` | creator | Creator’s own lives + lifecycle state. |
-| `POST /lives/start` | creator | Generates/stores `room_name`, transitions to `waiting_for_host`, returns `{ roomName, jitsiUrl }`. |
-| `GET /lives/:liveId/info` | auth | Returns metadata + `jitsiUrl` for creators or entitled viewers. |
-| `POST /lives/access` | auth | After payment approval, returns `{ accessUrl: https://meet.jit.si/<room_name> }`. |
-| `POST /payments/create` | auth | Creates Mercado Pago checkout preference + pending payment row. |
-| `POST /payments/webhook` | Mercado Pago | Validates HMAC, processes approvals, grants access, credits balances, sends emails. |
-| `POST /email/send` | auth | Triggers Resend transactional emails. |
-| `POST /creators/register` | auth | Promotes profile to creator, handles referral code. |
-| `GET /creators/balance`, `/commissions`, `/referrals` | creator | Finance dashboards + referral analytics. |
-| `POST /creators/referral-code` | creator | Creates or returns a referral link. |
-| `POST /creators/withdraw`, `GET /creators/withdraw/history` | creator | Withdrawal request + history. |
-| `/admin/withdrawals/*` | admin | Finance workflows to approve/reject/pay withdrawals. |
+## 3) Fluxo de Créditos
+- **Compra:** frontend chama `/payments/create-preference` com `purchaseType: 'credits'`; usuário paga no Mercado Pago.
+- **Webhook:** `/payments/webhook` valida e chama `registerCreditPurchase` → insere em `credit_purchases` (idempotente por `payment_id`) e incrementa `credits_wallet.balance_credits`.
+- **Sessão de live:** ao entrar, cria/usa `live_consumption` (live_id, user_id, session_token).
+- **Heartbeats (monitor-lives):** soma `seconds_watched`, calcula ticks de 10s (1 crédito = 10s), debita wallet. Se acabar crédito, encerra sessão, seta `ended_at` e remove `live_access`.
+- **Settlement:** ao encerrar live, `creatorEarningsService` soma `credits_consumed`, converte (500 cents ↔ 180 créditos; 80/20 split), insere/atualiza `creator_earnings` e credita `creator_wallet.balance_cents`.
 
-All non-public routes enforce Supabase Auth via `requireAuth`, return `{ success, data }` envelopes, and include structured logging.
+## 4) Fluxo de Saques do Criador
+- **Acúmulo:** `creator_wallet.balance_cents` recebe `net_cents` ao fim de cada live (settlement).
+- **Solicitação:** `POST /withdrawals/request` (auth creator) move `amount_cents` de balance → pending, cria `payout_requests` (status `pending`).
+- **Admin:** `/admin/payouts` rotas aprovam (pendente ↓) ou rejeitam (pendente ↓, balance ↑). Histórico via `payout_requests` e wallets via `creator_wallet`.
 
-## 4. Streaming Flow (Jitsi)
-1. **Creator starts a live**
-   - `POST /lives/start` → `jitsiService.createPrivateRoom` generates `room_name` and persists it on the `lives` row.
-   - Response contains the slug plus `https://meet.jit.si/<room_name>` so the frontend can embed the room.
-2. **Viewer purchases access**
-   - `POST /payments/create` returns Mercado Pago `init_point`.
-   - After checkout, Mercado Pago sends a webhook that the backend validates and processes.
-3. **Access grant**
-   - Approved webhook inserts `live_access` and credits balances/commissions.
-   - Emails include the same Jitsi URL for the viewer.
-4. **Viewer joins**
-   - `POST /lives/access` checks entitlement and responds with `{ accessUrl }` pointing to the Jitsi meeting.
-5. **Inactivity monitor**
-   - Supabase Edge Function `monitor-lives` runs every minute, reads `live_heartbeat`, and ends stale lives (transition to `ending`/`ended` and logs `live_end_log`).
+## 5) Fluxo de Afiliados
+- **Referral:** `referrals` guarda `referrer_id` → `referred_id`.
+- **Payout:** webhook de registro com `purchaseType: 'registration'` chama `registerAffiliatePayoutForSignup`:
+  - nível 1: +100 cents; nível 2: +50 cents.
+  - grava `transactions` (type `affiliate`, unique `external_id` por pagamento/nível) e credita `profiles.balance` via `increment_balance`.
+- **Painel:** usuário vê resumo/link/histórico em `Profile` (AffiliateDashboardPanel).
 
-## 5. Supabase Schema Highlights
-- `lives` – includes `room_name`, `price`, revenue percentages, lifecycle state, `is_active`, `ended_at`.
-- `payments` – payment ledger with Mercado Pago metadata and webhook idempotency keys.
-- `live_access` – viewer entitlements (unique `(user_id, live_id)` constraint).
-- `creator_balance`, `commissions`, `referral_links`, `referral_conversions`, `platform_revenue` – monetization + affiliate accounting.
-- `withdrawals`, `withdrawal_audit_log` – payout workflow with admin RLS policies.
-- `live_heartbeat`, `live_end_log` – inactivity tracking for the cron-based monitor.
-- `webhook_events` – stores `idempotency_key` + SHA-256 body hash for Mercado Pago webhooks.
-All tables enforce RLS policies matching the backend’s expectations (creators can only see their data, service role can perform privileged inserts/updates).
+## 6) Função `monitor-lives`
+- Roda a cada minuto; para lives ativas:
+  - Avalia heartbeats (encerra se host ausente/câmera inativa).
+  - Atualiza `live_consumption` e debita créditos por ticks de 10s; corta acesso ao zerar saldo.
+  - Ao encerrar live, chama settlement → `creator_earnings` + crédito em `creator_wallet`.
 
-## 6. Environment & Diagnostics
-See `.env.example` for the authoritative list. Highlights:
-- `PUBLIC_BASE_URL` (optional) → canonical deployment host; falls back to `https://<VERCEL_URL>` or `http://localhost:<port>`.
-- `MERCADOPAGO_WEBHOOK_URL` must equal `${PUBLIC_BASE_URL}/payments/webhook`; diagnostics report mismatches and operators can confirm via `npm run print:webhook-urls`.
-- `/status/diagnostics` exposes `env`, `urlConsistency`, `jitsi` block (mode + sample URL), CORS whitelist, logger level, rate-limit state, and monitor snapshot pulled from Supabase.
-- `/status/checklist` is the deploy runbook: env coverage, table existence, webhook readiness, rate-limit + auth/admin enforcement, cron configuration.
+## 7) Rotas Principais da Trilha B
+- `GET /credits/balance` (auth) → saldo de créditos.
+- `POST /withdrawals/request`, `GET /withdrawals/wallet-summary` (creator auth).
+- `GET /creator/earnings` (creator auth).
+- `/affiliate/overview`, `/affiliate/history`, `/affiliate/link` (auth).
+- `/admin/payouts/*` (admin), `/admin/creators/*` (admin).
 
-## 7. Development Tips
-- **Auth**: Use Supabase Auth tokens (from the frontend or CLI) to call creator routes; never pass IDs manually.
-- **Raw-body webhooks**: Keep `backend/src/middleware/rawBodyParsers.ts` attached to `/payments/webhook` so HMAC validation succeeds locally and on Vercel. `vercel.json` sets `RAW_BODY=true` for the function bundle.
-- **CORS**: Update `ALLOWED_ORIGINS` when testing from different dev domains; unknown origins are blocked and logged.
-- **Logging**: Set `LOG_LEVEL=debug` for verbose request logs in dev; production defaults to `info` but still emits structured business events.
-- **Cron monitor**: Supabase cron (configured in `supabase/config.toml`) invokes `monitor-lives` every minute; adjust `schedule` there if environments require a different cadence.
-
-## 8. Testing & Build Commands
-- `npm run dev` – Frontend dev server.
-- `npm run backend:dev` – Backend watcher via `ts-node-dev`.
-- `npm run backend:build` – Type-check + compile Express API.
-- `npm run build` – Frontend production build.
-- `npm run print:webhook-urls` – Prints canonical base + webhook URLs using the current env.
-
-## 9. Future Enhancements
-- Secure Jitsi rooms using JWTs or custom moderators once needed.
-- Add viewer chat, moderation, and subscription management to the frontend.
-- Surface platform revenue + accounting exports via dedicated admin endpoints.
-- Introduce automated Mercado Pago refund/chargeback handling.
-
-This README reflects the Jitsi-based backend and should remain in sync with `ARCHITECTURE.md` and the Supabase migrations. Update it whenever new routes, schema changes, or deployment requirements land.
+## 8) Checklist de Testes Manuais
+1. Compra créditos via Mercado Pago; webhook recebido; `credits_wallet` aumenta.
+2. Entrar em live ativa; créditos consumidos com o tempo.
+3. Ao zerar créditos, acesso cortado (live_access removido, sessão finalizada).
+4. Encerrar live gera/atualiza `creator_earnings` e credita `creator_wallet`.
+5. Criador vê saldo e histórico de earnings em `/creator/payouts`.
+6. Criador solicita saque; `balance_cents` diminui, `pending_cents` aumenta.
+7. Admin aprova saque; `pending_cents` reduz, status muda para aprovado/pago.
+8. Admin rejeita saque; valor volta para `balance_cents`.
+9. Afiliado gera link; novo usuário registra pelo link; comissão aparece no painel de afiliado.
+10. Criador não aprovado tenta iniciar live → 403.
+11. Criador aprovado inicia live normalmente.
+12. Affiliate overview mostra total ganho, saldo disponível e total de indicados.
+13. Pagamento de registro com `purchaseType: 'registration'` gera transações `affiliate` nível 1/2 e credita saldo.
+14. “Atualizar” nos painéis (wallet/affiliate/earnings) refaz chamadas e exibe novos valores.
+15. monitor-lives manual (chamada HTTP) não quebra e mantém estados consistentes.
