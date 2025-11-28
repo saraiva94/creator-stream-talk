@@ -48,6 +48,16 @@ const LiveManagement = () => {
         return;
       }
 
+      if (!creatorProfile.approved_for_live) {
+        toast({
+          title: "Aguardando aprovacao",
+          description: "Sua conta ainda nao foi aprovada para transmissao ao vivo.",
+          variant: "destructive",
+        });
+        navigate("/dashboard");
+        return;
+      }
+
       if (!creatorProfile?.daily_room_url) {
         toast({
           title: "Erro",

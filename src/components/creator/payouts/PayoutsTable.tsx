@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 type Payout = {
   id: string;
   amount: number;
-  status: "pending" | "approved" | "paid" | "rejected";
+  status: "pending" | "approved" | "paid" | "rejected" | "cancelled";
   requestedAt: string;
+  pixKey?: string | null;
 };
 
 type Props = {
@@ -24,6 +25,7 @@ const statusVariant: Record<Payout["status"], "outline" | "secondary" | "default
   approved: "default",
   paid: "default",
   rejected: "destructive",
+  cancelled: "destructive",
 };
 
 const PayoutsTable = ({ payouts }: Props) => {
@@ -36,6 +38,7 @@ const PayoutsTable = ({ payouts }: Props) => {
             <TableHead>Valor</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Solicitado em</TableHead>
+            <TableHead>PIX</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -45,10 +48,13 @@ const PayoutsTable = ({ payouts }: Props) => {
               <TableCell className="font-medium">R$ {payout.amount.toFixed(2)}</TableCell>
               <TableCell>
                 <Badge variant={statusVariant[payout.status]} className="capitalize">
-                  {payout.status}
+                  {payout.status === "cancelled" ? "rejeitado" : payout.status}
                 </Badge>
               </TableCell>
               <TableCell>{new Date(payout.requestedAt).toLocaleString("pt-BR")}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {payout.pixKey ? payout.pixKey : "—"}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

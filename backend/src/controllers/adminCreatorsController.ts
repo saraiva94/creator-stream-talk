@@ -6,7 +6,7 @@ const mapCreatorRow = (row: any) => ({
   id: row.id,
   email: row.profiles?.email ?? null,
   username: row.profiles?.username ?? null,
-  isApprovedForLive: Boolean(row.is_verified),
+  isApprovedForLive: Boolean(row.approved_for_live),
   createdAt: row.created_at,
 });
 
@@ -18,7 +18,7 @@ export const listCreators = async (_req: Request, res: Response, next: NextFunct
         `
           id,
           user_id,
-          is_verified,
+          approved_for_live,
           created_at,
           profiles:user_id (
             username,
@@ -56,7 +56,7 @@ export const toggleCreatorApproval = async (req: Request, res: Response, next: N
       .select(
         `
           id,
-          is_verified,
+          approved_for_live,
           created_at,
           profiles:user_id (
             username,
@@ -77,12 +77,12 @@ export const toggleCreatorApproval = async (req: Request, res: Response, next: N
 
     const { data: updated, error: updateError } = await supabase
       .from('creator_profiles')
-      .update({ is_verified: isApproved })
+      .update({ approved_for_live: isApproved })
       .eq('id', creatorId)
       .select(
         `
           id,
-          is_verified,
+          approved_for_live,
           created_at,
           profiles:user_id (
             username,

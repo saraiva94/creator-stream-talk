@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
 
 const PayoutsSummary = ({ summary, isLoading }: Props) => {
   const items = [
-    { label: "Saldo disponível", value: `R$ ${summary.balance.toFixed(2)}` },
+    { label: "Saldo disponivel", value: `R$ ${summary.balance.toFixed(2)}` },
     { label: "Pendentes", value: `R$ ${summary.pending.toFixed(2)}` },
     { label: "Pagos", value: `R$ ${summary.paid.toFixed(2)}` },
   ];
@@ -23,7 +23,6 @@ const PayoutsSummary = ({ summary, isLoading }: Props) => {
         <Card key={item.label} className="border-border/60">
           <CardHeader>
             <CardTitle className="text-sm font-medium">{item.label}</CardTitle>
-            <CardDescription>Mock</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-6 w-20" /> : <div className="text-xl font-bold">{item.value}</div>}

@@ -57,7 +57,8 @@ export const listPendingPayoutRequests = async () => {
     .from('payout_requests')
     .select(
       `id, creator_id, amount, status, created_at, bank_account_id,
-       creator_bank_accounts!left ( bank_name, account_type, account_number, routing_number, account_holder_name, document_number )`,
+       creator_bank_accounts!left ( bank_name, account_type, account_number, routing_number, account_holder_name, document_number ),
+       pix_key`,
     )
     .eq('status', STATUS_PENDING)
     .order('created_at', { ascending: true });
@@ -72,6 +73,7 @@ export const listPendingPayoutRequests = async () => {
     amountCents: row.amount,
     status: row.status,
     createdAt: row.created_at,
+    pixKey: row.pix_key ?? null,
     bank: row.creator_bank_accounts ?? null,
   }));
 };

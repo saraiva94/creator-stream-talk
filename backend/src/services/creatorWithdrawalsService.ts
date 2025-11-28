@@ -4,8 +4,6 @@ import type { Tables } from '../types/supabaseTypes';
 type CreatorWalletRow = Tables<'creator_wallet'>;
 type PayoutRequestRow = Tables<'payout_requests'>;
 
-const FEE_CENTS = 290;
-
 const ensureWallet = async (creatorId: string) => {
   const { data, error } = await supabase
     .from('creator_wallet')
@@ -45,11 +43,13 @@ export const getCreatorWalletSummary = async (creatorId: string) => {
 type CreateWithdrawalRequestParams = {
   creatorId: string;
   amountCents: number;
+  pixKey: string;
 };
 
 export const createWithdrawalRequest = async ({
   creatorId,
   amountCents,
+  pixKey,
 }: CreateWithdrawalRequestParams) => {
   const wallet = await ensureWallet(creatorId);
 
@@ -61,12 +61,10 @@ export const createWithdrawalRequest = async ({
     throw new Error('amount_cents must be greater than zero');
   }
 
-  if (amountCents <= FEE_CENTS) {
-    throw new Error('amount_cents must be greater than fee_cents');
+  const trimmedPixKey = (pixKey ?? '').toString().trim();
+  if (!trimmedPixKey) {
+    throw new Error('pix_key is required');
   }
-
-  const feeCents = FEE_CENTS;
-  const netCents = amountCents - feeCents;
 
   if ((wallet.balance_cents ?? 0) < amountCents) {
     throw new Error('Insufficient balance');
@@ -103,6 +101,7 @@ export const createWithdrawalRequest = async ({
       amount: amountCents, // stored in cents to match internal representation
       status: 'pending',
       created_at: now,
+      pix_key: trimmedPixKey,
     } satisfies Partial<PayoutRequestRow>)
     .select('id')
     .maybeSingle();
@@ -115,9 +114,31 @@ export const createWithdrawalRequest = async ({
     requestId: payout.id as string,
     creatorId,
     amountCents,
-    feeCents,
-    netCents,
+    pixKey: trimmedPixKey,
     balanceCentsAfter: balanceAfter,
     pendingCentsAfter: pendingAfter,
   };
+};
+
+export const listCreatorPayoutRequests = async (creatorId: string) => {
+  const { data, error } = await supabase
+    .from('payout_requests')
+    .select('id, amount, status, created_at, approved_at, paid_at, admin_notes, pix_key')
+    .eq('creator_id', creatorId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to load payout requests: ${error.message}`);
+  }
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id as string,
+    amountCents: Number(row.amount ?? 0),
+    status: (row.status as string) ?? 'pending',
+    createdAt: row.created_at as string,
+    approvedAt: row.approved_at as string | null,
+    paidAt: row.paid_at as string | null,
+    adminNotes: row.admin_notes as string | null,
+    pixKey: row.pix_key as string | null,
+  }));
 };

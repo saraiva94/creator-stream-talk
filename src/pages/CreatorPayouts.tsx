@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PayoutsSummary from "@/components/creator/payouts/PayoutsSummary";
 import PayoutsTable from "@/components/creator/payouts/PayoutsTable";
 import CreatorWalletPanel from "@/components/creator/wallet/CreatorWalletPanel";
@@ -8,65 +8,151 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
+type EarningRow = {
+  id: string;
+  liveId: string;
+  liveTitle: string | null;
+  liveCreatedAt: string | null;
+  creditsConsumed: number;
+  grossCents: number;
+  netCents: number;
+  platformCents: number;
+  status: string;
+  settledAt: string | null;
+};
+
+type WalletSummary = {
+  balance_cents: number;
+  pending_cents: number;
+};
+
+type PayoutRow = {
+  id: string;
+  amountCents: number;
+  status: string;
+  createdAt: string;
+  pixKey?: string | null;
+};
+
+type ApiResponse<T> = {
+  success: boolean;
+  data?: T;
+  error?: string;
+};
+
+const backendBase = import.meta.env.VITE_BACKEND_URL ?? "";
+
+const getAuthHeaders = async () => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const CreatorPayouts = () => {
-  const summary = { balance: 820.5, pending: 210.0, paid: 3400.75 };
-  const payouts = [
-    { id: "p1", amount: 150.0, status: "pending" as const, requestedAt: "2024-11-06T12:00:00Z" },
-    { id: "p2", amount: 320.0, status: "approved" as const, requestedAt: "2024-11-02T09:30:00Z" },
-    { id: "p3", amount: 200.5, status: "paid" as const, requestedAt: "2024-10-28T16:15:00Z" },
-  ];
-
-  type EarningRow = {
-    id: string;
-    liveId: string;
-    liveTitle: string | null;
-    liveCreatedAt: string | null;
-    creditsConsumed: number;
-    grossCents: number;
-    netCents: number;
-    platformCents: number;
-    status: string;
-    settledAt: string | null;
-  };
-
   const [earnings, setEarnings] = useState<EarningRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
+  const [earningsError, setEarningsError] = useState<string | null>(null);
 
-  const backendBase = import.meta.env.VITE_BACKEND_URL ?? "";
-
-  const getAuthHeaders = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
+  const [walletSummary, setWalletSummary] = useState<WalletSummary | null>(null);
+  const [payouts, setPayouts] = useState<PayoutRow[]>([]);
+  const [isLoadingPayouts, setIsLoadingPayouts] = useState(false);
+  const [payoutsError, setPayoutsError] = useState<string | null>(null);
 
   const fetchEarnings = async () => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoadingEarnings(true);
+    setEarningsError(null);
     try {
       const headers = {
         "Content-Type": "application/json",
         ...(await getAuthHeaders()),
       };
       const res = await fetch(`${backendBase}/creator/earnings`, { headers });
-      const body = await res.json();
+      const body = (await res.json()) as ApiResponse<EarningRow[]>;
       if (!res.ok || !body?.success) {
-        throw new Error(body?.error || "Não foi possível carregar o histórico de ganhos");
+        throw new Error(body?.error || "Nao foi possivel carregar o historico de ganhos");
       }
       setEarnings(body.data ?? []);
     } catch (err) {
-      setError((err as Error).message);
+      setEarningsError((err as Error).message);
     } finally {
-      setIsLoading(false);
+      setIsLoadingEarnings(false);
+    }
+  };
+
+  const fetchPayoutHistory = async () => {
+    setIsLoadingPayouts(true);
+    setPayoutsError(null);
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      };
+      const res = await fetch(`${backendBase}/withdrawals/history`, { headers });
+      const body = (await res.json()) as ApiResponse<{ payouts: PayoutRow[] }>;
+      if (!res.ok || !body?.success || !body.data) {
+        throw new Error(body?.error || "Nao foi possivel carregar o historico de saques");
+      }
+      setPayouts(body.data.payouts ?? []);
+    } catch (err) {
+      setPayoutsError((err as Error).message);
+    } finally {
+      setIsLoadingPayouts(false);
     }
   };
 
   useEffect(() => {
     fetchEarnings();
+    fetchPayoutHistory();
   }, []);
+
+  const summaryData = useMemo(
+    () => ({
+      balance: (walletSummary?.balance_cents ?? 0) / 100,
+      pending: (walletSummary?.pending_cents ?? 0) / 100,
+      paid:
+        payouts
+          .filter((payout) => payout.status?.toLowerCase() === "paid")
+          .reduce((sum, payout) => sum + payout.amountCents, 0) / 100,
+    }),
+    [walletSummary, payouts],
+  );
+
+  const payoutTableRows = useMemo(
+    () =>
+      payouts.map((payout) => {
+        const normalizedStatus = (payout.status ?? "pending").toLowerCase();
+        const statusForUi =
+          normalizedStatus === "cancelled"
+            ? "cancelled"
+            : normalizedStatus === "approved"
+              ? "approved"
+              : normalizedStatus === "paid"
+                ? "paid"
+                : normalizedStatus === "rejected"
+                  ? "rejected"
+                  : "pending";
+
+        return {
+          id: payout.id,
+          amount: payout.amountCents / 100,
+          status: statusForUi as "pending" | "approved" | "paid" | "rejected" | "cancelled",
+          requestedAt: payout.createdAt,
+          pixKey: payout.pixKey,
+        };
+      }),
+    [payouts],
+  );
+
+  const handleWalletUpdate = (next: WalletSummary) => {
+    setWalletSummary(next);
+  };
+
+  const handleWithdrawalSuccess = (next: WalletSummary) => {
+    setWalletSummary(next);
+    fetchPayoutHistory();
+  };
 
   const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2)}`;
   const formatDate = (value: string | null) => {
@@ -80,32 +166,62 @@ const CreatorPayouts = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Payouts</h1>
-            <p className="text-muted-foreground text-sm">Mock para testes de UI.</p>
+            <p className="text-muted-foreground text-sm">
+              Solicite saques via PIX sem taxa e acompanhe seu historico de pagamentos.
+            </p>
           </div>
         </div>
 
-        <CreatorWalletPanel />
+        <CreatorWalletPanel onWalletUpdate={handleWalletUpdate} onWithdrawalSuccess={handleWithdrawalSuccess} />
+
+        <PayoutsSummary summary={summaryData} isLoading={!walletSummary} />
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Histórico de ganhos</h2>
-            <Button variant="ghost" size="sm" onClick={fetchEarnings} disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar"}
+            <h2 className="text-xl font-semibold">Historico de saques</h2>
+            <Button variant="ghost" size="sm" onClick={fetchPayoutHistory} disabled={isLoadingPayouts}>
+              {isLoadingPayouts ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar"}
             </Button>
           </div>
 
-          {error && (
+          {payoutsError && (
             <Alert variant="destructive">
               <AlertTitle>Erro</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{payoutsError}</AlertDescription>
             </Alert>
           )}
 
-          {isLoading && earnings.length === 0 ? (
-            <div className="text-sm text-muted-foreground">Carregando histórico de ganhos...</div>
+          {isLoadingPayouts && payoutTableRows.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Carregando solicitacoes...</div>
+          ) : payoutTableRows.length === 0 ? (
+            <Card className="border-border/60">
+              <CardContent className="py-6 text-muted-foreground">Nenhuma solicitacao de saque encontrada.</CardContent>
+            </Card>
+          ) : (
+            <PayoutsTable payouts={payoutTableRows} />
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Historico de ganhos</h2>
+            <Button variant="ghost" size="sm" onClick={fetchEarnings} disabled={isLoadingEarnings}>
+              {isLoadingEarnings ? <Loader2 className="h-4 w-4 animate-spin" /> : "Atualizar"}
+            </Button>
+          </div>
+
+          {earningsError && (
+            <Alert variant="destructive">
+              <AlertTitle>Erro</AlertTitle>
+              <AlertDescription>{earningsError}</AlertDescription>
+            </Alert>
+          )}
+
+          {isLoadingEarnings && earnings.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Carregando historico de ganhos...</div>
           ) : earnings.length === 0 ? (
             <Card className="border-border/60">
-              <CardContent className="py-6 text-muted-foreground">Você ainda não tem ganhos acumulados.</CardContent>
+              <CardContent className="py-6 text-muted-foreground">Voce ainda nao tem ganhos acumulados.</CardContent>
             </Card>
           ) : (
             <Card className="border-border/60">
@@ -118,9 +234,9 @@ const CreatorPayouts = () => {
                     <tr>
                       <th className="py-2 pr-3">Live</th>
                       <th className="py-2 pr-3">Status</th>
-                      <th className="py-2 pr-3">Créditos</th>
+                      <th className="py-2 pr-3">Creditos</th>
                       <th className="py-2 pr-3">Bruto</th>
-                      <th className="py-2 pr-3">Líquido</th>
+                      <th className="py-2 pr-3">Liquido</th>
                       <th className="py-2 pr-3">Plataforma</th>
                       <th className="py-2 pr-3">Liquidado em</th>
                     </tr>
@@ -146,10 +262,6 @@ const CreatorPayouts = () => {
             </Card>
           )}
         </section>
-
-        <PayoutsSummary summary={summary} />
-
-        <PayoutsTable payouts={payouts} />
       </main>
     </div>
   );

@@ -4,13 +4,36 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { Video, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
+
+// === helper para tratar erros sem usar `any` ===
+type ErrorWithMessage = {
+  message?: string;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as ErrorWithMessage).message === "string"
+  ) {
+    return (error as ErrorWithMessage).message ?? fallback;
+  }
+  return fallback;
+};
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -43,7 +66,7 @@ const Auth = () => {
     return minLength && hasUpperCase && hasNumber && hasSymbol;
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
+    const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !username) {
       toast({
@@ -78,29 +101,31 @@ const Auth = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Handle referral if present
       if (refCode && data.user) {
-        await supabase.from('referrals').insert({
+        const { data: refProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("referral_code", refCode)
+          .single();
+
+        await supabase.from("referrals").insert({
           referral_code: refCode,
           referred_id: data.user.id,
-          referrer_id: (await supabase
-            .from('profiles')
-            .select('id')
-            .eq('referral_code', refCode)
-            .single()).data?.id
+          referrer_id: refProfile?.id,
         });
       }
 
       // Set role in user_roles table
-      if (data.user) {
-        if (role === 'creator') {
-          await supabase.from('user_roles').insert({
-            user_id: data.user.id,
-            role: 'creator'
-          });
-        }
+      if (data.user && role === "creator") {
+        await supabase.from("user_roles").insert({
+          user_id: data.user.id,
+          role: "creator",
+        });
       }
 
       toast({
@@ -109,10 +134,17 @@ const Auth = () => {
       });
 
       setTimeout(() => navigate("/"), 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      console.error("Sign up error", error);
+
+      const description = getErrorMessage(
+        error,
+        "Error creating account. Please try again."
+      );
+
       toast({
         title: "Error creating account",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {
@@ -138,7 +170,9 @@ const Auth = () => {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({
         title: "Login successful!",
@@ -146,16 +180,24 @@ const Auth = () => {
       });
 
       navigate("/");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      console.error("Sign in error", error);
+
+      const description = getErrorMessage(
+        error,
+        "Login error. Please check your credentials or try again."
+      );
+
       toast({
         title: "Login error",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">

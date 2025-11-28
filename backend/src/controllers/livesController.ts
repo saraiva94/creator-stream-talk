@@ -50,19 +50,19 @@ export const startLiveController = async (req: Request, res: Response, next: Nex
     const { liveId } = parseWithZod(liveIdentifierSchema, req.body ?? {});
     const live = await ensureCreatorOwnsLive(liveId, profileId);
 
-    const { data: approvalRow, error: approvalError } = await supabase
-      .from('creator_profiles')
-      .select('is_verified')
-      .eq('id', profileId)
-      .maybeSingle();
+  const { data: approvalRow, error: approvalError } = await supabase
+    .from('creator_profiles')
+    .select('approved_for_live')
+    .eq('id', profileId)
+    .maybeSingle();
 
     if (approvalError) {
       throw new Error(`Failed to verify creator approval: ${approvalError.message}`);
     }
 
-    if (!approvalRow || approvalRow.is_verified !== true) {
-      return respondError(res, 403, 'Creator not approved for live streaming');
-    }
+  if (!approvalRow || approvalRow.approved_for_live !== true) {
+    return respondError(res, 403, 'Creator not approved for live streaming');
+  }
 
     if (live.status === 'ended') {
       return respondError(res, 409, 'This live has already ended');

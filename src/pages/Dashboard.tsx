@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { Video, Users } from "lucide-react";
 import {
@@ -37,6 +38,7 @@ const Dashboard = () => {
   const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
   const [showGoLiveDialog, setShowGoLiveDialog] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
+  const [approvedForLive, setApprovedForLive] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -62,6 +64,7 @@ const Dashboard = () => {
         setTags(creatorData.tags?.join(", ") || "");
         setIsStreaming(creatorData.is_streaming);
         setDailyRoomUrl(creatorData.daily_room_url);
+        setApprovedForLive(Boolean(creatorData.approved_for_live));
 
         // Get current room if streaming
         if (creatorData.is_streaming) {
@@ -152,6 +155,14 @@ const Dashboard = () => {
 
   const handleToggleStreamingRequest = (checked: boolean) => {
     if (checked) {
+      if (!approvedForLive) {
+        toast({
+          title: "Aguardando aprovacao",
+          description: "Sua conta ainda nao foi aprovada para iniciar lives.",
+          variant: "destructive",
+        });
+        return;
+      }
       setShowGoLiveDialog(true);
     } else {
       handleToggleStreaming(false);
@@ -164,6 +175,15 @@ const Dashboard = () => {
   };
 
   const handleToggleStreaming = async (checked: boolean) => {
+    if (checked && !approvedForLive) {
+      toast({
+        title: "Aguardando aprovacao",
+        description: "Sua conta ainda nao foi aprovada para iniciar lives.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       let roomUrl = dailyRoomUrl;
@@ -311,6 +331,14 @@ const Dashboard = () => {
           </Card>
         ) : (
           <div className="space-y-6">
+            {!approvedForLive && (
+              <Alert>
+                <AlertTitle>Conta em avaliacao</AlertTitle>
+                <AlertDescription>
+                  Aguarde a aprovacao da equipe para iniciar transmissao ao vivo. Voce ja pode configurar seu perfil.
+                </AlertDescription>
+              </Alert>
+            )}
             <Card className="border-border shadow-card">
               <CardHeader>
                 <CardTitle>Status de Transmissão</CardTitle>
@@ -340,7 +368,7 @@ const Dashboard = () => {
                   <Switch
                     checked={isStreaming}
                     onCheckedChange={handleToggleStreamingRequest}
-                    disabled={loading}
+                    disabled={loading || (!approvedForLive && !isStreaming)}
                   />
                 </div>
               </CardContent>
