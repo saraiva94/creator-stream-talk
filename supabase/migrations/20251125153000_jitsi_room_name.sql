@@ -23,9 +23,7 @@ BEGIN
 END $$;
 
 -- Remove unused Daily-specific room metadata
-DROP POLICY IF EXISTS "Creators view their room info" ON public.daily_rooms;
-DROP POLICY IF EXISTS "Service role manages rooms" ON public.daily_rooms;
-DROP POLICY IF EXISTS "Service role updates rooms" ON public.daily_rooms;
+-- (policies removidas porque a tabela daily_rooms não existe neste projeto)
 
 DROP INDEX IF EXISTS daily_rooms_live_id_idx;
 DROP INDEX IF EXISTS daily_rooms_room_name_idx;

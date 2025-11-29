@@ -17,11 +17,9 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.2.1",
     "node-fetch": "^3.3.2",
-    "pino": "^10.1.0",
-    "resend": "^6.4.2",
-    "zod": "^4.1.12"
+    "pino": "^8.21.0",
+    "resend": "^3.4.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

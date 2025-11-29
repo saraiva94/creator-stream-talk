@@ -26,11 +26,6 @@ export type MonitorEvaluation = {
 export const HOST_ABSENT_THRESHOLD_MS = 10 * 60 * 1000;
 export const CAMERA_INACTIVE_THRESHOLD_MS = 20 * 60 * 1000;
 
-export type HeartbeatThresholds = {
-  hostAbsentThresholdMs?: number;
-  cameraInactiveThresholdMs?: number;
-};
-
 const toTimestamp = (input: string): number | null => {
   const value = Date.parse(input);
   return Number.isNaN(value) ? null : value;
@@ -39,11 +34,8 @@ const toTimestamp = (input: string): number | null => {
 export const evaluateLiveHeartbeats = (
   summaries: LiveHeartbeatSummaryLite[],
   now: number | Date = Date.now(),
-  thresholds: HeartbeatThresholds = {},
 ): MonitorEvaluation => {
   const nowMs = typeof now === 'number' ? now : now.getTime();
-  const hostAbsentThresholdMs = thresholds.hostAbsentThresholdMs ?? HOST_ABSENT_THRESHOLD_MS;
-  const cameraInactiveThresholdMs = thresholds.cameraInactiveThresholdMs ?? CAMERA_INACTIVE_THRESHOLD_MS;
   const endedLives: MonitorEvaluation['endedLives'] = [];
 
   for (const summary of summaries) {
@@ -55,7 +47,7 @@ export const evaluateLiveHeartbeats = (
 
     const delta = nowMs - lastHeartbeatMs;
 
-    if (!summary.cameraActive && delta > cameraInactiveThresholdMs) {
+    if (!summary.cameraActive && delta > CAMERA_INACTIVE_THRESHOLD_MS) {
       endedLives.push({
         liveId: summary.liveId,
         reason: 'camera_inactive',
@@ -64,7 +56,7 @@ export const evaluateLiveHeartbeats = (
       continue;
     }
 
-    if (delta > hostAbsentThresholdMs) {
+    if (delta > HOST_ABSENT_THRESHOLD_MS) {
       endedLives.push({
         liveId: summary.liveId,
         reason: 'host_absent',

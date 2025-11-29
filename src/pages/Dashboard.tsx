@@ -1,399 +1,495 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Clipboard, Loader2, User, Video, Wallet } from "lucide-react";
-
-import Navbar from "@/components/Navbar";
-import LiveStartForm from "@/components/LiveStartForm";
-import { JitsiPlayer } from "@/components/JitsiPlayer";
-import ReferralLinkBox from "@/components/ReferralLinkBox";
 import { supabase } from "@/integrations/supabase/client";
-import { api, AffiliateStatsResponse, CreatorBalanceSnapshot, LiveAnalyticsSnapshot, LiveSummary } from "@/lib/api";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import Navbar from "@/components/Navbar";
+import DailyVideoPlayer from "@/components/DailyVideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-
-interface ProfileSummary {
-  id: string;
-  email: string | null;
-  username: string | null;
-  avatar_url: string | null;
-}
-
-interface CreatorDetails {
-  id: string;
-  bio?: string | null;
-}
-
-const PREVIEWABLE_STATUSES = new Set(["waiting_for_host", "live"]);
-
-const formatDuration = (ms: number) => {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600)
-    .toString()
-    .padStart(2, "0");
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const seconds = Math.floor(totalSeconds % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${hours}:${minutes}:${seconds}`;
-};
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { Video, Users } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import ChatModerationPanel from "@/components/ChatModerationPanel";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<ProfileSummary | null>(null);
-  const [creator, setCreator] = useState<CreatorDetails | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [sessionReady, setSessionReady] = useState(false);
-  const [liveSnapshot, setLiveSnapshot] = useState<LiveSummary | null>(null);
-  const [liveDurationMs, setLiveDurationMs] = useState<number>(0);
+  const { toast } = useToast();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isCreator, setIsCreator] = useState(false);
+  const [creatorProfile, setCreatorProfile] = useState<any>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [tags, setTags] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
+  const [showGoLiveDialog, setShowGoLiveDialog] = useState(false);
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
+  const [approvedForLive, setApprovedForLive] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    const bootstrap = async () => {
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error) {
-        throw error;
-      }
-
-      const session = data.session;
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/auth");
         return;
       }
+      setUser(session.user);
 
-      const [profileRes, creatorRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, email, username, avatar_url")
-          .eq("id", session.user.id)
-          .single(),
-        supabase.from("creators").select("id, bio").eq("user_id", session.user.id).single(),
-      ]);
+      // Check if user is a creator
+      const { data: creatorData } = await supabase
+        .from("creator_profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single();
 
-      if (!mounted) return;
+      if (creatorData) {
+        setIsCreator(true);
+        setCreatorProfile(creatorData);
+        setDisplayName(creatorData.display_name);
+        setBio(creatorData.bio || "");
+        setTags(creatorData.tags?.join(", ") || "");
+        setIsStreaming(creatorData.is_streaming);
+        setDailyRoomUrl(creatorData.daily_room_url);
+        setApprovedForLive(Boolean(creatorData.approved_for_live));
 
-      if (profileRes.error) {
-        setProfileError(profileRes.error.message);
-      } else {
-        setProfile(profileRes.data);
+        // Get current room if streaming
+        if (creatorData.is_streaming) {
+          const { data: roomData } = await supabase
+            .from("rooms")
+            .select("id")
+            .eq("creator_id", session.user.id)
+            .eq("is_active", true)
+            .single();
+          
+          if (roomData) {
+            setCurrentRoomId(roomData.id);
+          }
+        }
       }
 
-      if (!creatorRes.error) {
-        setCreator(creatorRes.data);
-      }
-
-      setSessionReady(true);
+      setLoading(false);
     };
 
-    bootstrap().catch((error) => {
-      console.error("[dashboard] bootstrap failed", error);
-      if (mounted) {
-        setProfileError("Unable to load your profile");
-        setSessionReady(true);
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
+    checkAuth();
   }, [navigate]);
 
-  const handleLiveUpdated = useCallback((live: LiveSummary | null) => {
-    setLiveSnapshot(live);
-  }, []);
-
-  const balanceQuery = useQuery<{ snapshot: CreatorBalanceSnapshot } | CreatorBalanceSnapshot, Error>({
-    queryKey: ["creator", "balance"],
-    queryFn: async () => api.creators.balance(),
-    enabled: sessionReady,
-  });
-
-  const affiliateStatsQuery = useQuery<AffiliateStatsResponse, Error>({
-    queryKey: ["creator", "affiliate", "stats"],
-    queryFn: async () => api.affiliates.stats(),
-    enabled: sessionReady,
-  });
-
-  const referralQuery = useQuery({
-    queryKey: ["creator", "referral", "link"],
-    queryFn: async () => api.affiliates.referralLink(),
-    enabled: sessionReady,
-  });
-
-  const analyticsQuery = useQuery<LiveAnalyticsSnapshot>({
-    queryKey: ["creator", "live", "analytics", liveSnapshot?.id],
-    queryFn: async () => {
-      if (!liveSnapshot?.id) throw new Error("Missing live id");
-      return api.lives.analytics(liveSnapshot.id);
-    },
-    enabled: sessionReady && Boolean(liveSnapshot?.id),
-    refetchInterval: 5000,
-  });
-
-  const balance = useMemo<CreatorBalanceSnapshot | null>(() => {
-    const data = balanceQuery.data as CreatorBalanceSnapshot | undefined;
-    return data ?? null;
-  }, [balanceQuery.data]);
-
-  const analytics = useMemo<LiveAnalyticsSnapshot | null>(() => analyticsQuery.data ?? null, [analyticsQuery.data]);
-
-  useEffect(() => {
-    if (analytics?.live_duration_ms != null) {
-      setLiveDurationMs(analytics.live_duration_ms);
+  const handleBecomeCreator = async () => {
+    if (!displayName.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Digite um nome de exibição",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [analytics?.live_duration_ms]);
 
-  useEffect(() => {
-    setLiveDurationMs(0);
-    if (!liveSnapshot?.id) return undefined;
-    const timer = setInterval(() => {
-      setLiveDurationMs((current) => current + 1000);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [liveSnapshot?.id]);
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("creator_profiles").insert({
+        id: user.id,
+        display_name: displayName.trim(),
+        bio: bio.trim() || null,
+        tags: tags ? tags.split(",").map((t) => t.trim()) : [],
+      });
 
-  const hasLivePreview = Boolean(
-    liveSnapshot?.room_name && PREVIEWABLE_STATUSES.has(liveSnapshot.status ?? "")
-  );
+      if (error) throw error;
 
-  const affiliateStats = useMemo<AffiliateStatsResponse | null>(() => {
-    return affiliateStatsQuery.data ?? null;
-  }, [affiliateStatsQuery.data]);
+      toast({
+        title: "Perfil de criador ativado!",
+        description: "Você agora pode fazer transmissões ao vivo.",
+      });
 
-  const referralCode = useMemo(() => referralQuery.data?.referral_link?.code ?? null, [referralQuery.data]);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar perfil",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const creatorName = profile?.username || profile?.email || "Creator";
-  const creatorBio = creator?.bio || "Share more about your content to help viewers find you.";
+  const handleUpdateProfile = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("creator_profiles")
+        .update({
+          display_name: displayName.trim(),
+          bio: bio.trim() || null,
+          tags: tags ? tags.split(",").map((t) => t.trim()) : [],
+        })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Perfil atualizado!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleStreamingRequest = (checked: boolean) => {
+    if (checked) {
+      if (!approvedForLive) {
+        toast({
+          title: "Aguardando aprovacao",
+          description: "Sua conta ainda nao foi aprovada para iniciar lives.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setShowGoLiveDialog(true);
+    } else {
+      handleToggleStreaming(false);
+    }
+  };
+
+  const handleConfirmGoLive = () => {
+    setShowGoLiveDialog(false);
+    handleToggleStreaming(true);
+  };
+
+  const handleToggleStreaming = async (checked: boolean) => {
+    if (checked && !approvedForLive) {
+      toast({
+        title: "Aguardando aprovacao",
+        description: "Sua conta ainda nao foi aprovada para iniciar lives.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let roomUrl = dailyRoomUrl;
+
+      // Create Daily.co room if going live and no room exists
+      if (checked && !roomUrl) {
+        const { data: roomData, error: roomError } = await supabase.functions.invoke(
+          "create-daily-room",
+          {
+            body: { roomTitle: displayName },
+          }
+        );
+
+        if (roomError) throw roomError;
+        roomUrl = roomData.url;
+        setDailyRoomUrl(roomUrl);
+
+        // Update creator profile with room URL
+        await supabase
+          .from("creator_profiles")
+          .update({ daily_room_url: roomUrl })
+          .eq("id", user.id);
+
+        // Create room record
+        const { data: newRoom } = await supabase
+          .from("rooms")
+          .insert({
+            creator_id: user.id,
+            title: displayName,
+            daily_room_name: roomData.name,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (newRoom) {
+          setCurrentRoomId(newRoom.id);
+        }
+      }
+
+      const { error } = await supabase
+        .from("creator_profiles")
+        .update({ is_streaming: checked })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      setIsStreaming(checked);
+      
+      if (checked) {
+        toast({
+          title: "Transmissão ativada!",
+          description: "Redirecionando para painel de controle...",
+        });
+        
+        // Redirect to live management page
+        setTimeout(() => {
+          navigate("/live-management");
+        }, 1000);
+      } else {
+        toast({
+          title: "Transmissão desativada",
+          description: "Você ficou offline",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao alterar status",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">
+          Carregando...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="container mx-auto space-y-8 py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" /> Creator profile
-            </CardTitle>
-            <CardDescription>Basic information loaded directly from Supabase.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            {profile ? (
-              <div className="flex flex-1 items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  {profile.avatar_url ? (
-                    <AvatarImage src={profile.avatar_url} alt={creatorName} />
-                  ) : (
-                    <AvatarFallback>{creatorName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                  )}
-                </Avatar>
-                <div>
-                  <p className="text-lg font-semibold">{creatorName}</p>
-                  <p className="text-sm text-muted-foreground">{profile.email}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">{creatorBio}</p>
-                </div>
-              </div>
-            ) : profileError ? (
-              <p className="text-sm text-destructive">{profileError}</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Skeleton className="h-4 w-48" />
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-64" />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <Navbar user={user} />
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <LiveStartForm onLiveUpdated={handleLiveUpdated} showEmbeddedPlayer={false} />
+      <main className="container mx-auto px-4 py-8 max-w-2xl">
+        <div className="flex items-center gap-3 mb-8">
+          <Video className="h-8 w-8 text-primary" />
+          <h1 className="text-3xl font-bold">Dashboard do Criador</h1>
+        </div>
 
-          <Card>
+        {!isCreator ? (
+          <Card className="border-border shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5" /> Finance summary
-              </CardTitle>
-              <CardDescription>Snapshot of balances, referrals, and withdrawals.</CardDescription>
+              <CardTitle>Torne-se um Criador</CardTitle>
+              <CardDescription>
+                Configure seu perfil para começar a fazer transmissões ao vivo
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {balanceQuery.isLoading ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading balances...
-                </div>
-              ) : balanceQuery.isError ? (
-                <p className="text-sm text-destructive">Failed to load balance data.</p>
-              ) : balance ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">Available balance</p>
-                    <p className="text-2xl font-semibold">${balance.balance.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">Pending withdrawals</p>
-                    <p className="text-2xl font-semibold">${balance.pending_withdrawals.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">Total earned</p>
-                    <p className="text-2xl font-semibold">${balance.total_earned.toFixed(2)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">Affiliate earnings</p>
-                    <p className="text-2xl font-semibold">${balance.total_affiliate_earned.toFixed(2)}</p>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">Balance data unavailable.</p>
-              )}
-
-              <div className="grid gap-2 text-sm sm:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase text-muted-foreground">Creator %</p>
-                  <p>{liveSnapshot?.creator_percent ?? "-"}%</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase text-muted-foreground">Platform %</p>
-                  <p>{liveSnapshot?.platform_percent ?? "-"}%</p>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="display-name">Nome de Exibição *</Label>
+                <Input
+                  id="display-name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Seu nome como criador"
+                />
               </div>
 
-              <Button variant="secondary" disabled className="w-full">
-                Withdraw (coming soon)
+              <div className="space-y-2">
+                <Label htmlFor="bio">Bio</Label>
+                <Textarea
+                  id="bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Conte sobre você..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
+                <Input
+                  id="tags"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  placeholder="Música, Jogos, Tecnologia"
+                />
+              </div>
+
+              <Button
+                onClick={handleBecomeCreator}
+                className="w-full"
+                disabled={loading}
+              >
+                {loading ? "Criando..." : "Ativar Perfil de Criador"}
               </Button>
             </CardContent>
           </Card>
-        </section>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="h-5 w-5" /> Live analytics
-            </CardTitle>
-            <CardDescription>Real-time viewer and credit signals for your active live.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!liveSnapshot ? (
-              <p className="text-sm text-muted-foreground">Start a live to view analytics.</p>
-            ) : analyticsQuery.isLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading analytics...
-              </div>
-            ) : analytics ? (
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                <AnalyticsStat label="Current viewers" value={analytics.current_viewers} />
-                <AnalyticsStat label="Total unique viewers" value={analytics.total_unique_viewers} />
-                <AnalyticsStat label="Credits consumed" value={analytics.credits_consumed_total} />
-                <AnalyticsStat
-                  label="Avg credits remaining/viewer"
-                  value={Math.round(analytics.credits_remaining_average)}
-                />
-                <AnalyticsStat label="Live duration" value={formatDuration(liveDurationMs)} />
-                <AnalyticsStat
-                  label="Estimated earnings"
-                  value={
-                    analytics.estimated_earnings
-                      ? `R$ ${(analytics.estimated_earnings / 100).toFixed(2)}`
-                      : 'R$ 0.00'
-                  }
-                />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Analytics unavailable for this live.</p>
+        ) : (
+          <div className="space-y-6">
+            {!approvedForLive && (
+              <Alert>
+                <AlertTitle>Conta em avaliacao</AlertTitle>
+                <AlertDescription>
+                  Aguarde a aprovacao da equipe para iniciar transmissao ao vivo. Voce ja pode configurar seu perfil.
+                </AlertDescription>
+              </Alert>
             )}
-          </CardContent>
-        </Card>
+            <Card className="border-border shadow-card">
+              <CardHeader>
+                <CardTitle>Status de Transmissão</CardTitle>
+                <CardDescription>
+                  Ative para aparecer como AO VIVO na página inicial
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {isStreaming ? (
+                      <>
+                        <div className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
+                        <span className="font-semibold text-destructive">
+                          AO VIVO
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="h-3 w-3 rounded-full bg-muted-foreground" />
+                        <span className="font-semibold text-muted-foreground">
+                          OFFLINE
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <Switch
+                    checked={isStreaming}
+                    onCheckedChange={handleToggleStreamingRequest}
+                    disabled={loading || (!approvedForLive && !isStreaming)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card id="registration-earnings">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clipboard className="h-5 w-5" /> Registration earnings
-            </CardTitle>
-            <CardDescription>Track commissions from signup referrals.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {affiliateStatsQuery.isLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading registration earnings...
-              </div>
-            ) : affiliateStatsQuery.isError ? (
-              <p className="text-sm text-destructive">Failed to load registration earnings.</p>
-            ) : affiliateStats ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <AnalyticsStat
-                  label="Total earnings"
-                  value={`R$ ${(affiliateStats.total_affiliate_earnings / 100).toFixed(2)}`}
-                />
-                <AnalyticsStat label="Direct referrals" value={affiliateStats.direct_referrals} />
-                <AnalyticsStat label="Indirect referrals" value={affiliateStats.indirect_referrals} />
-                <AnalyticsStat label="Registrations referred" value={affiliateStats.registrations_referred} />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No referral earnings available yet.</p>
-            )}
+            <Card className="border-border shadow-card">
+              <CardHeader>
+                <CardTitle>Editar Perfil</CardTitle>
+                <CardDescription>
+                  Atualize suas informações de criador
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-display-name">Nome de Exibição</Label>
+                  <Input
+                    id="edit-display-name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                </div>
 
-            <div className="rounded-md border p-4 text-sm text-muted-foreground">
-              Earn R$1,00 for direct registrations and R$0,50 for indirect signups when referrals join via
-              your link. Platform keeps the remainder per the registration paywall rules.
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-bio">Bio</Label>
+                  <Textarea
+                    id="edit-bio"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    rows={3}
+                  />
+                </div>
 
-            <ReferralLinkBox
-              referralCode={referralCode}
-              loading={referralQuery.isLoading}
-              onRefresh={() => referralQuery.refetch()}
-            />
+                <div className="space-y-2">
+                  <Label htmlFor="edit-tags">Tags</Label>
+                  <Input
+                    id="edit-tags"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                  />
+                </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">Request a payout of your registration earnings.</p>
-              <Button variant="secondary" onClick={() => navigate("/admin")}>Withdraw earnings</Button>
-            </div>
-          </CardContent>
-        </Card>
+                <Button
+                  onClick={handleUpdateProfile}
+                  className="w-full"
+                  disabled={loading}
+                >
+                  {loading ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="h-5 w-5" /> Live preview
-            </CardTitle>
-            <CardDescription>Monitor your active Jitsi room directly from the dashboard.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {hasLivePreview && liveSnapshot?.room_name ? (
+            {isStreaming && dailyRoomUrl && currentRoomId && (
               <>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  <span>Room:</span>
-                  <Badge variant="outline" className="font-mono">
-                    {liveSnapshot.room_name}
-                  </Badge>
-                  <span>
-                    Status: {liveSnapshot.status ? liveSnapshot.status.replace(/_/g, " ") : "Unknown"}
-                  </span>
-                </div>
-                <div className="rounded-lg border">
-                  <JitsiPlayer roomName={liveSnapshot.room_name} height="500px" />
-                </div>
+                <Card className="border-border shadow-card bg-gradient-card">
+                  <CardHeader>
+                    <CardTitle>Sua Transmissão</CardTitle>
+                    <CardDescription>
+                      Controle sua câmera, microfone e compartilhamento de tela
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="aspect-video bg-secondary rounded-lg overflow-hidden">
+                      <DailyVideoPlayer roomUrl={dailyRoomUrl} isCreator={true} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <ChatModerationPanel roomId={currentRoomId} creatorId={user.id} />
+
+                <Card className="border-border shadow-card">
+                  <CardHeader>
+                    <CardTitle>Compartilhe sua Sala</CardTitle>
+                    <CardDescription>
+                      Envie este link para seus espectadores
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={`${window.location.origin}/room/${user.id}`}
+                        readOnly
+                      />
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `${window.location.origin}/room/${user.id}`
+                          );
+                          toast({
+                            title: "Link copiado!",
+                          });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Start a live session to see the Jitsi preview here. Lives that are inactive or ended will not appear.
-              </p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </main>
+
+      <AlertDialog open={showGoLiveDialog} onOpenChange={setShowGoLiveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Iniciar Transmissão ao Vivo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a ficar online. Seus espectadores poderão ver sua transmissão assim que você confirmar. Sua câmera e microfone serão ativados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmGoLive}>
+              Sim, Ficar Online
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
-
-const AnalyticsStat: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
-  <div className="rounded-md border p-3">
-    <p className="text-xs uppercase text-muted-foreground">{label}</p>
-    <p className="text-lg font-semibold">{value}</p>
-  </div>
-);
 
 export default Dashboard;

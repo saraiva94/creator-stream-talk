@@ -11,7 +11,6 @@ import {
   submitWithdrawal,
   getWithdrawalHistory,
 } from '../services/supabaseService';
-import { getAffiliateStatsForProfile } from '../services/affiliateService';
 import { parseWithZod } from '../validation/utils';
 import { registerCreatorSchema } from '../validation/creatorsSchemas';
 import { submitWithdrawalSchema } from '../validation/withdrawalsSchemas';
@@ -144,21 +143,6 @@ export const getWithdrawalHistoryController = async (
     await ensureCreatorOwnedByProfile(creatorId, profileId);
     const withdrawals = await getWithdrawalHistory(creatorId);
     return respondSuccess(res, 200, { withdrawals });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getCreatorAffiliateStatsController = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { creatorId, profileId } = ensureCreatorContext(req);
-    await ensureCreatorOwnedByProfile(creatorId, profileId);
-    const stats = await getAffiliateStatsForProfile(profileId);
-    return respondSuccess(res, 200, stats);
   } catch (error) {
     next(error);
   }

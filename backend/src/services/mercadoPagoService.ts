@@ -1,58 +1,21 @@
-import crypto from 'crypto';
-import fetch, { RequestInit } from 'node-fetch';
-import logger from '../lib/logger';
 import { getEnv } from '../lib/env';
-import {
-  addCreatorEarnings,
-  addParentEarnings,
-  getCreatorParent,
-  getLiveWithCreator,
-  getProfileById,
-  grantLiveAccess,
-  hasProcessedWebhookEvent,
-  markWebhookEventProcessed,
-  recordCommissionEntry,
-  recordPayment,
-  recordPlatformRevenue,
-  recordCreditPurchase,
-} from './supabaseService';
-import { sendTransactionalEmail } from './emailService';
-import { generateAccessLink } from './jitsiService';
-import { addCredits } from './creditsService';
-import {
-  calculateRegistrationSplit,
-  processRegistrationAffiliatePayout,
-  RegistrationReferralContext,
-  fetchPendingRegistrationReferral,
-  applyRegistrationContextToProfile,
-} from './affiliateService';
+import logger from '../lib/logger';
+import { supabase } from '../lib/supabaseClient';
+import { registerCreditPurchase } from './creditsWalletService';
+import { registerAffiliatePayoutForSignup } from './affiliateService';
+type RequestInit = globalThis.RequestInit;
 
 const MERCADOPAGO_API_BASE = 'https://api.mercadopago.com';
 
-export type PreferenceRequest =
-  | {
-      type: 'live_access';
-      liveId: string;
-      userId: string;
-      price: number;
-      paymentId: string;
-    }
-  | {
-      type: 'credits';
-      userId: string;
-      price: number;
-      paymentId: string;
-      credits: number;
-    }
-  | {
-      type: 'registration';
-      userId: string;
-      price: number;
-      paymentId: string;
-      referrerId?: string | null;
-      referrerParentId?: string | null;
-      isRootCreator?: boolean;
-    };
+export type PreferenceRequest = {
+  liveId?: string;
+  userId: string;
+  price: number;
+  purchaseType?: 'live' | 'credits' | 'registration' | string;
+  metadata?: Record<string, unknown>;
+  title?: string;
+  description?: string;
+};
 
 export type PreferenceResponse = {
   init_point: string;
@@ -68,41 +31,7 @@ type WebhookPayload = {
   resource?: string;
 };
 
-type MercadoPagoPayment = {
-  id: string;
-  status: string;
-  metadata?: Record<string, string>;
-  transaction_amount?: number;
-};
-
 const getAccessToken = () => getEnv('MERCADOPAGO_ACCESS_TOKEN');
-const getWebhookSecret = () => getEnv('MERCADOPAGO_WEBHOOK_SECRET');
-const getCurrencyCode = () => process.env.MERCADOPAGO_CURRENCY || 'USD';
-
-const toNumber = (value: unknown, fallback = 0) => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-  return fallback;
-};
-
-const toPayloadString = (payload: WebhookPayload, rawBody?: Buffer | string) => {
-  if (typeof rawBody === 'string') {
-    return rawBody;
-  }
-  if (rawBody) {
-    return rawBody.toString('utf8');
-  }
-  return JSON.stringify(payload ?? {});
-};
-
-const hashPayload = (payloadString: string) => {
-  return crypto.createHash('sha256').update(payloadString).digest('hex');
-};
 
 const request = async <T>(endpoint: string, options: RequestInit) => {
   const accessToken = getAccessToken();
@@ -123,50 +52,40 @@ const request = async <T>(endpoint: string, options: RequestInit) => {
   return (await response.json()) as T;
 };
 
-export const createCheckoutPreference = async (preference: PreferenceRequest): Promise<PreferenceResponse> => {
-  const isCredits = preference.type === 'credits';
-  const isRegistration = preference.type === 'registration';
+export const createCheckoutPreference = async ({
+  liveId,
+  userId,
+  price,
+  purchaseType,
+  metadata,
+  title,
+  description,
+}: PreferenceRequest): Promise<PreferenceResponse> => {
+  const normalizedPurchase = (purchaseType || 'live').toLowerCase();
   const items = [
     {
-      title: isRegistration
-        ? 'Registration payment'
-        : isCredits
-        ? 'Credit purchase'
-        : 'Live access purchase',
-      description: isCredits
-        ? 'Credits for live viewing'
-        : isRegistration
-        ? 'Account registration fee'
-        : `Access for live ${(preference as Extract<PreferenceRequest, { type: 'live_access' }>).liveId}`,
+      title:
+        title || (normalizedPurchase === 'registration' ? 'Registration fee' : 'Live access purchase'),
+      description:
+        description ||
+        (normalizedPurchase === 'registration'
+          ? 'Platform registration fee'
+          : `Access for live ${liveId ?? 'room'}`),
       quantity: 1,
-      currency_id: getCurrencyCode(),
-      unit_price: preference.price,
+      currency_id: 'BRL',
+      unit_price: price,
     },
   ];
 
-  const baseMetadata: Record<string, unknown> = {
-    userId: preference.userId,
-    paymentId: preference.paymentId,
-    amount: preference.price,
-    purchaseType: preference.type,
-  };
-
-  if (isCredits) {
-    baseMetadata['credits'] = (preference as Extract<PreferenceRequest, { type: 'credits' }>).credits;
-  } else if (isRegistration) {
-    const regPref = preference as Extract<PreferenceRequest, { type: 'registration' }>;
-    baseMetadata['referrerId'] = regPref.referrerId ?? null;
-    baseMetadata['referrerParentId'] = regPref.referrerParentId ?? null;
-    baseMetadata['isRootCreator'] = regPref.isRootCreator ?? false;
-  } else {
-    baseMetadata['liveId'] = (preference as Extract<PreferenceRequest, { type: 'live_access' }>).liveId;
-  }
-
   const preferencePayload: Record<string, unknown> = {
     items,
-    metadata: baseMetadata,
+    metadata: {
+      liveId,
+      userId,
+      purchaseType: normalizedPurchase,
+      ...(metadata || {}),
+    },
     auto_return: 'approved',
-    external_reference: preference.paymentId,
   };
 
   const notificationUrl = process.env.MERCADOPAGO_WEBHOOK_URL;
@@ -185,230 +104,166 @@ export const createCheckoutPreference = async (preference: PreferenceRequest): P
   return { init_point: result.init_point, preferenceId: result.id };
 };
 
+export const createRegistrationPreference = async ({
+  userId,
+  parentId,
+}: {
+  userId: string;
+  parentId: string;
+}): Promise<PreferenceResponse> => {
+  return createCheckoutPreference({
+    userId,
+    price: 5,
+    purchaseType: 'registration',
+    metadata: { parentId },
+    title: 'Registration fee',
+    description: 'Registration and activation payment',
+  });
+};
+
+const isSignatureValid = (signatureHeader?: string) => {
+  if (!signatureHeader) {
+    console.warn('Mercado Pago signature header missing; skipping structural validation.');
+    return true;
+  }
+
+  const parts = signatureHeader.split(',');
+  const hasTimestamp = parts.some((part) => part.trim().startsWith('ts='));
+  const hasSignature = parts.some((part) => part.trim().startsWith('v1='));
+
+  return hasTimestamp && hasSignature;
+};
+
 const resolvePaymentId = (payload: WebhookPayload): string | undefined => {
   return payload?.data?.id || payload?.resource?.split('/').pop();
 };
 
+type PaymentDetailsResponse = {
+  status: string;
+  metadata?: Record<string, string>;
+  transaction_amount?: number;
+  external_reference?: string | null;
+};
+
 const fetchPaymentDetails = async (paymentId: string) => {
-  return request<MercadoPagoPayment>(`/v1/payments/${paymentId}`, { method: 'GET' });
+  return request<PaymentDetailsResponse>(`/v1/payments/${paymentId}`, { method: 'GET' });
 };
 
-const calculateShares = (
-  amount: number,
-  creatorPercent: number,
-  affiliatePercent: number,
-  platformPercent: number,
-  hasParentAffiliate: boolean,
-) => {
-  const normalizedAmount = Number(amount.toFixed(2));
-  const creatorShare = Number((normalizedAmount * (creatorPercent / 100)).toFixed(2));
-  const parentShare = hasParentAffiliate
-    ? Number((normalizedAmount * (affiliatePercent / 100)).toFixed(2))
-    : 0;
-  const platformShare = Number((normalizedAmount * (platformPercent / 100)).toFixed(2));
+const persistApprovedPayment = async (liveId: string, userId: string) => {
+  const { error } = await supabase
+    .from('live_access')
+    .upsert(
+      {
+        live_id: liveId,
+        user_id: userId,
+        status: 'approved',
+        granted_at: new Date().toISOString(),
+      },
+      { onConflict: 'live_id,user_id' },
+    );
 
-  return { creatorShare, parentShare, platformShare };
-};
-
-const processRevenueShare = async (paymentId: string, liveId: string, fallbackAmount: number) => {
-  const live = await getLiveWithCreator(liveId);
-
-  if (!live) {
-    throw new Error('Live not found for revenue processing');
+  if (error) {
+    throw new Error(`Failed to store payment approval: ${error.message}`);
   }
-
-  const parentCreatorId = await getCreatorParent(live.creator_id);
-  const basePrice = toNumber(live.price, fallbackAmount);
-
-  if (!basePrice || basePrice <= 0) {
-    throw new Error('Unable to resolve live price for revenue processing');
-  }
-
-  const creatorPercent = toNumber(live.creator_percent, 60);
-  const affiliatePercent = toNumber(live.affiliate_percent, 10);
-  const platformPercent = toNumber(live.platform_percent, 30);
-
-  const { creatorShare, parentShare, platformShare } = calculateShares(
-    basePrice,
-    creatorPercent,
-    affiliatePercent,
-    platformPercent,
-    Boolean(parentCreatorId),
-  );
-
-  await addCreatorEarnings(live.creator_id, creatorShare);
-  await recordCommissionEntry(live.creator_id, paymentId, creatorShare);
-
-  if (parentCreatorId && parentShare > 0) {
-    await addParentEarnings(parentCreatorId, parentShare);
-    await recordCommissionEntry(parentCreatorId, paymentId, parentShare);
-  }
-
-  await recordPlatformRevenue(paymentId, platformShare);
-
-  return { live, parentCreatorId, creatorShare, parentShare, platformShare, price: basePrice };
 };
 
 export const handlePaymentWebhook = async (
   payload: WebhookPayload,
-  headers: { signature?: string; requestId?: string; idempotencyKey?: string },
-  rawBody?: Buffer | string,
+  headers: { signature?: string; requestId?: string },
 ) => {
-  const bodyString = toPayloadString(payload, rawBody);
-  const bodyHash = hashPayload(bodyString);
+  if (!isSignatureValid(headers.signature)) {
+    throw new Error('Invalid Mercado Pago webhook signature.');
+  }
 
   const paymentId = resolvePaymentId(payload);
   if (!paymentId) {
     throw new Error('Missing payment identifier in webhook payload.');
   }
 
-  const idempotencyKey = headers.idempotencyKey || headers.requestId || paymentId;
-
-  if (await hasProcessedWebhookEvent(idempotencyKey, bodyHash)) {
-    logger.warn({ event: 'mercadopago.webhook.duplicate', idempotencyKey, paymentId });
-    return { processed: false, reason: 'Duplicate webhook' };
-  }
-
   const paymentDetails = await fetchPaymentDetails(paymentId);
   if (paymentDetails.status !== 'approved') {
-    const metadata = paymentDetails.metadata || {};
-    if (metadata.paymentId && metadata.userId && metadata.liveId) {
-      await recordPayment({
-        paymentId: metadata.paymentId,
-        userId: metadata.userId,
-        liveId: metadata.liveId,
-        amount: Number(metadata.amount) || paymentDetails.transaction_amount || 0,
-        status: paymentDetails.status,
-      });
-    }
-    logger.info({
-      event: 'mercadopago.payment.skipped',
-      paymentId,
-      status: paymentDetails.status,
-    });
-    await markWebhookEventProcessed(idempotencyKey, bodyHash);
     return { processed: false, reason: 'Payment not approved' };
   }
 
   const metadata = paymentDetails.metadata || {};
-  const purchaseType = (metadata.purchaseType as string) || 'live_access';
   const liveId = metadata.liveId || metadata.live_id;
   const userId = metadata.userId || metadata.user_id;
-  const localPaymentId = metadata.paymentId || metadata.payment_id;
-  const amount =
-    Number(metadata.amount) || paymentDetails.transaction_amount || Number(metadata.price) || 0;
-  const creditsToGrant = toNumber(metadata.credits, 0) || 1800;
-
-  if (!userId || !localPaymentId) {
-    throw new Error('Payment metadata missing userId or paymentId.');
-  }
+  const profileId = metadata.profileId || metadata.profile_id || userId;
+  const parentId = metadata.parentId || metadata.parent_id || null;
+  const purchaseType = (metadata.purchaseType || metadata.purchase_type || metadata.product || '').toLowerCase();
+  const amountCents = resolveAmountCents(paymentDetails.transaction_amount);
 
   if (purchaseType === 'credits') {
-    await recordCreditPurchase({ userId, creditsAdded: creditsToGrant, paymentId: localPaymentId });
-    await addCredits(userId, creditsToGrant);
-    await markWebhookEventProcessed(idempotencyKey, bodyHash);
-    logger.info({
-      event: 'mercadopago.credits.approved',
-      paymentId: localPaymentId,
-      userId,
-      credits: creditsToGrant,
+    if (!profileId) {
+      throw new Error('Payment metadata missing profileId for credits purchase.');
+    }
+
+    const amountCentsRaw = paymentDetails.transaction_amount ?? null;
+    const amountCents = Number.isFinite(amountCentsRaw) ? Math.round((amountCentsRaw as number) * 100) : NaN;
+
+    if (!Number.isFinite(amountCents) || amountCents <= 0) {
+      throw new Error('Invalid amount for credits purchase.');
+    }
+
+    const credits = calculateCreditsFromAmount(amountCents);
+
+    await registerCreditPurchase({
+      profileId,
+      credits,
+      amountCents,
+      paymentId: paymentDetails.external_reference || paymentId,
     });
-    return { processed: true, creditsAdded: creditsToGrant };
+
+    logger.info({
+      event: 'credits.purchase.approved',
+      profileId,
+      paymentId,
+      externalReference: paymentDetails.external_reference,
+      amountCents,
+      credits,
+    });
+
+    return { processed: true, mode: 'credits' };
   }
 
   if (purchaseType === 'registration') {
-    const pending = await fetchPendingRegistrationReferral(localPaymentId);
-    const profileSnapshot = await getProfileById(userId);
+    if (!userId) {
+      throw new Error('Payment metadata missing userId for registration.');
+    }
 
-    const context: RegistrationReferralContext = {
-      directReferrerId:
-        (pending?.referrer_id as string | null) || (metadata.referrerId as string | null) || (profileSnapshot?.referrer_id as string | null) || null,
-      parentReferrerId:
-        (pending?.referrer_parent_id as string | null) ||
-        (metadata.referrerParentId as string | null) ||
-        (profileSnapshot?.referrer_parent_id as string | null) ||
-        null,
-      isRootCreator:
-        Boolean(pending?.is_root_creator) ||
-        Boolean(metadata.isRootCreator) ||
-        (!metadata.referrerId && !pending?.referrer_id ? true : false),
-    };
-
-    await applyRegistrationContextToProfile(userId, context);
-    const split = calculateRegistrationSplit(context);
-
-    await processRegistrationAffiliatePayout(userId, context, split);
-    await markWebhookEventProcessed(idempotencyKey, bodyHash);
-
-    logger.info({
-      event: 'mercadopago.registration.approved',
-      paymentId: localPaymentId,
-      userId,
-      split,
-      context,
+    await registerAffiliatePayoutForSignup({
+      newUserId: userId,
+      paymentId,
+      amountCents: Number.isFinite(amountCents) ? amountCents : undefined,
+      parentId,
     });
 
-    return { processed: true, registration: true, split };
+    logger.info({
+      event: 'registration.payment.processed',
+      paymentId,
+      userId,
+      parentId,
+      amountCents,
+    });
+
+    return { processed: true, mode: 'registration' };
   }
 
-  if (!liveId) {
-    throw new Error('Payment metadata missing liveId for live purchase.');
+  if (!liveId || !userId) {
+    throw new Error('Payment metadata missing liveId or userId.');
   }
 
-  await recordPayment({
-    paymentId: localPaymentId,
-    userId,
-    liveId,
-    amount,
-    status: 'approved',
-  });
+  await persistApprovedPayment(liveId, userId);
 
-  const { live, creatorShare, parentShare, platformShare } = await processRevenueShare(
-    localPaymentId,
-    liveId,
-    amount,
-  );
+  return { processed: true, mode: 'live_access' };
+};
 
-  logger.info({
-    event: 'mercadopago.payment.approved',
-    paymentId: localPaymentId,
-    liveId,
-    amount,
-    shares: {
-      creator: creatorShare,
-      parent: parentShare,
-      platform: platformShare,
-    },
-  });
+const resolveAmountCents = (transactionAmount?: number | null) => {
+  if (!Number.isFinite(transactionAmount as number)) return NaN;
+  return Math.round((transactionAmount as number) * 100);
+};
 
-  await grantLiveAccess(userId, liveId);
-
-  const profile = await getProfileById(userId);
-
-  const emailTarget = profile?.email;
-  const liveTitle = live?.title || `Live ${live?.id || liveId}`;
-  const viewerUrl = live?.room_name ? generateAccessLink(live.room_name) : null;
-
-  if (emailTarget) {
-    try {
-      await Promise.all([
-        sendTransactionalEmail({
-          to: emailTarget,
-          type: 'payment_receipt',
-          data: { amount, liveTitle },
-        }),
-        sendTransactionalEmail({
-          to: emailTarget,
-          type: 'access_granted',
-          data: { liveTitle, viewerUrl: viewerUrl ?? undefined },
-        }),
-      ]);
-    } catch (emailError) {
-      logger.error({ event: 'email.failed', reason: 'payment_workflow', error: (emailError as Error).message });
-    }
-  }
-
-  await markWebhookEventProcessed(idempotencyKey, bodyHash);
-
-  return { processed: true };
+export const calculateCreditsFromAmount = (amountCents: number) => {
+  // 180 credits for each R$5.00 (500 cents). Assume amount_cents is a multiple of 500.
+  return Math.round((amountCents / 500) * 180);
 };

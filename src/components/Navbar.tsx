@@ -28,11 +28,34 @@ const Navbar = ({ user }: NavbarProps) => {
 
   const checkAdminStatus = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
-    setIsAdmin(data?.some(r => r.role === "admin") || false);
+
+    const rolesFromMeta = (() => {
+      const metaRoles = (user.app_metadata as any)?.roles || (user.user_metadata as any)?.roles;
+      const primaryRole =
+        (user.app_metadata as any)?.app_role ||
+        (user.user_metadata as any)?.app_role ||
+        (user.app_metadata as any)?.role ||
+        (user.user_metadata as any)?.role;
+
+      const normalized = new Set<string>();
+      if (Array.isArray(metaRoles)) {
+        metaRoles.forEach((r) => normalized.add(String(r).toLowerCase()));
+      } else if (typeof metaRoles === "string") {
+        normalized.add(metaRoles.toLowerCase());
+      }
+      if (primaryRole) {
+        normalized.add(String(primaryRole).toLowerCase());
+      }
+      return normalized;
+    })();
+
+    if (rolesFromMeta.has("admin")) {
+      setIsAdmin(true);
+      return;
+    }
+
+    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+    setIsAdmin(data?.some((r) => r.role === "admin") || false);
   };
 
   const handleLogout = async () => {

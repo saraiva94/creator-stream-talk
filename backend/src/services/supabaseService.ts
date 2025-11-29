@@ -22,8 +22,6 @@ export type LiveRecord = {
   title?: string | null;
   description?: string | null;
   room_name?: string | null;
-  currency?: string | null;
-  created_at?: string | null;
 };
 
 export type LiveSummary = {
@@ -32,7 +30,6 @@ export type LiveSummary = {
   title: string | null;
   description: string | null;
   price: number | null;
-  currency?: string | null;
   status: LiveLifecycleStatus | null;
   is_active: boolean | null;
   room_name: string | null;
@@ -53,18 +50,9 @@ const LIVE_STATUS_SET = new Set<LiveLifecycleStatus>([
 ]);
 
 const LIVE_SUMMARY_FIELDS =
-  'id, creator_id, title, description, price, currency, status, is_active, room_name, creator_percent, affiliate_percent, platform_percent, created_at, ended_at';
+  'id, creator_id, title, description, price, status, is_active, room_name, creator_percent, affiliate_percent, platform_percent, created_at, ended_at';
 
 const AFFILIATE_THRESHOLD = 0.51; // anything <= $0.50 is considered affiliate revenue
-
-const toNumber = (value: unknown, fallback = 0) => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
-  return fallback;
-};
 
 const normalizeNumber = (value: number | string | null) => {
   if (typeof value === 'number') return value;
@@ -85,7 +73,7 @@ export const getLiveWithCreator = async (liveId: string) => {
   const { data, error } = await supabase
     .from('lives')
     .select(
-      'id, price, currency, created_at, creator_id, title, description, creator_percent, affiliate_percent, platform_percent, status, is_active, room_name',
+      'id, price, creator_id, title, description, creator_percent, affiliate_percent, platform_percent, status, is_active, room_name',
     )
     .eq('id', liveId)
     .maybeSingle();
@@ -268,32 +256,6 @@ export const recordPayment = async ({
   return data;
 };
 
-export const recordCreditPurchase = async ({
-  userId,
-  creditsAdded,
-  paymentId,
-}: {
-  userId: string;
-  creditsAdded: number;
-  paymentId?: string;
-}) => {
-  const { data, error } = await supabase
-    .from('credit_purchases')
-    .insert({
-      user_id: userId,
-      credits_added: creditsAdded,
-      payment_id: paymentId ?? null,
-    })
-    .select('id, user_id, credits_added, payment_id, created_at')
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to record credit purchase: ${error.message}`);
-  }
-
-  return data;
-};
-
 export const grantLiveAccess = async (userId: string, liveId: string) => {
   const existing = await supabase
     .from('live_access')
@@ -355,93 +317,6 @@ export const hasLiveAccess = async (userId: string, liveId: string) => {
   }
 
   return Boolean(data);
-};
-
-export const getLiveAccessWithCredits = async (userId: string, liveId: string) => {
-  const [{ data: accessRow, error: accessError }, { data: profileRow, error: profileError }] = await Promise.all([
-    supabase
-      .from('live_access')
-      .select('id, credits_consumed')
-      .eq('user_id', userId)
-      .eq('live_id', liveId)
-      .maybeSingle(),
-    supabase.from('profiles').select('id, credit_balance').eq('id', userId).maybeSingle(),
-  ]);
-
-  if (accessError) {
-    throw new Error(`Failed to load live access: ${accessError.message}`);
-  }
-  if (profileError) {
-    throw new Error(`Failed to load profile credits: ${profileError.message}`);
-  }
-
-  const creditBalance = profileRow?.credit_balance ?? 0;
-  const hasAccess = Boolean(accessRow);
-  const creditsConsumed = accessRow?.credits_consumed ?? 0;
-  const isBlockedForCredits = hasAccess && creditBalance <= 0;
-
-  return {
-    hasAccess,
-    creditBalance,
-    creditsConsumed,
-    isBlockedForCredits,
-  };
-};
-
-export const getLiveAnalyticsSnapshot = async (liveId: string) => {
-  const [{ data: liveRow, error: liveError }, { data: accessRows, error: accessError }] = await Promise.all([
-    supabase
-      .from('lives')
-      .select('id, creator_id, created_at, status, price, creator_percent')
-      .eq('id', liveId)
-      .maybeSingle(),
-    supabase
-      .from('live_access')
-      .select('user_id, credits_consumed, profiles!inner(credit_balance)')
-      .eq('live_id', liveId),
-  ]);
-
-  if (liveError) {
-    throw new Error(`Failed to load live analytics: ${liveError.message}`);
-  }
-
-  if (!liveRow) {
-    throw new Error('Live not found for analytics');
-  }
-
-  if (accessError) {
-    throw new Error(`Failed to load live access analytics: ${accessError.message}`);
-  }
-
-  const rows = accessRows ?? [];
-  const uniqueViewers = new Set<string>();
-  let creditsConsumedTotal = 0;
-  let creditsRemainingTotal = 0;
-
-  for (const row of rows) {
-    if (row.user_id) uniqueViewers.add(row.user_id as string);
-    creditsConsumedTotal += toNumber((row as { credits_consumed?: unknown }).credits_consumed, 0);
-    creditsRemainingTotal += toNumber((row as any).profiles?.credit_balance, 0);
-  }
-
-  const createdAt = liveRow.created_at ? Date.parse(liveRow.created_at as string) : null;
-  const liveDurationMs = createdAt ? Math.max(0, Date.now() - createdAt) : 0;
-  const creatorPercent = toNumber(liveRow.creator_percent, 0) / 100;
-  const price = toNumber(liveRow.price, 0);
-  const creatorRevenuePerCredit = creatorPercent > 0 ? (price * creatorPercent) / 1800 : 0;
-  const estimatedEarnings = creditsConsumedTotal * creatorRevenuePerCredit;
-
-  return {
-    liveId,
-    current_viewers: rows.length,
-    total_unique_viewers: uniqueViewers.size,
-    credits_consumed_total: creditsConsumedTotal,
-    credits_remaining_total: creditsRemainingTotal,
-    credits_remaining_average: rows.length ? creditsRemainingTotal / rows.length : 0,
-    live_duration_ms: liveDurationMs,
-    creator_revenue_per_credit: creatorRevenuePerCredit,
-    estimated_earnings: estimatedEarnings,
-  };
 };
 
 type CreatorOwnershipRecord = {
@@ -853,9 +728,7 @@ export const getCreatorByProfileId = async (profileId: string) => {
 export const getProfileById = async (profileId: string) => {
   const { data, error } = await supabase
     .from('profiles')
-    .select(
-      'id, email, username, credit_balance, referrer_root, referrer_direct, affiliate_earnings, is_root_creator, referrer_id, referrer_parent_id',
-    )
+    .select('id, email, username, status')
     .eq('id', profileId)
     .maybeSingle();
 
@@ -864,20 +737,6 @@ export const getProfileById = async (profileId: string) => {
   }
 
   return data;
-};
-
-export const upsertProfileReferralMetadata = async (
-  profileId: string,
-  updates: Record<string, string | boolean | null>,
-) => {
-  const { error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', profileId);
-
-  if (error) {
-    throw new Error(`Failed to persist referral metadata: ${error.message}`);
-  }
 };
 
 export const ensureCreatorOwnsLive = async (liveId: string, profileId: string) => {
@@ -1457,7 +1316,6 @@ const REQUIRED_TABLES = [
   'withdrawal_audit_log',
   'platform_revenue',
   'webhook_events',
-  'affiliate_logs',
   'live_heartbeat',
   'live_end_log',
 ];

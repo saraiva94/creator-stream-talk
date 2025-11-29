@@ -7,7 +7,6 @@ import {
   createReferralCodeController,
   submitWithdrawalController,
   getWithdrawalHistoryController,
-  getCreatorAffiliateStatsController,
 } from '../controllers/creatorsController';
 import { requireAuth, requireCreatorAccount } from '../middleware/authMiddleware';
 import { withdrawalRateLimiter } from '../middleware/rateLimit';
@@ -27,11 +26,5 @@ router.post(
   submitWithdrawalController,
 );
 router.get('/creators/withdraw/history', requireAuth, requireCreatorAccount, getWithdrawalHistoryController);
-router.get(
-  '/creators/me/affiliate-stats',
-  requireAuth,
-  requireCreatorAccount,
-  getCreatorAffiliateStatsController,
-);
 
 export default router;

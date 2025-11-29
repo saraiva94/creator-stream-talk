@@ -4,53 +4,61 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/hooks/useLanguage";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import ConnectivityOverlay from "@/components/ConnectivityOverlay";
-import { CreditsProvider } from "@/contexts/CreditsContext";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
+import Room from "./pages/Room";
 import Dashboard from "./pages/Dashboard";
 import Subscribe from "./pages/Subscribe";
 import ResetPassword from "./pages/ResetPassword";
+import InviteSignup from "./pages/InviteSignup";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
+import LiveManagement from "./pages/LiveManagement";
 import NotFound from "./pages/NotFound";
-import LiveViewer from "./pages/LiveViewer";
-import RegistrationCheckoutPage from "./pages/RegistrationCheckoutPage";
+import CreatorDashboard from "./pages/CreatorDashboard";
+import CreatorLives from "./pages/CreatorLives";
+import CreatorHistory from "./pages/CreatorHistory";
+import CreatorSettings from "./pages/CreatorSettings";
+import CreatorPayouts from "./pages/CreatorPayouts";
+import AdminCreators from "./pages/AdminCreators";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
-        <CreditsProvider>
-          <TooltipProvider>
-            <ConnectivityOverlay />
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/live/:liveId" element={<LiveViewer />} />
-                <Route path="/register" element={<RegistrationCheckoutPage />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/subscribe" element={<Subscribe />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/affiliate" element={<Affiliate />} />
-                <Route path="/profile" element={<Profile />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </CreditsProvider>
-      </LanguageProvider>
-    </QueryClientProvider>
-  </ErrorBoundary>
+  <QueryClientProvider client={queryClient}>
+    <LanguageProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/invite/:inviteCode" element={<InviteSignup />} />
+            <Route path="/invite" element={<InviteSignup />} />
+            <Route path="/room/:creatorId" element={<Room />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/live-management" element={<LiveManagement />} />
+            <Route path="/subscribe" element={<Subscribe />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/creators" element={<AdminCreators />} />
+            <Route path="/affiliate" element={<Affiliate />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/creator/dashboard" element={<CreatorDashboard />} />
+            <Route path="/creator/lives" element={<CreatorLives />} />
+            <Route path="/creator/history" element={<CreatorHistory />} />
+            <Route path="/creator/settings" element={<CreatorSettings />} />
+            <Route path="/creator/payouts" element={<CreatorPayouts />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </LanguageProvider>
+  </QueryClientProvider>
 );
 
 export default App;

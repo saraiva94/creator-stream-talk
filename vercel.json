@@ -1,32 +1,4 @@
 {
-  "version": 3,
-  "framework": "vite",
-  "installCommand": "npm install",
-  "buildCommand": "npm run vercel-build",
-  "outputDirectory": "dist",
-  "functions": {
-    "backend/index.ts": {
-      "runtime": "nodejs18.x",
-      "memory": 512,
-      "maxDuration": 30,
-      "includeFiles": [
-        "backend/**",
-        "package.json",
-        "package-lock.json"
-      ],
-      "env": {
-        "RAW_BODY": "true"
-      }
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/backend/index.ts"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "version": 2,
+  "framework": "vite"
 }

@@ -68,6 +68,11 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return respondError(res, 403, 'Profile not found for authenticated user');
     }
 
+    const status = (profile as { status?: string } | null)?.status;
+    if (status && status !== 'active') {
+      return respondError(res, 403, 'Account not active');
+    }
+
     const creator = await getCreatorByProfileId(profileId);
 
     req.auth = {
@@ -81,47 +86,6 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
     return next();
   } catch (error) {
     return respondError(res, 500, (error as Error).message);
-  }
-};
-
-export const optionalAuth = async (req: Request, _res: Response, next: NextFunction) => {
-  try {
-    const token = extractBearerToken(req.headers.authorization);
-
-    if (!token) {
-      return next();
-    }
-
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data?.user) {
-      return next();
-    }
-
-    const user = data.user;
-    const profileId = user.id;
-    const profile = await getProfileById(profileId);
-
-    if (!profile) {
-      return next();
-    }
-
-    const creator = await getCreatorByProfileId(profileId);
-
-    req.auth = {
-      userId: user.id,
-      email: user.email ?? (profile as { email?: string } | null)?.email ?? undefined,
-      profileId,
-      creatorId: creator?.id ?? null,
-      isAdmin: isAdminUser(user),
-    };
-
-    return next();
-  } catch (error) {
-    // Optional auth should never fail the request; just continue without auth context
-    // eslint-disable-next-line no-console
-    console.debug('[optionalAuth] failed to hydrate auth context', error);
-    return next();
   }
 };
 

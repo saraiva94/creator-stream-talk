@@ -4,8 +4,7 @@ import { respondError, respondSuccess } from '../lib/responses';
 import {
   ensureCreatorOwnsLive,
   getLiveWithCreator,
-  getLiveAccessWithCredits,
-  getLiveAnalyticsSnapshot,
+  hasLiveAccess,
   listLivesForCreator,
   listPublicLives,
   saveLiveRoomName,
@@ -14,6 +13,7 @@ import {
 import { parseWithZod } from '../validation/utils';
 import { liveIdentifierSchema } from '../validation/livesSchemas';
 import { createPrivateRoom, generateAccessLink } from '../services/jitsiService';
+import { supabase } from '../lib/supabaseClient';
 
 export const getPublicLivesController = async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -50,6 +50,20 @@ export const startLiveController = async (req: Request, res: Response, next: Nex
     const { liveId } = parseWithZod(liveIdentifierSchema, req.body ?? {});
     const live = await ensureCreatorOwnsLive(liveId, profileId);
 
+  const { data: approvalRow, error: approvalError } = await supabase
+    .from('creator_profiles')
+    .select('approved_for_live')
+    .eq('id', profileId)
+    .maybeSingle();
+
+    if (approvalError) {
+      throw new Error(`Failed to verify creator approval: ${approvalError.message}`);
+    }
+
+  if (!approvalRow || approvalRow.approved_for_live !== true) {
+    return respondError(res, 403, 'Creator not approved for live streaming');
+  }
+
     if (live.status === 'ended') {
       return respondError(res, 409, 'This live has already ended');
     }
@@ -67,12 +81,12 @@ export const startLiveController = async (req: Request, res: Response, next: Nex
   }
 };
 
-const resolvePreviewSeconds = (role: 'anonymous' | 'authenticated') =>
-  role === 'anonymous' ? 30 : 10;
-
 export const getLiveInfoController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const profileId = req.auth?.profileId ?? null;
+    const profileId = req.auth?.profileId;
+    if (!profileId) {
+      return respondError(res, 401, 'Authentication required');
+    }
 
     const rawLiveId = req.params?.liveId ?? req.body?.liveId ?? req.query?.liveId;
     const { liveId } = parseWithZod(liveIdentifierSchema, { liveId: rawLiveId });
@@ -82,24 +96,12 @@ export const getLiveInfoController = async (req: Request, res: Response, next: N
       return respondError(res, 404, 'Live not found');
     }
 
-    const isCreator = Boolean(profileId && profileId === live.creator_profile_id);
-    let creditBalance = 0;
-    let isBlockedForCredits = false;
-    let creditsConsumed = 0;
-    let requiresPayment = true;
-    let isEntitled = false;
-    const previewSeconds = resolvePreviewSeconds(profileId ? 'authenticated' : 'anonymous');
-
-    if (isCreator) {
-      requiresPayment = false;
-      isEntitled = true;
-    } else if (profileId) {
-      const accessState = await getLiveAccessWithCredits(profileId, liveId);
-      creditBalance = accessState.creditBalance;
-      isBlockedForCredits = accessState.isBlockedForCredits;
-      creditsConsumed = accessState.creditsConsumed;
-      requiresPayment = !accessState.hasAccess;
-      isEntitled = accessState.hasAccess && accessState.creditBalance > 0;
+    const isCreator = profileId === live.creator_profile_id;
+    if (!isCreator) {
+      const entitled = await hasLiveAccess(profileId, liveId);
+      if (!entitled) {
+        return respondError(res, 403, 'Access denied');
+      }
     }
 
     const roomName = live.room_name ?? null;
@@ -109,72 +111,6 @@ export const getLiveInfoController = async (req: Request, res: Response, next: N
       liveId: live.id,
       title: live.title,
       status: live.status,
-      roomName,
-      jitsiUrl,
-      price: live.price,
-      currency: live.currency,
-      requiresPayment,
-      isEntitled,
-      credit_balance: creditBalance,
-      is_blocked_for_credits: isBlockedForCredits,
-      credits_consumed: creditsConsumed,
-      preview_seconds: previewSeconds,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const reconnectLiveAccessController = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const profileId = req.auth?.profileId ?? null;
-    const rawLiveId = req.params?.liveId ?? req.body?.liveId ?? req.query?.liveId;
-    const { liveId } = parseWithZod(liveIdentifierSchema, { liveId: rawLiveId });
-    const live = await getLiveWithCreator(liveId);
-
-    if (!live) {
-      return respondError(res, 404, 'Live not found');
-    }
-
-    const roomName = live.room_name ?? null;
-    const jitsiUrl = roomName ? generateAccessLink(roomName) : null;
-
-    if (!profileId) {
-      return respondSuccess(res, 200, {
-        access: 'preview',
-        credits: 0,
-        remaining_preview_seconds: resolvePreviewSeconds('anonymous'),
-        roomName,
-        jitsiUrl,
-      });
-    }
-
-    const accessState = await getLiveAccessWithCredits(profileId, liveId);
-
-    if (accessState.hasAccess && accessState.creditBalance > 0) {
-      return respondSuccess(res, 200, {
-        access: 'granted',
-        credits: accessState.creditBalance,
-        remaining_preview_seconds: 0,
-        roomName,
-        jitsiUrl,
-      });
-    }
-
-    if (accessState.hasAccess && accessState.creditBalance <= 0) {
-      return respondSuccess(res, 200, {
-        access: 'blocked',
-        credits: 0,
-        remaining_preview_seconds: 0,
-        roomName,
-        jitsiUrl,
-      });
-    }
-
-    return respondSuccess(res, 200, {
-      access: 'preview',
-      credits: accessState.creditBalance ?? 0,
-      remaining_preview_seconds: resolvePreviewSeconds('authenticated'),
       roomName,
       jitsiUrl,
     });
@@ -191,13 +127,9 @@ export const requestViewerAccessController = async (req: Request, res: Response,
     }
 
     const { liveId } = parseWithZod(liveIdentifierSchema, req.body ?? {});
-    const accessState = await getLiveAccessWithCredits(profileId, liveId);
-    if (!accessState.hasAccess) {
+    const hasAccessGrant = await hasLiveAccess(profileId, liveId);
+    if (!hasAccessGrant) {
       return respondError(res, 403, 'User does not have access to this live');
-    }
-
-    if (accessState.creditBalance <= 0) {
-      return respondError(res, 402, 'Insufficient credits');
     }
 
     const live = await getLiveWithCreator(liveId);
@@ -212,33 +144,7 @@ export const requestViewerAccessController = async (req: Request, res: Response,
     const accessUrl = generateAccessLink(live.room_name);
     logger.info({ event: 'jitsi.viewer.access_granted', liveId, viewerId: profileId });
 
-    return respondSuccess(res, 200, {
-      liveId,
-      accessUrl,
-      credit_balance: accessState.creditBalance,
-      credits_consumed: accessState.creditsConsumed,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getLiveAnalyticsController = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const profileId = req.auth?.profileId;
-    const creatorId = req.auth?.creatorId;
-
-    if (!profileId || !creatorId) {
-      return respondError(res, 403, 'Creator authentication required');
-    }
-
-    const rawLiveId = req.params?.liveId ?? req.body?.liveId ?? req.query?.liveId;
-    const { liveId } = parseWithZod(liveIdentifierSchema, { liveId: rawLiveId });
-
-    await ensureCreatorOwnsLive(liveId, profileId);
-    const analytics = await getLiveAnalyticsSnapshot(liveId);
-
-    return respondSuccess(res, 200, analytics);
+    return respondSuccess(res, 200, { liveId, accessUrl });
   } catch (error) {
     next(error);
   }

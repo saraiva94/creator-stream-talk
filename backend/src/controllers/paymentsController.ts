@@ -1,60 +1,80 @@
 import { Request, Response, NextFunction } from 'express';
-import logger from '../lib/logger';
-import { respondError, respondSuccess } from '../lib/responses';
-import { getEnv } from '../lib/env';
-import { createCheckoutPreference, handlePaymentWebhook } from '../services/mercadoPagoService';
-import { getLiveWithCreator, recordPayment } from '../services/supabaseService';
-import { parseWithZod } from '../validation/utils';
-import { createPaymentSchema } from '../validation/paymentsSchemas';
-import { verifyMercadoPagoSignature } from '../shared/mercadoPagoSignature';
+import { supabase } from '../lib/supabaseClient';
+import {
+  createCheckoutPreference,
+  createRegistrationPreference as createRegistrationCheckoutPreference,
+  handlePaymentWebhook,
+} from '../services/mercadoPagoService';
 
-export const createPayment = async (req: Request, res: Response, next: NextFunction) => {
+export const createPreference = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { liveId } = parseWithZod(createPaymentSchema, req.body ?? {});
-    const userId = req.auth?.profileId;
+    const { liveId, userId, price, purchaseType, metadata } = req.body ?? {};
+    const normalizedPrice = Number(price);
 
-    if (!userId) {
-      return respondError(res, 401, 'Authentication required');
+    if (!liveId || !userId || Number.isNaN(normalizedPrice) || normalizedPrice <= 0) {
+      return res.status(400).json({
+        error: 'liveId, userId, and a positive price are required.',
+      });
     }
-
-    const live = await getLiveWithCreator(liveId);
-
-    if (!live || live.price === null) {
-      return respondError(res, 404, 'Live not found or missing price');
-    }
-
-    if (live.status && ['ending', 'ended'].includes(live.status)) {
-      return respondError(res, 409, 'This live is no longer available for purchase');
-    }
-
-    const amount = Number(live.price);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return respondError(res, 422, 'Live price must be a positive number');
-    }
-
-    const paymentRecord = await recordPayment({
-      userId,
-      liveId,
-      amount,
-      status: 'pending',
-    });
 
     const preference = await createCheckoutPreference({
-      type: 'live_access',
       liveId,
       userId,
-      price: amount,
-      paymentId: paymentRecord.id,
+      price: normalizedPrice,
+      purchaseType,
+      metadata,
     });
+    res.status(201).json(preference);
+  } catch (error) {
+    next(error);
+  }
+};
 
-    logger.info({ event: 'payments.create', liveId, userId, paymentId: paymentRecord.id, amount });
+export const createRegistrationPreference = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { userId, parentId } = req.body ?? {};
 
-    return respondSuccess(res, 201, {
-      ...preference,
-      amount,
-      paymentId: paymentRecord.id,
-    });
+    if (!userId || !parentId) {
+      return res.status(400).json({ error: 'userId and parentId are required for registration.' });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, status')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new Error(`Failed to load profile for registration: ${profileError.message}`);
+    }
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found for registration payment.' });
+    }
+
+    if (profile.status && profile.status !== 'pending_payment') {
+      return res.status(400).json({ error: 'Registration payment is only available for pending accounts.' });
+    }
+
+    const { data: referral, error: referralError } = await supabase
+      .from('referrals')
+      .select('referrer_id')
+      .eq('referred_id', userId)
+      .order('created_at', { ascending: true })
+      .maybeSingle();
+
+    if (referralError) {
+      throw new Error(`Failed to load referral for registration: ${referralError.message}`);
+    }
+
+    const resolvedParent = referral?.referrer_id || parentId;
+
+    if (!resolvedParent) {
+      return res.status(400).json({ error: 'Parent relationship missing for invite registration.' });
+    }
+
+    const preference = await createRegistrationCheckoutPreference({ userId, parentId: resolvedParent });
+    res.status(201).json(preference);
   } catch (error) {
     next(error);
   }
@@ -62,64 +82,12 @@ export const createPayment = async (req: Request, res: Response, next: NextFunct
 
 export const webhook = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userAgent = (req.headers['user-agent'] as string | undefined)?.toLowerCase() || '';
-    if (!userAgent.includes('mercadopago')) {
-      logger.warn({ event: 'mercadopago.webhook.rejected', reason: 'invalid_user_agent', userAgent });
-      return respondError(res, 403, 'Unauthorized webhook source');
-    }
-
     const signature = req.headers['x-signature'] as string | undefined;
     const requestId = req.headers['x-request-id'] as string | undefined;
-    const idempotencyKey = req.headers['x-idempotency-key'] as string | undefined;
-    const rawBody = req.rawBody;
 
-    if (!idempotencyKey) {
-      logger.warn({ event: 'mercadopago.webhook.rejected', reason: 'missing_idempotency', requestId });
-      return respondError(res, 400, 'Missing idempotency key');
-    }
+    await handlePaymentWebhook(req.body, { signature, requestId });
 
-    if (!rawBody) {
-      logger.error({ event: 'mercadopago.webhook.rejected', reason: 'missing_raw_body', requestId });
-      return respondError(res, 400, 'Raw body unavailable for signature validation');
-    }
-
-    const signatureResult = verifyMercadoPagoSignature({
-      rawBody,
-      signatureHeader: signature,
-      secret: getEnv('MERCADOPAGO_WEBHOOK_SECRET'),
-    });
-
-    if (!signatureResult.isValid) {
-      logger.warn({
-        event: 'mercadopago.webhook.signature_invalid',
-        requestId,
-        idempotencyKey,
-        reason: signatureResult.reason,
-        expectedHmac: signatureResult.expectedHmac,
-        receivedHmac: signatureResult.receivedHmac,
-        timestamp: signatureResult.timestamp,
-      });
-      const status = signatureResult.reason === 'stale_timestamp' ? 400 : 401;
-      return respondError(res, status, 'Invalid Mercado Pago signature');
-    }
-
-    logger.info({
-      event: 'mercadopago.webhook.signature_valid',
-      requestId,
-      idempotencyKey,
-      timestamp: signatureResult.timestamp,
-    });
-
-    logger.info({
-      event: 'mercadopago.webhook.received',
-      requestId,
-      idempotencyKey,
-    });
-
-    const result = await handlePaymentWebhook(req.body, { signature, requestId, idempotencyKey }, rawBody);
-
-    logger.info({ event: 'mercadopago.webhook.processed', requestId, idempotencyKey, processed: result.processed });
-    return respondSuccess(res, 200, result);
+    res.status(200).json({ received: true });
   } catch (error) {
     next(error);
   }

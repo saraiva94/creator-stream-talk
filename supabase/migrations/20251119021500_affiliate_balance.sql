@@ -40,7 +40,7 @@ alter table public.referral_conversions enable row level security;
 alter table public.creator_balance enable row level security;
 alter table public.withdrawals enable row level security;
 
-create policy if not exists "Creators view own referral links" on public.referral_links
+create policy "Creators view own referral links" on public.referral_links
 for select using (
     exists (
         select 1 from public.creators c
@@ -49,17 +49,17 @@ for select using (
     )
 );
 
-create policy if not exists "Service role manages referral links" on public.referral_links
+create policy "Service role manages referral links" on public.referral_links
 for select using (auth.role() = 'service_role');
 
-create policy if not exists "Service role inserts referral links" on public.referral_links
+create policy "Service role inserts referral links" on public.referral_links
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Service role updates referral links" on public.referral_links
+create policy "Service role updates referral links" on public.referral_links
 for update using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
 
-create policy if not exists "Creators view own referral conversions" on public.referral_conversions
+create policy "Creators view own referral conversions" on public.referral_conversions
 for select using (
     exists (
         select 1 from public.creators c
@@ -68,17 +68,17 @@ for select using (
     )
 );
 
-create policy if not exists "Service role selects referral conversions" on public.referral_conversions
+create policy "Service role selects referral conversions" on public.referral_conversions
 for select using (auth.role() = 'service_role');
 
-create policy if not exists "Service role inserts referral conversions" on public.referral_conversions
+create policy "Service role inserts referral conversions" on public.referral_conversions
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Service role updates referral conversions" on public.referral_conversions
+create policy "Service role updates referral conversions" on public.referral_conversions
 for update using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
 
-create policy if not exists "Creators view own balances" on public.creator_balance
+create policy "Creators view own balances" on public.creator_balance
 for select using (
     exists (
         select 1 from public.creators c
@@ -87,17 +87,17 @@ for select using (
     )
 );
 
-create policy if not exists "Service role manages balances" on public.creator_balance
+create policy "Service role manages balances" on public.creator_balance
 for select using (auth.role() = 'service_role');
 
-create policy if not exists "Service role inserts balances" on public.creator_balance
+create policy "Service role inserts balances" on public.creator_balance
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Service role updates balances" on public.creator_balance
+create policy "Service role updates balances" on public.creator_balance
 for update using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
 
-create policy if not exists "Creators view own withdrawals" on public.withdrawals
+create policy "Creators view own withdrawals" on public.withdrawals
 for select using (
     exists (
         select 1 from public.creators c
@@ -106,9 +106,9 @@ for select using (
     )
 );
 
-create policy if not exists "Service role inserts withdrawals" on public.withdrawals
+create policy "Service role inserts withdrawals" on public.withdrawals
 for insert with check (auth.role() = 'service_role');
 
-create policy if not exists "Service role updates withdrawals" on public.withdrawals
+create policy "Service role updates withdrawals" on public.withdrawals
 for update using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');

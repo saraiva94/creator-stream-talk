@@ -31,6 +31,9 @@ export const translations = {
       registerButton: "Create Account",
       loading: "Loading...",
       passwordRequirements: "Password must have 8+ characters, 1 uppercase, 1 number, 1 symbol",
+      confirmPassword: "Confirm password",
+      passwordMismatchTitle: "Passwords do not match",
+      passwordMismatch: "Please confirm your password correctly.",
     },
     subscribe: {
       title: "Subscribe and Unlock Everything",
@@ -85,6 +88,9 @@ export const translations = {
       registerButton: "Crear cuenta",
       loading: "Cargando...",
       passwordRequirements: "La contraseña debe tener más de 8 caracteres, 1 mayúscula, 1 número, 1 símbolo",
+      confirmPassword: "Confirmar contraseña",
+      passwordMismatchTitle: "Las contraseñas no coinciden",
+      passwordMismatch: "Confirma tu contraseña correctamente.",
     },
     subscribe: {
       title: "Suscríbete y desbloquea todo",
@@ -139,6 +145,9 @@ export const translations = {
       registerButton: "Criar conta",
       loading: "Carregando...",
       passwordRequirements: "A senha deve ter 8+ caracteres, 1 maiúscula, 1 número, 1 símbolo",
+      confirmPassword: "Confirmar senha",
+      passwordMismatchTitle: "As senhas não coincidem",
+      passwordMismatch: "Confirme sua senha corretamente.",
     },
     subscribe: {
       title: "Assine e Desbloqueie Tudo",

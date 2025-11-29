@@ -1,160 +1,57 @@
-# Creator Stream Talk – Architecture & Operations Guide
+# Creator Stream Talk – Architecture & Workspace Notes
 
-## 1. Platform Overview
-Creator Stream Talk is a full-stack live-streaming platform where creators host paid live sessions, monetize via Mercado Pago, and deliver access through Jitsi Meet rooms. The codebase contains:
-- **Frontend**: React 18 + TypeScript + Vite + Tailwind (see `src/`).
-- **Backend**: Node.js + Express + TypeScript (see `backend/`).
-- **Database**: Supabase Postgres with RLS policies and cron-driven Edge Functions (see `supabase/`).
-- **Streaming**: Jitsi Meet public rooms; the backend generates random room slugs and distributes URLs once access is granted.
-- **Payments**: Mercado Pago checkout preferences + webhook approvals.
-- **Email**: Resend transactional emails for receipts, access, and live reminders.
+## Tech Stack Overview
+- **Client runtime**: [Vite](vite.config.ts) bootstraps a React 18 + TypeScript SPA with SWC-based fast refresh.
+- **Styling system**: Tailwind CSS (see `tailwind.config.ts` and `src/index.css`) plus shadcn/ui component primitives under `src/components`.
+- **State & data**: React Query (`src/App.tsx`) provides async caching; React Router defines page routing in the same file; a custom `LanguageProvider` inside `src/hooks/useLanguage.tsx` handles localization context.
+- **Integrations**:
+  - Supabase client factory lives in `src/integrations/supabase/client.ts` and expects URL + anon key env vars.
+  - Video streaming helper utilities for Daily.co calls are defined in `src/lib/daily.ts`.
+  - Placeholder payment hooks are collected in `src/lib/payments.ts`.
+- **Backend integrations**:
+  - `/backend` now proxies Daily.co: `POST /daily/create-room` provisions locked rooms, while `POST /daily/create-host-token` and `POST /daily/create-viewer-token` mint role-specific meeting tokens via the Daily REST API. These calls require `DAILY_API_KEY` and `DAILY_PROJECT_URL` in `.env`.
+  - `/backend` also fronts Mercado Pago: `POST /payments/create-preference` creates checkout preferences with `liveId`/`userId` metadata, while `POST /payments/webhook` validates notifications, fetches the payment status from Mercado Pago, and records approved purchases in Supabase so the viewer token service can grant access later on. Configure this integration with `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
+- **Backend runtime**: `/backend` hosts a Node.js + Express API written in TypeScript. `ts-node-dev` powers local development while `tsc` builds to `backend/dist`. The server loads shared environment variables from the repo-level `.env`.
 
-## 2. Directory Layout
+## Directory Layout
 ```
-root/
-├─ src/                    # React SPA (components, hooks, integrations)
-├─ backend/                # Express API + middleware, services, routers
-├─ supabase/               # SQL migrations, cron config, Edge Functions
-├─ scripts/                # Utility scripts (e.g., print webhook URLs)
-├─ ARCHITECTURE.md         # This document
-└─ README_TECHNICAL.md     # Developer-focused quick-start
+src/
+├─ components/        # shadcn/ui wrappers, shared widgets, and layout primitives
+├─ hooks/             # React hooks (language, auth helpers, etc.)
+├─ integrations/      # Supabase types + client factory
+├─ lib/               # Cross-cutting utilities (Daily, payments, formatting, i18n)
+├─ pages/             # Top-level routed screens (Home, Auth, Room, Dashboard, etc.)
+├─ App.tsx            # App shell with providers and router wiring
+└─ main.tsx           # Vite entry point that renders <App />
 ```
 
-### Backend Structure (`backend/src`)
-- `controllers/` – HTTP handlers that validate input (Zod), enforce auth, and return standardized JSON responses.
-- `routes/` – Express routers mounting controllers plus middleware (auth, rate limit, raw-body, domain guards).
-- `services/` – Business logic and integrations (`supabaseService`, `mercadoPagoService`, `jitsiService`, `emailService`, `statusService`).
-- `middleware/` – Auth, CORS, request logging, rate limiting, raw-body parsers, webhook domain guard, error handler.
-- `lib/` – Env loader, logger, response helpers, Supabase client factory.
-- `shared/` – Reusable utilities (e.g., `liveMonitorCore`, Mercado Pago signature helper).
-- `validation/` – Zod schemas grouped per domain (creators, lives, payments, email, withdrawals).
+```
+backend/
+├─ src/
+│  ├─ controllers/   # Express handlers orchestrating between routes & services
+│  ├─ routes/        # HTTP route definitions (e.g., GET /status)
+│  ├─ services/      # Business logic and integrations (node-fetch helpers, etc.)
+│  └─ lib/           # Cross-cutting helpers (environment loader, logging, etc.)
+├─ index.ts          # App entry point that mounts middleware + routes
+└─ tsconfig.json     # Backend-specific TypeScript configuration
+```
 
-## 3. Environment & Tooling
-1. `npm install` installs both frontend and backend dependencies.
-2. Copy `.env.example` → `.env` and fill **every** key listed. The backend loads from the repo root `.env`.
-3. Local dev: `npm run dev` (frontend) and `npm run backend:dev` (Express via `ts-node-dev`).
-4. Production smoke: `npm run backend:build && node backend/dist/index.js` plus `npm run build` for the SPA.
-5. Diagnostics: `npm run print:webhook-urls` prints the resolved public base + canonical webhook URLs.
+## Local Environment & Tooling
+1. Install dependencies with `npm install` (already executed in this workspace).
+2. Copy `.env.example` to `.env` and fill in Supabase credentials so the generated client can initialize.
+3. Start the frontend with `npm run dev`.
+4. Start the backend API with `npm run backend:dev` (runs `ts-node-dev` from `/backend`). Use `npm run backend:build` followed by `node backend/dist/index.js` for production-style smoke tests.
+5. Optional quality gates: `npm run lint` and `npm run build` validate the React app, while `npm run backend:build` ensures the API compiles.
 
-### Required Environment Variables
-**Backend (serverless Express under `/api`)**
+## Known Issues / Follow-Ups Before Feature Work
+1. **Secrets previously committed** – the `.env` file containing Supabase secrets was tracked. It is now ignored, but regenerate keys if the repository has already been shared publicly.
+2. **Environment setup** – Developers must provide real values for `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_SUPABASE_PROJECT_ID` before auth or database features can work.
+3. **Security review pending** – Supabase policies/functions under `supabase/` were not audited yet; confirm row-level security before exposing write APIs.
+4. **NPM vulnerabilities** – `npm install` reports 3 moderate issues; run `npm audit fix` (or review manually) prior to production hardening.
+5. **Daily.co credentials** – `src/lib/daily.ts` hardcodes iframe defaults but lacks environment-driven room URLs/token generation. We will need a server-side token service before going live.
 
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`
-- `MERCADOPAGO_ACCESS_TOKEN` (alias `MERCADO_PAGO_ACCESS_TOKEN`), `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_WEBHOOK_URL`, `MERCADOPAGO_CURRENCY`
-- `RESEND_API_KEY`, `EMAIL_LOCALE`
-- `PUBLIC_BASE_URL` (canonical domain used to derive webhook URLs)
-- `ALLOWED_ORIGINS` (comma-delimited CORS whitelist)
-- `ALLOWED_WEBHOOK_DOMAIN` (expected Host for inbound webhooks)
-- `HEARTBEAT_INTERVAL_MS` (ms cadence used by the Supabase cron monitor)
-- `HEARTBEAT_TOLERANCE_MS` (ms tolerance for host absence; camera inactivity uses 2× this value)
-- `BACKEND_PORT`, `LOG_LEVEL` (local defaults 4000 / `info`)
-
-**Frontend (SPA)**
-
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-- `VITE_API_BASE_URL` (optional; defaults to `<origin>/api` in browsers)
-
-The env loader (`backend/src/lib/env.ts`) now enforces the full production contract, resolves `PUBLIC_BASE_URL` (env → Vercel → local), derives canonical webhook URLs, and surfaces mismatch warnings (e.g., webhook URL vs. canonical). Diagnostics expose env coverage, domain guard state, and CORS alignment.
-
-## 4. Authentication & Authorization
-- **Auth**: `requireAuth` expects `Authorization: Bearer <Supabase access token>`, validates it with the Supabase Admin client, loads the profile + optional creator row, and injects `req.auth = { userId, email, profileId, creatorId, isAdmin }`.
-- **Creator guard**: `requireCreatorAccount` ensures `req.auth.creatorId` exists before creator-only actions (balance, referrals, lives, withdrawals).
-- **Admin guard**: `requireAdmin` requires `isAdmin` from the JWT’s role claims for `/admin/*` routes.
-- All controllers consume `req.auth` instead of trusting IDs from the request body, ensuring consistent ownership enforcement.
-
-## 5. Streaming Architecture (Jitsi)
-- `lives.room_name` stores the randomly generated Jitsi slug (format: `creator_<id>_<timestamp>_<randomHex>`).
-- **Starting a live (`POST /lives/start`)**:
-  1. Creator authenticates (requires `creatorId`).
-  2. Controller calls `jitsiService.createPrivateRoom(creatorId)` → generates slug + stores it via `supabaseService.saveLiveRoomName`.
-  3. Response includes `{ roomName, jitsiUrl: https://meet.jit.si/<roomName>, status }` and transitions the live state to `waiting_for_host`.
-- **Viewer access (`POST /lives/access`)**:
-  1. Authenticated viewer must have `live_access` (set after Mercado Pago webhook approval).
-  2. Controller fetches the live, verifies entitlement, and returns `{ accessUrl: https://meet.jit.si/<roomName> }`.
-- **Live info (`GET /lives/:liveId/info`)**: returns metadata (title, price, status, `roomName`, `jitsiUrl`, lifecycle state) for the creator or entitled viewer.
-- **Heartbeats & inactivity**: Supabase Edge Function `monitor-lives` (see `supabase/functions/monitor-lives`) runs every minute via Supabase cron (configured in `supabase/config.toml`). It queries active lives, checks `live_heartbeat` rows, and transitions lives to `ending/ended` when camera or host activity expires. No third-party webhooks are needed.
-
-## 6. Payments, Revenue, and Access Control
-1. **Checkout** (`POST /payments/create`)
-   - Authenticated viewer supplies `liveId`.
-   - Controller fetches the live (price + percentage splits), inserts a `payments` row (`pending`), and requests a Mercado Pago preference with metadata (`paymentId`, `liveId`, `userId`).
-   - Response includes the Mercado Pago `init_point` URL.
-2. **Webhook** (`POST /payments/webhook`)
-   - Raw body parser preserves buffers for signature validation.
-   - Middleware stack: raw-body → domain guard (Host check) → controller.
-   - Controller enforces `User-Agent`, timestamp (±5 min), `x-idempotency-key`, and HMAC signature (via `verifyMercadoPagoSignature`). Duplicates are blocked using the `webhook_events` table (stores key + body hash).
-- Approved payments trigger:
-  - `payments` row update (`approved`).
-  - `live_access` insert (unique per `user_id` + `live_id`).
-  - Revenue split via percentages on the live: creator earnings (`creator_balance`), optional parent affiliate earnings, and `platform_revenue` entry.
-  - `commissions` entries for creator and parent.
-  - Transactional emails (receipt + access link) using Resend.
-- Registration payments (purchaseType=`registration`) skip live writes and instead call the `process_registration_affiliate_payout` RPC to distribute fixed-cent earnings to root/direct referrers and log the event in `affiliate_logs`. Pending referral context lives in `registration_referrals` and metadata fields (`referrer_id`, `referrer_parent_id`, `is_root_creator`) so the webhook can apply the correct split.
-  - No referral → platform keeps 500 cents.
-  - Referral → direct referrer earns 100 cents; the root/parent earns 50 cents. If the direct referrer is a root creator, they receive both shares (150 cents total).
-  - Admin free links (`/api/admin/affiliate/free-registration-link`) bypass payment, mark the profile as a root creator, and emit no commissions.
-3. **Viewer entitlements**
-   - `live_access` table gate-keeps `/lives/access`.
-   - `grantLiveAccess` and `addCreatorEarnings` helpers run inside a Supabase transaction to ensure atomicity.
-
-## 7. Supabase Schema Highlights
-Key tables (with RLS) include:
-- `profiles`, `creators`, `lives` (with `room_name`, `status`, `creator_percent`, `affiliate_percent`, `platform_percent`, `is_active`, `ended_at`).
-- `payments`, `live_access`, legacy room metadata tables (**removed**), `commission`, `creator_balance`, `referral_links`, `referral_conversions`, `platform_revenue`, `withdrawals`, `withdrawal_audit_log`.
-- Registration affiliates: `profiles` include `is_root_creator`, `referrer_id`, `referrer_parent_id`, and `affiliate_earnings` (cents); audit rows live in `affiliate_logs` and pending referral context in `registration_referrals`, all driven by the `process_registration_affiliate_payout` RPC.
-- `live_heartbeat` and `live_end_log` track heartbeat events and auto-termination reasons.
-- `webhook_events` captures Mercado Pago idempotency keys + SHA-256 body hash.
-- Every table enabling user-facing data has explicit RLS policies: creators only see/update their data, viewers only access their own entitlements/payments, and service-role inserts (webhooks, cron jobs) are allowed via the backend’s service key.
-
-The latest migrations (see `supabase/migrations/`) rename the legacy `daily_room_name` column to `room_name` and drop the removed room metadata table, so new environments match the Jitsi model from the first migration.
-
-## 8. Email & Notifications
-`emailService` sends three transactional templates through Resend:
-1. **Payment receipt** – Confirms the purchase, amount, and live title.
-2. **Access granted** – Includes the Jitsi access URL (`https://meet.jit.si/<room_name>`).
-3. **Live starting** – Notifies followers/participants when a live transitions to `waiting_for_host`/`live`.
-The service logs the last 100 sends in memory for quick troubleshooting (production systems should replace this with durable logging).
-
-## 9. Observability & DX
-- **Logging**: Pino logger (`backend/src/lib/logger.ts`) powers structured JSON logs. Controllers emit domain-specific events (`payments.webhook.approved`, `jitsi.live.started`, `creator.withdrawal.requested`, etc.).
-- **Request logging**: `requestLogger` middleware logs method/path/status/duration for all requests when enabled.
-- **Rate limiting**: `express-rate-limit` protects `/payments/create`, `/email/send`, `/lives/access`, `/creators/withdraw`.
-- **Responses**: All controllers return `{ success: boolean, data?: T, error?: string }` with consistent HTTP status codes.
-- **CORS**: `backend/src/middleware/cors.ts` restricts origins to the `ALLOWED_ORIGINS` whitelist, logs blocked hosts, and is surfaced through diagnostics.
-- **Diagnostics & health**:
-  - `GET /status` – simple heartbeat (`API OK`).
-  - `GET /status/health` – uptime, version, last heartbeat run (from Supabase), active lives count, canonical version.
-  - `GET /status/version` – package version + commit hash + build timestamp.
-  - `GET /status/diagnostics` – Supabase, Mercado Pago, Resend probes; env coverage; canonical webhook URLs; domain-guard state; rate-limit + logger mode; Jitsi info block.
-  - `GET /status/checklist` – Deployment checklist: env presence, table existence, webhook URL matches, cron/monitor status, rate-limit + auth enforcement flags.
-
-## 10. Deployment & Vercel Architecture
-- `backend/index.ts` runs in dual mode:
-  - **Local dev** – Starts the HTTP server on `BACKEND_PORT`, installs graceful shutdown hooks, logs `server.mode=local_dev`.
-  - **Vercel serverless** – Detects `VERCEL === '1'`, skips `app.listen`, exports the Express handler, and logs `server.mode=vercel_serverless`. Long-running jobs (heartbeat monitor) live in Supabase Edge Functions.
-- `vercel.json` now splits traffic: `/api/(.*)` rewrites to `/backend/index.ts` (serverless Express), while everything else rewrites to `/index.html` so the Vite SPA in `dist/` handles routing (`/`, `/dashboard`, `/live/:id`, payment callbacks). RAW_BODY remains enabled for the backend function bundle.
-- **Cron monitor** – Supabase cron (configured in `supabase/config.toml`) invokes `monitor-lives` every minute, so serverless deployments remain stateless.
-- **Canonical webhook URLs** – Env loader exposes `publicBaseUrl`, `canonicalMercadoPagoWebhookUrl`, and mismatch warnings; `/status/checklist` reports whether `MERCADOPAGO_WEBHOOK_URL` matches the canonical value. Run `npm run print:webhook-urls` before copying URLs into third-party dashboards.
-- **Frontend base URL** – Set `VITE_API_BASE_URL=https://<domain>/api` so the SPA targets the routed API in production; local dev can rely on the same prefix against the local Express server.
-- **Known pitfalls**:
-  - Forgetting to set `PUBLIC_BASE_URL` or `ALLOWED_ORIGINS` leads to failed CORS or webhook diagnostics.
-  - Mercado Pago signatures fail if Vercel’s RAW_BODY pipeline changes; keep the raw-body middleware intact when adding new body parsers.
-  - The monitor requires Supabase cron; disabling it leaves stale lives active.
-
-## 11. API Reference (backend highlights)
-- `GET /status`, `/status/health`, `/status/version`, `/status/diagnostics`, `/status/checklist`
-- `GET /lives` (public alias `/lives/public`), `GET /lives/creator`, `POST /lives/start`, `GET /lives/:liveId/info`, `POST /lives/access`
-- `POST /payments/create`, `POST /payments/webhook`
-- `POST /email/send`
-- `POST /creators/register`, `GET /creators/balance`, `GET /creators/commissions`, `GET /creators/referrals`, `POST /creators/referral-code`, `POST /creators/withdraw`, `GET /creators/withdraw/history`
-- `GET /admin/withdrawals/pending`, `POST /admin/withdrawals/approve`, `POST /admin/withdrawals/reject`, `POST /admin/withdrawals/mark-paid`
-
-Every endpoint adheres to the standardized response envelope and requires auth unless explicitly documented as public (e.g., `/status/*`, `/lives/public`).
-
-## 12. Future Enhancements
-- Jitsi JWT-secured rooms to restrict access beyond obscured URLs.
-- Durable email logging (Supabase table or observability pipeline).
-- Public REST surface for scheduled lives & search filters.
-- Automated Mercado Pago refund/chargeback handlers.
-
-This document reflects the current Jitsi-based architecture. Keep it in sync whenever schema, environment contracts, or deployment workflows change.
+## Payment Flow
+1. **Preference creation** – The client requests `POST /payments/create-preference` with `{ liveId, userId, price }`. The backend calls Mercado Pago with our access token, injects `{ liveId, userId }` metadata, and returns `{ init_point, preferenceId }` so the frontend can redirect the buyer.
+2. **Webhook handling** – Mercado Pago calls `POST /payments/webhook`. The backend ensures the `x-signature` header is present, looks up the payment via `/v1/payments/:id`, and verifies `status === 'approved'` before processing.
+3. **Access storage** – Approved transactions are upserted into the Supabase `live_access` table with `live_id`, `user_id`, `status`, and `granted_at` timestamp. Future viewer-token endpoints can check this table to gate paid access.
+4. **Configuration** – The backend requires Mercado Pago (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`) and server-side Supabase credentials (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) inside `.env` to complete the workflow.
