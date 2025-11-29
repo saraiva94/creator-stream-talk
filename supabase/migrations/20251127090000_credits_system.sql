@@ -16,15 +16,28 @@ create table if not exists public.credit_purchases (
   created_at timestamptz not null default timezone('utc', now())
 );
 
-create index if not exists credit_purchases_user_id_idx on public.credit_purchases(user_id);
+create index if not exists credit_purchases_user_id_idx
+  on public.credit_purchases(user_id);
 
 alter table public.credit_purchases enable row level security;
 
-create policy if not exists "Users view own credit purchases" on public.credit_purchases
-  for select using (auth.uid() = user_id);
+-- RLS policies (sem IF NOT EXISTS, com drop antes pra evitar erro em re-run)
+drop policy if exists "Users view own credit purchases"
+  on public.credit_purchases;
 
-create policy if not exists "Service role manages credit purchases" on public.credit_purchases
-  for all using (request.jwt().role = 'service_role') with check (request.jwt().role = 'service_role');
+create policy "Users view own credit purchases"
+  on public.credit_purchases
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Service role manages credit purchases"
+  on public.credit_purchases;
+
+create policy "Service role manages credit purchases"
+  on public.credit_purchases
+  for all
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');
 
 -- Utility functions for atomic credit management
 create or replace function public.add_credits(p_user_id uuid, p_amount integer)
@@ -56,7 +69,11 @@ declare
   deduction integer;
   new_balance integer;
 begin
-  select credit_balance into current_balance from public.profiles where id = p_user_id for update;
+  select credit_balance
+    into current_balance
+    from public.profiles
+    where id = p_user_id
+    for update;
 
   if current_balance is null then
     return 0;
@@ -81,5 +98,7 @@ create or replace function public.get_credit_balance(p_user_id uuid)
 returns integer
 language sql
 as $$
-  select credit_balance from public.profiles where id = p_user_id;
+  select credit_balance
+  from public.profiles
+  where id = p_user_id;
 $$;

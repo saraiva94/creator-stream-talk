@@ -18,7 +18,10 @@ create index if not exists registration_referrals_user_idx on public.registratio
 
 alter table public.registration_referrals enable row level security;
 
-create policy if not exists "Service role manages registration referrals" on public.registration_referrals
+drop policy if exists "Service role manages registration referrals" on public.registration_referrals;
+
+create policy "Service role manages registration referrals"
+  on public.registration_referrals
   for all
   using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');

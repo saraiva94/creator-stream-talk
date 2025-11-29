@@ -20,7 +20,11 @@ create index if not exists affiliate_logs_direct_idx on public.affiliate_logs(di
 
 alter table public.affiliate_logs enable row level security;
 
-create policy if not exists "Service role manages affiliate logs" on public.affiliate_logs
+-- refatoração: Postgres não aceita "create policy if not exists"
+drop policy if exists "Service role manages affiliate logs" on public.affiliate_logs;
+
+create policy "Service role manages affiliate logs"
+  on public.affiliate_logs
   for all
   using (auth.role() = 'service_role')
   with check (auth.role() = 'service_role');
