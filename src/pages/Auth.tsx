@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Video, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import { AuthApiError } from "@supabase/supabase-js";
 
 // === helper para tratar erros sem usar `any` ===
 type ErrorWithMessage = {
@@ -46,18 +47,69 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
-  const [searchParams] = useSearchParams();
-  const refCode = searchParams.get('ref');
+
+  const siteUrl = useMemo(
+    () => (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, ""),
+    []
+  );
 
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         navigate("/");
+        return;
+      }
+
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      const type = hashParams.get("type");
+
+      try {
+        if (code) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+
+          if (data.session) {
+            toast({
+              title: "Email confirmed!",
+              description: "Your account is now active. You can log in.",
+            });
+            await supabase.auth.signOut();
+            navigate("/auth", { replace: true });
+            return;
+          }
+        }
+
+        if (accessToken && refreshToken && type === "signup") {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) throw error;
+
+          toast({
+            title: "Email confirmed!",
+            description: "Your account is now active. You can log in.",
+          });
+          await supabase.auth.signOut();
+          navigate("/auth", { replace: true });
+        }
+      } catch (error) {
+        console.error("[AUTH][CONFIRMATION]", { error, code, accessToken, refreshToken });
+        toast({
+          title: "Confirmation error",
+          description: getErrorMessage(error, "We couldn't confirm your email. Try again."),
+          variant: "destructive",
+        });
       }
     };
     checkSession();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   const validatePassword = (pwd: string): boolean => {
     const minLength = pwd.length >= 8;
@@ -67,7 +119,7 @@ const Auth = () => {
     return minLength && hasUpperCase && hasNumber && hasSymbol;
   };
 
-    const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !username || !confirmPassword) {
       toast({
@@ -98,7 +150,8 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      const redirectUrl = `${window.location.origin}/`;
+      // Ensure this route is listed in Supabase auth redirect URLs.
+      const redirectUrl = `${siteUrl}/auth`;
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -115,37 +168,21 @@ const Auth = () => {
         throw error;
       }
 
-      // Handle referral if present
-      if (refCode && data.user) {
-        const { data: refProfile } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("referral_code", refCode)
-          .single();
-
-        await supabase.from("referrals").insert({
-          referral_code: refCode,
-          referred_id: data.user.id,
-          referrer_id: refProfile?.id,
-        });
-      }
-
-      // Set role in user_roles table
-      if (data.user && role === "creator") {
-        await supabase.from("user_roles").insert({
-          user_id: data.user.id,
-          role: "creator",
+      if (!data.session) {
+        toast({
+          title: "Account created!",
+          description: "Check your email to verify your account before logging in.",
         });
       }
 
       toast({
         title: "Account created!",
-        description: "You will be redirected shortly.",
+        description: "Please verify your email to activate your account.",
       });
 
-      setTimeout(() => navigate("/"), 1500);
+      setTimeout(() => navigate("/auth"), 1500);
     } catch (error: unknown) {
-      console.error("Sign up error", error);
+      console.error("[AUTH][SIGNUP]", { error, email, username, role });
 
       const description = getErrorMessage(
         error,
@@ -191,7 +228,28 @@ const Auth = () => {
 
       navigate("/");
     } catch (error: unknown) {
-      console.error("Sign in error", error);
+      console.error("[AUTH][SIGNIN]", { error, email });
+
+      if (error instanceof AuthApiError) {
+        if (error.code === "email_not_confirmed" ||
+          (error.message && error.message.toLowerCase().includes("confirm"))) {
+          toast({
+            title: "Email not confirmed",
+            description: "Please verify your email address before logging in.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (error.status === 400 || error.status === 403) {
+          toast({
+            title: "Invalid credentials",
+            description: "Please check your email and password and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
 
       const description = getErrorMessage(
         error,
@@ -232,9 +290,8 @@ const Auth = () => {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-1">
                 <TabsTrigger value="login">{t.auth.login}</TabsTrigger>
-                <TabsTrigger value="register">{t.auth.register}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -270,109 +327,18 @@ const Auth = () => {
                       </button>
                     </div>
                   </div>
-                  <Link to="/reset-password" className="text-sm text-primary hover:underline block">
+                  <Link to="/auth/reset-password" className="text-sm text-primary hover:underline block">
                     {t.auth.forgotPassword}
                   </Link>
+                  <p className="text-sm text-muted-foreground">
+                    Sign-up is invite-only. Use your personal invite link to create an account.
+                  </p>
                   <Button
                     type="submit"
                     className="w-full"
                     disabled={loading}
                   >
                     {loading ? t.auth.loading : t.auth.loginButton}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="register">
-                <form onSubmit={handleSignUp} className="space-y-4 mt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="register-username">{t.auth.username}</Label>
-                    <Input
-                      id="register-username"
-                      type="text"
-                      placeholder="myusername"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">{t.auth.email}</Label>
-                    <Input
-                      id="register-email"
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">{t.auth.password}</Label>
-                    <div className="relative">
-                      <Input
-                        id="register-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={loading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t.auth.passwordRequirements}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-confirm-password">{t.auth.confirmPassword ?? "Confirm Password"}</Label>
-                    <div className="relative">
-                      <Input
-                        id="register-confirm-password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        disabled={loading}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>{t.auth.role}</Label>
-                    <RadioGroup value={role} onValueChange={(val) => setRole(val as "viewer" | "creator")}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="viewer" id="viewer" />
-                        <Label htmlFor="viewer" className="font-normal cursor-pointer">
-                          {t.auth.roleViewer}
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="creator" id="creator" />
-                        <Label htmlFor="creator" className="font-normal cursor-pointer">
-                          {t.auth.roleCreator}
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={loading}
-                  >
-                    {loading ? t.auth.loading : t.auth.registerButton}
                   </Button>
                 </form>
               </TabsContent>

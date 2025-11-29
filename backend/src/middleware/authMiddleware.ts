@@ -68,6 +68,11 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return respondError(res, 403, 'Profile not found for authenticated user');
     }
 
+    const status = (profile as { status?: string } | null)?.status;
+    if (status && status !== 'active') {
+      return respondError(res, 403, 'Account not active');
+    }
+
     const creator = await getCreatorByProfileId(profileId);
 
     req.auth = {

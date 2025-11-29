@@ -8,9 +8,13 @@ type RequestInit = globalThis.RequestInit;
 const MERCADOPAGO_API_BASE = 'https://api.mercadopago.com';
 
 export type PreferenceRequest = {
-  liveId: string;
+  liveId?: string;
   userId: string;
   price: number;
+  purchaseType?: 'live' | 'credits' | 'registration' | string;
+  metadata?: Record<string, unknown>;
+  title?: string;
+  description?: string;
 };
 
 export type PreferenceResponse = {
@@ -52,11 +56,21 @@ export const createCheckoutPreference = async ({
   liveId,
   userId,
   price,
+  purchaseType,
+  metadata,
+  title,
+  description,
 }: PreferenceRequest): Promise<PreferenceResponse> => {
+  const normalizedPurchase = (purchaseType || 'live').toLowerCase();
   const items = [
     {
-      title: 'Live access purchase',
-      description: `Access for live ${liveId}`,
+      title:
+        title || (normalizedPurchase === 'registration' ? 'Registration fee' : 'Live access purchase'),
+      description:
+        description ||
+        (normalizedPurchase === 'registration'
+          ? 'Platform registration fee'
+          : `Access for live ${liveId ?? 'room'}`),
       quantity: 1,
       currency_id: 'BRL',
       unit_price: price,
@@ -68,6 +82,8 @@ export const createCheckoutPreference = async ({
     metadata: {
       liveId,
       userId,
+      purchaseType: normalizedPurchase,
+      ...(metadata || {}),
     },
     auto_return: 'approved',
   };
@@ -86,6 +102,23 @@ export const createCheckoutPreference = async ({
   );
 
   return { init_point: result.init_point, preferenceId: result.id };
+};
+
+export const createRegistrationPreference = async ({
+  userId,
+  parentId,
+}: {
+  userId: string;
+  parentId: string;
+}): Promise<PreferenceResponse> => {
+  return createCheckoutPreference({
+    userId,
+    price: 5,
+    purchaseType: 'registration',
+    metadata: { parentId },
+    title: 'Registration fee',
+    description: 'Registration and activation payment',
+  });
 };
 
 const isSignatureValid = (signatureHeader?: string) => {
@@ -156,6 +189,7 @@ export const handlePaymentWebhook = async (
   const liveId = metadata.liveId || metadata.live_id;
   const userId = metadata.userId || metadata.user_id;
   const profileId = metadata.profileId || metadata.profile_id || userId;
+  const parentId = metadata.parentId || metadata.parent_id || null;
   const purchaseType = (metadata.purchaseType || metadata.purchase_type || metadata.product || '').toLowerCase();
   const amountCents = resolveAmountCents(paymentDetails.transaction_amount);
 
@@ -192,16 +226,31 @@ export const handlePaymentWebhook = async (
     return { processed: true, mode: 'credits' };
   }
 
-  if (!liveId || !userId) {
-    throw new Error('Payment metadata missing liveId or userId.');
-  }
+  if (purchaseType === 'registration') {
+    if (!userId) {
+      throw new Error('Payment metadata missing userId for registration.');
+    }
 
-  if (purchaseType === 'registration' && userId) {
     await registerAffiliatePayoutForSignup({
       newUserId: userId,
       paymentId,
       amountCents: Number.isFinite(amountCents) ? amountCents : undefined,
+      parentId,
     });
+
+    logger.info({
+      event: 'registration.payment.processed',
+      paymentId,
+      userId,
+      parentId,
+      amountCents,
+    });
+
+    return { processed: true, mode: 'registration' };
+  }
+
+  if (!liveId || !userId) {
+    throw new Error('Payment metadata missing liveId or userId.');
   }
 
   await persistApprovedPayment(liveId, userId);

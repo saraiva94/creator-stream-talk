@@ -138,7 +138,7 @@ export const getAffiliateLink = async (req: Request, res: Response, next: NextFu
 
     const baseUrl = process.env.PUBLIC_SITE_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
     const cleanedBase = baseUrl.replace(/\/$/, '');
-    const url = `${cleanedBase}/signup?ref=${encodeURIComponent(referralCode)}`;
+    const url = `${cleanedBase}/invite/${encodeURIComponent(referralCode)}`;
 
     return respondSuccess(res, 200, { code: referralCode, url });
   } catch (error) {

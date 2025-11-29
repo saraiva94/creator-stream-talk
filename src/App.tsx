@@ -10,6 +10,7 @@ import Room from "./pages/Room";
 import Dashboard from "./pages/Dashboard";
 import Subscribe from "./pages/Subscribe";
 import ResetPassword from "./pages/ResetPassword";
+import InviteSignup from "./pages/InviteSignup";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
@@ -34,6 +35,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/invite/:inviteCode" element={<InviteSignup />} />
+            <Route path="/invite" element={<InviteSignup />} />
             <Route path="/room/:creatorId" element={<Room />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/live-management" element={<LiveManagement />} />
