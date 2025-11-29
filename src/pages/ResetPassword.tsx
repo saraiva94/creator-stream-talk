@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +10,40 @@ import { Video, ArrowLeft } from "lucide-react";
 
 const ResetPassword = () => {
   const [email, setEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const validatePassword = (pwd: string): boolean => {
+    const minLength = pwd.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(pwd);
+    const hasNumber = /\d/.test(pwd);
+    const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
+    return minLength && hasUpperCase && hasNumber && hasSymbol;
+  };
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setHasRecoverySession(!!data.session);
+    };
+    checkSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || session) {
+        setHasRecoverySession(!!session);
+      }
+    });
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +58,10 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
+      const siteUrl = (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, "");
+      const redirectTo = `${siteUrl}/auth/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth`,
+        redirectTo,
       });
 
       if (error) throw error;
@@ -49,6 +82,67 @@ const ResetPassword = () => {
     }
   };
 
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newPassword || !confirmPassword) {
+      toast({
+        title: "Password required",
+        description: "Please fill in both password fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!validatePassword(newPassword)) {
+      toast({
+        title: "Weak password",
+        description: "Password must have 8+ characters, 1 uppercase, 1 number, 1 symbol.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        description: "Please confirm your password correctly.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password updated!",
+        description: "You will be redirected to login.",
+      });
+
+      setTimeout(() => navigate("/auth"), 1500);
+    } catch (error: unknown) {
+      console.error("Update password error", error);
+      const message =
+        typeof error === "object" && error && "message" in error
+          ? (error as { message?: string }).message || "Erro ao atualizar senha."
+          : "Erro ao atualizar senha.";
+
+      toast({
+        title: "Error updating password",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
@@ -63,47 +157,94 @@ const ResetPassword = () => {
           <CardHeader>
             <CardTitle>Reset Password</CardTitle>
             <CardDescription>
-              {sent 
-                ? "We've sent you an email with instructions to reset your password."
-                : "Enter your email address and we'll send you a link to reset your password."
-              }
+              {hasRecoverySession
+                ? "Choose a new password for your account."
+                : sent
+                  ? "We've sent you an email with instructions to reset your password."
+                  : "Enter your email address and we'll send you a link to reset your password."
+            }
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {!sent ? (
-              <form onSubmit={handleResetPassword} className="space-y-4">
+            {hasRecoverySession ? (
+              <form onSubmit={handleUpdatePassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="new-password">New Password</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
+                    id="new-password"
+                    type="password"
+                    placeholder="********"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={updating}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm New Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    placeholder="********"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={updating}
                   />
                 </div>
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={loading}
+                  disabled={updating}
                 >
-                  {loading ? "Sending..." : "Send Reset Link"}
+                  {updating ? "Updating..." : "Update Password"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => navigate("/auth")}
+                  disabled={updating}
+                >
+                  Go to Login
                 </Button>
               </form>
             ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Didn't receive the email? Check your spam folder or try again.
-                </p>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setSent(false)}
-                >
-                  Try Again
-                </Button>
-              </div>
+              <>
+                {!sent ? (
+                  <form onSubmit={handleResetPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="your@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={loading}
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={loading}
+                    >
+                      {loading ? "Sending..." : "Send Reset Link"}
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Didn't receive the email? Check your spam folder or try again.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setSent(false)}
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
             
             <Link to="/auth" className="flex items-center justify-center gap-2 mt-6 text-sm text-primary hover:underline">

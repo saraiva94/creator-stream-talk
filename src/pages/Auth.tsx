@@ -38,6 +38,7 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<"viewer" | "creator">("viewer");
   const [showPassword, setShowPassword] = useState(false);
@@ -68,7 +69,7 @@ const Auth = () => {
 
     const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !username) {
+    if (!email || !password || !username || !confirmPassword) {
       toast({
         title: "Required fields",
         description: "Please fill all fields",
@@ -81,6 +82,15 @@ const Auth = () => {
       toast({
         title: "Weak password",
         description: t.auth.passwordRequirements,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: t.auth.passwordMismatchTitle ?? "Passwords do not match",
+        description: t.auth.passwordMismatch ?? "Please confirm your password correctly.",
         variant: "destructive",
       });
       return;
@@ -319,6 +329,26 @@ const Auth = () => {
                     <p className="text-xs text-muted-foreground">
                       {t.auth.passwordRequirements}
                     </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="register-confirm-password">{t.auth.confirmPassword ?? "Confirm Password"}</Label>
+                    <div className="relative">
+                      <Input
+                        id="register-confirm-password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>{t.auth.role}</Label>

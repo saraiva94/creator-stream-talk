@@ -39,6 +39,7 @@ const App = () => (
             <Route path="/live-management" element={<LiveManagement />} />
             <Route path="/subscribe" element={<Subscribe />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/creators" element={<AdminCreators />} />
             <Route path="/affiliate" element={<Affiliate />} />
