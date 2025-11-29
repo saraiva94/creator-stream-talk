@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/hooks/useLanguage";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
-import Room from "./pages/Room";
 import Dashboard from "./pages/Dashboard";
 import Subscribe from "./pages/Subscribe";
 import ResetPassword from "./pages/ResetPassword";
@@ -37,7 +36,6 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/invite/:inviteCode" element={<InviteSignup />} />
             <Route path="/invite" element={<InviteSignup />} />
-            <Route path="/room/:creatorId" element={<Room />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/live-management" element={<LiveManagement />} />
             <Route path="/subscribe" element={<Subscribe />} />
