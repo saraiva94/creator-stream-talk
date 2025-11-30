@@ -1,6 +1,6 @@
 import path from 'path';
 import { config } from 'dotenv';
-
+ 
 let loaded = false;
 
 /**
@@ -37,16 +37,33 @@ export const getEnv = (key: string, defaultValue?: string) => {
  * Origens permitidas pro CORS
  */
 export const getAllowedOrigins = () => {
-  const raw = getEnv('ALLOWED_ORIGINS', '');
-  if (!raw) {
-    // defaults de dev
-    return ['http://localhost:5173', 'http://localhost:3000'];
-  }
+  loadEnv();
+  const normalize = (origin: string) => origin.replace(/\/$/, '');
+  const origins = new Set<string>();
 
-  return raw
+  const raw = process.env.ALLOWED_ORIGINS ?? '';
+  raw
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .forEach((origin) => origins.add(normalize(origin)));
+
+  const frontendUrl = process.env.FRONTEND_URL?.trim();
+  if (frontendUrl) {
+    origins.add(normalize(frontendUrl));
+  }
+
+  const siteUrl = process.env.VITE_SITE_URL?.trim();
+  if (siteUrl) {
+    origins.add(normalize(siteUrl));
+  }
+
+  if (origins.size === 0) {
+    origins.add('http://localhost:5173');
+    origins.add('http://localhost:3000');
+  }
+
+  return Array.from(origins);
 };
 
 /**

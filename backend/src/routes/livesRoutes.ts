@@ -12,6 +12,7 @@ import { viewerAccessRateLimiter } from '../middleware/rateLimit';
 const router = Router();
 
 router.get('/lives/public', getPublicLivesController);
+router.get('/lives', getPublicLivesController);
 router.get('/lives/creator', requireAuth, requireCreatorAccount, getCreatorLivesController);
 router.post('/lives/start', requireAuth, requireCreatorAccount, startLiveController);
 router.get('/lives/:liveId/info', requireAuth, getLiveInfoController);

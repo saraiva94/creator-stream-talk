@@ -12,6 +12,11 @@ export type PreferenceRequest = {
   userId: string;
   price: number;
   purchaseType?: 'live' | 'credits' | 'registration' | string;
+  type?: 'live' | 'credits' | 'registration' | string;
+  paymentId?: string;
+  referrerId?: string | null;
+  referrerParentId?: string | null;
+  isRootCreator?: boolean;
   metadata?: Record<string, unknown>;
   title?: string;
   description?: string;
@@ -57,11 +62,16 @@ export const createCheckoutPreference = async ({
   userId,
   price,
   purchaseType,
+  type,
+  paymentId,
+  referrerId,
+  referrerParentId,
+  isRootCreator,
   metadata,
   title,
   description,
 }: PreferenceRequest): Promise<PreferenceResponse> => {
-  const normalizedPurchase = (purchaseType || 'live').toLowerCase();
+  const normalizedPurchase = (purchaseType || type || 'live').toLowerCase();
   const items = [
     {
       title:
@@ -77,14 +87,32 @@ export const createCheckoutPreference = async ({
     },
   ];
 
+  const metadataPayload: Record<string, unknown> = {
+    liveId,
+    userId,
+    purchaseType: normalizedPurchase,
+    ...(metadata || {}),
+  };
+
+  if (paymentId) {
+    metadataPayload.paymentId = paymentId;
+  }
+
+  if (referrerId) {
+    metadataPayload.referrerId = referrerId;
+  }
+
+  if (referrerParentId) {
+    metadataPayload.parentId = referrerParentId;
+  }
+
+  if (typeof isRootCreator === 'boolean') {
+    metadataPayload.isRootCreator = isRootCreator;
+  }
+
   const preferencePayload: Record<string, unknown> = {
     items,
-    metadata: {
-      liveId,
-      userId,
-      purchaseType: normalizedPurchase,
-      ...(metadata || {}),
-    },
+    metadata: metadataPayload,
     auto_return: 'approved',
   };
 

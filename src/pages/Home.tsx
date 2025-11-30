@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { api, LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
@@ -16,7 +17,7 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -54,10 +55,11 @@ const Home = () => {
   const fetchLives = async () => {
     try {
       const response = await api.lives.getPublic();
-      setLives(response.lives ?? []);
-      setFilteredLives(response.lives ?? []);
+      const lives = response.lives ?? [];
+      setLives(lives);
+      setFilteredLives(lives);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching lives:", err);
       setError("Failed to load live sessions");
     } finally {

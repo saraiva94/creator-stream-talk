@@ -4,30 +4,23 @@ const DEFAULT_BACKEND_PORT = 3000;
 const AUTH_REDIRECT_PATH = '/auth';
 let redirectingDueToAuthError = false;
 
-const resolveBaseUrl = () => {
-  const envBase =
-    import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.VITE_BACKEND_URL ||
-    import.meta.env.VITE_PUBLIC_BASE_URL ||
-    undefined;
+const stripTrailingSlash = (value: string) => value.replace(/\/$/, '');
 
-  const normalize = (value: string) => value.replace(/\/$/, '');
-  const withApiPrefix = (value: string) =>
-    value.endsWith('/api') ? value : `${value}/api`;
+const resolveBaseUrl = () => {
+  const envBase = import.meta.env.VITE_API_BASE_URL?.toString().trim();
 
   if (envBase) {
-    return withApiPrefix(normalize(envBase));
+    return stripTrailingSlash(envBase);
   }
 
-  const inferredOrigin =
-    typeof window !== 'undefined' && window.location?.origin
-      ? window.location.origin
-      : `http://localhost:${DEFAULT_BACKEND_PORT}`;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return stripTrailingSlash(window.location.origin);
+  }
 
-  return withApiPrefix(normalize(inferredOrigin));
+  return `http://localhost:${DEFAULT_BACKEND_PORT}`;
 };
 
-const API_BASE_URL = resolveBaseUrl();
+const API_BASE_URL = stripTrailingSlash(resolveBaseUrl());
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type AuthMode = 'required' | 'optional' | 'none';
@@ -124,7 +117,8 @@ const handleApiError = async (path: string, error: ApiError): Promise<never> => 
 
 const buildUrl = (path: string) => {
   if (path.startsWith('http')) return path;
-  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
 };
 
 async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -437,7 +431,7 @@ export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
 // Public API surface
 export const apiClient = {
   fetchPublicLives: (signal?: AbortSignal) =>
-    request<{ lives: LiveSummary[] }>('/lives', { method: 'GET', auth: 'optional', signal }),
+    request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
 
   startLive: (payload: LiveIdentifierPayload) =>
     request<StartLiveResponse>('/lives/start', { method: 'POST', body: payload, auth: 'required' }),
