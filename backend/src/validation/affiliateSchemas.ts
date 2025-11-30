@@ -1,0 +1,18 @@
+import { z } from 'zod';
+
+export const affiliateRegisterSchema = z.object({
+  referralCode: z.string().trim().optional().nullable(),
+});
+
+export const markRootCreatorSchema = z.object({
+  user_id: z.string().uuid(),
+});
+
+export const registrationCheckoutSchema = z.object({
+  email: z.string().email().optional(),
+  password: z.string().min(6).optional(),
+  referralCode: z.string().trim().optional().nullable(),
+  referrer_id: z.string().uuid().optional().nullable(),
+  free: z.boolean().optional(),
+  root: z.boolean().optional(),
+});

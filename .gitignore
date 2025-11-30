@@ -29,4 +29,3 @@ backend/dist
 .env
 .env.local
 .aider*
-.env

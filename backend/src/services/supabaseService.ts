@@ -728,7 +728,7 @@ export const getCreatorByProfileId = async (profileId: string) => {
 export const getProfileById = async (profileId: string) => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, email, username')
+    .select('id, email, username, status')
     .eq('id', profileId)
     .maybeSingle();
 

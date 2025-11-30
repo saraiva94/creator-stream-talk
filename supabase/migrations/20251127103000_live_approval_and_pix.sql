@@ -1,43 +1,36 @@
-begin;
+-- 20251127103000_live_approval_and_pix.sql
+-- PIX payout key + compat extra para bancos que ainda usam creator_profiles
 
--- Ensure payout requests can store PIX information for payouts
+-- 1) Garantir coluna PIX no payout_requests (idempotente)
 alter table public.payout_requests
   add column if not exists pix_key text;
 
--- Add admin-controlled approval flag for going live
-alter table public.creator_profiles
-  add column if not exists approved_for_live boolean not null default false;
-
-update public.creator_profiles
-set approved_for_live = coalesce(approved_for_live, false)
-where approved_for_live is null;
-
-create or replace function public.enforce_creator_live_approval_guard()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
+-- 2) Compatibilidade LEGACY: só mexe em creator_profiles se a tabela existir
+do $$
 begin
-  if tg_op = 'INSERT' and auth.role() <> 'service_role' then
-    new.approved_for_live := false;
-  end if;
+  -- se a tabela legacy existir, aplica as regras; se não existir, não faz nada
+  if to_regclass('public.creator_profiles') is not null then
 
-  if tg_op = 'UPDATE' and auth.role() <> 'service_role' then
-    if coalesce(new.approved_for_live, false) is distinct from coalesce(old.approved_for_live, false) then
-      raise exception 'Only admins can change live approval';
-    end if;
-  end if;
+    -- flag de aprovação para ir ao ar
+    alter table public.creator_profiles
+      add column if not exists approved_for_live boolean not null default false;
 
-  return new;
-end;
+    -- garantir RLS ligado
+    alter table public.creator_profiles enable row level security;
+
+    -- policies básicas (exemplo seguro: só roda se a tabela existe)
+    drop policy if exists "Users can view own profile" on public.creator_profiles;
+    create policy "Users can view own profile"
+      on public.creator_profiles
+      for select
+      using (auth.uid() = id);
+
+    drop policy if exists "Users can update own profile" on public.creator_profiles;
+    create policy "Users can update own profile"
+      on public.creator_profiles
+      for update
+      using (auth.uid() = id)
+      with check (auth.uid() = id);
+  end if;
+end
 $$;
-
-drop trigger if exists creator_profiles_approved_for_live_guard on public.creator_profiles;
-
-create trigger creator_profiles_approved_for_live_guard
-  before insert or update on public.creator_profiles
-  for each row
-  execute function public.enforce_creator_live_approval_guard();
-
-commit;

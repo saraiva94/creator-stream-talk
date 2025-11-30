@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,11 @@ const ResetPassword = () => {
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const siteUrl = useMemo(
+    () => (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, ""),
+    []
+  );
 
   const validatePassword = (pwd: string): boolean => {
     const minLength = pwd.length >= 8;
@@ -28,11 +33,53 @@ const ResetPassword = () => {
   };
 
   useEffect(() => {
-    const checkSession = async () => {
+    const hydrateRecoverySession = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const code = searchParams.get("code");
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.error("[AUTH][RESET][EXCHANGE_CODE]", { error, code });
+          toast({
+            title: "Recovery link error",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setHasRecoverySession(!!data.session);
+        return;
+      }
+
+      if (accessToken && refreshToken) {
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (error) {
+          console.error("[AUTH][RESET][SET_SESSION]", { error, accessToken });
+          toast({
+            title: "Recovery link error",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setHasRecoverySession(!!data.session);
+        return;
+      }
+
       const { data } = await supabase.auth.getSession();
       setHasRecoverySession(!!data.session);
     };
-    checkSession();
+
+    hydrateRecoverySession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" || session) {
@@ -43,7 +90,7 @@ const ResetPassword = () => {
     return () => {
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [searchParams, toast]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,8 +105,9 @@ const ResetPassword = () => {
 
     setLoading(true);
     try {
-      const siteUrl = (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, "");
+      // Ensure this route is configured in Supabase auth redirect URLs.
       const redirectTo = `${siteUrl}/auth/reset-password`;
+      console.info("[AUTH][RESET][REQUEST]", { email, redirectTo });
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
       });
@@ -69,9 +117,10 @@ const ResetPassword = () => {
       setSent(true);
       toast({
         title: "Email sent!",
-        description: "Check your inbox for password reset instructions.",
+        description: "If this email exists, we sent reset instructions.",
       });
     } catch (error: any) {
+      console.error("[AUTH][RESET][REQUEST_ERROR]", { error, email });
       toast({
         title: "Error",
         description: error.message,
@@ -127,7 +176,7 @@ const ResetPassword = () => {
 
       setTimeout(() => navigate("/auth"), 1500);
     } catch (error: unknown) {
-      console.error("Update password error", error);
+      console.error("[AUTH][RESET][UPDATE_ERROR]", error);
       const message =
         typeof error === "object" && error && "message" in error
           ? (error as { message?: string }).message || "Erro ao atualizar senha."
@@ -161,8 +210,7 @@ const ResetPassword = () => {
                 ? "Choose a new password for your account."
                 : sent
                   ? "We've sent you an email with instructions to reset your password."
-                  : "Enter your email address and we'll send you a link to reset your password."
-            }
+                  : "Enter your email address and we'll send you a link to reset your password."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -246,7 +294,7 @@ const ResetPassword = () => {
                 )}
               </>
             )}
-            
+
             <Link to="/auth" className="flex items-center justify-center gap-2 mt-6 text-sm text-primary hover:underline">
               <ArrowLeft className="h-4 w-4" />
               Back to Login

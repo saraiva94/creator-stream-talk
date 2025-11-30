@@ -1,22 +1,4 @@
 {
-  "version": 3,
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/backend/index.ts"
-    }
-  ],
-  "functions": {
-    "backend/index.ts": {
-      "runtime": "nodejs18.x",
-      "memory": 512,
-      "maxDuration": 30,
-      "includeFiles": [
-        "backend/**"
-      ],
-      "env": {
-        "RAW_BODY": "true"
-      }
-    }
-  }
+  "version": 2,
+  "framework": "vite"
 }

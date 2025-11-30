@@ -27,7 +27,11 @@ serve(async (req) => {
     const paymentAmount = amount || settings?.subscription_price || 5.00;
 
     // Create Mercado Pago preference
-    const mpToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN')!;
+    const mpToken =
+      Deno.env.get('MERCADOPAGO_ACCESS_TOKEN') ?? Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
+    if (!mpToken) {
+      throw new Error('Missing Mercado Pago access token (MERCADOPAGO_ACCESS_TOKEN or MERCADO_PAGO_ACCESS_TOKEN)');
+    }
     
     const currency = Deno.env.get('MERCADOPAGO_CURRENCY') || 'USD';
 
