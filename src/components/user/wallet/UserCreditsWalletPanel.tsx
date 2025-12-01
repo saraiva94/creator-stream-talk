@@ -34,7 +34,10 @@ export const UserCreditsWalletPanel = () => {
       setBalanceCredits(data.balance_credits ?? data.balance ?? data.creditBalance ?? 0);
     } catch (err) {
       console.error("[credits] failed to load balance", err);
-      const friendly = err instanceof ApiError ? err.message : "Não foi possível carregar o saldo agora.";
+      const friendly =
+        err instanceof ApiError && err.message
+          ? err.message
+          : "Não foi possível carregar o saldo agora.";
       setError(friendly);
     } finally {
       setIsLoading(false);
@@ -69,9 +72,13 @@ export const UserCreditsWalletPanel = () => {
       }
 
       window.location.assign(preference.init_point);
+      await fetchBalance();
     } catch (err) {
       console.error("[credits] checkout error", err);
-      const message = err instanceof ApiError ? err.message : (err as Error).message;
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : (err as { message?: string })?.message ?? "Não foi possível iniciar a compra.";
       setError(message);
       toast({
         title: "Erro ao iniciar compra",

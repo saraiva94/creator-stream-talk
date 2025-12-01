@@ -298,10 +298,12 @@ export interface AffiliateHistoryEntry {
 }
 
 export interface RegistrationCheckoutPayload {
+  fullName?: string;
   email?: string;
   password?: string;
   referralCode?: string | null;
   referrer_id?: string | null;
+  acceptTerms?: boolean;
   free?: boolean;
   root?: boolean;
 }
@@ -446,7 +448,17 @@ export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
 // Public API surface
 export const apiClient = {
   fetchPublicLives: (signal?: AbortSignal) =>
-    request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
+    withFallback(
+      () => request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
+      async () => {
+        try {
+          return await request<{ lives: LiveSummary[] }>('/lives', { method: 'GET', auth: 'optional', signal });
+        } catch (error) {
+          console.warn('[api] lives fallback failed, returning empty list', error);
+          return { lives: [] };
+        }
+      },
+    ),
 
   startLive: (payload: LiveIdentifierPayload) =>
     request<StartLiveResponse>('/lives/start', { method: 'POST', body: payload, auth: 'required' }),
@@ -523,9 +535,11 @@ export const apiClient = {
     }),
 
   getCreditBalance: async () => {
-    const data = await request<CreditBalanceResponse>('/credits/balance', { auth: 'required' });
-    const balance =
-      (data?.balance_credits ?? data?.balance ?? data?.creditBalance ?? 0) ?? 0;
+    const data = await withFallback(
+      () => request<CreditBalanceResponse>('/credits/balance', { auth: 'required' }),
+      async () => ({ balance: 0, estimated_time: 0 }),
+    );
+    const balance = data?.balance_credits ?? data?.balance ?? data?.creditBalance ?? 0;
     const estimated = data?.estimated_time ?? Math.max(0, Math.floor(balance / 6));
 
     return {
