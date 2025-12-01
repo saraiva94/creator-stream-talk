@@ -3,6 +3,12 @@ import { vi } from "vitest";
 import CreatorActivationCard from "@/components/creator/CreatorActivationCard";
 import { supabaseAuthMock, supabaseClientMock, toastMock } from "@/test/mocks";
 
+type MockFromReturn = {
+  select: () => { eq: () => { single: () => Promise<{ data: unknown; error: null }> } };
+  eq?: () => { single: () => Promise<{ data: unknown; error: null }> };
+  upsert?: () => Promise<unknown>;
+};
+
 describe("CreatorActivationCard", () => {
   beforeEach(() => {
     supabaseAuthMock.getSession.mockResolvedValue({
@@ -19,15 +25,15 @@ describe("CreatorActivationCard", () => {
     );
 
     supabaseClientMock.from.mockImplementation((table: string) => {
-      if (table === "creator_profiles") {
-        return {
-          select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: singleMock }) }),
-          eq: vi.fn().mockReturnValue({ single: singleMock }),
-          upsert: upsertMock,
-        } as any;
-      }
-      return { select: vi.fn() } as any;
-    });
+        if (table === "creator_profiles") {
+          return {
+            select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ single: singleMock }) }),
+            eq: vi.fn().mockReturnValue({ single: singleMock }),
+            upsert: upsertMock,
+          } as MockFromReturn;
+        }
+        return { select: vi.fn() } as unknown as MockFromReturn;
+      });
 
     return { upsertMock };
   };

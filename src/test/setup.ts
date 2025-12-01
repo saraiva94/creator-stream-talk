@@ -1,7 +1,12 @@
 import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
-import { navigateMock, supabaseClientMock, toastMock } from "./mocks";
+import {
+  buildSelectEqSingleMock,
+  navigateMock,
+  supabaseClientMock,
+  toastMock,
+} from "./mocks";
 import type React from "react";
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -52,15 +57,17 @@ vi.mock("@/hooks/useLanguage", () => {
     },
   };
 
-  return {
-    useLanguage: () => ({ language: "pt", setLanguage: vi.fn(), t: translations }),
-    LanguageProvider: ({ children }: { children: React.ReactNode }) => children as any,
-  };
-});
+    return {
+      useLanguage: () => ({ language: "pt", setLanguage: vi.fn(), t: translations }),
+      LanguageProvider: ({ children }: { children: React.ReactNode }) => children,
+    };
+  });
 
 afterEach(() => {
   cleanup();
   toastMock.mockClear();
   navigateMock.mockClear();
   supabaseClientMock.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+  supabaseClientMock.from.mockReset();
+  supabaseClientMock.from.mockImplementation(() => buildSelectEqSingleMock(null));
 });

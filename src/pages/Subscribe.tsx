@@ -98,9 +98,11 @@ const Subscribe = () => {
       }
 
       const payload: RegistrationCheckoutPayload = {
+        fullName: fullName.trim(),
         email,
         password,
         referralCode: trimmedReferral,
+        acceptTerms,
       };
 
       const response = await api.registration.checkout(payload);

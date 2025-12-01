@@ -59,7 +59,17 @@ describe("Subscribe page", () => {
     fireEvent.click(screen.getByRole("button", { name: /concluir cadastro/i }));
 
     await waitFor(() => expect(validateCodeMock).toHaveBeenCalledWith("ref123"));
-    await waitFor(() => expect(checkoutMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(checkoutMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: "user@test.com",
+          password: "StrongPass1!",
+          referralCode: "ref123",
+          fullName: "User Test",
+          acceptTerms: true,
+        }),
+      ),
+    );
     expect(assignSpy).toHaveBeenCalledWith("https://pay.test");
     Object.defineProperty(window, "location", { value: originalLocation });
   });

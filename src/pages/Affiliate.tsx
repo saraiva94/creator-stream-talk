@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Users, TrendingUp, Link as LinkIcon, Copy } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
@@ -29,63 +30,68 @@ const Affiliate = () => {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [balance, setBalance] = useState(0);
+  const [savingCode, setSavingCode] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/auth");
-        return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          navigate("/auth");
+          return;
+        }
+        setUser(session.user);
+
+        // Get profile with referral code and balance
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("referral_code, balance")
+          .eq("id", session.user.id)
+          .single();
+
+        if (profile) {
+          setReferralCode(profile.referral_code || "");
+          setBalance(profile.balance || 0);
+        }
+
+        // Get referrals
+        const { data: referralsData } = await supabase
+          .from("referrals")
+          .select(`
+            *
+          `)
+          .eq("referrer_id", session.user.id)
+          .order("created_at", { ascending: false });
+
+        if (referralsData) {
+          // Get usernames separately
+          const referralsWithProfiles: Referral[] = await Promise.all(
+            referralsData.map(async (ref) => {
+              const { data: profileRow } = await supabase
+                .from("profiles")
+                .select("username")
+                .eq("id", ref.referred_id)
+                .single();
+
+              return {
+                ...ref,
+                profiles: { username: profileRow?.username || "Usuário" },
+              } as Referral;
+            }),
+          );
+
+          setReferrals(referralsWithProfiles);
+          const total = referralsWithProfiles.reduce(
+            (sum, ref) => sum + (ref.commission_earned || 0),
+            0
+          );
+          setTotalEarnings(total);
+        }
+      } catch (error) {
+        console.error("[AFFILIATES] Error loading data", error);
+      } finally {
+        setLoading(false);
       }
-      setUser(session.user);
-
-      // Get profile with referral code and balance
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("referral_code, balance")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profile) {
-        setReferralCode(profile.referral_code || "");
-        setBalance(profile.balance || 0);
-      }
-
-      // Get referrals
-      const { data: referralsData } = await supabase
-        .from("referrals")
-        .select(`
-          *
-        `)
-        .eq("referrer_id", session.user.id)
-        .order("created_at", { ascending: false });
-
-      if (referralsData) {
-        // Get usernames separately
-        const referralsWithProfiles: Referral[] = await Promise.all(
-          referralsData.map(async (ref) => {
-            const { data: profileRow } = await supabase
-              .from("profiles")
-              .select("username")
-              .eq("id", ref.referred_id)
-              .single();
-
-            return {
-              ...ref,
-              profiles: { username: profileRow?.username || "Usuário" },
-            } as Referral;
-          }),
-        );
-        
-        setReferrals(referralsWithProfiles);
-        const total = referralsWithProfiles.reduce(
-          (sum, ref) => sum + (ref.commission_earned || 0),
-          0
-        );
-        setTotalEarnings(total);
-      }
-
-      setLoading(false);
     };
 
     checkAuth();
@@ -98,6 +104,45 @@ const Affiliate = () => {
       title: "Link copiado!",
       description: "Compartilhe com seus amigos",
     });
+  };
+
+  const handleSaveCode = async () => {
+    if (!referralCode.trim() || !user) {
+      toast({
+        title: "Código obrigatório",
+        description: "Informe um código de indicação para salvar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingCode(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ referral_code: referralCode.trim() })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Código atualizado",
+        description: "Seu código de indicação foi salvo com sucesso.",
+      });
+    } catch (err) {
+      console.error("[AFFILIATES] Error saving code", err);
+      const message =
+        typeof err === "object" && err && "message" in err
+          ? (err as { message?: string }).message
+          : "Não foi possível salvar o código.";
+      toast({
+        title: "Erro ao salvar código",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCode(false);
+    }
   };
 
   if (loading) {
@@ -178,6 +223,21 @@ const Affiliate = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Código de indicação</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value)}
+                  placeholder="Seu código único"
+                  disabled={savingCode}
+                />
+                <Button onClick={handleSaveCode} disabled={savingCode}>
+                  {savingCode ? "Salvando..." : "Salvar código"}
+                </Button>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <Input
                 value={`${window.location.origin}/auth?ref=${referralCode}`}
