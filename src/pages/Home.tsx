@@ -7,9 +7,10 @@ import { Search } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { api, LiveSummary } from "@/lib/api";
+import { api, ApiError, LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { useToast } from "@/hooks/use-toast";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
@@ -21,6 +22,7 @@ const Home = () => {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -60,8 +62,18 @@ const Home = () => {
       setError(null);
     } catch (err: unknown) {
       console.error("Error fetching lives:", err);
-      const message = err instanceof Error ? err.message : "Failed to load live sessions";
-      setError(message || "Failed to load live sessions");
+      if (err instanceof ApiError && err.status === 404) {
+        setLives([]);
+        setFilteredLives([]);
+        setError(null);
+        return;
+      }
+      setError("Não foi possível carregar os criadores agora.");
+      toast({
+        title: "Não foi possível carregar os criadores",
+        description: "Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

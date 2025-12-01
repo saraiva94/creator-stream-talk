@@ -11,7 +11,14 @@ export const getCreditsBalanceController = async (req: Request, res: Response, n
     }
 
     const balance = await getCreditsBalance(profileId);
-    return respondSuccess(res, 200, balance);
+    const balanceCredits = balance.balance_credits ?? 0;
+    const estimatedTime = Math.max(0, Math.floor(balanceCredits / 6));
+
+    return respondSuccess(res, 200, {
+      balance: balanceCredits,
+      balance_credits: balanceCredits,
+      estimated_time: estimatedTime,
+    });
   } catch (error) {
     next(error);
   }

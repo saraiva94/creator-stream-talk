@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 
 type CreatorProfile = {
   display_name: string;
@@ -61,7 +61,7 @@ const CreatorActivationCard = () => {
   const handleActivate = async () => {
     if (!user) {
       toast({
-        title: "Faca login",
+        title: "Faça login",
         description: "Entre na sua conta para ativar o perfil de criador.",
         variant: "destructive",
       });
@@ -70,8 +70,8 @@ const CreatorActivationCard = () => {
 
     if (!displayName.trim()) {
       toast({
-        title: "Campo obrigatorio",
-        description: "Digite um nome de exibicao.",
+        title: "Campo obrigatório",
+        description: "Digite um nome de exibição.",
         variant: "destructive",
       });
       return;
@@ -86,21 +86,25 @@ const CreatorActivationCard = () => {
             .filter(Boolean)
         : [];
 
-      const { error } = await supabase.from("creator_profiles").insert({
-        id: user.id,
-        display_name: displayName.trim(),
-        bio: bio.trim() || null,
-        tags: formattedTags,
-      });
+      const { error } = await supabase.from("creator_profiles").upsert(
+        {
+          id: user.id,
+          display_name: displayName.trim(),
+          bio: bio.trim() || null,
+          tags: formattedTags,
+        },
+        { onConflict: "id" },
+      );
 
       if (error) throw error;
 
       setIsCreator(true);
       toast({
         title: "Perfil de criador ativado!",
-        description: "Agora voce pode iniciar lives e configurar suas informacoes.",
+        description: "Agora você pode iniciar lives e configurar suas informações.",
       });
     } catch (error: unknown) {
+      console.error("[creator] activation error", error);
       const message = error instanceof Error ? error.message : "Erro ao criar perfil";
       toast({
         title: "Erro ao criar perfil",
@@ -128,20 +132,18 @@ const CreatorActivationCard = () => {
       <Card className="border-border shadow-card">
         <CardHeader>
           <CardTitle>Perfil de criador ativo</CardTitle>
-          <CardDescription>Seu perfil de criador ja esta habilitado.</CardDescription>
+          <CardDescription>Seu perfil de criador já está habilitado.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            Nome de exibicao: <span className="font-semibold text-foreground">{displayName || "Nao definido"}</span>
+            Nome de exibição: <span className="font-semibold text-foreground">{displayName || "Não definido"}</span>
           </p>
           {tags && (
             <p className="text-sm text-muted-foreground">
               Tags: <span className="font-semibold text-foreground">{tags}</span>
             </p>
           )}
-          <p className="text-sm text-muted-foreground">
-            Configure lives e edite detalhes no painel do criador.
-          </p>
+          <p className="text-sm text-muted-foreground">Configure lives e edite detalhes no painel do criador.</p>
         </CardContent>
       </Card>
     );
@@ -151,13 +153,11 @@ const CreatorActivationCard = () => {
     <Card className="border-border shadow-card">
       <CardHeader>
         <CardTitle>Ativar perfil de criador</CardTitle>
-        <CardDescription>
-          Defina seu nome de exibicao e ative o perfil para poder iniciar transmissões ao vivo.
-        </CardDescription>
+        <CardDescription>Defina seu nome de exibição e ative o perfil para poder iniciar transmissões ao vivo.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="creator-display-name">Nome de Exibicao *</Label>
+          <Label htmlFor="creator-display-name">Nome de Exibição *</Label>
           <Input
             id="creator-display-name"
             value={displayName}
@@ -172,18 +172,18 @@ const CreatorActivationCard = () => {
             id="creator-bio"
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            placeholder="Conte sobre voce..."
+            placeholder="Conte sobre você..."
             rows={3}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="creator-tags">Tags (separadas por virgula)</Label>
+          <Label htmlFor="creator-tags">Tags (separadas por vírgula)</Label>
           <Input
             id="creator-tags"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder="Musica, Jogos, Tecnologia"
+            placeholder="Música, Jogos, Tecnologia"
           />
         </div>
 

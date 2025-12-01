@@ -452,8 +452,27 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
     setErrorMessage(null);
     setPhase("purchasing");
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      const price = liveInfo?.price ?? 0;
+
+      if (!userId) {
+        throw new Error("Faça login para comprar acesso.");
+      }
+
+      if (!price || price <= 0) {
+        throw new Error("Preço da live indisponível para checkout.");
+      }
+
       console.debug("[viewer] creating payment preference", { liveId });
-      const preference = await api.payments.create({ liveId });
+      const preference = await api.payments.create({
+        liveId,
+        userId,
+        price,
+        purchaseType: "live",
+      });
       setPaymentInit(preference);
       if (preference?.init_point) {
         window.location.href = preference.init_point;

@@ -143,7 +143,7 @@ const Auth = () => {
     setResetSuccess(null);
     setResetLoading(true);
     try {
-      const redirectTo = `${siteUrl}/auth/reset-password`;
+      const redirectTo = `${siteUrl}/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, { redirectTo });
       if (error) {
         if (error.message.toLowerCase().includes("not found")) {

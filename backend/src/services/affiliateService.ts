@@ -134,7 +134,7 @@ export const resolveReferralContext = async (
   };
 };
 
-const ensureReferralCode = async (profileId: string) => {
+export const ensureReferralCode = async (profileId: string) => {
   const { data, error } = await supabase.from('profiles').select('referral_code').eq('id', profileId).maybeSingle();
 
   if (error) {

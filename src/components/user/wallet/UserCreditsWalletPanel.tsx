@@ -4,32 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, RefreshCcw, ShoppingBag } from "lucide-react";
-
-type BalanceResponse = {
-  balance_credits: number;
-};
-
-type ApiResponse<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
+import { api, ApiError } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const formatMinutes = (credits: number) => {
   // 6 credits = 1 minute; show in whole minutes
   const minutes = Math.floor(credits / 6);
   return `${minutes} min`;
 };
-
-const getAuthHeaders = async () => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
-const backendBase = import.meta.env.VITE_BACKEND_URL ?? "";
 
 const CREDITS_PACKAGE = {
   credits: 180,
@@ -38,6 +20,7 @@ const CREDITS_PACKAGE = {
 };
 
 export const UserCreditsWalletPanel = () => {
+  const { toast } = useToast();
   const [balanceCredits, setBalanceCredits] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,18 +30,12 @@ export const UserCreditsWalletPanel = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const headers = {
-        "Content-Type": "application/json",
-        ...(await getAuthHeaders()),
-      };
-      const res = await fetch(`${backendBase}/credits/balance`, { headers });
-      const body = (await res.json()) as ApiResponse<BalanceResponse>;
-      if (!res.ok || !body.success || !body.data) {
-        throw new Error(body.error || "Não foi possível carregar o saldo");
-      }
-      setBalanceCredits(body.data.balance_credits);
+      const data = await api.credits.balance();
+      setBalanceCredits(data.balance_credits ?? data.balance ?? data.creditBalance ?? 0);
     } catch (err) {
-      setError((err as Error).message);
+      console.error("[credits] failed to load balance", err);
+      const friendly = err instanceof ApiError ? err.message : "Não foi possível carregar o saldo agora.";
+      setError(friendly);
     } finally {
       setIsLoading(false);
     }
@@ -80,30 +57,27 @@ export const UserCreditsWalletPanel = () => {
         throw new Error("Usuário não autenticado");
       }
 
-      const headers = {
-        "Content-Type": "application/json",
-        ...(await getAuthHeaders()),
-      };
-
-      const res = await fetch(`${backendBase}/payments/create-preference`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          liveId: CREDITS_PACKAGE.liveIdPlaceholder,
-          userId,
-          price: CREDITS_PACKAGE.priceBRL,
-          purchaseType: "credits",
-        }),
+      const preference = await api.credits.purchase({
+        userId,
+        price: CREDITS_PACKAGE.priceBRL,
+        credits: CREDITS_PACKAGE.credits,
+        liveId: CREDITS_PACKAGE.liveIdPlaceholder,
       });
 
-      const body = await res.json();
-      if (!res.ok || !body?.init_point) {
-        throw new Error(body?.error || "Não foi possível iniciar a compra de créditos");
+      if (!preference?.init_point) {
+        throw new Error("Não foi possível iniciar a compra de créditos.");
       }
 
-      window.location.href = body.init_point;
+      window.location.assign(preference.init_point);
     } catch (err) {
-      setError((err as Error).message);
+      console.error("[credits] checkout error", err);
+      const message = err instanceof ApiError ? err.message : (err as Error).message;
+      setError(message);
+      toast({
+        title: "Erro ao iniciar compra",
+        description: message ?? "Tente novamente em instantes.",
+        variant: "destructive",
+      });
     } finally {
       setCheckoutLoading(false);
     }

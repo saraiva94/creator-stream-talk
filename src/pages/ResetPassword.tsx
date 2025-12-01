@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,141 +7,66 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Video, ArrowLeft } from "lucide-react";
+import { validatePasswordStrength } from "@/lib/password";
 
 const ResetPassword = () => {
-  const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
+  const [tokenError, setTokenError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const siteUrl = useMemo(
-    () => (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, ""),
-    []
-  );
-
-  const validatePassword = (pwd: string): boolean => pwd.length >= 8;
 
   useEffect(() => {
     const hydrateRecoverySession = async () => {
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-      const code = searchParams.get("code");
-      const accessToken = hashParams.get("access_token");
-      const refreshToken = hashParams.get("refresh_token");
+      const accessToken = hashParams.get("access_token") ?? searchParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token") ?? searchParams.get("refresh_token");
+      const type = hashParams.get("type") ?? searchParams.get("type");
 
-      if (code) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          console.error("[AUTH][RESET][EXCHANGE_CODE]", { error, code });
-          toast({
-            title: "Recovery link error",
-            description: error.message,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        setHasRecoverySession(!!data.session);
+      if (!accessToken || type !== "recovery") {
+        setTokenError("Link de redefinição inválido ou expirado.");
+        setChecking(false);
         return;
       }
 
-      if (accessToken && refreshToken) {
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken ?? accessToken,
+      });
 
-        if (error) {
-          console.error("[AUTH][RESET][SET_SESSION]", { error, accessToken });
-          toast({
-            title: "Recovery link error",
-            description: error.message,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        setHasRecoverySession(!!data.session);
-        return;
+      if (error) {
+        console.error("[AUTH][RESET][SET_SESSION]", { error, accessToken });
+        setTokenError("Não foi possível validar o link de redefinição.");
+      } else {
+        setHasRecoverySession(true);
       }
-
-      const { data } = await supabase.auth.getSession();
-      setHasRecoverySession(!!data.session);
+      setChecking(false);
     };
 
     hydrateRecoverySession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || session) {
-        setHasRecoverySession(!!session);
-      }
-    });
-
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, [searchParams, toast]);
-
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      toast({
-        title: "Email required",
-        description: "Please enter your email address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Ensure this route is configured in Supabase auth redirect URLs.
-      const redirectTo = `${siteUrl}/auth/reset-password`;
-      console.info("[AUTH][RESET][REQUEST]", { email, redirectTo });
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
-      });
-
-      if (error) throw error;
-
-      setSent(true);
-      toast({
-        title: "E-mail enviado!",
-        description: "Se o e-mail estiver cadastrado, enviamos instruções para redefinir a senha.",
-      });
-    } catch (error: unknown) {
-      console.error("[AUTH][RESET][REQUEST_ERROR]", { error, email });
-      const message = error instanceof Error ? error.message : "Não foi possível enviar o e-mail. Tente novamente.";
-      toast({
-        title: "Erro ao enviar e-mail",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [searchParams]);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newPassword || !confirmPassword) {
+    if (!hasRecoverySession) {
       toast({
-        title: "Password required",
-        description: "Please fill in both password fields.",
+        title: "Link inválido",
+        description: "Solicite um novo link de redefinição.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!validatePassword(newPassword)) {
+    const validation = validatePasswordStrength(newPassword);
+    if (!validation.valid) {
       toast({
-        title: "Weak password",
-        description: "Password must have 8+ characters, 1 uppercase, 1 number, 1 symbol.",
+        title: "Senha não atende aos requisitos",
+        description: validation.errors.join(" "),
         variant: "destructive",
       });
       return;
@@ -149,8 +74,8 @@ const ResetPassword = () => {
 
     if (newPassword !== confirmPassword) {
       toast({
-        title: "Passwords do not match",
-        description: "Please confirm your password correctly.",
+        title: "As senhas não coincidem",
+        description: "Confirme a senha corretamente.",
         variant: "destructive",
       });
       return;
@@ -165,11 +90,11 @@ const ResetPassword = () => {
       if (error) throw error;
 
       toast({
-        title: "Senha redefinida com sucesso!",
+        title: "Senha redefinida com sucesso",
         description: "Você já pode fazer login.",
       });
 
-      setTimeout(() => navigate("/auth"), 1500);
+      navigate("/auth");
     } catch (error: unknown) {
       console.error("[AUTH][RESET][UPDATE_ERROR]", error);
       const message =
@@ -187,32 +112,36 @@ const ResetPassword = () => {
     }
   };
 
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="text-muted-foreground animate-pulse">Verificando link...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Video className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold text-primary">
-            Stream Star
-          </h1>
+          <h1 className="text-4xl font-bold text-primary">Stream Star</h1>
         </div>
 
         <Card className="border-border shadow-gold">
           <CardHeader>
-            <CardTitle>Reset Password</CardTitle>
+            <CardTitle>Redefinir senha</CardTitle>
             <CardDescription>
               {hasRecoverySession
-                ? "Choose a new password for your account."
-                : sent
-                  ? "We've sent you an email with instructions to reset your password."
-                  : "Enter your email address and we'll send you a link to reset your password."}
+                ? "Escolha uma nova senha segura para sua conta."
+                : tokenError ?? "Link de redefinição inválido ou expirado."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {hasRecoverySession ? (
               <form onSubmit={handleUpdatePassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
+                  <Label htmlFor="new-password">Nova senha</Label>
                   <Input
                     id="new-password"
                     type="password"
@@ -221,9 +150,12 @@ const ResetPassword = () => {
                     onChange={(e) => setNewPassword(e.target.value)}
                     disabled={updating}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo de 8 caracteres, com maiúscula, minúscula, número e símbolo.
+                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
+                  <Label htmlFor="confirm-password">Confirmar senha</Label>
                   <Input
                     id="confirm-password"
                     type="password"
@@ -233,12 +165,8 @@ const ResetPassword = () => {
                     disabled={updating}
                   />
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={updating}
-                >
-                  {updating ? "Updating..." : "Update Password"}
+                <Button type="submit" className="w-full" disabled={updating}>
+                  {updating ? "Atualizando..." : "Atualizar senha"}
                 </Button>
                 <Button
                   type="button"
@@ -247,52 +175,26 @@ const ResetPassword = () => {
                   onClick={() => navigate("/auth")}
                   disabled={updating}
                 >
-                  Go to Login
+                  Ir para login
                 </Button>
               </form>
             ) : (
-              <>
-                {!sent ? (
-                  <form onSubmit={handleResetPassword} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        disabled={loading}
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={loading}
-                    >
-                      {loading ? "Sending..." : "Send Reset Link"}
-                    </Button>
-                  </form>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Didn't receive the email? Check your spam folder or try again.
-                    </p>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => setSent(false)}
-                    >
-                      Try Again
-                    </Button>
-                  </div>
-                )}
-              </>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  O link de redefinição está inválido ou expirou. Solicite um novo link na página de login.
+                </p>
+                <Button variant="outline" className="w-full" onClick={() => navigate("/auth")}>
+                  Voltar para login
+                </Button>
+              </div>
             )}
 
-            <Link to="/auth" className="flex items-center justify-center gap-2 mt-6 text-sm text-primary hover:underline">
+            <Link
+              to="/auth"
+              className="flex items-center justify-center gap-2 mt-6 text-sm text-primary hover:underline"
+            >
               <ArrowLeft className="h-4 w-4" />
-              Back to Login
+              Voltar para Login
             </Link>
           </CardContent>
         </Card>

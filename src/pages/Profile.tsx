@@ -13,9 +13,6 @@ import { User, Globe } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { api, type CreatorReferralSnapshot } from "@/lib/api";
-import { Input as TextInput } from "@/components/ui/input";
-import { Button as UiButton } from "@/components/ui/button";
 import CreatorActivationCard from "@/components/creator/CreatorActivationCard";
 
 type ProfileFormState = {
@@ -40,7 +37,6 @@ const Profile = () => {
     avatar_url: "",
   });
   const [uploading, setUploading] = useState(false);
-  const [referralUrl, setReferralUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -66,21 +62,6 @@ const Profile = () => {
           avatar_url: profileData.avatar_url || "",
         });
       }
-
-      const fetchReferralLink = async () => {
-        try {
-          const snapshot: CreatorReferralSnapshot = await api.affiliates.referralLink();
-          const code = snapshot.referral_link?.code;
-          if (code) {
-            const base = window.location.origin.replace(/\/$/, "");
-            setReferralUrl(`${base}/subscribe?ref=${code}`);
-          }
-        } catch (error) {
-          console.error("Failed to load referral link", error);
-        }
-      };
-
-      fetchReferralLink();
 
       setLoading(false);
     };
@@ -220,24 +201,6 @@ const Profile = () => {
                   )}
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Seu link de convite</Label>
-              <div className="flex gap-2">
-                <TextInput value={referralUrl ?? "Gerando link..."} readOnly />
-                <UiButton
-                  type="button"
-                  onClick={() => referralUrl && navigator.clipboard.writeText(referralUrl)}
-                  disabled={!referralUrl}
-                >
-                  Copiar
-                </UiButton>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Quando alguém se cadastra usando seu link, paga uma taxa única de R$ 5,00.
-                Uma parte vai para você (pai) e outra para o criador que trouxe você (avô), seguindo a rede de afiliados.
-              </p>
             </div>
 
             <div className="space-y-2">

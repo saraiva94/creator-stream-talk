@@ -12,11 +12,9 @@ const resolveBaseUrl = () => {
     undefined;
 
   const normalize = (value: string) => value.replace(/\/$/, '');
-  const withApiPrefix = (value: string) =>
-    value.endsWith('/api') ? value : `${value}/api`;
 
   if (envBase) {
-    return withApiPrefix(normalize(envBase));
+    return normalize(envBase);
   }
 
   const inferredOrigin =
@@ -24,7 +22,7 @@ const resolveBaseUrl = () => {
       ? window.location.origin
       : `http://localhost:${DEFAULT_BACKEND_PORT}`;
 
-  return withApiPrefix(normalize(inferredOrigin));
+  return `${normalize(inferredOrigin)}/api`;
 };
 
 const API_BASE_URL = resolveBaseUrl();
@@ -90,16 +88,13 @@ interface RequestOptions {
 }
 
 const fetchAffiliateStats = () =>
-  request<AffiliateStatsResponse>('/affiliates/stats', { method: 'GET', auth: 'required' });
+  request<AffiliateStatsResponse>('/affiliate/overview', { method: 'GET', auth: 'required' });
 
-const fetchAffiliateStatsFallback = () =>
-  request<AffiliateStatsResponse>('/creators/me/affiliate-stats', { method: 'GET', auth: 'required' });
+const fetchAffiliateHistory = () =>
+  request<AffiliateHistoryEntry[]>('/affiliate/history', { method: 'GET', auth: 'required' });
 
 const fetchReferralLink = () =>
-  request<CreatorReferralSnapshot>('/affiliates/referral-link', { method: 'GET', auth: 'required' });
-
-const fetchReferralLinkFallback = () =>
-  request<CreatorReferralSnapshot>('/creators/referrals', { method: 'GET', auth: 'required' });
+  request<{ code: string; url: string }>('/affiliate/link', { method: 'GET', auth: 'required' });
 
 const handleApiError = async (path: string, error: ApiError): Promise<never> => {
   console.debug('[api] request failed', { path, status: error.status, message: error.message });
@@ -283,16 +278,23 @@ export interface LiveAccessResponse {
 export interface PaymentPreferenceResponse {
   init_point?: string;
   preferenceId?: string;
-  amount: number;
-  paymentId: string;
+  amount?: number;
+  paymentId?: string;
   currency?: string | null;
 }
 
 export interface AffiliateStatsResponse {
-  total_affiliate_earnings: number;
-  registrations_referred: number;
-  direct_referrals: number;
-  indirect_referrals: number;
+  totalEarningsCents: number;
+  availableBalanceCents: number;
+  totalReferrals: number;
+}
+
+export interface AffiliateHistoryEntry {
+  id: string;
+  createdAt: string;
+  amountCents: number;
+  level: number | null;
+  referredUserId: string | null;
 }
 
 export interface RegistrationCheckoutPayload {
@@ -418,7 +420,11 @@ export interface LiveIdentifierPayload {
 }
 
 export interface CreatePaymentPayload {
-  liveId: string;
+  liveId?: string;
+  userId?: string;
+  price?: number;
+  purchaseType?: 'live' | 'credits' | 'registration' | string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SubmitWithdrawalPayload {
@@ -427,6 +433,9 @@ export interface SubmitWithdrawalPayload {
 
 export interface CreditBalanceResponse {
   creditBalance: number;
+  balance?: number;
+  balance_credits?: number;
+  estimated_time?: number;
 }
 
 export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
@@ -437,7 +446,7 @@ export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
 // Public API surface
 export const apiClient = {
   fetchPublicLives: (signal?: AbortSignal) =>
-    request<{ lives: LiveSummary[] }>('/lives', { method: 'GET', auth: 'optional', signal }),
+    request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
 
   startLive: (payload: LiveIdentifierPayload) =>
     request<StartLiveResponse>('/lives/start', { method: 'POST', body: payload, auth: 'required' }),
@@ -458,7 +467,7 @@ export const apiClient = {
     request<LiveAccessResponse>('/lives/access', { method: 'POST', body: payload, auth: 'required' }),
 
   createPaymentPreference: (payload: CreatePaymentPayload) =>
-    request<PaymentPreferenceResponse>('/payments/create', {
+    request<PaymentPreferenceResponse>('/payments/create-preference', {
       method: 'POST',
       body: payload,
       auth: 'required',
@@ -470,9 +479,27 @@ export const apiClient = {
   getCreatorReferrals: () =>
     request<CreatorReferralSnapshot>('/creators/referrals', { method: 'GET', auth: 'required' }),
 
-  getAffiliateStats: () => withFallback(fetchAffiliateStats, fetchAffiliateStatsFallback),
+  getAffiliateStats: fetchAffiliateStats,
 
-  getReferralLink: () => withFallback(fetchReferralLink, fetchReferralLinkFallback),
+  getAffiliateHistory: fetchAffiliateHistory,
+
+  getReferralLink: fetchReferralLink,
+
+  getAffiliateCode: () =>
+    request<{ code: string }>('/affiliates/code', { method: 'GET', auth: 'required' }),
+
+  updateAffiliateCode: (code: string) =>
+    request<{ code: string }>('/affiliates/code', {
+      method: 'POST',
+      auth: 'required',
+      body: { code },
+    }),
+
+  validateAffiliateCode: (code: string) =>
+    request<{ valid: boolean; ownerId: string | null }>(
+      `/affiliates/validate?code=${encodeURIComponent(code)}`,
+      { method: 'GET', auth: 'optional' },
+    ),
 
   submitWithdrawal: (payload: SubmitWithdrawalPayload) =>
     request<{ withdrawal: WithdrawalRecord }>('/creators/withdraw', {
@@ -495,17 +522,37 @@ export const apiClient = {
       auth: 'optional',
     }),
 
-  getCreditBalance: () => request<CreditBalanceResponse>('/credits/balance', { auth: 'required' }),
+  getCreditBalance: async () => {
+    const data = await request<CreditBalanceResponse>('/credits/balance', { auth: 'required' });
+    const balance =
+      (data?.balance_credits ?? data?.balance ?? data?.creditBalance ?? 0) ?? 0;
+    const estimated = data?.estimated_time ?? Math.max(0, Math.floor(balance / 6));
 
-  purchaseCredits: () =>
-    request<CreditPurchaseResponse>('/credits/purchase', { method: 'POST', auth: 'required' }),
+    return {
+      creditBalance: balance,
+      balance,
+      balance_credits: balance,
+      estimated_time: estimated,
+    };
+  },
 
-  consumeCredits: (amount: number) =>
-    request<CreditBalanceResponse>('/credits/consume', {
+  purchaseCredits: (payload: { userId: string; price: number; credits?: number; liveId?: string }) =>
+    request<PaymentPreferenceResponse>('/payments/create-preference', {
       method: 'POST',
       auth: 'required',
-      body: { amount },
+      body: {
+        liveId: payload.liveId ?? 'credits-package',
+        userId: payload.userId,
+        price: payload.price,
+        purchaseType: 'credits',
+        metadata: payload.credits ? { credits: payload.credits } : undefined,
+      },
     }),
+
+  consumeCredits: async (_amount: number) => {
+    console.warn('[api] consumeCredits not implemented; backend endpoint missing');
+    throw new ApiError('Credit consumption is not available yet', 501);
+  },
 
   fetchDiagnostics: () =>
     request<DiagnosticsSnapshot>('/status/diagnostics', { method: 'GET', auth: 'optional' }),
@@ -538,13 +585,16 @@ export const api = {
   creators: {
     balance: apiClient.getCreatorBalance,
     referrals: apiClient.getCreatorReferrals,
-    affiliateStats: apiClient.getAffiliateStats,
     withdraw: apiClient.submitWithdrawal,
   },
   affiliates: {
     register: apiClient.registerAffiliate,
     stats: apiClient.getAffiliateStats,
+    history: apiClient.getAffiliateHistory,
     referralLink: apiClient.getReferralLink,
+    code: apiClient.getAffiliateCode,
+    saveCode: apiClient.updateAffiliateCode,
+    validateCode: apiClient.validateAffiliateCode,
   },
   registration: {
     checkout: apiClient.registrationCheckout,

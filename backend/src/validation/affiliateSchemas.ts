@@ -16,3 +16,12 @@ export const registrationCheckoutSchema = z.object({
   free: z.boolean().optional(),
   root: z.boolean().optional(),
 });
+
+export const referralCodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(4, 'Referral code must have at least 4 characters')
+    .max(32, 'Referral code is too long')
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Only letters, numbers, dashes, and underscores are allowed'),
+});

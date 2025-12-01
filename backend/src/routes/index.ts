@@ -11,13 +11,16 @@ import withdrawalsRoutes from './withdrawalsRoutes';
 import adminPayoutsRoutes from './adminPayoutsRoutes';
 import creatorEarningsRoutes from './creatorEarningsRoutes';
 import affiliateRoutes from './affiliateRoutes';
+import affiliatesRoutes from './affiliatesRoutes';
 import adminCreatorsRoutes from './adminCreatorsRoutes';
+import registrationRoutes from './registrationRoutes';
 
 const router = Router();
 
 router.use('/', statusRoutes);
 router.use('/', dailyRoutes);
 router.use('/', paymentsRoutes);
+router.use('/', registrationRoutes);
 router.use('/', adminRoutes);
 router.use('/', creatorRoutes);
 router.use('/', livesRoutes);
@@ -28,5 +31,6 @@ router.use('/admin', adminPayoutsRoutes);
 router.use('/admin', adminCreatorsRoutes);
 router.use('/', creatorEarningsRoutes);
 router.use('/', affiliateRoutes);
+router.use('/', affiliatesRoutes);
 
 export default router;

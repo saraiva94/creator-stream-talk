@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
+import { Check } from "lucide-react";
+import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Check } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import Navbar from "@/components/Navbar";
-import type { User } from "@supabase/supabase-js";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSearchParams } from "react-router-dom";
-import { api, type RegistrationCheckoutPayload, ApiError } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { ApiError, api, type RegistrationCheckoutPayload } from "@/lib/api";
+import { validatePasswordStrength } from "@/lib/password";
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -32,6 +32,7 @@ const Subscribe = () => {
       setUser(session?.user || null);
     };
     getUser();
+
     const ref = searchParams.get("ref");
     if (ref) {
       setReferralCode(ref);
@@ -41,7 +42,7 @@ const Subscribe = () => {
   const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value);
 
   const handleSubscribe = async () => {
-    const referralMissing = !referralCode.trim();
+    const trimmedReferral = referralCode.trim();
 
     if (!fullName.trim()) {
       toast({ title: "Nome obrigatório", description: "Preencha seu nome completo.", variant: "destructive" });
@@ -53,10 +54,11 @@ const Subscribe = () => {
       return;
     }
 
-    if (password.length < 8) {
+    const passwordCheck = validatePasswordStrength(password);
+    if (!passwordCheck.valid) {
       toast({
-        title: "Senha muito curta",
-        description: "A senha deve ter pelo menos 8 caracteres.",
+        title: "Senha não atende aos requisitos",
+        description: passwordCheck.errors.join(" "),
         variant: "destructive",
       });
       return;
@@ -71,12 +73,12 @@ const Subscribe = () => {
       return;
     }
 
-    if (referralMissing) {
-      setErrors({ referral: "Você precisa de um código de convite para se cadastrar." });
+    if (!trimmedReferral) {
+      setErrors({ referral: "Você precisa de um código de indicação para se cadastrar." });
       return;
-    } else {
-      setErrors({});
     }
+
+    setErrors({});
 
     if (!acceptTerms) {
       toast({
@@ -89,10 +91,16 @@ const Subscribe = () => {
 
     setLoading(true);
     try {
+      const validation = await api.affiliates.validateCode(trimmedReferral);
+      if (!validation.valid) {
+        setErrors({ referral: "Código de indicação inválido." });
+        return;
+      }
+
       const payload: RegistrationCheckoutPayload = {
         email,
         password,
-        referralCode: referralCode || null,
+        referralCode: trimmedReferral,
       };
 
       const response = await api.registration.checkout(payload);
@@ -108,7 +116,7 @@ const Subscribe = () => {
       }
 
       if (response.init_point) {
-        window.location.href = response.init_point;
+        window.location.assign(response.init_point);
         return;
       }
 
@@ -117,16 +125,18 @@ const Subscribe = () => {
         description: "Se houver pagamento, você será redirecionado.",
       });
     } catch (error: unknown) {
+      console.error("[subscribe] checkout error", error);
       const apiError = error as ApiError;
       const message =
         apiError?.message?.includes("email")
           ? "E-mail já cadastrado."
-          : apiError?.message || "Erro ao processar assinatura";
+          : apiError?.message || "Erro ao processar pagamento. Tente novamente em alguns instantes.";
       toast({
         title: "Erro ao processar assinatura",
         description: message,
         variant: "destructive",
       });
+    } finally {
       setLoading(false);
     }
   };
@@ -134,7 +144,7 @@ const Subscribe = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
-      
+
       <main className="container mx-auto px-4 py-16">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
@@ -184,7 +194,7 @@ const Subscribe = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="referral">Código de convite *</Label>
+                  <Label htmlFor="referral">Código de indicação *</Label>
                   <Input
                     id="referral"
                     value={referralCode}
@@ -240,16 +250,13 @@ const Subscribe = () => {
                 </div>
               </Card>
 
-              <Button 
-                className="w-full" 
-                onClick={handleSubscribe}
-                disabled={loading}
-              >
+              <Button className="w-full" onClick={handleSubscribe} disabled={loading}>
                 {loading ? "Processando..." : "Pagar R$ 5,00 e concluir cadastro"}
               </Button>
 
               <p className="text-sm text-muted-foreground text-center">
-                Pagamento seguro via Mercado Pago (Pix ou cartão). Ao continuar, você confirma que aceita os termos e condições.
+                Pagamento seguro via Mercado Pago (Pix ou cartão). Ao continuar, você confirma que aceita os termos e
+                condições.
               </p>
             </div>
           </Card>

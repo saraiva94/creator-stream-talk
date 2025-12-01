@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import { validatePasswordStrength } from "@/lib/password";
 
 const InviteSignup = () => {
   const { inviteCode: inviteCodeParam } = useParams();
@@ -74,14 +75,6 @@ const InviteSignup = () => {
     void resolveParent();
   }, [navigate, ref, toast]);
 
-  const validatePassword = (pwd: string): boolean => {
-    const minLength = pwd.length >= 8;
-    const hasUpperCase = /[A-Z]/.test(pwd);
-    const hasNumber = /\d/.test(pwd);
-    const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
-    return minLength && hasUpperCase && hasNumber && hasSymbol;
-  };
-
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ref) return;
@@ -95,10 +88,11 @@ const InviteSignup = () => {
       return;
     }
 
-    if (!validatePassword(password)) {
+    const passwordCheck = validatePasswordStrength(password);
+    if (!passwordCheck.valid) {
       toast({
         title: "Weak password",
-        description: t.auth.passwordRequirements,
+        description: passwordCheck.errors.join(" "),
         variant: "destructive",
       });
       return;
