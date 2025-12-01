@@ -1,3 +1,4 @@
+/// <reference path="../types.d.ts" />
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -31,7 +32,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Stream Live Hub <onboarding@resend.dev>",
+        from: "Stream Star <onboarding@resend.dev>",
         to: [to],
         subject,
         html,

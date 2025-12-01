@@ -35,13 +35,13 @@ export const JitsiPlayer: React.FC<JitsiPlayerProps> = ({
   const isTrustedHost = React.useMemo(() => jitsiUrl.startsWith("https://meet.jit.si/"), [jitsiUrl]);
 
   React.useEffect(() => {
-    // eslint-disable-next-line no-console
+     
     console.debug("[JitsiPlayer] mount", { roomName, jitsiUrl });
     if (!isTrustedHost) {
       console.warn("[JitsiPlayer] Untrusted Jitsi host detected", { jitsiUrl });
     }
     return () => {
-      // eslint-disable-next-line no-console
+       
       console.debug("[JitsiPlayer] unmount", { roomName });
     };
   }, [isTrustedHost, jitsiUrl, roomName]);

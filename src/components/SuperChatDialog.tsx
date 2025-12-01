@@ -70,10 +70,11 @@ const SuperChatDialog = ({
         });
         onOpenChange(false);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : "Não foi possível enviar o SuperChat";
       toast({
         title: "Erro ao enviar SuperChat",
-        description: error.message,
+        description,
         variant: "destructive",
       });
     } finally {

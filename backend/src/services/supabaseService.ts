@@ -1007,22 +1007,34 @@ export const getPendingWithdrawalsForAdmin = async () => {
     throw new Error(`Failed to load pending withdrawals: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => {
-    const creatorProfiles = (row as Record<string, any>).creators?.profiles;
-    const profileDetails = Array.isArray(creatorProfiles)
-      ? creatorProfiles[0]
-      : creatorProfiles ?? null;
+  return (data ?? []).map(
+    (row: {
+      id: string;
+      creator_id: string;
+      amount: number;
+      status: string;
+      created_at: string;
+      processed_at?: string | null;
+      creators?: {
+        profiles?: { id?: string; email?: string | null; username?: string | null }[] | null;
+      } | null;
+    }) => {
+      const creatorProfiles = row.creators?.profiles;
+      const profileDetails = Array.isArray(creatorProfiles)
+        ? creatorProfiles[0] ?? null
+        : creatorProfiles ?? null;
 
-    return {
-      id: row.id,
-      amount: row.amount,
-      status: row.status,
-      created_at: row.created_at,
-      processed_at: row.processed_at,
-      creator_id: row.creator_id,
-      creator_profile: profileDetails,
-    };
-  });
+      return {
+        id: row.id,
+        amount: row.amount,
+        status: row.status,
+        created_at: row.created_at,
+        processed_at: row.processed_at,
+        creator_id: row.creator_id,
+        creator_profile: profileDetails,
+      };
+    },
+  );
 };
 
 export const approveWithdrawalRequest = async (

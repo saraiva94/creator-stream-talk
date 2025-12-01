@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { api, LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
@@ -16,7 +17,7 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -57,9 +58,10 @@ const Home = () => {
       setLives(response.lives ?? []);
       setFilteredLives(response.lives ?? []);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching lives:", err);
-      setError("Failed to load live sessions");
+      const message = err instanceof Error ? err.message : "Failed to load live sessions";
+      setError(message || "Failed to load live sessions");
     } finally {
       setLoading(false);
     }
@@ -74,13 +76,6 @@ const Home = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 text-center">
-          <h1 className="text-5xl font-bold mb-4 text-primary">
-            {t.home.title}
-          </h1>
-          <p className="text-xl text-muted-foreground mb-6">
-            {t.home.subtitle}
-          </p>
-          
           <div className="max-w-md mx-auto relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input

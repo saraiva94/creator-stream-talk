@@ -2,7 +2,17 @@ import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../lib/supabaseClient';
 import { respondError, respondSuccess } from '../lib/responses';
 
-const mapCreatorRow = (row: any) => ({
+type CreatorProfileRow = {
+  id: string;
+  approved_for_live: boolean | null;
+  created_at: string;
+  profiles?: {
+    email?: string | null;
+    username?: string | null;
+  } | null;
+};
+
+const mapCreatorRow = (row: CreatorProfileRow) => ({
   id: row.id,
   email: row.profiles?.email ?? null,
   username: row.profiles?.username ?? null,

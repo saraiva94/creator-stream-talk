@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { Video, Users } from "lucide-react";
+import { Video } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,14 +23,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ChatModerationPanel from "@/components/ChatModerationPanel";
+import type { User } from "@supabase/supabase-js";
+
+type DailyRoomResponse = {
+  url: string;
+  name?: string;
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCreator, setIsCreator] = useState(false);
-  const [creatorProfile, setCreatorProfile] = useState<any>(null);
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [tags, setTags] = useState("");
@@ -58,7 +63,6 @@ const Dashboard = () => {
 
       if (creatorData) {
         setIsCreator(true);
-        setCreatorProfile(creatorData);
         setDisplayName(creatorData.display_name);
         setBio(creatorData.bio || "");
         setTags(creatorData.tags?.join(", ") || "");
@@ -87,43 +91,7 @@ const Dashboard = () => {
     checkAuth();
   }, [navigate]);
 
-  const handleBecomeCreator = async () => {
-    if (!displayName.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Digite um nome de exibição",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    setLoading(true);
-    try {
-      const { error } = await supabase.from("creator_profiles").insert({
-        id: user.id,
-        display_name: displayName.trim(),
-        bio: bio.trim() || null,
-        tags: tags ? tags.split(",").map((t) => t.trim()) : [],
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Perfil de criador ativado!",
-        description: "Você agora pode fazer transmissões ao vivo.",
-      });
-
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (error: any) {
-      toast({
-        title: "Erro ao criar perfil",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleUpdateProfile = async () => {
     setLoading(true);
@@ -135,17 +103,18 @@ const Dashboard = () => {
           bio: bio.trim() || null,
           tags: tags ? tags.split(",").map((t) => t.trim()) : [],
         })
-        .eq("id", user.id);
+        .eq("id", user?.id);
 
       if (error) throw error;
 
       toast({
         title: "Perfil atualizado!",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao atualizar";
       toast({
         title: "Erro ao atualizar",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -190,7 +159,7 @@ const Dashboard = () => {
 
       // Create Daily.co room if going live and no room exists
       if (checked && !roomUrl) {
-        const { data: roomData, error: roomError } = await supabase.functions.invoke(
+        const { data: roomData, error: roomError } = await supabase.functions.invoke<DailyRoomResponse>(
           "create-daily-room",
           {
             body: { roomTitle: displayName },
@@ -205,13 +174,13 @@ const Dashboard = () => {
         await supabase
           .from("creator_profiles")
           .update({ daily_room_url: roomUrl })
-          .eq("id", user.id);
+          .eq("id", user?.id);
 
         // Create room record
         const { data: newRoom } = await supabase
           .from("rooms")
           .insert({
-            creator_id: user.id,
+            creator_id: user?.id,
             title: displayName,
             daily_room_name: roomData.name,
             is_active: true,
@@ -227,7 +196,7 @@ const Dashboard = () => {
       const { error } = await supabase
         .from("creator_profiles")
         .update({ is_streaming: checked })
-        .eq("id", user.id);
+        .eq("id", user?.id);
 
       if (error) throw error;
 
@@ -235,7 +204,7 @@ const Dashboard = () => {
       
       if (checked) {
         toast({
-          title: "Transmissão ativada!",
+          title: "TransmissÃ£o ativada!",
           description: "Redirecionando para painel de controle...",
         });
         
@@ -245,14 +214,15 @@ const Dashboard = () => {
         }, 1000);
       } else {
         toast({
-          title: "Transmissão desativada",
-          description: "Você ficou offline",
+          title: "TransmissÃ£o desativada",
+          description: "VocÃª ficou offline",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao alterar status";
       toast({
         title: "Erro ao alterar status",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -283,49 +253,17 @@ const Dashboard = () => {
         {!isCreator ? (
           <Card className="border-border shadow-card">
             <CardHeader>
-              <CardTitle>Torne-se um Criador</CardTitle>
+              <CardTitle>Ative seu perfil de criador</CardTitle>
               <CardDescription>
-                Configure seu perfil para começar a fazer transmissões ao vivo
+                Para comecar a transmitir, ative seu perfil de criador na pagina de perfil.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="display-name">Nome de Exibição *</Label>
-                <Input
-                  id="display-name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Seu nome como criador"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
-                <Textarea
-                  id="bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="Conte sobre você..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags (separadas por vírgula)</Label>
-                <Input
-                  id="tags"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  placeholder="Música, Jogos, Tecnologia"
-                />
-              </div>
-
-              <Button
-                onClick={handleBecomeCreator}
-                className="w-full"
-                disabled={loading}
-              >
-                {loading ? "Criando..." : "Ativar Perfil de Criador"}
+              <p className="text-sm text-muted-foreground">
+                Va ate a pagina de perfil para definir seu nome de exibicao e ativar o perfil de criador.
+              </p>
+              <Button onClick={() => navigate("/profile")} className="w-full">
+                Ir para meu perfil
               </Button>
             </CardContent>
           </Card>
@@ -341,9 +279,9 @@ const Dashboard = () => {
             )}
             <Card className="border-border shadow-card">
               <CardHeader>
-                <CardTitle>Status de Transmissão</CardTitle>
+                <CardTitle>Status de TransmissÃ£o</CardTitle>
                 <CardDescription>
-                  Ative para aparecer como AO VIVO na página inicial
+                  Ative para aparecer como AO VIVO na pÃ¡gina inicial
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -378,12 +316,12 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Editar Perfil</CardTitle>
                 <CardDescription>
-                  Atualize suas informações de criador
+                  Atualize suas informaÃ§Ãµes de criador
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-display-name">Nome de Exibição</Label>
+                  <Label htmlFor="edit-display-name">Nome de ExibiÃ§Ã£o</Label>
                   <Input
                     id="edit-display-name"
                     value={displayName}
@@ -415,7 +353,7 @@ const Dashboard = () => {
                   className="w-full"
                   disabled={loading}
                 >
-                  {loading ? "Salvando..." : "Salvar Alterações"}
+                  {loading ? "Salvando..." : "Salvar AlteraÃ§Ãµes"}
                 </Button>
               </CardContent>
             </Card>
@@ -424,9 +362,9 @@ const Dashboard = () => {
               <>
                 <Card className="border-border shadow-card bg-gradient-card">
                   <CardHeader>
-                    <CardTitle>Sua Transmissão</CardTitle>
+                    <CardTitle>Sua TransmissÃ£o</CardTitle>
                     <CardDescription>
-                      Controle sua câmera, microfone e compartilhamento de tela
+                      Controle sua cÃ¢mera, microfone e compartilhamento de tela
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -475,9 +413,9 @@ const Dashboard = () => {
       <AlertDialog open={showGoLiveDialog} onOpenChange={setShowGoLiveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Iniciar Transmissão ao Vivo?</AlertDialogTitle>
+            <AlertDialogTitle>Iniciar TransmissÃ£o ao Vivo?</AlertDialogTitle>
             <AlertDialogDescription>
-              Você está prestes a ficar online. Seus espectadores poderão ver sua transmissão assim que você confirmar. Sua câmera e microfone serão ativados.
+              VocÃª estÃ¡ prestes a ficar online. Seus espectadores poderÃ£o ver sua transmissÃ£o assim que vocÃª confirmar. Sua cÃ¢mera e microfone serÃ£o ativados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -493,3 +431,6 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
+

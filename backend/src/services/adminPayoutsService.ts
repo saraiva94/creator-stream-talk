@@ -3,6 +3,24 @@ import type { Tables } from '../types/supabaseTypes';
 
 type PayoutRequestRow = Tables<'payout_requests'>;
 type CreatorWalletRow = Tables<'creator_wallet'>;
+type CreatorBankAccount = {
+  bank_name?: string | null;
+  account_type?: string | null;
+  account_number?: string | null;
+  routing_number?: string | null;
+  account_holder_name?: string | null;
+  document_number?: string | null;
+};
+
+type PendingPayoutRow = {
+  id: string;
+  creator_id: string;
+  amount: number;
+  status: string;
+  created_at: string;
+  pix_key?: string | null;
+  creator_bank_accounts?: CreatorBankAccount | CreatorBankAccount[] | null;
+};
 
 const STATUS_PENDING = 'pending';
 const STATUS_APPROVED = 'approved';
@@ -67,15 +85,21 @@ export const listPendingPayoutRequests = async () => {
     throw new Error(`Failed to list pending payout requests: ${error.message}`);
   }
 
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    creatorId: row.creator_id,
-    amountCents: row.amount,
-    status: row.status,
-    createdAt: row.created_at,
-    pixKey: row.pix_key ?? null,
-    bank: row.creator_bank_accounts ?? null,
-  }));
+  return (data ?? []).map((row: PendingPayoutRow) => {
+    const bank = Array.isArray(row.creator_bank_accounts)
+      ? row.creator_bank_accounts[0] ?? null
+      : row.creator_bank_accounts ?? null;
+
+    return {
+      id: row.id,
+      creatorId: row.creator_id,
+      amountCents: row.amount,
+      status: row.status,
+      createdAt: row.created_at,
+      pixKey: row.pix_key ?? null,
+      bank,
+    };
+  });
 };
 
 export const approvePayoutRequest = async ({ requestId, adminId }: { requestId: string; adminId: string }) => {

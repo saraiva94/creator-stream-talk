@@ -24,13 +24,7 @@ const ResetPassword = () => {
     []
   );
 
-  const validatePassword = (pwd: string): boolean => {
-    const minLength = pwd.length >= 8;
-    const hasUpperCase = /[A-Z]/.test(pwd);
-    const hasNumber = /\d/.test(pwd);
-    const hasSymbol = /[!@#$%^&*(),.?":{}|<>]/.test(pwd);
-    return minLength && hasUpperCase && hasNumber && hasSymbol;
-  };
+  const validatePassword = (pwd: string): boolean => pwd.length >= 8;
 
   useEffect(() => {
     const hydrateRecoverySession = async () => {
@@ -116,14 +110,15 @@ const ResetPassword = () => {
 
       setSent(true);
       toast({
-        title: "Email sent!",
-        description: "If this email exists, we sent reset instructions.",
+        title: "E-mail enviado!",
+        description: "Se o e-mail estiver cadastrado, enviamos instruções para redefinir a senha.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AUTH][RESET][REQUEST_ERROR]", { error, email });
+      const message = error instanceof Error ? error.message : "Não foi possível enviar o e-mail. Tente novamente.";
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Erro ao enviar e-mail",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -170,8 +165,8 @@ const ResetPassword = () => {
       if (error) throw error;
 
       toast({
-        title: "Password updated!",
-        description: "You will be redirected to login.",
+        title: "Senha redefinida com sucesso!",
+        description: "Você já pode fazer login.",
       });
 
       setTimeout(() => navigate("/auth"), 1500);
@@ -183,7 +178,7 @@ const ResetPassword = () => {
           : "Erro ao atualizar senha.";
 
       toast({
-        title: "Error updating password",
+        title: "Erro ao atualizar senha",
         description: message,
         variant: "destructive",
       });
@@ -198,7 +193,7 @@ const ResetPassword = () => {
         <div className="flex items-center justify-center mb-8">
           <Video className="h-12 w-12 text-primary mr-3" />
           <h1 className="text-4xl font-bold text-primary">
-            Stream Live Hub
+            Stream Star
           </h1>
         </div>
 

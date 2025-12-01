@@ -1,41 +1,38 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Video, LogOut, User, Shield, Home, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LanguageSelector } from "./LanguageSelector";
 import { useLanguage } from "@/hooks/useLanguage";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 interface NavbarProps {
-  user?: {
-    id: string;
-    email?: string;
-  } | null;
+  user?: SupabaseUser | null;
 }
 
 const Navbar = ({ user }: NavbarProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      checkAdminStatus();
-    }
-  }, [user]);
-
-  const checkAdminStatus = async () => {
+  const checkAdminStatus = useCallback(async () => {
     if (!user) return;
 
     const rolesFromMeta = (() => {
-      const metaRoles = (user.app_metadata as any)?.roles || (user.user_metadata as any)?.roles;
+      const metaRoles = (user.app_metadata?.roles ?? user.user_metadata?.roles) as
+        | string[]
+        | string
+        | null
+        | undefined;
       const primaryRole =
-        (user.app_metadata as any)?.app_role ||
-        (user.user_metadata as any)?.app_role ||
-        (user.app_metadata as any)?.role ||
-        (user.user_metadata as any)?.role;
+        (user.app_metadata?.app_role as string | undefined) ||
+        (user.user_metadata?.app_role as string | undefined) ||
+        (user.app_metadata?.role as string | undefined) ||
+        (user.user_metadata?.role as string | undefined);
 
       const normalized = new Set<string>();
       if (Array.isArray(metaRoles)) {
@@ -56,7 +53,13 @@ const Navbar = ({ user }: NavbarProps) => {
 
     const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
     setIsAdmin(data?.some((r) => r.role === "admin") || false);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      checkAdminStatus();
+    }
+  }, [user, checkAdminStatus]);
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -82,7 +85,7 @@ const Navbar = ({ user }: NavbarProps) => {
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <Video className="h-8 w-8 text-primary" />
             <span className="text-2xl font-bold text-primary">
-              Stream Live Hub
+              Stream Star
             </span>
           </Link>
 
@@ -98,22 +101,18 @@ const Navbar = ({ user }: NavbarProps) => {
                     </Button>
                   </Link>
                 )}
-                <Link to="/">
-                  <Button variant="ghost" size="sm">
-                    <Home className="h-4 w-4 mr-2" />
-                    Início
-                  </Button>
-                </Link>
+                {location.pathname !== "/" && (
+                  <Link to="/">
+                    <Button variant="ghost" size="sm">
+                      <Home className="h-4 w-4 mr-2" />
+                      Início
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/profile">
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4 mr-2" />
                     Perfil
-                  </Button>
-                </Link>
-                <Link to="/dashboard">
-                  <Button variant="ghost" size="sm">
-                    <Video className="h-4 w-4 mr-2" />
-                    Painel do Criador
                   </Button>
                 </Link>
                 <Link to="/affiliate">
@@ -128,9 +127,24 @@ const Navbar = ({ user }: NavbarProps) => {
                 </Button>
               </>
             ) : (
-              <Link to="/auth">
-                <Button>{t.nav.login}</Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                {location.pathname !== "/" && (
+                  <Link to="/">
+                    <Button variant="ghost" size="sm">
+                      <Home className="h-4 w-4 mr-2" />
+                      Início
+                    </Button>
+                  </Link>
+                )}
+                <Link to="/auth">
+                  <Button variant="outline" size="sm">
+                    Entrar
+                  </Button>
+                </Link>
+                <Link to="/subscribe">
+                  <Button size="sm">Cadastre-se</Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>

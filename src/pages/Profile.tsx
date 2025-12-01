@@ -12,15 +12,27 @@ import { useToast } from "@/hooks/use-toast";
 import { User, Globe } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
-import AffiliateDashboardPanel from "@/components/user/affiliate/AffiliateDashboardPanel";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { api, type CreatorReferralSnapshot } from "@/lib/api";
+import { Input as TextInput } from "@/components/ui/input";
+import { Button as UiButton } from "@/components/ui/button";
+import CreatorActivationCard from "@/components/creator/CreatorActivationCard";
+
+type ProfileFormState = {
+  username: string;
+  website: string;
+  bio: string;
+  gender: string;
+  avatar_url: string;
+};
 
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState({
+  const [profile, setProfile] = useState<ProfileFormState>({
     username: "",
     website: "",
     bio: "",
@@ -28,6 +40,7 @@ const Profile = () => {
     avatar_url: "",
   });
   const [uploading, setUploading] = useState(false);
+  const [referralUrl, setReferralUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -53,6 +66,21 @@ const Profile = () => {
           avatar_url: profileData.avatar_url || "",
         });
       }
+
+      const fetchReferralLink = async () => {
+        try {
+          const snapshot: CreatorReferralSnapshot = await api.affiliates.referralLink();
+          const code = snapshot.referral_link?.code;
+          if (code) {
+            const base = window.location.origin.replace(/\/$/, "");
+            setReferralUrl(`${base}/subscribe?ref=${code}`);
+          }
+        } catch (error) {
+          console.error("Failed to load referral link", error);
+        }
+      };
+
+      fetchReferralLink();
 
       setLoading(false);
     };
@@ -85,10 +113,11 @@ const Profile = () => {
         title: "Imagem enviada!",
         description: "Lembre-se de salvar as alterações.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro no upload";
       toast({
         title: "Erro no upload",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -125,10 +154,11 @@ const Profile = () => {
         title: "Perfil atualizado!",
         description: "Suas informações foram salvas com sucesso.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao atualizar";
       toast({
         title: "Erro",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -165,11 +195,11 @@ const Profile = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Foto de Perfil</Label>
-              <div className="flex items-center gap-4">
-                {profile.avatar_url && (
-                  <img
-                    src={profile.avatar_url}
+            <Label>Foto de Perfil</Label>
+            <div className="flex items-center gap-4">
+              {profile.avatar_url && (
+                <img
+                  src={profile.avatar_url}
                     alt="Avatar"
                     className="w-20 h-20 rounded-full object-cover border-2 border-primary"
                   />
@@ -190,6 +220,24 @@ const Profile = () => {
                   )}
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Seu link de convite</Label>
+              <div className="flex gap-2">
+                <TextInput value={referralUrl ?? "Gerando link..."} readOnly />
+                <UiButton
+                  type="button"
+                  onClick={() => referralUrl && navigator.clipboard.writeText(referralUrl)}
+                  disabled={!referralUrl}
+                >
+                  Copiar
+                </UiButton>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Quando alguém se cadastra usando seu link, paga uma taxa única de R$ 5,00.
+                Uma parte vai para você (pai) e outra para o criador que trouxe você (avô), seguindo a rede de afiliados.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -257,7 +305,7 @@ const Profile = () => {
 
         <UserCreditsWalletPanel />
 
-        <AffiliateDashboardPanel />
+        <CreatorActivationCard />
       </main>
     </div>
   );

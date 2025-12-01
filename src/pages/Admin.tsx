@@ -10,20 +10,44 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { DollarSign, Users, Video, TrendingUp } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
+
+type AdminStats = {
+  totalUsers: number;
+  totalCreators: number;
+  onlineCreators: number;
+  totalRevenue: number;
+};
+
+type FinancialSettings = {
+  subscription_price: number;
+  creator_percentage: number;
+  platform_percentage: number;
+};
+
+type PayoutRequest = {
+  id: string;
+  creator_id: string;
+  amount: number;
+  status: string;
+  created_at: string;
+  profiles?: { username?: string | null; email?: string | null } | null;
+  creator_bank_accounts?: { bank_name?: string | null; account_number?: string | null; account_holder_name?: string | null } | null;
+};
 
 const Admin = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [payoutRequests, setPayoutRequests] = useState<any[]>([]);
-  const [stats, setStats] = useState({
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalCreators: 0,
     onlineCreators: 0,
     totalRevenue: 0,
   });
-  const [financialSettings, setFinancialSettings] = useState({
-    subscription_price: 5.00,
+  const [financialSettings, setFinancialSettings] = useState<FinancialSettings>({
+    subscription_price: 5.0,
     creator_percentage: 80,
     platform_percentage: 20,
   });
@@ -45,21 +69,22 @@ const Admin = () => {
       setUser(session.user);
 
       const rolesFromMeta = (() => {
-        const metaRoles = (session.user.app_metadata as any)?.roles || (session.user.user_metadata as any)?.roles;
-        const primaryRole =
-          (session.user.app_metadata as any)?.app_role ||
-          (session.user.user_metadata as any)?.app_role ||
-          (session.user.app_metadata as any)?.role ||
-          (session.user.user_metadata as any)?.role;
+        const metaRolesRaw = session.user.app_metadata?.roles ?? session.user.user_metadata?.roles;
+        const metaRoles = Array.isArray(metaRolesRaw)
+          ? metaRolesRaw.map((r) => String(r).toLowerCase())
+          : typeof metaRolesRaw === "string"
+            ? [metaRolesRaw.toLowerCase()]
+            : [];
+        const primaryRoleRaw =
+          (session.user.app_metadata?.app_role as string | undefined) ??
+          (session.user.user_metadata?.app_role as string | undefined) ??
+          (session.user.app_metadata?.role as string | undefined) ??
+          (session.user.user_metadata?.role as string | undefined);
 
         const normalized = new Set<string>();
-        if (Array.isArray(metaRoles)) {
-          metaRoles.forEach((r) => normalized.add(String(r).toLowerCase()));
-        } else if (typeof metaRoles === "string") {
-          normalized.add(metaRoles.toLowerCase());
-        }
-        if (primaryRole) {
-          normalized.add(String(primaryRole).toLowerCase());
+        metaRoles.forEach((r) => normalized.add(r));
+        if (primaryRoleRaw) {
+          normalized.add(primaryRoleRaw.toLowerCase());
         }
         return normalized;
       })();
@@ -172,10 +197,11 @@ const Admin = () => {
         title: "Settings updated",
         description: "Financial settings have been updated successfully",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error updating settings";
       toast({
         title: "Error",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     }
@@ -187,7 +213,7 @@ const Admin = () => {
         .from("payout_requests")
         .update({
           status: action,
-          approved_by: user.id,
+          approved_by: user?.id,
           approved_at: new Date().toISOString(),
         })
         .eq("id", requestId);
@@ -200,10 +226,11 @@ const Admin = () => {
       });
 
       fetchPayoutRequests();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Error updating payout request";
       toast({
         title: "Error",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     }

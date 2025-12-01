@@ -23,6 +23,16 @@ interface ChatBoxProps {
   creatorId: string;
 }
 
+type SupabaseMessageRow = {
+  id: string;
+  content: string;
+  user_id: string;
+  created_at: string;
+  profiles?: {
+    username?: string | null;
+  } | null;
+};
+
 const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -62,7 +72,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
           table: "messages",
           filter: `room_id=eq.${roomId}`,
         },
-        async (payload) => {
+        async (payload: { new: SupabaseMessageRow }) => {
           const { data: profileData } = await supabase
             .from("profiles")
             .select("username")
@@ -74,9 +84,9 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
             {
               ...payload.new,
               profiles: { username: profileData?.username || "Usuário" },
-            } as Message,
+            },
           ]);
-        }
+        },
       )
       .subscribe();
 
@@ -105,10 +115,11 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
 
       if (error) throw error;
       setNewMessage("");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao enviar mensagem";
       toast({
         title: "Erro ao enviar mensagem",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {

@@ -1,5 +1,5 @@
 import rateLimit from 'express-rate-limit';
-import { RequestHandler } from 'express';
+import { Request, Response, RequestHandler } from 'express';
 import { respondError } from '../lib/responses';
 
 const createLimiter = (limit: number, windowMs = 60_000): RequestHandler =>
@@ -8,7 +8,7 @@ const createLimiter = (limit: number, windowMs = 60_000): RequestHandler =>
     limit,
     standardHeaders: true,
     legacyHeaders: false,
-    handler: (_req, res) => {
+    handler: (_req: Request, res: Response) => {
       respondError(res, 429, 'Too many requests');
     },
   });

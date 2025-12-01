@@ -13,38 +13,41 @@ interface ChatModerationPanelProps {
   creatorId: string;
 }
 
+type ChatSettings = {
+  subscribers_only: boolean;
+  slow_mode_enabled: boolean;
+  slow_mode_duration: number;
+  banned_words: string[];
+};
+
 const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<ChatSettings>({
     subscribers_only: false,
     slow_mode_enabled: false,
     slow_mode_duration: 5,
-    banned_words: [] as string[],
+    banned_words: [],
   });
   const [newBannedWord, setNewBannedWord] = useState("");
   const [userToBan, setUserToBan] = useState("");
 
   useEffect(() => {
+    const loadChatSettings = async () => {
+      const { data } = await supabase.from("chat_settings").select("*").eq("room_id", roomId).single();
+
+      if (data) {
+        setSettings({
+          subscribers_only: data.subscribers_only || false,
+          slow_mode_enabled: data.slow_mode_enabled || false,
+          slow_mode_duration: data.slow_mode_duration || 5,
+          banned_words: data.banned_words || [],
+        });
+      }
+    };
+
     loadChatSettings();
   }, [roomId]);
-
-  const loadChatSettings = async () => {
-    const { data } = await supabase
-      .from("chat_settings")
-      .select("*")
-      .eq("room_id", roomId)
-      .single();
-
-    if (data) {
-      setSettings({
-        subscribers_only: data.subscribers_only || false,
-        slow_mode_enabled: data.slow_mode_enabled || false,
-        slow_mode_duration: data.slow_mode_duration || 5,
-        banned_words: data.banned_words || [],
-      });
-    }
-  };
 
   const handleUpdateSettings = async () => {
     setLoading(true);
@@ -64,10 +67,11 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
       toast({
         title: "Configurações atualizadas!",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao atualizar";
       toast({
         title: "Erro ao atualizar",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -77,7 +81,7 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
 
   const handleAddBannedWord = () => {
     if (!newBannedWord.trim()) return;
-    
+
     setSettings({
       ...settings,
       banned_words: [...settings.banned_words, newBannedWord.trim().toLowerCase()],
@@ -118,10 +122,11 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
         title: "Usuário banido!",
       });
       setUserToBan("");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao banir usuário";
       toast({
         title: "Erro ao banir usuário",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -136,23 +141,17 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
           <Shield className="h-5 w-5 text-primary" />
           Moderação do Chat
         </CardTitle>
-        <CardDescription>
-          Configure as regras e restrições do chat da sua live
-        </CardDescription>
+        <CardDescription>Configure as regras e restrições do chat da sua live</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <Label>Chat Apenas para Assinantes</Label>
-            <p className="text-sm text-muted-foreground">
-              Apenas assinantes podem enviar mensagens
-            </p>
+            <p className="text-sm text-muted-foreground">Apenas assinantes podem enviar mensagens</p>
           </div>
           <Switch
             checked={settings.subscribers_only}
-            onCheckedChange={(checked) =>
-              setSettings({ ...settings, subscribers_only: checked })
-            }
+            onCheckedChange={(checked) => setSettings({ ...settings, subscribers_only: checked })}
           />
         </div>
 
@@ -163,15 +162,11 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
                 <Clock className="h-4 w-4" />
                 Modo Lento
               </Label>
-              <p className="text-sm text-muted-foreground">
-                Limite de tempo entre mensagens
-              </p>
+              <p className="text-sm text-muted-foreground">Limite de tempo entre mensagens</p>
             </div>
             <Switch
               checked={settings.slow_mode_enabled}
-              onCheckedChange={(checked) =>
-                setSettings({ ...settings, slow_mode_enabled: checked })
-              }
+              onCheckedChange={(checked) => setSettings({ ...settings, slow_mode_enabled: checked })}
             />
           </div>
           {settings.slow_mode_enabled && (
@@ -186,7 +181,7 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
                 onChange={(e) =>
                   setSettings({
                     ...settings,
-                    slow_mode_duration: parseInt(e.target.value) || 5,
+                    slow_mode_duration: parseInt(e.target.value, 10) || 5,
                   })
                 }
               />
@@ -215,10 +210,7 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
                   className="bg-destructive/10 text-destructive px-3 py-1 rounded-full flex items-center gap-2 text-sm"
                 >
                   {word}
-                  <button
-                    onClick={() => handleRemoveBannedWord(word)}
-                    className="hover:text-destructive/80"
-                  >
+                  <button onClick={() => handleRemoveBannedWord(word)} className="hover:text-destructive/80">
                     ×
                   </button>
                 </div>

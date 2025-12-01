@@ -6,7 +6,7 @@ export const translations = {
       login: "Login",
     },
     home: {
-      title: "Stream Live Hub",
+      title: "Stream Star",
       subtitle: "Connect with creators streaming live",
       onlineNow: "Online Now",
       offline: "Offline Creators",
@@ -17,7 +17,7 @@ export const translations = {
       loginButton: "Login to Continue",
     },
     auth: {
-      welcome: "Welcome to Stream Live Hub",
+      welcome: "Welcome to Stream Star",
       login: "Login",
       register: "Register",
       email: "Email",
@@ -63,7 +63,7 @@ export const translations = {
       login: "Iniciar sesión",
     },
     home: {
-      title: "Stream Live Hub",
+      title: "Stream Star",
       subtitle: "Conéctate con creadores transmitiendo en vivo",
       onlineNow: "En Línea Ahora",
       offline: "Creadores Offline",
@@ -74,7 +74,7 @@ export const translations = {
       loginButton: "Iniciar sesión para continuar",
     },
     auth: {
-      welcome: "Bienvenido a Stream Live Hub",
+      welcome: "Bienvenido a Stream Star",
       login: "Iniciar sesión",
       register: "Registrarse",
       email: "Correo electrónico",
@@ -120,7 +120,7 @@ export const translations = {
       login: "Entrar",
     },
     home: {
-      title: "Stream Live Hub",
+      title: "Stream Star",
       subtitle: "Conecte-se com criadores transmitindo ao vivo",
       onlineNow: "Online Agora",
       offline: "Criadores Offline",
@@ -131,7 +131,7 @@ export const translations = {
       loginButton: "Entrar para continuar",
     },
     auth: {
-      welcome: "Bem-vindo ao Stream Live Hub",
+      welcome: "Bem-vindo ao Stream Star",
       login: "Entrar",
       register: "Registrar",
       email: "Email",

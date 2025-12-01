@@ -2,7 +2,7 @@ import { getEnv } from '../lib/env';
 import logger from '../lib/logger';
 import { supabase } from '../lib/supabaseClient';
 import { registerCreditPurchase } from './creditsWalletService';
-import { registerAffiliatePayoutForSignup } from './affiliateService';
+import { finalizeRegistrationReferral } from './affiliateService';
 type RequestInit = globalThis.RequestInit;
 
 const MERCADOPAGO_API_BASE = 'https://api.mercadopago.com';
@@ -12,6 +12,12 @@ export type PreferenceRequest = {
   userId: string;
   price: number;
   purchaseType?: 'live' | 'credits' | 'registration' | string;
+  paymentId?: string;
+  referrerId?: string | null;
+  referrerParentId?: string | null;
+  isRootCreator?: boolean;
+  newUserEmail?: string | null;
+  inviteId?: string | null;
   metadata?: Record<string, unknown>;
   title?: string;
   description?: string;
@@ -57,6 +63,12 @@ export const createCheckoutPreference = async ({
   userId,
   price,
   purchaseType,
+  paymentId,
+  referrerId,
+  referrerParentId,
+  isRootCreator,
+  newUserEmail,
+  inviteId,
   metadata,
   title,
   description,
@@ -77,14 +89,32 @@ export const createCheckoutPreference = async ({
     },
   ];
 
+  const metadataPayload: Record<string, unknown> = {
+    liveId,
+    userId,
+    purchaseType: normalizedPurchase,
+    event_type: normalizedPurchase === 'registration' ? 'REGISTRATION' : normalizedPurchase.toUpperCase(),
+    payment_id: paymentId,
+    direct_id: referrerId ?? null,
+    root_id: referrerParentId ?? null,
+    referrer_id: referrerId ?? null,
+    referrer_parent_id: referrerParentId ?? null,
+    new_user_email: newUserEmail ?? null,
+    invite_id: inviteId ?? null,
+    is_root_creator: isRootCreator ?? false,
+    ...(metadata || {}),
+  };
+
+  // Remove undefined keys
+  Object.keys(metadataPayload).forEach((key) => {
+    if (metadataPayload[key] === undefined) {
+      delete metadataPayload[key];
+    }
+  });
+
   const preferencePayload: Record<string, unknown> = {
     items,
-    metadata: {
-      liveId,
-      userId,
-      purchaseType: normalizedPurchase,
-      ...(metadata || {}),
-    },
+    metadata: metadataPayload,
     auto_return: 'approved',
   };
 
@@ -140,9 +170,33 @@ const resolvePaymentId = (payload: WebhookPayload): string | undefined => {
 
 type PaymentDetailsResponse = {
   status: string;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
   transaction_amount?: number;
   external_reference?: string | null;
+};
+
+type PaymentMetadata = {
+  liveId?: unknown;
+  live_id?: unknown;
+  userId?: unknown;
+  user_id?: unknown;
+  profileId?: unknown;
+  profile_id?: unknown;
+  parentId?: unknown;
+  parent_id?: unknown;
+  root_id?: unknown;
+  event_type?: unknown;
+  purchaseType?: unknown;
+  purchase_type?: unknown;
+  product?: unknown;
+  new_user_email?: unknown;
+  email?: unknown;
+  direct_id?: unknown;
+  referrer_id?: unknown;
+  referrerId?: unknown;
+  invite_id?: unknown;
+  referral_code?: unknown;
+  is_root_creator?: unknown;
 };
 
 const fetchPaymentDetails = async (paymentId: string) => {
@@ -185,12 +239,21 @@ export const handlePaymentWebhook = async (
     return { processed: false, reason: 'Payment not approved' };
   }
 
-  const metadata = paymentDetails.metadata || {};
-  const liveId = metadata.liveId || metadata.live_id;
-  const userId = metadata.userId || metadata.user_id;
-  const profileId = metadata.profileId || metadata.profile_id || userId;
-  const parentId = metadata.parentId || metadata.parent_id || null;
-  const purchaseType = (metadata.purchaseType || metadata.purchase_type || metadata.product || '').toLowerCase();
+  const metadata = (paymentDetails.metadata ?? {}) as PaymentMetadata;
+  const asString = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
+
+  const liveId = asString(metadata.liveId) ?? asString(metadata.live_id);
+  const userId = asString(metadata.userId) ?? asString(metadata.user_id);
+  const profileId = asString(metadata.profileId) ?? asString(metadata.profile_id) ?? userId;
+  const parentId =
+    asString(metadata.parentId) ?? asString(metadata.parent_id) ?? asString(metadata.root_id) ?? null;
+  const purchaseType = (
+    asString(metadata.event_type) ||
+    asString(metadata.purchaseType) ||
+    asString(metadata.purchase_type) ||
+    asString(metadata.product) ||
+    ''
+  ).toLowerCase();
   const amountCents = resolveAmountCents(paymentDetails.transaction_amount);
 
   if (purchaseType === 'credits') {
@@ -227,27 +290,49 @@ export const handlePaymentWebhook = async (
   }
 
   if (purchaseType === 'registration') {
-    if (!userId) {
-      throw new Error('Payment metadata missing userId for registration.');
-    }
-
-    await registerAffiliatePayoutForSignup({
-      newUserId: userId,
-      paymentId,
-      amountCents: Number.isFinite(amountCents) ? amountCents : undefined,
-      parentId,
-    });
-
-    logger.info({
-      event: 'registration.payment.processed',
-      paymentId,
-      userId,
-      parentId,
-      amountCents,
-    });
-
-    return { processed: true, mode: 'registration' };
+  if (!userId) {
+    throw new Error('Payment metadata missing userId for registration.');
   }
+
+  const isRootCreatorFlag = String(metadata.is_root_creator ?? '').toLowerCase() === 'true';
+
+  const email =
+    asString(metadata.new_user_email) ??
+    asString(metadata.email) ??
+    null;
+
+  const directId =
+    asString(metadata.direct_id) ??
+    asString(metadata.referrer_id) ??
+    asString(metadata.referrerId) ??
+    null;
+
+  const inviteId =
+    asString(metadata.invite_id) ??
+    asString(metadata.referral_code) ??
+    null;
+
+  await finalizeRegistrationReferral({
+    paymentId: paymentDetails.external_reference || paymentId,
+    userId,
+    email,
+    directId,
+    rootId: parentId,
+    inviteId,
+    isRootCreator: isRootCreatorFlag,
+  });
+
+  logger.info({
+    event: 'registration.payment.processed',
+    paymentId,
+    userId,
+    parentId,
+    amountCents,
+  });
+
+  return { processed: true, mode: 'registration' };
+}
+
 
   if (!liveId || !userId) {
     throw new Error('Payment metadata missing liveId or userId.');

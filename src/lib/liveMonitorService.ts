@@ -76,15 +76,27 @@ export const fetchLiveMonitorData = async (): Promise<LiveMonitorData> => {
   if (recentLivesRes.error) throw new Error(recentLivesRes.error.message);
   if (alertsRes.error) throw new Error(alertsRes.error.message);
 
+  type HeartbeatRow = { live_id: string; last_heartbeat?: string | null; camera_active?: boolean | null };
+  type LiveRow = {
+    id: string;
+    title?: string | null;
+    status?: LiveLifecycleStatus | null;
+    creator_id: string;
+    room_name?: string | null;
+    created_at?: string | null;
+    ended_at?: string | null;
+  };
+  type AlertRow = { live_id: string; creator_id: string; reason?: string | null; ended_at?: string | null };
+
   const heartbeatLookup = new Map<string, { last_heartbeat?: string | null; camera_active?: boolean | null }>();
-  (heartbeatRes.data ?? []).forEach((row: any) => {
+  (heartbeatRes.data ?? []).forEach((row: HeartbeatRow) => {
     heartbeatLookup.set(row.live_id, {
       last_heartbeat: row.last_heartbeat,
       camera_active: row.camera_active,
     });
   });
 
-  const activeLives: ActiveLive[] = (livesRes.data ?? []).map((row: any) => {
+  const activeLives: ActiveLive[] = (livesRes.data ?? []).map((row: LiveRow) => {
     const hb = heartbeatLookup.get(row.id) ?? {};
     return {
       id: row.id,
@@ -98,7 +110,7 @@ export const fetchLiveMonitorData = async (): Promise<LiveMonitorData> => {
     };
   });
 
-  const recentLives: RecentLive[] = (recentLivesRes.data ?? []).map((row: any) => ({
+  const recentLives: RecentLive[] = (recentLivesRes.data ?? []).map((row: LiveRow) => ({
     id: row.id,
     title: row.title,
     status: row.status,
@@ -108,7 +120,7 @@ export const fetchLiveMonitorData = async (): Promise<LiveMonitorData> => {
     ended_at: row.ended_at,
   }));
 
-  const alerts: LiveAlert[] = (alertsRes.data ?? []).map((row: any) => ({
+  const alerts: LiveAlert[] = (alertsRes.data ?? []).map((row: AlertRow) => ({
     live_id: row.live_id,
     creator_id: row.creator_id,
     reason: row.reason,

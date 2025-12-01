@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "lint": "eslint .",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "preview": "vite preview",
     "backend:dev": "npm run dev --prefix backend",
     "backend:build": "npm run build --prefix backend"

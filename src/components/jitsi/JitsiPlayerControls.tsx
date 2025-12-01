@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJitsiPlayerControls } from "@/hooks/useJitsiPlayerControls";
+import type { DailyCallControls } from "@/lib/jitsiPlayerService";
 import { Mic, MicOff, Video, VideoOff, RotateCw, Loader2 } from "lucide-react";
 
 type Props = {
-  call: any;
+  call: DailyCallControls | null;
   roomUrl: string;
 };
 

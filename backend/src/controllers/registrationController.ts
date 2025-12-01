@@ -82,11 +82,11 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
     const authProfileId = req.auth?.profileId;
     const profile = await ensureProfileForRegistration(authProfileId, email, password);
 
-    const context = await resolveReferralContext(referralCode ?? null, referrer_id ?? null);
+    const baseContext = await resolveReferralContext(referralCode ?? null, referrer_id ?? null, email ?? undefined);
     const effectiveContext: RegistrationReferralContext = {
-      directReferrerId: context.directReferrerId,
-      parentReferrerId: context.parentReferrerId,
-      isRootCreator: Boolean(root) || (!context.directReferrerId ? true : context.isRootCreator),
+      ...baseContext,
+      isRootCreator: Boolean(root) || (!baseContext.directId ? true : baseContext.isRootCreator),
+      inviteId: baseContext.inviteId ?? referralCode ?? referrer_id ?? null,
     };
 
     await applyRegistrationContextToProfile(profile.profileId, effectiveContext);
@@ -110,21 +110,23 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
     await recordPendingRegistrationReferral(paymentId, profile.profileId, effectiveContext, { isFree: false });
 
     const preference = await createCheckoutPreference({
-      type: 'registration',
+      purchaseType: 'registration',
       userId: profile.profileId,
       price: REGISTRATION_PRICE_VALUE,
       paymentId,
-      referrerId: effectiveContext.directReferrerId,
-      referrerParentId: effectiveContext.parentReferrerId,
+      referrerId: effectiveContext.directId,
+      referrerParentId: effectiveContext.rootId,
       isRootCreator: effectiveContext.isRootCreator,
+      newUserEmail: profile.email,
+      inviteId: effectiveContext.inviteId ?? referralCode ?? null,
     });
 
     logger.info({
       event: 'registration.checkout.created',
       profileId: profile.profileId,
       paymentId,
-      directReferrer: effectiveContext.directReferrerId,
-      parentReferrer: effectiveContext.parentReferrerId,
+      directReferrer: effectiveContext.directId,
+      parentReferrer: effectiveContext.rootId,
       isRootCreator: effectiveContext.isRootCreator,
     });
 

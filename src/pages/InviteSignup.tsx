@@ -200,7 +200,7 @@ const InviteSignup = () => {
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Video className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold text-primary">Stream Live Hub</h1>
+          <h1 className="text-4xl font-bold text-primary">Stream Star</h1>
         </div>
 
         <Card className="border-border shadow-gold">

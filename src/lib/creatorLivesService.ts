@@ -18,7 +18,14 @@ export const creatorLivesService = async (profileId: string) => {
 
   if (error) throw new Error(error.message);
 
-  const lives: CreatorLiveRow[] = (data ?? []).map((live: any) => ({
+  const lives: CreatorLiveRow[] = (data ?? []).map((live: {
+    id: string;
+    title?: string | null;
+    status?: string | null;
+    is_active?: boolean | null;
+    created_at?: string | null;
+    price?: number | null;
+  }) => ({
     id: live.id,
     title: live.title ?? "Live",
     status: live.status ?? (live.is_active ? "live" : "draft"),

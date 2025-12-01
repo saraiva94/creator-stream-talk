@@ -11,6 +11,7 @@ import {
 import { createCheckoutPreference } from '../services/mercadoPagoService';
 import { parseWithZod } from '../validation/utils';
 import { affiliateRegisterSchema } from '../validation/affiliateSchemas';
+import { supabase } from '../lib/supabaseClient';
 
 export const registerAffiliate = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -23,27 +24,39 @@ export const registerAffiliate = async (req: Request, res: Response, next: NextF
 
     const { referralCode } = parseWithZod(affiliateRegisterSchema, req.body ?? {});
 
-    const context = await resolveReferralContext(referralCode);
+    const { data: profileRow, error: profileError } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', profileId)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new Error(`Failed to load profile: ${profileError.message}`);
+    }
+
+    const context = await resolveReferralContext(referralCode, null, profileRow?.email ?? undefined);
     await applyRegistrationContextToProfile(profileId, context);
 
     const paymentId = crypto.randomUUID();
     await recordPendingRegistrationReferral(paymentId, profileId, context);
     const preference = await createCheckoutPreference({
-      type: 'registration',
+      purchaseType: 'registration',
       userId: profileId,
       price: REGISTRATION_PRICE_VALUE,
       paymentId,
-      referrerId: context.directReferrerId,
-      referrerParentId: context.parentReferrerId,
+      referrerId: context.directId,
+      referrerParentId: context.rootId,
       isRootCreator: context.isRootCreator,
+      newUserEmail: profileRow?.email ?? null,
+      inviteId: context.inviteId ?? referralCode ?? null,
     });
 
     logger.info({
       event: 'affiliate.registration.start',
       profileId,
       referralCode: referralCode ?? null,
-      root: context.parentReferrerId,
-      direct: context.directReferrerId,
+      root: context.rootId,
+      direct: context.directId,
       paymentId,
     });
 

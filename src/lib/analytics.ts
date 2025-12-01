@@ -8,6 +8,6 @@ export type AnalyticsEvent =
   | "entitlement_restored";
 
 export function track(event: AnalyticsEvent, payload?: Record<string, unknown>) {
-  // eslint-disable-next-line no-console
+   
   console.debug(`[analytics] ${event}`, payload);
 }

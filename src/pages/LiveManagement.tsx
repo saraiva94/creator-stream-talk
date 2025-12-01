@@ -11,12 +11,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Users, DollarSign, TrendingUp, Circle, MonitorOff } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
+
+type CreatorProfile = {
+  approved_for_live?: boolean | null;
+  daily_room_url?: string | null;
+};
+
+type RoomRecord = {
+  id: string;
+};
+
+type TransactionRow = {
+  amount: number | string | null;
+  type?: string | null;
+};
 
 const LiveManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [room, setRoom] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [room, setRoom] = useState<RoomRecord | null>(null);
   const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
   const [participants, setParticipants] = useState(0);
   const [revenue, setRevenue] = useState({ total: 0, superchats: 0 });
@@ -134,10 +149,10 @@ const LiveManagement = () => {
         .eq("status", "approved");
 
       if (transactions) {
-        const total = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+        const total = transactions.reduce((sum: number, t: TransactionRow) => sum + Number(t.amount ?? 0), 0);
         const superchats = transactions
-          .filter(t => t.type === "superchat")
-          .reduce((sum, t) => sum + Number(t.amount), 0);
+          .filter((t: TransactionRow) => t.type === "superchat")
+          .reduce((sum: number, t: TransactionRow) => sum + Number(t.amount ?? 0), 0);
         setRevenue({ total, superchats });
       }
     };
@@ -188,10 +203,11 @@ const LiveManagement = () => {
       });
 
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao encerrar";
       toast({
         title: "Erro ao encerrar",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     }

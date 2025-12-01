@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 export type RevenueRange = "7d" | "30d" | "90d" | "lifetime";
 
@@ -56,7 +57,10 @@ const sumAmounts = (values: Array<number | null | undefined>) =>
 export const fetchPlatformRevenue = async (range: RevenueRange): Promise<PlatformRevenueResponse> => {
   const startDate = toStartDate(range);
 
-  const dateFilter = (builder: any, column: string) => {
+  const dateFilter = <T>(
+    builder: PostgrestFilterBuilder<T>,
+    column: string,
+  ): PostgrestFilterBuilder<T> => {
     if (startDate) {
       return builder.gte(column, startDate.toISOString());
     }
@@ -83,16 +87,22 @@ export const fetchPlatformRevenue = async (range: RevenueRange): Promise<Platfor
   const paymentsRows = paymentsRes.data ?? [];
   const withdrawalsRows = withdrawalsRes.data ?? [];
 
-  const platformCut = sumAmounts(platformRows.map((row: any) => row.amount));
+  type PlatformRevenueRow = { amount: number | null; created_at: string };
+  type PaymentRow = { amount: number | null; status?: string | null; created_at: string };
+  type WithdrawalRow = { amount: number | null; status?: string | null; created_at: string; processed_at?: string | null };
+
+  const platformCut = sumAmounts(platformRows.map((row: PlatformRevenueRow) => row.amount));
   const grossRevenue = sumAmounts(
-    paymentsRows.filter((row: any) => isCompletedPayment(row.status)).map((row: any) => row.amount),
+    paymentsRows.filter((row: PaymentRow) => isCompletedPayment(row.status)).map((row: PaymentRow) => row.amount),
   );
   const creatorPayouts = sumAmounts(
-    withdrawalsRows.filter((row: any) => isProcessedWithdrawal(row.status)).map((row: any) => row.amount),
+    withdrawalsRows
+      .filter((row: WithdrawalRow) => isProcessedWithdrawal(row.status))
+      .map((row: WithdrawalRow) => row.amount),
   );
 
   const seriesMap = new Map<string, number>();
-  platformRows.forEach((row: any) => {
+  platformRows.forEach((row: PlatformRevenueRow) => {
     const key = toDateKey(row.created_at);
     const prev = seriesMap.get(key) ?? 0;
     seriesMap.set(key, Number((prev + (row.amount ?? 0)).toFixed(2)));

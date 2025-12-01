@@ -26,8 +26,20 @@ type FetchResult = {
   total: number;
 };
 
-const mapWithdrawalRow = (row: any): WithdrawalRecord => {
-  const creatorProfiles = row?.creators?.profiles;
+type WithdrawalRow = {
+  id: string;
+  amount: number;
+  status: WithdrawalStatus;
+  created_at: string;
+  processed_at?: string | null;
+  creator_id: string;
+  creators?: {
+    profiles?: { username?: string | null; email?: string | null }[] | null;
+  } | null;
+};
+
+const mapWithdrawalRow = (row: WithdrawalRow): WithdrawalRecord => {
+  const creatorProfiles = row.creators?.profiles;
   const profileDetails = Array.isArray(creatorProfiles) ? creatorProfiles[0] : creatorProfiles ?? null;
 
   return {

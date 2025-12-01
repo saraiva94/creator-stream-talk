@@ -2,6 +2,22 @@ import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../lib/supabaseClient';
 import { respondError, respondSuccess } from '../lib/responses';
 
+type CreatorEarningRow = {
+  id: string;
+  live_id: string;
+  credits_consumed: number | null;
+  gross_cents: number | null;
+  net_cents: number | null;
+  platform_cents: number | null;
+  status: string | null;
+  settled_at: string | null;
+  created_at: string;
+  lives?: {
+    title?: string | null;
+    created_at?: string | null;
+  } | null;
+};
+
 export const listCreatorEarnings = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const creatorId = req.auth?.profileId;
@@ -35,7 +51,7 @@ export const listCreatorEarnings = async (req: Request, res: Response, next: Nex
       throw new Error(`Failed to load creator earnings: ${error.message}`);
     }
 
-    const earnings = (data ?? []).map((row: any) => ({
+    const earnings = (data ?? []).map((row: CreatorEarningRow) => ({
       id: row.id,
       liveId: row.live_id,
       liveTitle: row.lives?.title ?? null,

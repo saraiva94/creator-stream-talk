@@ -131,14 +131,25 @@ export const listCreatorPayoutRequests = async (creatorId: string) => {
     throw new Error(`Failed to load payout requests: ${error.message}`);
   }
 
-  return (data ?? []).map((row: any) => ({
-    id: row.id as string,
-    amountCents: Number(row.amount ?? 0),
-    status: (row.status as string) ?? 'pending',
-    createdAt: row.created_at as string,
-    approvedAt: row.approved_at as string | null,
-    paidAt: row.paid_at as string | null,
-    adminNotes: row.admin_notes as string | null,
-    pixKey: row.pix_key as string | null,
-  }));
+  return (data ?? []).map(
+    (row: {
+      id: string;
+      amount: number | null;
+      status: string | null;
+      created_at: string;
+      approved_at?: string | null;
+      paid_at?: string | null;
+      admin_notes?: string | null;
+      pix_key?: string | null;
+    }) => ({
+      id: row.id,
+      amountCents: Number(row.amount ?? 0),
+      status: row.status ?? 'pending',
+      createdAt: row.created_at,
+      approvedAt: row.approved_at ?? null,
+      paidAt: row.paid_at ?? null,
+      adminNotes: row.admin_notes ?? null,
+      pixKey: row.pix_key ?? null,
+    }),
+  );
 };

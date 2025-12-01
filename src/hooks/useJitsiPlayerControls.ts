@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
-import { toggleMute, toggleCamera, reconnectCall, type JitsiControlState } from "@/lib/jitsiPlayerService";
+import { toggleMute, toggleCamera, reconnectCall, type JitsiControlState, type DailyCallControls } from "@/lib/jitsiPlayerService";
 
 type UseJitsiPlayerControlsParams = {
-  call: any;
+  call: DailyCallControls | null;
   roomUrl: string;
 };
 

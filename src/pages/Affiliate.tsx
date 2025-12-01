@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Users, TrendingUp, Link as LinkIcon, Copy } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 
 interface Referral {
   id: string;
@@ -22,7 +23,7 @@ interface Referral {
 const Affiliate = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [referralCode, setReferralCode] = useState("");
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -61,19 +62,19 @@ const Affiliate = () => {
 
       if (referralsData) {
         // Get usernames separately
-        const referralsWithProfiles = await Promise.all(
+        const referralsWithProfiles: Referral[] = await Promise.all(
           referralsData.map(async (ref) => {
-            const { data: profile } = await supabase
+            const { data: profileRow } = await supabase
               .from("profiles")
               .select("username")
               .eq("id", ref.referred_id)
               .single();
-            
+
             return {
               ...ref,
-              profiles: { username: profile?.username || "Usuário" }
-            };
-          })
+              profiles: { username: profileRow?.username || "Usuário" },
+            } as Referral;
+          }),
         );
         
         setReferrals(referralsWithProfiles);

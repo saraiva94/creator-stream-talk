@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type RegistrationCheckoutPayload } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const REGISTRATION_PRICE = 5.0;
@@ -35,7 +35,7 @@ const RegistrationCheckoutPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const payload: any = {
+      const payload: RegistrationCheckoutPayload & { referrer_id?: string; root?: boolean } = {
         email,
         password,
       };
@@ -76,7 +76,7 @@ const RegistrationCheckoutPage = () => {
         title: "Registration submitted",
         description: "If payment is required, you will be redirected shortly.",
       });
-    } catch (err) {
+    } catch (err: unknown) {
       const apiError = err as ApiError;
       const message =
         apiError?.message === "Referral not found"

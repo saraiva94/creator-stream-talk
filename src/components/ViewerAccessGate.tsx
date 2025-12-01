@@ -331,7 +331,7 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
         isCancelled: () => !isMountedRef.current,
         signal: retryAbortRef.current?.signal,
         onAttempt: (attempt, delay) => {
-          // eslint-disable-next-line no-console
+           
           console.debug(`[viewer] entitlement retry attempt ${attempt} after ${delay}ms`);
         },
       });
