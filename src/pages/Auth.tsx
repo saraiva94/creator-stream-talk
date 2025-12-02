@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import { Video, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { AuthApiError } from "@supabase/supabase-js";
+import { siteUrl } from "@/lib/siteUrl";
 
 type ErrorWithMessage = {
   message?: string;
@@ -43,11 +44,6 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
-
-  const siteUrl = useMemo(
-    () => (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, ""),
-    [],
-  );
 
   useEffect(() => {
     const checkSession = async () => {

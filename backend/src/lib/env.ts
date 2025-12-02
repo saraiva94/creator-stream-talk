@@ -40,7 +40,7 @@ export const getAllowedOrigins = () => {
   const raw = getEnv('ALLOWED_ORIGINS', '');
   if (!raw) {
     // defaults de dev
-    return ['http://localhost:5173', 'http://localhost:3000'];
+    return ['http://localhost:5173', 'http://localhost:3000', 'http://192.168.1.7:8080'];
   }
 
   return raw

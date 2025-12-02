@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,8 @@ import { Eye, EyeOff, Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { validatePasswordStrength } from "@/lib/password";
+import { apiClient } from "@/lib/api";
+import { siteUrl } from "@/lib/siteUrl";
 
 const InviteSignup = () => {
   const { inviteCode: inviteCodeParam } = useParams();
@@ -26,16 +28,6 @@ const InviteSignup = () => {
   const [loading, setLoading] = useState(false);
   const [parentId, setParentId] = useState<string | null>(null);
   const [parentUsername, setParentUsername] = useState<string | null>(null);
-
-  const siteUrl = useMemo(
-    () => (import.meta.env.VITE_SITE_URL || window.location.origin).replace(/\/$/, ""),
-    []
-  );
-
-  const backendBase = useMemo(
-    () => (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, ""),
-    []
-  );
 
   useEffect(() => {
     if (!ref) {
@@ -154,17 +146,7 @@ const InviteSignup = () => {
         console.error("[INVITE][REFERRAL_INSERT]", { referralError, ref });
       }
 
-      const response = await fetch(`${backendBase}/payments/create-registration-preference`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, parentId }),
-      });
-
-      const body = await response.json();
-
-      if (!response.ok || !body?.init_point) {
-        throw new Error(body?.error || "Failed to start registration payment");
-      }
+      const body = await apiClient.createRegistrationPreference({ userId, parentId });
 
       toast({
         title: "Confirm your email and pay the registration fee",

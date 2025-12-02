@@ -1,11 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
-
-const DEFAULT_BACKEND_PORT = 3000;
 const AUTH_REDIRECT_PATH = '/auth';
 let redirectingDueToAuthError = false;
 
 const resolveBaseUrl = () => {
   const envBase =
+    import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
     import.meta.env.VITE_BACKEND_URL ||
     import.meta.env.VITE_PUBLIC_BASE_URL ||
@@ -20,9 +19,9 @@ const resolveBaseUrl = () => {
   const inferredOrigin =
     typeof window !== 'undefined' && window.location?.origin
       ? window.location.origin
-      : `http://localhost:${DEFAULT_BACKEND_PORT}`;
+      : 'http://localhost:4000';
 
-  return `${normalize(inferredOrigin)}/api`;
+  return normalize(inferredOrigin);
 };
 
 const API_BASE_URL = resolveBaseUrl();
@@ -534,10 +533,22 @@ export const apiClient = {
       auth: 'optional',
     }),
 
+  createRegistrationPreference: (payload: { userId: string; parentId: string }) =>
+    request<PaymentPreferenceResponse>('/payments/create-registration-preference', {
+      method: 'POST',
+      body: payload,
+      auth: 'optional',
+    }),
+
   getCreditBalance: async () => {
     const data = await withFallback(
       () => request<CreditBalanceResponse>('/credits/balance', { auth: 'required' }),
-      async () => ({ balance: 0, estimated_time: 0 }),
+      async () => ({
+        balance: 0,
+        balance_credits: 0,
+        creditBalance: 0,
+        estimated_time: 0,
+      }),
     );
     const balance = data?.balance_credits ?? data?.balance ?? data?.creditBalance ?? 0;
     const estimated = data?.estimated_time ?? Math.max(0, Math.floor(balance / 6));
@@ -612,6 +623,7 @@ export const api = {
   },
   registration: {
     checkout: apiClient.registrationCheckout,
+    createPreference: apiClient.createRegistrationPreference,
   },
   status: {
     diagnostics: apiClient.fetchDiagnostics,
