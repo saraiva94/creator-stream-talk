@@ -26,6 +26,20 @@ const ensureProfileForRegistration = async (
   password?: string,
 ): Promise<RegistrationProfileResult> => {
   if (authProfileId) {
+    if (!email) {
+      const { data: existingProfile, error: loadError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', authProfileId)
+        .maybeSingle();
+
+      if (loadError) {
+        throw new Error(`Failed to load existing profile for registration: ${loadError.message}`);
+      }
+
+      email = existingProfile?.email ?? undefined;
+    }
+
     return { profileId: authProfileId, email: email ?? '', created: false };
   }
 
@@ -107,7 +121,10 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
     }
 
     const paymentId = crypto.randomUUID();
-    await recordPendingRegistrationReferral(paymentId, profile.profileId, effectiveContext, { isFree: false });
+    await recordPendingRegistrationReferral(paymentId, profile.profileId, effectiveContext, {
+      isFree: false,
+      email: profile.email,
+    });
 
     const preference = await createCheckoutPreference({
       purchaseType: 'registration',

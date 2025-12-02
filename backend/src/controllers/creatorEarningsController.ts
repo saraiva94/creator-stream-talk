@@ -15,7 +15,7 @@ type CreatorEarningRow = {
   lives?: {
     title?: string | null;
     created_at?: string | null;
-  } | null;
+  }[] | null;
 };
 
 export const listCreatorEarnings = async (req: Request, res: Response, next: NextFunction) => {
@@ -54,8 +54,8 @@ export const listCreatorEarnings = async (req: Request, res: Response, next: Nex
     const earnings = (data ?? []).map((row: CreatorEarningRow) => ({
       id: row.id,
       liveId: row.live_id,
-      liveTitle: row.lives?.title ?? null,
-      liveCreatedAt: row.lives?.created_at ?? null,
+      liveTitle: row.lives?.[0]?.title ?? null,
+      liveCreatedAt: row.lives?.[0]?.created_at ?? null,
       creditsConsumed: row.credits_consumed,
       grossCents: row.gross_cents,
       netCents: row.net_cents,

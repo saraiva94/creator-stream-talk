@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +10,8 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { validatePasswordStrength } from "@/lib/password";
 import { apiClient } from "@/lib/api";
-import { siteUrl } from "@/lib/siteUrl";
+import { supabase } from "@/integrations/supabase/client";
+import { ApiError } from "@/lib/api";
 
 const InviteSignup = () => {
   const { inviteCode: inviteCodeParam } = useParams();
@@ -101,65 +101,30 @@ const InviteSignup = () => {
 
     setLoading(true);
     try {
-      const redirectUrl = `${siteUrl}/auth`;
-      const { data, error } = await supabase.auth.signUp({
+      const response = await apiClient.registrationCheckout({
         email,
         password,
-        options: {
-          data: { username, role: "viewer", referral_code: ref },
-          emailRedirectTo: redirectUrl,
-        },
-      });
-
-      if (error) throw error;
-
-      const userId = data.user?.id;
-      if (!userId) {
-        throw new Error("User ID missing after signup");
-      }
-
-      if (!parentId) {
-        throw new Error("Missing parent for invite registration");
-      }
-
-      const { error: profileError } = await supabase.from("profiles").upsert(
-        {
-          id: userId,
-          username,
-          referred_by: parentId,
-          status: "pending_payment",
-        },
-        { onConflict: "id" }
-      );
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      const { error: referralError } = await supabase.from("referrals").insert({
-        referral_code: ref,
-        referred_id: userId,
+        referralCode: ref,
         referrer_id: parentId,
       });
 
-      if (referralError) {
-        console.error("[INVITE][REFERRAL_INSERT]", { referralError, ref });
+      if (response.init_point) {
+        window.location.href = response.init_point;
+      } else {
+        toast({
+          title: "Link de pagamento gerado",
+          description: "Siga para o checkout para concluir o cadastro.",
+        });
       }
-
-      const body = await apiClient.createRegistrationPreference({ userId, parentId });
-
-      toast({
-        title: "Confirm your email and pay the registration fee",
-        description:
-          "We sent a confirmation email. Complete payment to activate your account after confirmation is processed.",
-      });
-
-      window.location.href = body.init_point as string;
     } catch (err) {
       console.error("[INVITE][SIGNUP]", err);
+      const description =
+        err instanceof ApiError && err.status === 409
+          ? "Este convite já foi usado com este e-mail."
+          : "Please verify your invite link and try again.";
       toast({
         title: "Error creating account",
-        description: "Please verify your invite link and try again.",
+        description,
         variant: "destructive",
       });
     } finally {

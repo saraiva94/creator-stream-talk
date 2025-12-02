@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../lib/supabaseClient';
 import {
   createCheckoutPreference,
@@ -8,20 +9,30 @@ import {
 
 export const createPreference = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { liveId, userId, price, purchaseType, metadata } = req.body ?? {};
+    const { liveId, userId, price, purchaseType, metadata, paymentId, referrerId, referrerParentId } = req.body ?? {};
     const normalizedPrice = Number(price);
+    const normalizedType = (purchaseType ?? 'live_access').toLowerCase();
 
-    if (!liveId || !userId || Number.isNaN(normalizedPrice) || normalizedPrice <= 0) {
+    if (!userId || Number.isNaN(normalizedPrice) || normalizedPrice <= 0) {
       return res.status(400).json({
-        error: 'liveId, userId, and a positive price are required.',
+        error: 'userId and a positive price are required.',
       });
     }
+
+    if (normalizedType !== 'credits' && normalizedType !== 'credits_purchase' && !liveId) {
+      return res.status(400).json({ error: 'liveId is required for live purchases.' });
+    }
+
+    const effectivePaymentId = paymentId ?? crypto.randomUUID();
 
     const preference = await createCheckoutPreference({
       liveId,
       userId,
       price: normalizedPrice,
-      purchaseType,
+      purchaseType: normalizedType,
+      paymentId: effectivePaymentId,
+      referrerId,
+      referrerParentId,
       metadata,
     });
     res.status(201).json(preference);

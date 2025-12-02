@@ -14,6 +14,7 @@ import affiliateRoutes from './affiliateRoutes';
 import affiliatesRoutes from './affiliatesRoutes';
 import adminCreatorsRoutes from './adminCreatorsRoutes';
 import registrationRoutes from './registrationRoutes';
+import authRoutes from './authRoutes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/admin', adminCreatorsRoutes);
 router.use('/', creatorEarningsRoutes);
 router.use('/', affiliateRoutes);
 router.use('/', affiliatesRoutes);
+router.use('/', authRoutes);
 
 export default router;

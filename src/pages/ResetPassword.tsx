@@ -8,10 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Video, ArrowLeft } from "lucide-react";
 import { validatePasswordStrength } from "@/lib/password";
+import { siteUrl } from "@/lib/siteUrl";
 
 const ResetPassword = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [requestEmail, setRequestEmail] = useState("");
+  const [requesting, setRequesting] = useState(false);
+  const [requestMessage, setRequestMessage] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -27,7 +32,14 @@ const ResetPassword = () => {
       const refreshToken = hashParams.get("refresh_token") ?? searchParams.get("refresh_token");
       const type = hashParams.get("type") ?? searchParams.get("type");
 
-      if (!accessToken || type !== "recovery") {
+      if (!accessToken) {
+        setHasRecoverySession(false);
+        setTokenError(null);
+        setChecking(false);
+        return;
+      }
+
+      if (type !== "recovery") {
         setTokenError("Link de redefinição inválido ou expirado.");
         setChecking(false);
         return;
@@ -112,6 +124,45 @@ const ResetPassword = () => {
     }
   };
 
+  const handleSendResetEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRequestError(null);
+    setRequestMessage(null);
+
+    if (!requestEmail) {
+      setRequestError("Digite o e-mail cadastrado para recuperar a senha.");
+      return;
+    }
+
+    const emailValid = /\S+@\S+\.\S+/.test(requestEmail);
+    if (!emailValid) {
+      setRequestError("Digite um e-mail válido.");
+      return;
+    }
+
+    setRequesting(true);
+    try {
+      const redirectTo = `${siteUrl}/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(requestEmail, { redirectTo });
+
+      if (error) {
+        if (error.message.toLowerCase().includes("not found")) {
+          setRequestError("Esse e-mail não está cadastrado. Verifique se digitou corretamente.");
+        } else {
+          setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
+        }
+        return;
+      }
+
+      setRequestMessage("Enviamos um link de recuperação para o seu e-mail.");
+    } catch (error) {
+      console.error("[AUTH][RESET_LINK]", error);
+      setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
+    } finally {
+      setRequesting(false);
+    }
+  };
+
   if (checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -134,7 +185,7 @@ const ResetPassword = () => {
             <CardDescription>
               {hasRecoverySession
                 ? "Escolha uma nova senha segura para sua conta."
-                : tokenError ?? "Link de redefinição inválido ou expirado."}
+                : "Envie seu e-mail para receber o link de redefinição."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -179,14 +230,25 @@ const ResetPassword = () => {
                 </Button>
               </form>
             ) : (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  O link de redefinição está inválido ou expirou. Solicite um novo link na página de login.
-                </p>
-                <Button variant="outline" className="w-full" onClick={() => navigate("/auth")}>
-                  Voltar para login
+              <form onSubmit={handleSendResetEmail} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">E-mail cadastrado</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={requestEmail}
+                    onChange={(e) => setRequestEmail(e.target.value)}
+                    disabled={requesting}
+                  />
+                </div>
+                {tokenError ? <p className="text-sm text-destructive">{tokenError}</p> : null}
+                {requestError ? <p className="text-sm text-destructive">{requestError}</p> : null}
+                {requestMessage ? <p className="text-sm text-success">{requestMessage}</p> : null}
+                <Button type="submit" className="w-full" disabled={requesting}>
+                  {requesting ? "Enviando..." : "Enviar link de recuperação"}
                 </Button>
-              </div>
+              </form>
             )}
 
             <Link

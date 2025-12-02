@@ -3,6 +3,7 @@ import {
   getCreatorLivesController,
   getLiveInfoController,
   getPublicLivesController,
+  heartbeatViewerController,
   requestViewerAccessController,
   startLiveController,
 } from '../controllers/livesController';
@@ -16,5 +17,6 @@ router.get('/lives/creator', requireAuth, requireCreatorAccount, getCreatorLives
 router.post('/lives/start', requireAuth, requireCreatorAccount, startLiveController);
 router.get('/lives/:liveId/info', requireAuth, getLiveInfoController);
 router.post('/lives/access', requireAuth, viewerAccessRateLimiter, requestViewerAccessController);
+router.post('/lives/:liveId/heartbeat', requireAuth, viewerAccessRateLimiter, heartbeatViewerController);
 
 export default router;

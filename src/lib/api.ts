@@ -92,6 +92,12 @@ const fetchAffiliateStats = () =>
 const fetchAffiliateHistory = () =>
   request<AffiliateHistoryEntry[]>('/affiliate/history', { method: 'GET', auth: 'required' });
 
+const resolveUsernameToEmail = (username: string) =>
+  request<{ email: string }>(`/auth/resolve-username?username=${encodeURIComponent(username)}`, {
+    method: 'GET',
+    auth: 'none',
+  });
+
 const fetchReferralLink = () =>
   request<{ code: string; url: string }>('/affiliate/link', { method: 'GET', auth: 'required' });
 
@@ -219,6 +225,7 @@ export type LiveLifecycleStatus =
 export interface LiveSummary {
   id: string;
   creator_id: string;
+  creator_username?: string | null;
   title: string | null;
   description: string | null;
   price: number | null;
@@ -272,6 +279,15 @@ export interface LiveAccessResponse {
   grantedAt?: string | null;
   credit_balance?: number;
   credits_consumed?: number;
+}
+
+export interface LiveHeartbeatResponse {
+  status: 'OK' | 'NO_CREDITS';
+  secondsWatched: number;
+  creditsConsumed: number;
+  creditsChargedThisTick: number;
+  ranOutOfCredits: boolean;
+  remainingCredits: number;
 }
 
 export interface PaymentPreferenceResponse {
@@ -477,6 +493,14 @@ export const apiClient = {
   requestLiveAccess: (payload: LiveIdentifierPayload) =>
     request<LiveAccessResponse>('/lives/access', { method: 'POST', body: payload, auth: 'required' }),
 
+  heartbeatLive: (liveId: string, sessionToken: string) =>
+    request<LiveHeartbeatResponse>(`/lives/${liveId}/heartbeat`, {
+      method: 'POST',
+      auth: 'required',
+      body: { liveId, sessionToken },
+      headers: { 'x-session-token': sessionToken },
+    }),
+
   createPaymentPreference: (payload: CreatePaymentPayload) =>
     request<PaymentPreferenceResponse>('/payments/create-preference', {
       method: 'POST',
@@ -532,6 +556,8 @@ export const apiClient = {
       body: payload,
       auth: 'optional',
     }),
+
+  resolveUsername: (username: string) => resolveUsernameToEmail(username),
 
   createRegistrationPreference: (payload: { userId: string; parentId: string }) =>
     request<PaymentPreferenceResponse>('/payments/create-registration-preference', {
@@ -598,6 +624,7 @@ export const api = {
     access: (liveId: string) => apiClient.requestLiveAccess({ liveId }),
     reconnect: (liveId: string, signal?: AbortSignal) => apiClient.reconnectLive(liveId, signal),
     analytics: (liveId: string) => apiClient.getLiveAnalytics(liveId),
+    heartbeat: (liveId: string, sessionToken: string) => apiClient.heartbeatLive(liveId, sessionToken),
   },
   payments: {
     create: (payload: CreatePaymentPayload) => apiClient.createPaymentPreference(payload),
@@ -624,6 +651,9 @@ export const api = {
   registration: {
     checkout: apiClient.registrationCheckout,
     createPreference: apiClient.createRegistrationPreference,
+  },
+  auth: {
+    resolveUsername: apiClient.resolveUsername,
   },
   status: {
     diagnostics: apiClient.fetchDiagnostics,

@@ -53,7 +53,7 @@ const PAYMENT_SIGNAL_PARAMS = ["payment_id", "preference_id", "collection_id", "
 const ACCESS_RETRY_DELAYS_MS = [500, 1000, 2000, 4000];
 const ENTITLEMENT_WAIT_MESSAGE =
   "Your payment was approved, but we’re still waiting for Mercado Pago to confirm your access. Please refresh or try again.";
-const CREDIT_TICK_INTERVAL_MS = 1000;
+const HEARTBEAT_INTERVAL_MS = 5000;
 
 const LIVE_STATUS_LABELS: Record<LiveLifecycleStatus, string> = {
   scheduled: "Scheduled",
@@ -102,7 +102,8 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
   const initialAttemptedRef = React.useRef(false);
   const isMountedRef = React.useRef(true);
   const retryAbortRef = React.useRef<AbortController | null>(null);
-  const creditIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const heartbeatIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionTokenRef = React.useRef<string | null>(null);
   const previewStartedRef = React.useRef(false);
   const paywallLoggedRef = React.useRef(false);
   const hasEntitlement = Boolean(access || liveInfo?.isEntitled);
@@ -139,7 +140,7 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
     return () => {
       isMountedRef.current = false;
       retryAbortRef.current?.abort();
-      if (creditIntervalRef.current) clearInterval(creditIntervalRef.current);
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
     };
   }, []);
 
@@ -424,29 +425,42 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
 
   React.useEffect(() => {
     if (!hasEntitlement || paywallReason === "credits" || !resolvedRoomName) {
-      if (creditIntervalRef.current) clearInterval(creditIntervalRef.current);
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
       return;
     }
 
-    if (creditIntervalRef.current) clearInterval(creditIntervalRef.current);
+    const ensureSessionToken = () => {
+      if (sessionTokenRef.current) return sessionTokenRef.current;
+      const fallback = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      sessionTokenRef.current = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : fallback;
+      return sessionTokenRef.current;
+    };
 
-    creditIntervalRef.current = setInterval(() => {
-      setLocalCredits((current) => {
-        const next = Math.max(0, current - CREDIT_TICK_INTERVAL_MS / 1000);
-        if (next <= 0) {
-          if (creditIntervalRef.current) clearInterval(creditIntervalRef.current);
+    const sendHeartbeat = async () => {
+      try {
+        const token = ensureSessionToken();
+        const response = await api.lives.heartbeat(liveId, token);
+        if (!isMountedRef.current) return;
+
+        updateCredits(response.remainingCredits);
+        setLocalCredits(response.remainingCredits);
+
+        if (response.status === "NO_CREDITS" || response.ranOutOfCredits || response.remainingCredits <= 0) {
           setPaywallReason("credits");
-          track("preview_expired", { liveId, reason: "credits" });
-          return 0;
+          if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
         }
-        return next;
-      });
-    }, CREDIT_TICK_INTERVAL_MS);
+      } catch (error) {
+        console.debug("[viewer] heartbeat failed", error);
+      }
+    };
+
+    sendHeartbeat();
+    heartbeatIntervalRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
     return () => {
-      if (creditIntervalRef.current) clearInterval(creditIntervalRef.current);
+      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
     };
-  }, [hasEntitlement, liveId, paywallReason, resolvedRoomName]);
+  }, [hasEntitlement, liveId, paywallReason, resolvedRoomName, updateCredits]);
 
   const handlePurchase = async () => {
     setErrorMessage(null);

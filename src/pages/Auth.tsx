@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Video, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { AuthApiError } from "@supabase/supabase-js";
-import { siteUrl } from "@/lib/siteUrl";
+import { ApiError, api } from "@/lib/api";
 
 type ErrorWithMessage = {
   message?: string;
@@ -29,18 +29,11 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
-type AuthMode = "login" | "forgotPassword";
-
 const Auth = () => {
-  const [email, setEmail] = useState("");
+  const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetError, setResetError] = useState<string | null>(null);
-  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
-  const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -57,7 +50,7 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    if (!loginInput || !password) {
       toast({
         title: "Campos obrigatórios",
         description: "Informe e-mail e senha para continuar.",
@@ -68,8 +61,14 @@ const Auth = () => {
 
     setLoading(true);
     try {
+      let emailToUse = loginInput;
+      if (!loginInput.includes("@")) {
+        const resolved = await api.auth.resolveUsername(loginInput);
+        emailToUse = resolved.email;
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: emailToUse,
         password,
       });
 
@@ -84,6 +83,16 @@ const Auth = () => {
 
       navigate("/");
     } catch (error: unknown) {
+      if (error instanceof ApiError) {
+        const message = error.status === 404 ? "Usuário não encontrado" : error.message;
+        toast({
+          title: "Erro no login",
+          description: message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
       if (error instanceof AuthApiError) {
         if (
           error.code === "email_not_confirmed" ||
@@ -121,69 +130,16 @@ const Auth = () => {
     }
   };
 
-  const handleSendResetLink = async () => {
-    if (!resetEmail) {
-      setResetError("Digite o e-mail cadastrado para recuperar a senha.");
-      setResetSuccess(null);
-      return;
-    }
-
-    const emailValid = /\S+@\S+\.\S+/.test(resetEmail);
-    if (!emailValid) {
-      setResetError("Digite um e-mail válido.");
-      setResetSuccess(null);
-      return;
-    }
-
-    setResetError(null);
-    setResetSuccess(null);
-    setResetLoading(true);
-    try {
-      const redirectTo = `${siteUrl}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, { redirectTo });
-      if (error) {
-        if (error.message.toLowerCase().includes("not found")) {
-          setResetError("Esse e-mail não está cadastrado. Verifique se digitou corretamente.");
-        } else {
-          setResetError("Não foi possível enviar o link de recuperação. Tente novamente.");
-        }
-        return;
-      }
-
-      setResetSuccess("Enviamos um link de recuperação para o seu e-mail.");
-    } catch (error) {
-      console.error("[AUTH][RESET_LINK]", error);
-      setResetError("Não foi possível enviar o link de recuperação. Tente novamente.");
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  const handleSwitchToReset = () => {
-    setMode("forgotPassword");
-    setResetEmail(email);
-    setResetError(null);
-    setResetSuccess(null);
-  };
-
-  const handleBackToLogin = () => {
-    setMode("login");
-    setResetEmail("");
-    setResetError(null);
-    setResetSuccess(null);
-    setResetLoading(false);
-  };
-
   const renderLoginForm = () => (
     <form onSubmit={handleSignIn} className="space-y-4 mt-4">
       <div className="space-y-2">
-        <Label htmlFor="login-email">{t.auth.email}</Label>
+        <Label htmlFor="login-email">Email ou usuário</Label>
         <Input
           id="login-email"
-          type="email"
-          placeholder="seu@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="seu@email.com ou usuario"
+          value={loginInput}
+          onChange={(e) => setLoginInput(e.target.value)}
           disabled={loading}
         />
       </div>
@@ -208,46 +164,14 @@ const Auth = () => {
         </div>
       </div>
       <div className="flex items-center justify-between text-sm">
-        <button
-          type="button"
-          className="text-primary hover:underline"
-          onClick={handleSwitchToReset}
-          disabled={loading}
-        >
+        <Link to="/reset-password" className="text-primary hover:underline">
           {t.auth.forgotPassword}
-        </button>
+        </Link>
       </div>
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? t.auth.loading : t.auth.loginButton}
       </Button>
     </form>
-  );
-
-  const renderForgotPasswordForm = () => (
-    <div className="space-y-4 mt-4">
-      <p className="text-sm text-muted-foreground">
-        Coloque o e-mail do cadastro para recuperar a senha.
-      </p>
-      <div className="space-y-2">
-        <Label htmlFor="reset-email">E-mail</Label>
-        <Input
-          id="reset-email"
-          type="email"
-          value={resetEmail}
-          onChange={(e) => setResetEmail(e.target.value)}
-          placeholder="seu@email.com"
-          disabled={resetLoading}
-        />
-      </div>
-      {resetError ? <p className="text-sm text-destructive">{resetError}</p> : null}
-      {resetSuccess ? <p className="text-sm text-success">{resetSuccess}</p> : null}
-      <Button onClick={handleSendResetLink} className="w-full" disabled={resetLoading}>
-        {resetLoading ? "Enviando..." : "Enviar link de recuperação"}
-      </Button>
-      <button type="button" className="text-sm text-primary hover:underline" onClick={handleBackToLogin}>
-        Voltar para o login
-      </button>
-    </div>
   );
 
   return (
@@ -270,7 +194,7 @@ const Auth = () => {
               <CardDescription>Connect with creators streaming live</CardDescription>
             </CardHeader>
             <CardContent>
-              {mode === "login" ? renderLoginForm() : renderForgotPasswordForm()}
+              {renderLoginForm()}
             </CardContent>
           </Card>
         </div>
