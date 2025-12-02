@@ -75,7 +75,7 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
             <p className="text-sm text-muted-foreground line-clamp-2">{live.description}</p>
           )}
           <p className="text-xs text-muted-foreground">
-            Creator: {live.creator_id}
+            Creator: {live.creator_username || live.creator_id}
           </p>
         </div>
 

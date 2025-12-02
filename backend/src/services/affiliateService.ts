@@ -13,8 +13,8 @@ export interface RegistrationReferralContext {
 }
 
 export const REGISTRATION_PRICE_VALUE = 5;
-const DIRECT_COMMISSION_VALUE = 1;
-const ROOT_COMMISSION_VALUE = 0.5;
+export const DIRECT_COMMISSION_VALUE = 1;
+export const ROOT_COMMISSION_VALUE = 0.5;
 
 const toCents = (value: number) => Math.round(value * 100);
 
@@ -194,7 +194,7 @@ export const recordPendingRegistrationReferral = async (
   paymentId: string,
   profileId: string,
   context: RegistrationReferralContext,
-  options?: { isFree?: boolean },
+  options?: { isFree?: boolean; email?: string | null },
 ) => {
   const { data: existing, error: existingError } = await supabase
     .from('registration_referrals')
@@ -205,6 +205,24 @@ export const recordPendingRegistrationReferral = async (
 
   if (existingError) {
     throw new Error(`Failed to verify registration referral: ${existingError.message}`);
+  }
+
+  if (options?.email) {
+    const { data: existingEmail, error: existingEmailError } = await supabase
+      .from('registration_referrals')
+      .select('payment_id, user_id')
+      .ilike('email', options.email)
+      .maybeSingle();
+
+    if (existingEmailError) {
+      throw new Error(`Failed to verify registration referral by email: ${existingEmailError.message}`);
+    }
+
+    if (existingEmail && existingEmail.payment_id !== paymentId) {
+      const error = new Error('Invite already used with this email');
+      (error as { status?: number }).status = 409;
+      throw error;
+    }
   }
 
   if (existing) {
@@ -219,6 +237,7 @@ export const recordPendingRegistrationReferral = async (
   const payload = {
     payment_id: paymentId,
     user_id: profileId,
+    email: options?.email ?? null,
     referrer_id: context.directId ?? null,
     referrer_parent_id: context.rootId ?? null,
     is_root_creator: Boolean(context.isRootCreator),
@@ -258,18 +277,37 @@ export const markRootCreatorProfile = async (profileId: string) => {
   return data;
 };
 
+const incrementAffiliateEarnings = async (profileId: string, amountCents: number) => {
+  if (!profileId || !Number.isFinite(amountCents) || amountCents <= 0) return null;
+
+  const { error, data } = await supabase.rpc('increment_affiliate_earnings', {
+    p_profile_id: profileId,
+    p_amount_cents: amountCents,
+  });
+
+  if (error) {
+    throw new Error(`Failed to increment affiliate earnings: ${error.message}`);
+  }
+
+  return data;
+};
+
 const logAffiliateRegistration = async ({
   newUserId,
   directId,
   rootId,
   directAmountCents,
   rootAmountCents,
+  platformAmountCents,
+  paymentId,
 }: {
   newUserId: string;
   directId: string | null;
   rootId: string | null;
   directAmountCents: number;
   rootAmountCents: number;
+  platformAmountCents: number;
+  paymentId?: string | null;
 }) => {
   const { error } = await supabase.from('affiliate_logs').insert({
     new_user: newUserId,
@@ -277,8 +315,9 @@ const logAffiliateRegistration = async ({
     root_creator: rootId,
     amount_direct: directAmountCents,
     amount_root: rootAmountCents,
+    amount_platform: platformAmountCents,
     event_type: 'REGISTRATION',
-    amount_platform: Math.max(0, toCents(REGISTRATION_PRICE_VALUE) - directAmountCents - rootAmountCents),
+    payment_id: paymentId ?? null,
   } as Record<string, unknown>);
 
   if (error) {
@@ -286,30 +325,72 @@ const logAffiliateRegistration = async ({
   }
 };
 
-const applyAffiliateEarnings = async ({
+const calculateRegistrationCommissionCents = (
+  directId: string | null,
+  rootId: string | null,
+): {
+  directAmountCents: number;
+  rootAmountCents: number;
+  platformAmountCents: number;
+} => {
+  const directAmountCents = directId ? toCents(DIRECT_COMMISSION_VALUE) : 0;
+  const effectiveRootId = rootId && rootId !== directId ? rootId : null;
+  const rootAmountCents = effectiveRootId ? toCents(ROOT_COMMISSION_VALUE) : 0;
+  const platformAmountCents = Math.max(0, toCents(REGISTRATION_PRICE_VALUE) - directAmountCents - rootAmountCents);
+
+  return { directAmountCents, rootAmountCents, platformAmountCents };
+};
+
+export const applyRegistrationAffiliatePayout = async ({
   newUserId,
   directId,
   rootId,
   directAmountCents,
   rootAmountCents,
+  platformAmountCents,
+  paymentId,
 }: {
   newUserId: string;
   directId: string | null;
   rootId: string | null;
   directAmountCents: number;
   rootAmountCents: number;
+  platformAmountCents: number;
+  paymentId?: string | null;
 }) => {
-  const { error } = await supabase.rpc('process_registration_affiliate_payout', {
-    p_new_user: newUserId,
-    p_root_creator: rootId,
-    p_direct_referrer: directId,
-    p_amount_root: rootAmountCents,
-    p_amount_direct: directAmountCents,
+  if (directId && directAmountCents > 0) {
+    await incrementAffiliateEarnings(directId, directAmountCents);
+  }
+
+  if (rootId && rootAmountCents > 0) {
+    await incrementAffiliateEarnings(rootId, rootAmountCents);
+  }
+
+  await logAffiliateRegistration({
+    newUserId,
+    directId,
+    rootId,
+    directAmountCents,
+    rootAmountCents,
+    platformAmountCents,
+    paymentId,
   });
 
-  if (error) {
-    throw new Error(`Failed to apply affiliate earnings: ${error.message}`);
-  }
+  logger.info({
+    event: 'affiliate.registration.payout_applied',
+    newUserId,
+    directId,
+    rootId,
+    directAmountCents,
+    rootAmountCents,
+    amount_platform_cents: platformAmountCents,
+  });
+
+  return {
+    platformAmountCents,
+    directAmountCents,
+    rootAmountCents,
+  };
 };
 
 export const finalizeRegistrationReferral = async ({
@@ -331,8 +412,10 @@ export const finalizeRegistrationReferral = async ({
 }) => {
   const normalizedDirect = directId ?? null;
   const normalizedRoot = rootId && rootId !== normalizedDirect ? rootId : null;
-  const directAmountCents = normalizedDirect ? toCents(DIRECT_COMMISSION_VALUE) : 0;
-  const rootAmountCents = normalizedRoot ? toCents(ROOT_COMMISSION_VALUE) : 0;
+  const { directAmountCents, rootAmountCents, platformAmountCents } = calculateRegistrationCommissionCents(
+    normalizedDirect,
+    normalizedRoot,
+  );
 
   const context: RegistrationReferralContext = {
     email: email ?? '',
@@ -345,19 +428,14 @@ export const finalizeRegistrationReferral = async ({
 
   await applyRegistrationContextToProfile(userId, context);
   await recordPendingRegistrationReferral(paymentId, userId, context, { isFree: false });
-  await applyAffiliateEarnings({
+  await applyRegistrationAffiliatePayout({
     newUserId: userId,
     directId: normalizedDirect,
     rootId: normalizedRoot,
     directAmountCents,
     rootAmountCents,
-  });
-  await logAffiliateRegistration({
-    newUserId: userId,
-    directId: normalizedDirect,
-    rootId: normalizedRoot,
-    directAmountCents,
-    rootAmountCents,
+    platformAmountCents,
+    paymentId,
   });
 
   logger.info({
@@ -368,7 +446,7 @@ export const finalizeRegistrationReferral = async ({
     rootId: normalizedRoot,
     amount_direct_cents: directAmountCents,
     amount_root_cents: rootAmountCents,
-    amount_platform_cents: Math.max(0, toCents(REGISTRATION_PRICE_VALUE) - directAmountCents - rootAmountCents),
+    amount_platform_cents: platformAmountCents,
   });
 
   return context;

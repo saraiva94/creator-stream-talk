@@ -1,5 +1,6 @@
 import logger from '../lib/logger';
 import { supabase } from '../lib/supabaseClient';
+import { createCreatorEarningsService } from './creatorEarningsService';
 
 export type LiveLifecycleStatus =
   | 'scheduled'
@@ -27,6 +28,7 @@ export type LiveRecord = {
 export type LiveSummary = {
   id: string;
   creator_id: string;
+  creator_username?: string | null;
   title: string | null;
   description: string | null;
   price: number | null;
@@ -159,9 +161,26 @@ export const listPublicLives = async (): Promise<LiveSummary[]> => {
     throw new Error(`Failed to load public lives: ${error.message}`);
   }
 
+  const creatorIds = Array.from(new Set((data ?? []).map((row) => row.creator_id).filter(Boolean)));
+  const { data: creatorRows, error: creatorError } = await supabase
+    .from('creators')
+    .select('id, profiles ( username )')
+    .in('id', creatorIds);
+
+  if (creatorError) {
+    throw new Error(`Failed to load creator metadata: ${creatorError.message}`);
+  }
+
+  const creatorUsernameById = new Map<string, string | null>();
+  (creatorRows ?? []).forEach((row) => {
+    const username = (row as { profiles?: { username?: string | null } | null })?.profiles?.username ?? null;
+    creatorUsernameById.set(row.id, username);
+  });
+
   return (data ?? []).map((row) => ({
     id: row.id,
     creator_id: row.creator_id,
+    creator_username: creatorUsernameById.get(row.creator_id) ?? null,
     title: row.title,
     description: row.description,
     price: row.price,
@@ -190,6 +209,7 @@ export const listLivesForCreator = async (creatorId: string): Promise<LiveSummar
   return (data ?? []).map((row) => ({
     id: row.id,
     creator_id: row.creator_id,
+    creator_username: null,
     title: row.title,
     description: row.description,
     price: row.price,
@@ -739,6 +759,20 @@ export const getProfileById = async (profileId: string) => {
   return data;
 };
 
+export const getProfileByUsername = async (username: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, username')
+    .ilike('username', username)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load profile by username: ${error.message}`);
+  }
+
+  return data;
+};
+
 export const ensureCreatorOwnsLive = async (liveId: string, profileId: string) => {
   const live = await getLiveWithCreator(liveId);
 
@@ -1007,34 +1041,22 @@ export const getPendingWithdrawalsForAdmin = async () => {
     throw new Error(`Failed to load pending withdrawals: ${error.message}`);
   }
 
-  return (data ?? []).map(
-    (row: {
-      id: string;
-      creator_id: string;
-      amount: number;
-      status: string;
-      created_at: string;
-      processed_at?: string | null;
-      creators?: {
-        profiles?: { id?: string; email?: string | null; username?: string | null }[] | null;
-      } | null;
-    }) => {
-      const creatorProfiles = row.creators?.profiles;
-      const profileDetails = Array.isArray(creatorProfiles)
-        ? creatorProfiles[0] ?? null
-        : creatorProfiles ?? null;
+  return (data ?? []).map((row: any) => {
+    const creatorProfiles = row.creators?.profiles;
+    const profileDetails = Array.isArray(creatorProfiles)
+      ? creatorProfiles[0] ?? null
+      : creatorProfiles ?? null;
 
-      return {
-        id: row.id,
-        amount: row.amount,
-        status: row.status,
-        created_at: row.created_at,
-        processed_at: row.processed_at,
-        creator_id: row.creator_id,
-        creator_profile: profileDetails,
-      };
-    },
-  );
+    return {
+      id: row.id as string,
+      amount: row.amount as number,
+      status: row.status as string,
+      created_at: row.created_at as string,
+      processed_at: row.processed_at as string | null,
+      creator_id: row.creator_id as string,
+      creator_profile: profileDetails,
+    };
+  });
 };
 
 export const approveWithdrawalRequest = async (
@@ -1309,6 +1331,17 @@ export const endLive = async (liveId: string, reason: string) => {
 
   if (heartbeatDeleteError) {
     throw new Error(`Failed to clean up heartbeat row: ${heartbeatDeleteError.message}`);
+  }
+
+  try {
+    const earnings = createCreatorEarningsService({ client: supabase });
+    await earnings.settleLiveEarnings({ liveId });
+  } catch (settleError) {
+    logger.error({
+      event: 'live.settlement.error',
+      liveId,
+      error: settleError instanceof Error ? settleError.message : String(settleError),
+    });
   }
 
   return data;

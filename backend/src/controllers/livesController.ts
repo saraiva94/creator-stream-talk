@@ -14,6 +14,9 @@ import { parseWithZod } from '../validation/utils';
 import { liveIdentifierSchema } from '../validation/livesSchemas';
 import { createPrivateRoom, generateAccessLink } from '../services/jitsiService';
 import { supabase } from '../lib/supabaseClient';
+import { createLiveConsumptionService } from '../services/liveConsumptionService';
+
+const liveConsumptionService = createLiveConsumptionService({ client: supabase });
 
 export const getPublicLivesController = async (_req: Request, res: Response, next: NextFunction) => {
   try {
@@ -145,6 +148,63 @@ export const requestViewerAccessController = async (req: Request, res: Response,
     logger.info({ event: 'jitsi.viewer.access_granted', liveId, viewerId: profileId });
 
     return respondSuccess(res, 200, { liveId, accessUrl });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const heartbeatViewerController = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const profileId = req.auth?.profileId;
+    if (!profileId) {
+      return respondError(res, 401, 'Authentication required');
+    }
+
+    const rawLiveId = req.params?.liveId ?? req.body?.liveId;
+    const sessionToken = (req.body?.sessionToken ?? req.headers['x-session-token']) as string | undefined;
+
+    if (!sessionToken || typeof sessionToken !== 'string') {
+      return respondError(res, 400, 'Missing session token');
+    }
+
+    const { liveId } = parseWithZod(liveIdentifierSchema, { liveId: rawLiveId });
+
+    const entitled = await hasLiveAccess(profileId, liveId);
+    if (!entitled) {
+      return respondError(res, 403, 'Access denied for this live');
+    }
+
+    const result = await liveConsumptionService.applyHeartbeatAndChargeCredits({
+      liveId,
+      userId: profileId,
+      sessionToken,
+      now: new Date(),
+    });
+
+    const { data: walletRow, error: walletError } = await supabase
+      .from('credits_wallet')
+      .select('balance_credits')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (walletError) {
+      throw new Error(`Failed to fetch viewer wallet: ${walletError.message}`);
+    }
+
+    const remainingCredits = Math.max(0, walletRow?.balance_credits ?? 0);
+
+    if (result.ranOutOfCredits) {
+      await supabase.from('live_access').delete().eq('live_id', liveId).eq('user_id', profileId);
+    }
+
+    return respondSuccess(res, 200, {
+      status: result.ranOutOfCredits ? 'NO_CREDITS' : 'OK',
+      secondsWatched: result.secondsWatched,
+      creditsConsumed: result.creditsConsumed,
+      creditsChargedThisTick: result.creditsChargedThisTick,
+      ranOutOfCredits: result.ranOutOfCredits,
+      remainingCredits,
+    });
   } catch (error) {
     next(error);
   }

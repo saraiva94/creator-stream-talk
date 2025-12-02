@@ -75,18 +75,23 @@ const isUniqueConstraintError = (error: { code?: string; message?: string }) => 
   return (error.message ?? '').toLowerCase().includes('duplicate') || (error.message ?? '').toLowerCase().includes('unique');
 };
 
-const updateWalletBalance = async (profileId: string, creditsToAdd: number) => {
+export const adjustWalletBalance = async (profileId: string, deltaCredits: number): Promise<number> => {
   const wallet = await getOrCreateCreditsWallet(profileId);
-  const nextBalance = wallet.balance_credits + creditsToAdd;
+  const current = wallet.balance_credits ?? 0;
+  const clampedDelta = deltaCredits < 0 ? Math.max(deltaCredits, -current) : deltaCredits;
+  const nextBalance = current + clampedDelta;
 
   const { error: updateError } = await supabase
     .from('credits_wallet')
     .update({ balance_credits: nextBalance, updated_at: new Date().toISOString() })
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('balance_credits', current);
 
   if (updateError) {
     throw new Error(`Failed to update credits wallet: ${updateError.message}`);
   }
+
+  return nextBalance;
 };
 
 export const registerCreditPurchase = async ({
@@ -129,7 +134,7 @@ export const registerCreditPurchase = async ({
   logger.info({ event: 'credits.purchase.recorded', purchaseId: purchase?.id, paymentId, profileId });
 
   try {
-    await updateWalletBalance(profileId, normalizedCredits);
+    await adjustWalletBalance(profileId, normalizedCredits);
   } catch (updateError) {
     if (purchase?.id) {
       logger.warn({

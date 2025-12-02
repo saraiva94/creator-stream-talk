@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { getEnv } from '../lib/env';
 import logger from '../lib/logger';
 import { supabase } from '../lib/supabaseClient';
@@ -26,6 +27,7 @@ export type PreferenceRequest = {
 export type PreferenceResponse = {
   init_point: string;
   preferenceId: string;
+  paymentId: string;
 };
 
 type WebhookPayload = {
@@ -73,7 +75,14 @@ export const createCheckoutPreference = async ({
   title,
   description,
 }: PreferenceRequest): Promise<PreferenceResponse> => {
-  const normalizedPurchase = (purchaseType || 'live').toLowerCase();
+  const normalizedPurchase = (purchaseType || 'live_access').toLowerCase();
+  const eventType =
+    normalizedPurchase === 'registration'
+      ? 'REGISTRATION'
+      : normalizedPurchase === 'credits' || normalizedPurchase === 'credits_purchase'
+        ? 'CREDITS_PURCHASE'
+        : 'LIVE_ACCESS';
+  const externalReference = paymentId ?? crypto.randomUUID();
   const items = [
     {
       title:
@@ -90,15 +99,12 @@ export const createCheckoutPreference = async ({
   ];
 
   const metadataPayload: Record<string, unknown> = {
-    liveId,
-    userId,
-    purchaseType: normalizedPurchase,
-    event_type: normalizedPurchase === 'registration' ? 'REGISTRATION' : normalizedPurchase.toUpperCase(),
-    payment_id: paymentId,
+    live_id: liveId ?? null,
+    user_id: userId,
+    event_type: eventType,
+    payment_id: externalReference,
     direct_id: referrerId ?? null,
     root_id: referrerParentId ?? null,
-    referrer_id: referrerId ?? null,
-    referrer_parent_id: referrerParentId ?? null,
     new_user_email: newUserEmail ?? null,
     invite_id: inviteId ?? null,
     is_root_creator: isRootCreator ?? false,
@@ -116,6 +122,7 @@ export const createCheckoutPreference = async ({
     items,
     metadata: metadataPayload,
     auto_return: 'approved',
+    external_reference: externalReference,
   };
 
   const notificationUrl = process.env.MERCADOPAGO_WEBHOOK_URL;
@@ -131,7 +138,7 @@ export const createCheckoutPreference = async ({
     },
   );
 
-  return { init_point: result.init_point, preferenceId: result.id };
+  return { init_point: result.init_point, preferenceId: result.id, paymentId: externalReference };
 };
 
 export const createRegistrationPreference = async ({
@@ -185,22 +192,47 @@ type PaymentMetadata = {
   parentId?: unknown;
   parent_id?: unknown;
   root_id?: unknown;
+  direct_id?: unknown;
   event_type?: unknown;
   purchaseType?: unknown;
   purchase_type?: unknown;
   product?: unknown;
   new_user_email?: unknown;
   email?: unknown;
-  direct_id?: unknown;
   referrer_id?: unknown;
   referrerId?: unknown;
   invite_id?: unknown;
   referral_code?: unknown;
   is_root_creator?: unknown;
+  payment_id?: unknown;
 };
 
 const fetchPaymentDetails = async (paymentId: string) => {
   return request<PaymentDetailsResponse>(`/v1/payments/${paymentId}`, { method: 'GET' });
+};
+
+const isUniqueConstraintError = (error?: { code?: string; message?: string }) => {
+  if (!error) return false;
+  return (
+    error.code === '23505' ||
+    (error.message ?? '').toLowerCase().includes('duplicate') ||
+    (error.message ?? '').toLowerCase().includes('unique')
+  );
+};
+
+const registerWebhookEvent = async (idempotencyKey: string) => {
+  if (!idempotencyKey) return true;
+
+  const { error } = await supabase.from('webhook_events').insert({ idempotency_key: idempotencyKey });
+
+  if (!error) return true;
+
+  if (isUniqueConstraintError(error)) {
+    logger.info({ event: 'mercadopago.webhook.duplicate', idempotencyKey });
+    return false;
+  }
+
+  throw new Error(`Failed to register webhook event: ${error.message}`);
 };
 
 const persistApprovedPayment = async (liveId: string, userId: string) => {
@@ -239,30 +271,37 @@ export const handlePaymentWebhook = async (
     return { processed: false, reason: 'Payment not approved' };
   }
 
+  const idempotencyKey = paymentDetails.external_reference || paymentId;
+  const shouldProcess = await registerWebhookEvent(idempotencyKey);
+  if (!shouldProcess) {
+    return { processed: false, reason: 'Duplicate webhook' };
+  }
+
   const metadata = (paymentDetails.metadata ?? {}) as PaymentMetadata;
   const asString = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined);
 
   const liveId = asString(metadata.liveId) ?? asString(metadata.live_id);
   const userId = asString(metadata.userId) ?? asString(metadata.user_id);
   const profileId = asString(metadata.profileId) ?? asString(metadata.profile_id) ?? userId;
-  const parentId =
-    asString(metadata.parentId) ?? asString(metadata.parent_id) ?? asString(metadata.root_id) ?? null;
-  const purchaseType = (
+  const directId = asString(metadata.direct_id) ?? asString(metadata.referrer_id) ?? asString(metadata.referrerId) ?? null;
+  const rootId =
+    asString(metadata.root_id) ?? asString(metadata.parent_id) ?? asString(metadata.parentId) ?? null;
+  const inviteId = asString(metadata.invite_id) ?? asString(metadata.referral_code) ?? null;
+  const isRootCreatorFlag = String(metadata.is_root_creator ?? '').toLowerCase() === 'true';
+  const email = asString(metadata.new_user_email) ?? asString(metadata.email) ?? null;
+  const eventTypeRaw =
     asString(metadata.event_type) ||
     asString(metadata.purchaseType) ||
     asString(metadata.purchase_type) ||
     asString(metadata.product) ||
-    ''
-  ).toLowerCase();
+    '';
+  const eventType = (eventTypeRaw || 'LIVE_ACCESS').toUpperCase();
   const amountCents = resolveAmountCents(paymentDetails.transaction_amount);
 
-  if (purchaseType === 'credits') {
+  if (eventType === 'CREDITS_PURCHASE' || eventType === 'CREDITS') {
     if (!profileId) {
       throw new Error('Payment metadata missing profileId for credits purchase.');
     }
-
-    const amountCentsRaw = paymentDetails.transaction_amount ?? null;
-    const amountCents = Number.isFinite(amountCentsRaw) ? Math.round((amountCentsRaw as number) * 100) : NaN;
 
     if (!Number.isFinite(amountCents) || amountCents <= 0) {
       throw new Error('Invalid amount for credits purchase.');
@@ -274,7 +313,7 @@ export const handlePaymentWebhook = async (
       profileId,
       credits,
       amountCents,
-      paymentId: paymentDetails.external_reference || paymentId,
+      paymentId: idempotencyKey,
     });
 
     logger.info({
@@ -289,50 +328,31 @@ export const handlePaymentWebhook = async (
     return { processed: true, mode: 'credits' };
   }
 
-  if (purchaseType === 'registration') {
-  if (!userId) {
-    throw new Error('Payment metadata missing userId for registration.');
+  if (eventType === 'REGISTRATION') {
+    if (!userId) {
+      throw new Error('Payment metadata missing userId for registration.');
+    }
+
+    await finalizeRegistrationReferral({
+      paymentId: idempotencyKey,
+      userId,
+      email,
+      directId,
+      rootId,
+      inviteId,
+      isRootCreator: isRootCreatorFlag,
+    });
+
+    logger.info({
+      event: 'registration.payment.processed',
+      paymentId,
+      userId,
+      rootId,
+      amountCents,
+    });
+
+    return { processed: true, mode: 'registration' };
   }
-
-  const isRootCreatorFlag = String(metadata.is_root_creator ?? '').toLowerCase() === 'true';
-
-  const email =
-    asString(metadata.new_user_email) ??
-    asString(metadata.email) ??
-    null;
-
-  const directId =
-    asString(metadata.direct_id) ??
-    asString(metadata.referrer_id) ??
-    asString(metadata.referrerId) ??
-    null;
-
-  const inviteId =
-    asString(metadata.invite_id) ??
-    asString(metadata.referral_code) ??
-    null;
-
-  await finalizeRegistrationReferral({
-    paymentId: paymentDetails.external_reference || paymentId,
-    userId,
-    email,
-    directId,
-    rootId: parentId,
-    inviteId,
-    isRootCreator: isRootCreatorFlag,
-  });
-
-  logger.info({
-    event: 'registration.payment.processed',
-    paymentId,
-    userId,
-    parentId,
-    amountCents,
-  });
-
-  return { processed: true, mode: 'registration' };
-}
-
 
   if (!liveId || !userId) {
     throw new Error('Payment metadata missing liveId or userId.');

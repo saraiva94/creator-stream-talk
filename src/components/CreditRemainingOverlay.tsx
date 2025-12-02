@@ -7,7 +7,7 @@ interface CreditRemainingOverlayProps {
 }
 
 const formatTime = (credits: number) => {
-  const totalSeconds = Math.max(0, Math.floor(credits));
+  const totalSeconds = Math.max(0, Math.floor(credits * 10));
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
     .padStart(2, "0");

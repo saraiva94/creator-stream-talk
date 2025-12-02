@@ -9,13 +9,13 @@ type CreatorProfileRow = {
   profiles?: {
     email?: string | null;
     username?: string | null;
-  } | null;
+  }[] | null;
 };
 
 const mapCreatorRow = (row: CreatorProfileRow) => ({
   id: row.id,
-  email: row.profiles?.email ?? null,
-  username: row.profiles?.username ?? null,
+  email: row.profiles?.[0]?.email ?? null,
+  username: row.profiles?.[0]?.username ?? null,
   isApprovedForLive: Boolean(row.approved_for_live),
   createdAt: row.created_at,
 });
