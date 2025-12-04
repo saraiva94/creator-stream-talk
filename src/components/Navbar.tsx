@@ -99,7 +99,7 @@ const Navbar = ({ user }: NavbarProps) => {
                   <Link to="/admin">
                     <Button variant="ghost" size="sm">
                       <Shield className="h-4 w-4 mr-2" />
-                      Admin
+                      {t.nav.admin}
                     </Button>
                   </Link>
                 )}
@@ -107,20 +107,20 @@ const Navbar = ({ user }: NavbarProps) => {
                   <Link to="/">
                     <Button variant="ghost" size="sm">
                       <Home className="h-4 w-4 mr-2" />
-                      Início
+                      {t.nav.home}
                     </Button>
                   </Link>
                 )}
                 <Link to="/profile">
                   <Button variant="ghost" size="sm">
                     <User className="h-4 w-4 mr-2" />
-                    Perfil
+                    {t.nav.profile}
                   </Button>
                 </Link>
                 <Link to="/affiliate">
                   <Button variant="ghost" size="sm">
                     <DollarSign className="h-4 w-4 mr-2" />
-                    Afiliados
+                    {t.nav.affiliates}
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
@@ -134,17 +134,17 @@ const Navbar = ({ user }: NavbarProps) => {
                   <Link to="/">
                     <Button variant="ghost" size="sm">
                       <Home className="h-4 w-4 mr-2" />
-                      Início
+                      {t.nav.home}
                     </Button>
                   </Link>
                 )}
                 <Link to="/auth">
                   <Button variant="outline" size="sm">
-                    Entrar
+                    {t.nav.login}
                   </Button>
                 </Link>
                 <Link to="/subscribe">
-                  <Button size="sm">Cadastre-se</Button>
+                  <Button size="sm">{t.subscribe.subscribeNow}</Button>
                 </Link>
               </div>
             )}

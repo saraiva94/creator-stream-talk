@@ -321,10 +321,10 @@ export const LiveConfigPanel = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="50">50 caracteres</SelectItem>
                 <SelectItem value="100">100 caracteres</SelectItem>
                 <SelectItem value="200">200 caracteres</SelectItem>
                 <SelectItem value="300">300 caracteres</SelectItem>
-                <SelectItem value="500">500 caracteres</SelectItem>
               </SelectContent>
             </Select>
           </div>
