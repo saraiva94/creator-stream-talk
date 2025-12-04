@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { User, Globe } from "lucide-react";
+import { User, Globe, Camera } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import CreatorActivationCard from "@/components/creator/CreatorActivationCard";
 import { logger } from "@/lib/logger";
+import AvatarCropDialog from "@/components/AvatarCropDialog";
 
 type ProfileFormState = {
   username: string;
@@ -38,6 +39,9 @@ const Profile = () => {
     avatar_url: "",
   });
   const [uploading, setUploading] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [tempImageSrc, setTempImageSrc] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     logger.profile.info('Página de perfil carregada');
@@ -89,24 +93,42 @@ const Profile = () => {
     checkAuth();
   }, [navigate]);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    logger.profile.info('Iniciando upload de avatar', { 
+    logger.profile.info('Arquivo selecionado para avatar', { 
       fileName: file.name,
       fileSize: file.size,
+    });
+
+    // Create a preview URL and open crop dialog
+    const reader = new FileReader();
+    reader.onload = () => {
+      setTempImageSrc(reader.result as string);
+      setCropDialogOpen(true);
+    };
+    reader.readAsDataURL(file);
+    
+    // Reset input so same file can be selected again
+    event.target.value = '';
+  };
+
+  const handleCroppedImage = async (croppedBlob: Blob) => {
+    if (!user) return;
+
+    logger.profile.info('Iniciando upload de avatar recortado', { 
+      blobSize: croppedBlob.size,
       userId: user.id,
     });
 
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Math.random()}.${fileExt}`;
+    const fileName = `${user.id}/${Date.now()}.jpg`;
 
     setUploading(true);
     try {
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, croppedBlob, { upsert: true, contentType: 'image/jpeg' });
 
       if (uploadError) {
         logger.profile.error('Erro no upload do avatar', { fileName }, uploadError);
@@ -121,7 +143,7 @@ const Profile = () => {
       setProfile({ ...profile, avatar_url: publicUrl });
 
       toast({
-        title: "Imagem enviada!",
+        title: "Foto atualizada!",
         description: "Lembre-se de salvar as alterações.",
       });
     } catch (error: unknown) {
@@ -134,6 +156,7 @@ const Profile = () => {
       });
     } finally {
       setUploading(false);
+      setTempImageSrc(null);
     }
   };
 
@@ -217,32 +240,45 @@ const Profile = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-            <Label>Foto de Perfil</Label>
-            <div className="flex items-center gap-4">
-              {profile.avatar_url && (
-                <img
-                  src={profile.avatar_url}
-                    alt="Avatar"
-                    className="w-20 h-20 rounded-full object-cover border-2 border-primary"
-                  />
-                )}
-                <div className="flex-1">
-                  <Input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    disabled={uploading}
-                    className="cursor-pointer"
-                  />
-                  {uploading && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Enviando imagem...
-                    </p>
+            {/* Avatar Circular Clicável */}
+            <div className="flex flex-col items-center gap-3">
+              <Label className="self-start">Foto de Perfil</Label>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="relative group"
+              >
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary bg-muted flex items-center justify-center transition-all hover:border-primary/70 hover:opacity-90">
+                  {profile.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-10 h-10 text-muted-foreground" />
                   )}
                 </div>
-              </div>
+                <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+                {uploading && (
+                  <div className="absolute inset-0 rounded-full bg-black/70 flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <p className="text-xs text-muted-foreground">
+                Clique para alterar sua foto
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -312,6 +348,16 @@ const Profile = () => {
 
         <CreatorActivationCard />
       </main>
+
+      {/* Crop Dialog */}
+      {tempImageSrc && (
+        <AvatarCropDialog
+          open={cropDialogOpen}
+          onOpenChange={setCropDialogOpen}
+          imageSrc={tempImageSrc}
+          onCropComplete={handleCroppedImage}
+        />
+      )}
     </div>
   );
 };
