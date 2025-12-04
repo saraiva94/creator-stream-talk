@@ -43,24 +43,34 @@ export const ChannelsSidebar = () => {
           display_name,
           viewer_count,
           is_streaming,
-          tags,
-          profiles:id (avatar_url)
+          tags
         `)
         .eq("is_streaming", true)
         .order("viewer_count", { ascending: false })
         .limit(10);
 
-      if (liveData) {
+      // Fetch avatars separately to avoid ambiguous relationship
+      if (liveData && liveData.length > 0) {
+        const ids = liveData.map((c: any) => c.id);
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, avatar_url")
+          .in("id", ids);
+        
+        const avatarMap = new Map(profilesData?.map((p: any) => [p.id, p.avatar_url]) || []);
+        
         setLiveChannels(
           liveData.map((c: any) => ({
             id: c.id,
             display_name: c.display_name,
-            avatar_url: c.profiles?.avatar_url || null,
+            avatar_url: avatarMap.get(c.id) || null,
             viewer_count: c.viewer_count || 0,
             is_streaming: c.is_streaming || false,
             tags: c.tags || [],
           }))
         );
+      } else {
+        setLiveChannels([]);
       }
 
       // Fetch followed channels if user is logged in
@@ -139,7 +149,7 @@ export const ChannelsSidebar = () => {
 
   const ChannelItem = ({ channel, showName }: { channel: Channel; showName: boolean }) => (
     <Link
-      to={`/live/${channel.id}`}
+      to={`/room/${channel.id}`}
       className="flex items-center gap-3 px-2 py-1.5 hover:bg-accent/50 rounded-md transition-colors group"
     >
       <div className="relative flex-shrink-0">
