@@ -141,7 +141,7 @@ export const UserCreditsWalletPanel = () => {
             </p>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Tempo estimado</p>
+            <p className="text-xs uppercase text-muted-foreground">Tempo restante estimado</p>
             <p className="text-2xl font-semibold">
               {isLoading || balanceCredits === null ? "..." : formatMinutes(balanceCredits)}
             </p>

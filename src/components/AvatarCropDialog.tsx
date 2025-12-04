@@ -113,7 +113,7 @@ export const AvatarCropDialog = ({
         </DialogHeader>
         
         <div className="flex flex-col items-center gap-4">
-          <div className="max-h-[400px] overflow-auto">
+          <div className="max-h-[400px] overflow-hidden">
             <ReactCrop
               crop={crop}
               onChange={(_, percentCrop) => setCrop(percentCrop)}
