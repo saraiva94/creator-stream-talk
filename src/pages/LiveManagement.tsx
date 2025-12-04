@@ -6,6 +6,8 @@ import ChatBox from "@/components/ChatBox";
 import { NativeVideoPreview } from "@/components/NativeVideoPreview";
 import { StreamToggle } from "@/components/StreamToggle";
 import { LiveConfigPanel } from "@/components/LiveConfigPanel";
+import SuperChatQueue from "@/components/SuperChatQueue";
+import SuperChatDisplay from "@/components/SuperChatDisplay";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Users, DollarSign, TrendingUp } from "lucide-react";
@@ -35,6 +37,14 @@ const LiveManagement = () => {
   const [selectedVideoDevice, setSelectedVideoDevice] = useState<string | null>(null);
   const [isMirrored, setIsMirrored] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [activeSuperchat, setActiveSuperchat] = useState<{
+    id: string;
+    message: string;
+    tier: "blue" | "yellow" | "red";
+    duration_seconds: number;
+    username: string;
+    expires_at: string;
+  } | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -383,14 +393,39 @@ const LiveManagement = () => {
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
             {/* Native Video Preview */}
-            <Card className="border-border overflow-hidden">
+            <Card className="border-border overflow-hidden relative">
               <NativeVideoPreview
                 audioDeviceId={selectedAudioDevice}
                 videoDeviceId={selectedVideoDevice}
                 isStreaming={isStreaming}
                 isMirrored={isMirrored}
               />
+              {/* Active SuperChat overlay at bottom of video */}
+              {activeSuperchat && (
+                <div className="absolute bottom-4 left-4 right-4 z-10">
+                  <SuperChatDisplay
+                    superchat={activeSuperchat}
+                    onExpire={() => setActiveSuperchat(null)}
+                  />
+                </div>
+              )}
             </Card>
+
+            {/* SuperChat Queue for creator */}
+            {room && user && (
+              <SuperChatQueue
+                roomId={room.id}
+                creatorId={user.id}
+                onSelectSuperchat={(sc) => setActiveSuperchat({
+                  id: sc.id,
+                  message: sc.message,
+                  tier: sc.tier,
+                  duration_seconds: sc.duration_seconds,
+                  username: sc.username || "Usuário",
+                  expires_at: (sc as { expires_at?: string }).expires_at || new Date(Date.now() + sc.duration_seconds * 1000).toISOString(),
+                })}
+              />
+            )}
 
             {/* Config Panel below video */}
             <LiveConfigPanel
@@ -411,6 +446,7 @@ const LiveManagement = () => {
                   roomId={room.id}
                   currentUserId={user.id}
                   creatorId={user.id}
+                  isCreator={true}
                 />
               </div>
             ) : (

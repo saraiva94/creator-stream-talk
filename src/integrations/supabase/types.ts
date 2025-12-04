@@ -1015,6 +1015,62 @@ export type Database = {
         }
         Relationships: []
       }
+      superchats: {
+        Row: {
+          amount: number
+          created_at: string
+          creator_id: string
+          displayed_at: string | null
+          duration_seconds: number
+          expires_at: string | null
+          id: string
+          message: string
+          payment_id: string | null
+          room_id: string
+          status: string
+          tier: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          creator_id: string
+          displayed_at?: string | null
+          duration_seconds: number
+          expires_at?: string | null
+          id?: string
+          message: string
+          payment_id?: string | null
+          room_id: string
+          status?: string
+          tier: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          creator_id?: string
+          displayed_at?: string | null
+          duration_seconds?: number
+          expires_at?: string | null
+          id?: string
+          message?: string
+          payment_id?: string | null
+          room_id?: string
+          status?: string
+          tier?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "superchats_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           affiliate_amount: number | null
