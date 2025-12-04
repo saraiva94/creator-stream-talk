@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasswordStrength } from "@/lib/password";
 import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
+import { logger } from "@/lib/logger";
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -27,15 +28,25 @@ const Subscribe = () => {
   const [errors, setErrors] = useState<{ referral?: string }>({});
 
   useEffect(() => {
+    logger.register.info('Página de cadastro carregada');
+    
     const getUser = async () => {
+      logger.auth.debug('Verificando sessão existente');
       const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        logger.auth.info('Usuário já logado', { userId: session.user.id, email: session.user.email });
+      }
       setUser(session?.user || null);
     };
     getUser();
 
     const ref = searchParams.get("ref");
     if (ref) {
+      logger.affiliate.info('Código de afiliado detectado na URL', { code: ref });
       setReferralCode(ref);
+    } else {
+      logger.affiliate.debug('Nenhum código de afiliado na URL');
     }
   }, [searchParams]);
 
@@ -44,18 +55,29 @@ const Subscribe = () => {
   const handleSubscribe = async () => {
     const trimmedReferral = referralCode.trim();
 
+    logger.register.info('Iniciando processo de cadastro', {
+      hasFullName: !!fullName.trim(),
+      email: email,
+      hasPassword: !!password,
+      referralCode: trimmedReferral || 'VAZIO',
+      acceptTerms,
+    });
+
     if (!fullName.trim()) {
+      logger.register.warn('Validação falhou: Nome vazio');
       toast({ title: "Nome obrigatório", description: "Preencha seu nome completo.", variant: "destructive" });
       return;
     }
 
     if (!isValidEmail(email)) {
+      logger.register.warn('Validação falhou: Email inválido', { email });
       toast({ title: "E-mail inválido", description: "Informe um e-mail válido.", variant: "destructive" });
       return;
     }
 
     const passwordCheck = validatePasswordStrength(password);
     if (!passwordCheck.valid) {
+      logger.register.warn('Validação falhou: Senha fraca', { errors: passwordCheck.errors });
       toast({
         title: "Senha não atende aos requisitos",
         description: passwordCheck.errors.join(" "),
@@ -65,6 +87,7 @@ const Subscribe = () => {
     }
 
     if (password !== confirmPassword) {
+      logger.register.warn('Validação falhou: Senhas não conferem');
       toast({
         title: "As senhas não conferem",
         description: "Confirme a senha corretamente antes de continuar.",
@@ -74,6 +97,7 @@ const Subscribe = () => {
     }
 
     if (!trimmedReferral) {
+      logger.register.warn('Validação falhou: Código de afiliado obrigatório não informado');
       setErrors({ referral: "Você precisa de um código de indicação para se cadastrar." });
       return;
     }
@@ -81,6 +105,7 @@ const Subscribe = () => {
     setErrors({});
 
     if (!acceptTerms) {
+      logger.register.warn('Validação falhou: Termos não aceitos');
       toast({
         title: "Confirme os termos",
         description: "É necessário aceitar os termos para continuar.",
@@ -89,14 +114,33 @@ const Subscribe = () => {
       return;
     }
 
+    logger.register.info('Validações locais OK, iniciando validação do código de afiliado');
     setLoading(true);
+    
     try {
+      // Validar código de afiliado
+      logger.affiliate.info('Validando código de afiliado', { code: trimmedReferral });
       const validation = await validateAffiliateCode(trimmedReferral);
+      
+      logger.affiliate.info('Resultado da validação', { 
+        code: trimmedReferral, 
+        valid: validation.valid,
+        ownerId: (validation as { valid: boolean; ownerId?: string }).ownerId,
+      });
+
       if (!validation.valid) {
+        logger.affiliate.error('Código de afiliado inválido', { code: trimmedReferral });
         setErrors({ referral: "Código de indicação inválido." });
         setLoading(false);
         return;
       }
+
+      // Chamar checkout de registro
+      logger.register.info('Iniciando checkout de registro', {
+        fullName: fullName.trim(),
+        email,
+        referralCode: trimmedReferral,
+      });
 
       const response = await registrationCheckout({
         fullName: fullName.trim(),
@@ -106,27 +150,43 @@ const Subscribe = () => {
         acceptTerms,
       });
 
+      logger.register.info('Resposta do checkout recebida', {
+        hasToken: !!response.token,
+        hasRefreshToken: !!response.refresh_token,
+        hasInitPoint: !!response.init_point,
+        status: response.status,
+        profileId: response.profileId,
+      });
+
+      // Registro gratuito (com token direto)
       if (response.token && response.refresh_token) {
+        logger.auth.info('Registro gratuito - configurando sessão');
         await supabase.auth.setSession({
           access_token: response.token,
           refresh_token: response.refresh_token,
         });
+        logger.auth.info('Sessão configurada com sucesso');
         toast({ title: "Cadastro concluído", description: "Bem-vindo!" });
         navigate("/dashboard");
         return;
       }
 
+      // Registro pago - redireciona para Mercado Pago
       if (response.init_point) {
+        logger.payment.info('Redirecionando para Mercado Pago', { 
+          initPoint: response.init_point,
+        });
         window.location.assign(response.init_point);
         return;
       }
 
+      logger.register.warn('Resposta do checkout sem token nem init_point', { response });
       toast({
         title: "Cadastro enviado",
         description: "Se houver pagamento, você será redirecionado.",
       });
     } catch (error: unknown) {
-      console.error("[subscribe] checkout error", error);
+      logger.register.error('Erro no processo de cadastro', {}, error as Error);
       const err = error as Error;
       const message =
         err?.message?.includes("email") || err?.message?.includes("already")
