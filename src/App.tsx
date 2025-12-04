@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Subscribe from "./pages/Subscribe";
 import ResetPassword from "./pages/ResetPassword";
+import UpdatePassword from "./pages/UpdatePassword";
 import InviteSignup from "./pages/InviteSignup";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/live-management" element={<LiveManagement />} />
             <Route path="/subscribe" element={<Subscribe />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/creators" element={<AdminCreators />} />
