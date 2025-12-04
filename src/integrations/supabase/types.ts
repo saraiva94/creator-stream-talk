@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      affiliate_logs: {
+        Row: {
+          amount_direct: number | null
+          amount_platform: number | null
+          amount_root: number | null
+          created_at: string | null
+          direct_referrer: string | null
+          event_type: string
+          id: string
+          new_user: string | null
+          payment_id: string | null
+          root_creator: string | null
+        }
+        Insert: {
+          amount_direct?: number | null
+          amount_platform?: number | null
+          amount_root?: number | null
+          created_at?: string | null
+          direct_referrer?: string | null
+          event_type: string
+          id?: string
+          new_user?: string | null
+          payment_id?: string | null
+          root_creator?: string | null
+        }
+        Update: {
+          amount_direct?: number | null
+          amount_platform?: number | null
+          amount_root?: number | null
+          created_at?: string | null
+          direct_referrer?: string | null
+          event_type?: string
+          id?: string
+          new_user?: string | null
+          payment_id?: string | null
+          root_creator?: string | null
+        }
+        Relationships: []
+      }
       banned_users: {
         Row: {
           banned_by: string
@@ -180,6 +219,45 @@ export type Database = {
         }
         Relationships: []
       }
+      creator_earnings: {
+        Row: {
+          created_at: string | null
+          creator_amount_cents: number | null
+          creator_id: string
+          credits_consumed: number | null
+          gross_amount_cents: number | null
+          id: string
+          live_id: string
+          platform_amount_cents: number | null
+          settled_at: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          creator_amount_cents?: number | null
+          creator_id: string
+          credits_consumed?: number | null
+          gross_amount_cents?: number | null
+          id?: string
+          live_id: string
+          platform_amount_cents?: number | null
+          settled_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          creator_amount_cents?: number | null
+          creator_id?: string
+          credits_consumed?: number | null
+          gross_amount_cents?: number | null
+          id?: string
+          live_id?: string
+          platform_amount_cents?: number | null
+          settled_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       creator_profiles: {
         Row: {
           approved_for_live: boolean | null
@@ -227,6 +305,36 @@ export type Database = {
           },
         ]
       }
+      creator_wallet: {
+        Row: {
+          balance_cents: number | null
+          created_at: string | null
+          creator_id: string
+          id: string
+          pending_cents: number | null
+          total_earned_cents: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          balance_cents?: number | null
+          created_at?: string | null
+          creator_id: string
+          id?: string
+          pending_cents?: number | null
+          total_earned_cents?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          balance_cents?: number | null
+          created_at?: string | null
+          creator_id?: string
+          id?: string
+          pending_cents?: number | null
+          total_earned_cents?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       creators: {
         Row: {
           bio: string | null
@@ -262,11 +370,42 @@ export type Database = {
           },
         ]
       }
+      credit_purchases: {
+        Row: {
+          amount_cents: number
+          created_at: string | null
+          credits: number
+          id: string
+          payment_id: string
+          profile_id: string
+          status: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string | null
+          credits: number
+          id?: string
+          payment_id: string
+          profile_id: string
+          status?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string | null
+          credits?: number
+          id?: string
+          payment_id?: string
+          profile_id?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       credits_wallet: {
         Row: {
           balance_credits: number
           created_at: string | null
           id: string
+          profile_id: string | null
           updated_at: string | null
           user_id: string
         }
@@ -274,6 +413,7 @@ export type Database = {
           balance_credits?: number
           created_at?: string | null
           id?: string
+          profile_id?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -281,6 +421,7 @@ export type Database = {
           balance_credits?: number
           created_at?: string | null
           id?: string
+          profile_id?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -360,18 +501,57 @@ export type Database = {
           granted_at: string | null
           id: string
           live_id: string
+          status: string | null
           user_id: string
         }
         Insert: {
           granted_at?: string | null
           id?: string
           live_id: string
+          status?: string | null
           user_id: string
         }
         Update: {
           granted_at?: string | null
           id?: string
           live_id?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      live_consumption: {
+        Row: {
+          credits_consumed: number | null
+          ended_at: string | null
+          id: string
+          last_heartbeat_at: string | null
+          live_id: string
+          seconds_watched: number | null
+          session_token: string | null
+          started_at: string | null
+          user_id: string
+        }
+        Insert: {
+          credits_consumed?: number | null
+          ended_at?: string | null
+          id?: string
+          last_heartbeat_at?: string | null
+          live_id: string
+          seconds_watched?: number | null
+          session_token?: string | null
+          started_at?: string | null
+          user_id: string
+        }
+        Update: {
+          credits_consumed?: number | null
+          ended_at?: string | null
+          id?: string
+          last_heartbeat_at?: string | null
+          live_id?: string
+          seconds_watched?: number | null
+          session_token?: string | null
+          started_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -583,46 +763,67 @@ export type Database = {
       }
       profiles: {
         Row: {
+          affiliate_earnings: number | null
           avatar_url: string | null
           balance: number | null
           bio: string | null
           created_at: string
           gender: string | null
           id: string
+          is_root_creator: boolean | null
           is_subscribed: boolean | null
           language: string | null
           referral_code: string | null
           referred_by: string | null
+          referrer_direct: string | null
+          referrer_id: string | null
+          referrer_parent_id: string | null
+          referrer_root: string | null
+          status: string | null
           updated_at: string
           username: string
           website: string | null
         }
         Insert: {
+          affiliate_earnings?: number | null
           avatar_url?: string | null
           balance?: number | null
           bio?: string | null
           created_at?: string
           gender?: string | null
           id: string
+          is_root_creator?: boolean | null
           is_subscribed?: boolean | null
           language?: string | null
           referral_code?: string | null
           referred_by?: string | null
+          referrer_direct?: string | null
+          referrer_id?: string | null
+          referrer_parent_id?: string | null
+          referrer_root?: string | null
+          status?: string | null
           updated_at?: string
           username: string
           website?: string | null
         }
         Update: {
+          affiliate_earnings?: number | null
           avatar_url?: string | null
           balance?: number | null
           bio?: string | null
           created_at?: string
           gender?: string | null
           id?: string
+          is_root_creator?: boolean | null
           is_subscribed?: boolean | null
           language?: string | null
           referral_code?: string | null
           referred_by?: string | null
+          referrer_direct?: string | null
+          referrer_id?: string | null
+          referrer_parent_id?: string | null
+          referrer_root?: string | null
+          status?: string | null
           updated_at?: string
           username?: string
           website?: string | null
@@ -656,6 +857,48 @@ export type Database = {
           referred_id?: string
           referrer_id?: string
           status?: string
+        }
+        Relationships: []
+      }
+      registration_referrals: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_free: boolean | null
+          is_root_creator: boolean | null
+          payment_id: string
+          referrer_id: string | null
+          referrer_parent_id: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_free?: boolean | null
+          is_root_creator?: boolean | null
+          payment_id: string
+          referrer_id?: string | null
+          referrer_parent_id?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_free?: boolean | null
+          is_root_creator?: boolean | null
+          payment_id?: string
+          referrer_id?: string | null
+          referrer_parent_id?: string | null
+          status?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -841,11 +1084,47 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_events: {
+        Row: {
+          created_at: string | null
+          id: string
+          idempotency_key: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          idempotency_key: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          idempotency_key?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_or_create_creator_wallet: {
+        Args: { p_creator_id: string }
+        Returns: {
+          balance_cents: number | null
+          created_at: string | null
+          creator_id: string
+          id: string
+          pending_cents: number | null
+          total_earned_cents: number | null
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "creator_wallet"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -853,8 +1132,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_affiliate_earnings: {
+        Args: { p_amount_cents: number; p_profile_id: string }
+        Returns: undefined
+      }
       increment_balance: {
         Args: { _amount: number; _user_id: string }
+        Returns: undefined
+      }
+      increment_creator_wallet: {
+        Args: { p_amount_cents: number; p_creator_id: string }
         Returns: undefined
       }
       is_subscribed_to_creator: {
