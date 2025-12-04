@@ -1,12 +1,14 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Video, LogOut, User, Shield, Home, DollarSign } from "lucide-react";
+import { LogOut, User, Shield, Home, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LanguageSelector } from "./LanguageSelector";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useState, useEffect, useCallback } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { StreamStarLogo } from "./StreamStarLogo";
+import { TransmitButton } from "./TransmitButton";
 
 interface NavbarProps {
   user?: SupabaseUser | null;
@@ -82,12 +84,12 @@ const Navbar = ({ user }: NavbarProps) => {
     <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Video className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold text-primary">
-              Stream Star
-            </span>
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/" className="hover:opacity-80 transition-opacity">
+              <StreamStarLogo />
+            </Link>
+            <TransmitButton user={user ?? null} />
+          </div>
 
           <div className="flex items-center gap-4">
             <LanguageSelector />
