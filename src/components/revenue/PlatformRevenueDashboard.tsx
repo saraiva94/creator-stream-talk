@@ -97,14 +97,14 @@ const PlatformRevenueDashboard = () => {
 
   const incomeItems = [
     {
-      label: "Créditos (20%)",
+      label: "Créditos",
       value: data.creditsIncome * 0.2,
       total: data.creditsIncome,
       icon: <CreditCard className="h-5 w-5 text-blue-500" />,
       color: "text-blue-500",
     },
     {
-      label: "SuperChats (20%)",
+      label: "SuperChats",
       value: data.superchatIncome * 0.2,
       total: data.superchatIncome,
       icon: <MessageSquare className="h-5 w-5 text-yellow-500" />,

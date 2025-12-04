@@ -14,6 +14,7 @@ import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
 import LiveManagement from "./pages/LiveManagement";
+import LiveViewer from "./pages/LiveViewer";
 import NotFound from "./pages/NotFound";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import CreatorLives from "./pages/CreatorLives";
@@ -21,6 +22,8 @@ import CreatorHistory from "./pages/CreatorHistory";
 import CreatorSettings from "./pages/CreatorSettings";
 import CreatorPayouts from "./pages/CreatorPayouts";
 import AdminCreators from "./pages/AdminCreators";
+import AdminWithdrawals from "./pages/AdminWithdrawals";
+import Dashboard from "./pages/Dashboard";
 
 const queryClient = new QueryClient();
 
@@ -37,14 +40,17 @@ const App = () => (
             <Route path="/invite/:inviteCode" element={<InviteSignup />} />
             <Route path="/invite" element={<InviteSignup />} />
             <Route path="/live-management" element={<LiveManagement />} />
+            <Route path="/live/:liveId" element={<LiveViewer />} />
             <Route path="/subscribe" element={<Subscribe />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/creators" element={<AdminCreators />} />
+            <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
             <Route path="/affiliate" element={<Affiliate />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/creator/dashboard" element={<CreatorDashboard />} />
             <Route path="/creator/lives" element={<CreatorLives />} />
             <Route path="/creator/history" element={<CreatorHistory />} />
