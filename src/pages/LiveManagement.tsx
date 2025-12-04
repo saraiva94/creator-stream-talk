@@ -74,9 +74,7 @@ const LiveManagement = () => {
         return;
       }
 
-      setIsStreaming(creatorProfile.is_streaming || false);
-
-      let activeRoom = null;
+      // Check for existing active room
       const { data: existingRoom } = await supabase
         .from("rooms")
         .select("*")
@@ -85,11 +83,38 @@ const LiveManagement = () => {
         .single();
 
       if (existingRoom) {
-        activeRoom = existingRoom;
+        setRoom(existingRoom);
+        setIsStreaming(true);
+        logger.creator.info("Active room found", { roomId: existingRoom.id });
+      } else if (creatorProfile.is_streaming) {
+        // Out of sync - create a new room since we're marked as streaming
+        const roomName = `stream-${session.user.id}-${Date.now()}`;
+        const { data: newRoom, error: newRoomError } = await supabase
+          .from("rooms")
+          .insert({
+            creator_id: session.user.id,
+            title: "Live Stream",
+            is_active: true,
+            daily_room_name: roomName,
+          })
+          .select()
+          .single();
+
+        if (!newRoomError && newRoom) {
+          setRoom(newRoom);
+          setIsStreaming(true);
+          await supabase.from("chat_settings").insert({ room_id: newRoom.id });
+          logger.creator.info("Created sync room", { roomId: newRoom.id });
+        } else {
+          // Reset streaming flag since we couldn't create a room
+          await supabase.from("creator_profiles").update({ is_streaming: false }).eq("id", session.user.id);
+          setIsStreaming(false);
+        }
+      } else {
+        setRoom(null);
+        setIsStreaming(false);
       }
 
-      setRoom(activeRoom);
-      logger.creator.info("Room status", { hasRoom: !!activeRoom, roomId: activeRoom?.id });
       setLoading(false);
     };
 
@@ -101,54 +126,66 @@ const LiveManagement = () => {
 
     try {
       if (streaming) {
-        let roomId = room?.id;
+        // First, clean up any stale rooms
+        await supabase
+          .from("rooms")
+          .update({ is_active: false, ended_at: new Date().toISOString() })
+          .eq("creator_id", user.id)
+          .eq("is_active", true);
+
+        // Create new room
+        const roomName = `stream-${user.id}-${Date.now()}`;
+        const { data: newRoom, error: roomError } = await supabase
+          .from("rooms")
+          .insert({
+            creator_id: user.id,
+            title: liveTitle || "Live Stream",
+            is_active: true,
+            daily_room_name: roomName,
+          })
+          .select()
+          .single();
+
+        if (roomError) throw roomError;
         
-        if (!roomId) {
-          const roomName = `stream-${user.id}-${Date.now()}`;
-          const { data: newRoom, error: roomError } = await supabase
-            .from("rooms")
-            .insert({
-              creator_id: user.id,
-              title: liveTitle || "Live Stream",
-              is_active: true,
-              daily_room_name: roomName,
-            })
-            .select()
-            .single();
+        setRoom(newRoom);
 
-          if (roomError) throw roomError;
-          roomId = newRoom.id;
-          setRoom(newRoom);
+        // Create chat settings for the room
+        await supabase.from("chat_settings").insert({
+          room_id: newRoom.id,
+        });
 
-          await supabase.from("chat_settings").insert({
-            room_id: roomId,
-          });
-        }
-
-        await supabase.from("lives").insert({
+        // Create live entry with active status
+        const { error: liveError } = await supabase.from("lives").insert({
           creator_id: user.id,
           title: liveTitle || "Live Stream",
           status: "live",
           is_active: true,
-          room_name: roomId,
+          room_name: newRoom.id,
           thumbnail_url: thumbnailUrl,
         });
 
+        if (liveError) {
+          console.error("Error creating live:", liveError);
+        }
+
+        // Update creator profile
         await supabase
           .from("creator_profiles")
           .update({ 
             is_streaming: true,
-            daily_room_url: roomId,
+            daily_room_url: newRoom.id,
           })
           .eq("id", user.id);
 
         setIsStreaming(true);
-        logger.live.info("Stream started", { roomId });
+        logger.live.info("Stream started", { roomId: newRoom.id });
         toast({
           title: "Transmissão iniciada!",
           description: "Você está ao vivo agora",
         });
       } else {
+        // End streaming
         if (room?.id) {
           await supabase
             .from("rooms")
@@ -172,6 +209,7 @@ const LiveManagement = () => {
           .eq("id", user.id);
 
         setIsStreaming(false);
+        setRoom(null);
         logger.live.info("Stream ended");
         toast({
           title: "Transmissão encerrada",
