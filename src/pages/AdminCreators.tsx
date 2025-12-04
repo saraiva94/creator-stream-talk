@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, ShieldCheck, ShieldOff, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { User } from "@supabase/supabase-js";
 
 type CreatorRow = {
   id: string;
@@ -20,10 +22,43 @@ type CreatorRow = {
 
 const AdminCreators = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
   const [creators, setCreators] = useState<CreatorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/auth");
+        return;
+      }
+      setUser(session.user);
+      
+      // Check admin role
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id);
+      
+      const isAdmin = roles?.some((r) => r.role === "admin") || false;
+      if (!isAdmin) {
+        toast({
+          title: "Acesso negado",
+          description: "Você não tem permissão para acessar esta página",
+          variant: "destructive",
+        });
+        navigate("/");
+        return;
+      }
+      
+      fetchCreators();
+    };
+    checkAuth();
+  }, [navigate, toast]);
 
   const fetchCreators = async () => {
     setLoading(true);
@@ -68,9 +103,6 @@ const AdminCreators = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCreators();
-  }, []);
 
   const toggleApproval = async (creatorId: string, nextValue: boolean) => {
     setUpdatingId(creatorId);
@@ -112,7 +144,7 @@ const AdminCreators = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar user={user} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
