@@ -1,5 +1,5 @@
 import React from "react";
-import { api } from "@/lib/api";
+import { fetchCreditsBalance } from "@/lib/supabaseApi";
 
 interface CreditsContextValue {
   creditBalance: number;
@@ -16,7 +16,7 @@ export const CreditsProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const refreshCredits = React.useCallback(async () => {
     try {
-      const data = await api.credits.balance();
+      const data = await fetchCreditsBalance();
       if (mountedRef.current && typeof data.creditBalance === "number") {
         setCreditBalance(data.creditBalance);
         return data.creditBalance;

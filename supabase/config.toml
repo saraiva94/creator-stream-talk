@@ -1,4 +1,16 @@
-project_id = "wtqsbhuvlvapwqmzcaxf"
+project_id = "enacciilzvifhqpenhlz"
 
 [functions."monitor-lives"]
+verify_jwt = false
+
+[functions."create-payment"]
+verify_jwt = false
+
+[functions."mercadopago-webhook"]
+verify_jwt = false
+
+[functions."credits-balance"]
+verify_jwt = true
+
+[functions."registration-checkout"]
 verify_jwt = false
