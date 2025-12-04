@@ -4,19 +4,20 @@ export const StreamStarLogo = () => {
   return (
     <div className="flex items-center gap-2 group cursor-pointer">
       <div className="relative">
-        {/* Neon glow effect on hover */}
-        <div className="absolute inset-0 bg-gradient-to-r from-primary via-secondary to-accent rounded-lg blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
+        {/* Neon glow effect using logo-specific colors */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(330,90%,60%)] via-[hsl(25,95%,55%)] to-[hsl(270,80%,60%)] rounded-lg blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
         
-        {/* Icon with pulse animation on hover */}
+        {/* Icon with pulse animation */}
         <div className="relative neon-glow">
-          <Video className="h-8 w-8 text-primary transition-transform duration-300 group-hover:scale-110" />
+          <Video className="h-8 w-8 text-[hsl(330,90%,60%)] transition-transform duration-300 group-hover:scale-110" />
           
           {/* Subtle ring animation */}
-          <div className="absolute inset-0 rounded-lg border-2 border-primary/50 opacity-0 group-hover:opacity-100 group-hover:animate-ping" />
+          <div className="absolute inset-0 rounded-lg border-2 border-[hsl(330,90%,60%)]/50 opacity-0 group-hover:opacity-100 group-hover:animate-ping" />
         </div>
       </div>
       
-      <span className="text-2xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent group-hover:from-primary-glow group-hover:via-secondary group-hover:to-accent transition-all duration-500">
+      {/* Logo text with neon gradient (pink/orange/purple) */}
+      <span className="text-2xl font-bold bg-gradient-to-r from-[hsl(330,90%,60%)] via-[hsl(25,95%,55%)] to-[hsl(270,80%,60%)] bg-clip-text text-transparent">
         Stream Star
       </span>
     </div>
