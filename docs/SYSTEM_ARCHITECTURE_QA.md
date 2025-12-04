@@ -7,7 +7,7 @@
 | Tabela | Descrição | Colunas Chave |
 |--------|-----------|---------------|
 | `profiles` | Perfis de usuários | id, username, email, referral_code, affiliate_earnings, status, referrer_direct, referrer_root |
-| `creator_profiles` | Perfis de criadores | id, display_name, bio, approved_for_live, is_streaming, daily_room_name |
+| `creator_profiles` | Perfis de criadores | id, display_name, bio, approved_for_live, is_streaming, daily_room_name (stores Jitsi room) |
 | `credits_wallet` | Carteira de créditos do viewer | id, user_id, profile_id, balance_credits |
 | `creator_wallet` | Carteira do criador (em centavos) | creator_id, balance_cents, pending_cents, total_earned_cents |
 | `lives` | Lives criadas | id, creator_id, title, status, room_name, price, is_active |
@@ -156,9 +156,7 @@
 | `creatorEarningsService.ts` | Settlement de ganhos do criador |
 | `creatorWithdrawalsService.ts` | Gestão de saques |
 | `liveConsumptionService.ts` | Consumo de créditos em lives |
-| `dailyService.ts` | Integração Daily.co (video) |
-| `jitsiService.ts` | Integração Jitsi |
-| `emailService.ts` | Envio de emails via Resend |
+| `jitsiService.ts` | Integração Jitsi (video streaming) |
 
 ---
 
@@ -171,8 +169,6 @@ VITE_SUPABASE_PUBLISHABLE_KEY  # Anon key
 MERCADOPAGO_ACCESS_TOKEN   # Token de acesso MP
 MERCADOPAGO_PUBLIC_KEY     # Chave pública MP
 MERCADOPAGO_WEBHOOK_SECRET # Secret do webhook
-DAILY_API_KEY              # API key Daily.co
-RESEND_API_KEY             # API key Resend
 ```
 
 ### Opcionais
@@ -185,7 +181,7 @@ MERCADOPAGO_WEBHOOK_URL    # URL para notificações
 ## 🔗 INTEGRAÇÕES EXTERNAS
 
 ### 1. Supabase
-- **Auth**: Autenticação JWT
+- **Auth**: Autenticação JWT + envio de emails nativos (reset de senha, confirmação)
 - **Database**: PostgreSQL
 - **RPC**: Funções customizadas
 - **Realtime**: Subscriptions (chat, lives)
@@ -195,15 +191,10 @@ MERCADOPAGO_WEBHOOK_URL    # URL para notificações
 - **Webhooks**: Notificação de pagamentos aprovados
 - **Tipos**: REGISTRATION, CREDITS_PURCHASE, LIVE_ACCESS
 
-### 3. Daily.co / Jitsi
-- **Salas**: Criação de rooms privadas
-- **Tokens**: Autenticação de participantes
-
-### 4. Resend
-- **Emails transacionais**:
-  - Password reset
-  - Confirmação de registro
-  - Notificação de saque
+### 3. Jitsi Meet
+- **Video Streaming**: WebRTC via iframe
+- **Salas**: Criação automática de rooms públicas
+- **Sem API Key**: Usa servidores públicos do Jitsi
 
 ---
 
@@ -250,7 +241,7 @@ Plataforma = Restante (R$ 3,50 ou R$ 4,00)
 ### Autenticação
 - [ ] Login com email/senha funciona
 - [ ] Signup cria profile
-- [ ] Reset de senha envia email
+- [ ] Reset de senha envia email via Supabase Auth
 - [ ] JWT persiste entre sessões
 
 ### Registro com Afiliado
@@ -266,7 +257,7 @@ Plataforma = Restante (R$ 3,50 ou R$ 4,00)
 - [ ] Webhook credita créditos
 - [ ] Histórico de compras registrado
 
-### Lives
+### Lives (Jitsi)
 - [ ] Lista pública funciona sem auth
 - [ ] Criador pode iniciar live
 - [ ] Viewer pode solicitar acesso

@@ -6,12 +6,12 @@
 - **State & data**: React Query (`src/App.tsx`) provides async caching; React Router defines page routing in the same file; a custom `LanguageProvider` inside `src/hooks/useLanguage.tsx` handles localization context.
 - **Integrations**:
   - Supabase client factory lives in `src/integrations/supabase/client.ts` and expects URL + anon key env vars.
-  - Video streaming helper utilities for Daily.co calls are defined in `src/lib/daily.ts`.
-  - Placeholder payment hooks are collected in `src/lib/payments.ts`.
+  - Video streaming uses **Jitsi** - utilities defined in `src/lib/jitsiPlayerService.ts`.
+  - Payment hooks are collected in `src/lib/payments.ts`.
 - **Backend integrations**:
-  - `/backend` now proxies Daily.co: `POST /daily/create-room` provisions locked rooms, while `POST /daily/create-host-token` and `POST /daily/create-viewer-token` mint role-specific meeting tokens via the Daily REST API. These calls require `DAILY_API_KEY` and `DAILY_PROJECT_URL` in `.env`.
-  - `/backend` also fronts Mercado Pago: `POST /payments/create-preference` creates checkout preferences with `liveId`/`userId` metadata, while `POST /payments/webhook` validates notifications, fetches the payment status from Mercado Pago, and records approved purchases in Supabase so the viewer token service can grant access later on. Configure this integration with `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
+  - `/backend` fronts Mercado Pago: `POST /payments/create-preference` creates checkout preferences with `liveId`/`userId` metadata, while `POST /payments/webhook` validates notifications, fetches the payment status from Mercado Pago, and records approved purchases in Supabase so the viewer token service can grant access later on. Configure this integration with `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
 - **Backend runtime**: `/backend` hosts a Node.js + Express API written in TypeScript. `ts-node-dev` powers local development while `tsc` builds to `backend/dist`. The server loads shared environment variables from the repo-level `.env`.
+- **Authentication**: Uses Supabase Auth natively for all authentication flows including password reset emails.
 
 ## Directory Layout
 ```
@@ -19,7 +19,7 @@ src/
 ├─ components/        # shadcn/ui wrappers, shared widgets, and layout primitives
 ├─ hooks/             # React hooks (language, auth helpers, etc.)
 ├─ integrations/      # Supabase types + client factory
-├─ lib/               # Cross-cutting utilities (Daily, payments, formatting, i18n)
+├─ lib/               # Cross-cutting utilities (Jitsi, payments, formatting, i18n, logger)
 ├─ pages/             # Top-level routed screens (Home, Auth, Room, Dashboard, etc.)
 ├─ App.tsx            # App shell with providers and router wiring
 └─ main.tsx           # Vite entry point that renders <App />
@@ -30,7 +30,7 @@ backend/
 ├─ src/
 │  ├─ controllers/   # Express handlers orchestrating between routes & services
 │  ├─ routes/        # HTTP route definitions (e.g., GET /status)
-│  ├─ services/      # Business logic and integrations (node-fetch helpers, etc.)
+│  ├─ services/      # Business logic and integrations (Mercado Pago, Jitsi, etc.)
 │  └─ lib/           # Cross-cutting helpers (environment loader, logging, etc.)
 ├─ index.ts          # App entry point that mounts middleware + routes
 └─ tsconfig.json     # Backend-specific TypeScript configuration
@@ -48,7 +48,17 @@ backend/
 2. **Environment setup** – Developers must provide real values for `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `VITE_SUPABASE_PROJECT_ID` before auth or database features can work.
 3. **Security review pending** – Supabase policies/functions under `supabase/` were not audited yet; confirm row-level security before exposing write APIs.
 4. **NPM vulnerabilities** – `npm install` reports 3 moderate issues; run `npm audit fix` (or review manually) prior to production hardening.
-5. **Daily.co credentials** – `src/lib/daily.ts` hardcodes iframe defaults but lacks environment-driven room URLs/token generation. We will need a server-side token service before going live.
+
+## Video Streaming (Jitsi)
+- Video streaming uses Jitsi Meet embedded via iframe
+- Room names are generated as `streamstar-{userId}-{timestamp}`
+- No external API keys required - uses public Jitsi servers
+- Room URLs stored in `creator_profiles.daily_room_url` (legacy column name)
+
+## Authentication & Email
+- All authentication handled by Supabase Auth natively
+- Password reset emails sent via Supabase's built-in email service
+- No external email service required
 
 ## Payment Flow
 1. **Preference creation** – The client requests `POST /payments/create-preference` with `{ liveId, userId, price }`. The backend calls Mercado Pago with our access token, injects `{ liveId, userId }` metadata, and returns `{ init_point, preferenceId }` so the frontend can redirect the buyer.
