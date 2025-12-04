@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote } from "lucide-react";
+import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
+import PlatformRevenueDashboard from "@/components/revenue/PlatformRevenueDashboard";
 
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
@@ -37,6 +38,7 @@ const Affiliate = () => {
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const refreshBalance = async () => {
     if (!user) return;
@@ -61,6 +63,14 @@ const Affiliate = () => {
       }
 
       setUser(session.user);
+      
+      // Check if user is admin
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id);
+      
+      setIsAdmin(roles?.some(r => r.role === "admin") || false);
       
       try {
         // Load profile to get referral code and affiliate earnings
@@ -234,8 +244,8 @@ const Affiliate = () => {
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <Users className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Programa de Afiliados</h1>
+            <Wallet className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">Finanças</h1>
           </div>
           <Button 
             onClick={() => setShowWithdrawDialog(true)}
@@ -248,6 +258,13 @@ const Affiliate = () => {
         </div>
 
         {error ? <div className="mb-6 text-destructive text-sm">{error}</div> : null}
+
+        {/* Platform Revenue Dashboard - Admin Only */}
+        {isAdmin && (
+          <div className="mb-8">
+            <PlatformRevenueDashboard />
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-3 mb-8">
           <Card>

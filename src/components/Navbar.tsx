@@ -124,7 +124,7 @@ const Navbar = ({ user }: NavbarProps) => {
                 <Link to="/affiliate">
                   <Button variant="ghost" size="sm">
                     <DollarSign className="h-4 w-4 mr-2" />
-                    {t.nav.affiliates}
+                    {t.nav.finances}
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>

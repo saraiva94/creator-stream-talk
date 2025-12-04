@@ -93,6 +93,25 @@ serve(async (req) => {
     }
 
     // Process based on event type
+    // Helper function to notify admins
+    const notifyAdmins = async (title: string, message: string, type: string) => {
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (admins && admins.length > 0) {
+        const notifications = admins.map(admin => ({
+          user_id: admin.user_id,
+          title,
+          message,
+          type,
+        }));
+        await supabase.from('notifications').insert(notifications);
+        console.log('[webhook] Admin notifications sent:', notifications.length);
+      }
+    };
+
     if (eventType === 'CREDITS_PURCHASE' || eventType === 'CREDITS') {
       const credits = metadata.credits || Math.round((amount / 5) * 180);
       console.log('[webhook] Processing credits purchase:', { userId, credits, amount });
@@ -125,6 +144,13 @@ serve(async (req) => {
         external_id: externalRef,
         metadata: { credits, event_type: eventType },
       });
+
+      // Notify admins about new payment
+      await notifyAdmins(
+        'Nova compra de créditos',
+        `Compra de ${credits} créditos por R$ ${amount.toFixed(2)}`,
+        'payment'
+      );
 
       console.log('[webhook] Credits added:', { userId, credits });
 
@@ -200,6 +226,13 @@ serve(async (req) => {
         external_id: externalRef,
         metadata: { event_type: eventType, direct_id: directId, root_id: rootId },
       });
+
+      // Notify admins about new registration
+      await notifyAdmins(
+        'Novo cadastro pago',
+        `Novo usuário registrado por R$ ${amount.toFixed(2)}`,
+        'registration'
+      );
 
       console.log('[webhook] Registration completed:', userId);
 
@@ -281,6 +314,13 @@ serve(async (req) => {
           .from('creator_wallet')
           .insert({ creator_id: creatorId, balance_cents: Math.round(creatorAmount * 100) });
       }
+
+      // Notify admins about superchat
+      await notifyAdmins(
+        'Novo SuperChat',
+        `SuperChat ${tier} de R$ ${amount.toFixed(2)}`,
+        'superchat'
+      );
 
       console.log('[webhook] SuperChat processed:', { userId, roomId, tier, creatorAmount });
     }

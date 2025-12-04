@@ -7,7 +7,7 @@ export const translations = {
       profile: "Profile",
       admin: "Admin",
       home: "Home",
-      affiliates: "Affiliates",
+      finances: "Finances",
     },
     home: {
       title: "Stream Star",
@@ -97,7 +97,7 @@ export const translations = {
       profile: "Perfil",
       admin: "Admin",
       home: "Inicio",
-      affiliates: "Afiliados",
+      finances: "Finanzas",
     },
     home: {
       title: "Stream Star",
@@ -187,7 +187,7 @@ export const translations = {
       profile: "Perfil",
       admin: "Admin",
       home: "Início",
-      affiliates: "Afiliados",
+      finances: "Finanças",
     },
     home: {
       title: "Stream Star",
