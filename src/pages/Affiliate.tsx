@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy } from "lucide-react";
+import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
+import PixWithdrawDialog from "@/components/PixWithdrawDialog";
 
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
@@ -35,6 +36,20 @@ const Affiliate = () => {
   const [availableBalanceCents, setAvailableBalanceCents] = useState(0);
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+
+  const refreshBalance = async () => {
+    if (!user) return;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("balance")
+      .eq("id", user.id)
+      .single();
+    
+    if (profile) {
+      setAvailableBalanceCents(Math.round((profile.balance ?? 0) * 100));
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -217,9 +232,19 @@ const Affiliate = () => {
       <Navbar user={user} />
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="flex items-center gap-3 mb-8">
-          <Users className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Programa de Afiliados</h1>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <Users className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">Programa de Afiliados</h1>
+          </div>
+          <Button 
+            onClick={() => setShowWithdrawDialog(true)}
+            className="bg-green-600 hover:bg-green-700"
+            disabled={availableBalanceCents < 1000}
+          >
+            <Banknote className="h-4 w-4 mr-2" />
+            Sacar via PIX
+          </Button>
         </div>
 
         {error ? <div className="mb-6 text-destructive text-sm">{error}</div> : null}
@@ -337,6 +362,14 @@ const Affiliate = () => {
           </CardContent>
         </Card>
       </main>
+
+      <PixWithdrawDialog
+        open={showWithdrawDialog}
+        onOpenChange={setShowWithdrawDialog}
+        userId={user?.id ?? ""}
+        availableBalanceCents={availableBalanceCents}
+        onSuccess={refreshBalance}
+      />
     </div>
   );
 };
