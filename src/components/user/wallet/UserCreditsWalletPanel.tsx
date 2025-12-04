@@ -4,20 +4,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, RefreshCcw, ShoppingBag } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { fetchCreditsBalance, createCreditsPayment } from "@/lib/supabaseApi";
 import { useToast } from "@/hooks/use-toast";
 
 const formatMinutes = (credits: number) => {
-  // 6 credits = 1 minute; show in whole minutes
-  const minutes = Math.floor(credits / 6);
+  // 180 credits = 30 minutes
+  const minutes = Math.floor((credits / 180) * 30);
   return `${minutes} min`;
 };
 
-const CREDITS_PACKAGE = {
-  credits: 180,
-  priceBRL: 5,
-  liveIdPlaceholder: "credits-package",
-};
+const CREDITS_PACKAGES = [
+  { credits: 180, priceBRL: 5, label: "30 min" },
+  { credits: 360, priceBRL: 9, label: "1 hora" },
+  { credits: 720, priceBRL: 16, label: "2 horas" },
+  { credits: 1800, priceBRL: 35, label: "5 horas" },
+];
 
 export const UserCreditsWalletPanel = () => {
   const { toast } = useToast();
@@ -25,19 +26,17 @@ export const UserCreditsWalletPanel = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState(CREDITS_PACKAGES[0]);
 
   const fetchBalance = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.credits.balance();
-      setBalanceCredits(data.balance_credits ?? data.balance ?? data.creditBalance ?? 0);
+      const data = await fetchCreditsBalance();
+      setBalanceCredits(data.balance_credits ?? data.creditBalance ?? 0);
     } catch (err) {
       console.error("[credits] failed to load balance", err);
-      const friendly =
-        err instanceof ApiError && err.message
-          ? err.message
-          : "Não foi possível carregar o saldo agora.";
+      const friendly = err instanceof Error ? err.message : "Não foi possível carregar o saldo agora.";
       setError(friendly);
     } finally {
       setIsLoading(false);
@@ -52,19 +51,14 @@ export const UserCreditsWalletPanel = () => {
     setCheckoutLoading(true);
     setError(null);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) {
         throw new Error("Usuário não autenticado");
       }
 
-      const preference = await api.credits.purchase({
-        userId,
-        price: CREDITS_PACKAGE.priceBRL,
-        credits: CREDITS_PACKAGE.credits,
-        liveId: CREDITS_PACKAGE.liveIdPlaceholder,
+      const preference = await createCreditsPayment({
+        credits: selectedPackage.credits,
+        userId: user.id,
       });
 
       if (!preference?.init_point) {
@@ -72,17 +66,13 @@ export const UserCreditsWalletPanel = () => {
       }
 
       window.location.assign(preference.init_point);
-      await fetchBalance();
     } catch (err) {
       console.error("[credits] checkout error", err);
-      const message =
-        err instanceof ApiError
-          ? err.message
-          : (err as { message?: string })?.message ?? "Não foi possível iniciar a compra.";
+      const message = err instanceof Error ? err.message : "Não foi possível iniciar a compra.";
       setError(message);
       toast({
         title: "Erro ao iniciar compra",
-        description: message ?? "Tente novamente em instantes.",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -129,18 +119,34 @@ export const UserCreditsWalletPanel = () => {
             <ShoppingBag className="h-5 w-5 text-muted-foreground" />
             <div>
               <p className="text-sm font-medium">Comprar créditos</p>
-              <p className="text-xs text-muted-foreground">
-                Pacote: {CREDITS_PACKAGE.credits} créditos por R$ {CREDITS_PACKAGE.priceBRL.toFixed(2)}
-              </p>
+              <p className="text-xs text-muted-foreground">Selecione um pacote:</p>
             </div>
           </div>
-          <Button onClick={startCheckout} disabled={checkoutLoading}>
+          <div className="grid grid-cols-2 gap-2">
+            {CREDITS_PACKAGES.map((pkg) => (
+              <button
+                key={pkg.credits}
+                onClick={() => setSelectedPackage(pkg)}
+                className={`rounded-md border p-2 text-sm transition-colors ${
+                  selectedPackage.credits === pkg.credits
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/50"
+                }`}
+              >
+                <div className="font-medium">{pkg.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  {pkg.credits} créditos • R$ {pkg.priceBRL.toFixed(2)}
+                </div>
+              </button>
+            ))}
+          </div>
+          <Button onClick={startCheckout} disabled={checkoutLoading} className="w-full">
             {checkoutLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando checkout...
               </>
             ) : (
-              "Comprar créditos"
+              `Comprar ${selectedPackage.credits} créditos por R$ ${selectedPackage.priceBRL.toFixed(2)}`
             )}
           </Button>
         </div>

@@ -6,6 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Commission distribution for registration
+const DIRECT_COMMISSION = 1.00;  // Parent gets R$1.00
+const ROOT_COMMISSION = 0.50;   // Grandparent gets R$0.50
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -17,121 +21,224 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const payload = await req.json();
-    console.log('Mercado Pago webhook received:', payload);
+    console.log('[webhook] Mercado Pago webhook received:', JSON.stringify(payload));
 
-    if (payload.type === 'payment') {
-      const paymentId = payload.data.id;
-      
-      // Fetch payment details from Mercado Pago
-      const mpToken =
-        Deno.env.get('MERCADOPAGO_ACCESS_TOKEN') ?? Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
-      if (!mpToken) {
-        throw new Error('Missing Mercado Pago access token (MERCADOPAGO_ACCESS_TOKEN or MERCADO_PAGO_ACCESS_TOKEN)');
-      }
-      const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: {
-          'Authorization': `Bearer ${mpToken}`
-        }
+    // Handle different webhook formats
+    if (payload.type !== 'payment' && payload.action !== 'payment.created' && payload.action !== 'payment.updated') {
+      console.log('[webhook] Ignoring non-payment event:', payload.type || payload.action);
+      return new Response(JSON.stringify({ success: true, ignored: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
-      
-      const payment = await paymentResponse.json();
-      console.log('Payment details:', payment);
-
-      if (payment.status === 'approved') {
-        const metadata = payment.metadata;
-        const userId = metadata.user_id;
-        const creatorId = metadata.creator_id;
-        const type = metadata.type || 'subscription';
-        const amount = payment.transaction_amount;
-
-        // Calculate splits based on financial settings
-        const { data: settings } = await supabase
-          .from('financial_settings')
-          .select('*')
-          .single();
-
-        const creatorPercentage = settings?.creator_percentage || 60;
-        const platformPercentage = settings?.platform_percentage || 30;
-        const affiliatePercentage = settings?.affiliate_percentage || 10;
-
-        const creatorAmount = (amount * creatorPercentage) / 100;
-        const platformAmount = (amount * platformPercentage) / 100;
-        const affiliateAmount = (amount * affiliatePercentage) / 100;
-
-        // Create transaction record
-        const { error: txError } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: userId,
-            creator_id: creatorId,
-            type,
-            amount,
-            creator_amount: creatorAmount,
-            platform_amount: platformAmount,
-            affiliate_amount: affiliateAmount,
-            status: 'completed',
-            payment_method: payment.payment_method_id,
-            external_id: paymentId.toString(),
-            metadata: payment.metadata
-          });
-
-        if (txError) {
-          console.error('Error creating transaction:', txError);
-          throw txError;
-        }
-
-        // Credit creator balance
-        const { error: balanceError } = await supabase.rpc('increment_balance', {
-          _user_id: creatorId,
-          _amount: creatorAmount
-        });
-
-        if (balanceError) {
-          console.error('Error updating creator balance:', balanceError);
-        }
-
-        // Update or create subscription
-        if (type === 'subscription') {
-          const expiresAt = new Date();
-          expiresAt.setMonth(expiresAt.getMonth() + 1);
-
-          const { error: subError } = await supabase
-            .from('subscriptions')
-            .upsert({
-              user_id: userId,
-              creator_id: creatorId,
-              status: 'active',
-              started_at: new Date().toISOString(),
-              expires_at: expiresAt.toISOString()
-            }, {
-              onConflict: 'user_id,creator_id'
-            });
-
-          if (subError) {
-            console.error('Error updating subscription:', subError);
-          }
-
-          // Update profile subscription status
-          await supabase
-            .from('profiles')
-            .update({ is_subscribed: true })
-            .eq('id', userId);
-        }
-
-        console.log('Payment processed successfully');
-      }
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    const paymentId = payload.data?.id || payload.id;
+    if (!paymentId) {
+      console.error('[webhook] No payment ID in payload');
+      return new Response(JSON.stringify({ error: 'No payment ID' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Fetch payment details from Mercado Pago
+    const mpToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
+    if (!mpToken) {
+      throw new Error('Missing Mercado Pago access token');
+    }
+
+    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { 'Authorization': `Bearer ${mpToken}` },
+    });
+
+    if (!paymentResponse.ok) {
+      const errorText = await paymentResponse.text();
+      console.error('[webhook] Failed to fetch payment:', errorText);
+      throw new Error(`Failed to fetch payment: ${errorText}`);
+    }
+
+    const payment = await paymentResponse.json();
+    console.log('[webhook] Payment details:', { 
+      id: payment.id, 
+      status: payment.status, 
+      metadata: payment.metadata 
+    });
+
+    if (payment.status !== 'approved') {
+      console.log('[webhook] Payment not approved:', payment.status);
+      return new Response(JSON.stringify({ success: true, status: payment.status }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const metadata = payment.metadata || {};
+    const eventType = (metadata.event_type || 'LIVE_ACCESS').toUpperCase();
+    const userId = metadata.user_id;
+    const externalRef = payment.external_reference || paymentId.toString();
+    const amount = payment.transaction_amount;
+
+    console.log('[webhook] Processing:', { eventType, userId, amount, externalRef });
+
+    // Idempotency check
+    const { data: existingPayment } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('external_id', externalRef)
+      .maybeSingle();
+
+    if (existingPayment) {
+      console.log('[webhook] Duplicate payment, skipping:', externalRef);
+      return new Response(JSON.stringify({ success: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Process based on event type
+    if (eventType === 'CREDITS_PURCHASE' || eventType === 'CREDITS') {
+      const credits = metadata.credits || Math.round((amount / 5) * 180);
+      console.log('[webhook] Processing credits purchase:', { userId, credits, amount });
+
+      // Update or create credits wallet
+      const { data: wallet } = await supabase
+        .from('credits_wallet')
+        .select('balance_credits')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (wallet) {
+        await supabase
+          .from('credits_wallet')
+          .update({ balance_credits: (wallet.balance_credits || 0) + credits })
+          .eq('user_id', userId);
+      } else {
+        await supabase
+          .from('credits_wallet')
+          .insert({ user_id: userId, balance_credits: credits });
+      }
+
+      // Record transaction
+      await supabase.from('transactions').insert({
+        user_id: userId,
+        type: 'credits_purchase',
+        amount,
+        status: 'completed',
+        payment_method: payment.payment_method_id,
+        external_id: externalRef,
+        metadata: { credits, event_type: eventType },
+      });
+
+      console.log('[webhook] Credits added:', { userId, credits });
+
+    } else if (eventType === 'REGISTRATION') {
+      const directId = metadata.direct_id;
+      const rootId = metadata.root_id;
+      const email = metadata.email;
+
+      console.log('[webhook] Processing registration:', { userId, directId, rootId });
+
+      // Activate user profile
+      await supabase
+        .from('profiles')
+        .update({ 
+          is_subscribed: true,
+          referred_by: directId,
+        })
+        .eq('id', userId);
+
+      // Process affiliate commissions
+      if (directId) {
+        // Direct (parent) commission - R$1.00
+        const { data: directProfile } = await supabase
+          .from('profiles')
+          .select('balance')
+          .eq('id', directId)
+          .single();
+
+        if (directProfile) {
+          await supabase
+            .from('profiles')
+            .update({ balance: (directProfile.balance || 0) + DIRECT_COMMISSION })
+            .eq('id', directId);
+
+          console.log('[webhook] Direct commission paid:', { directId, amount: DIRECT_COMMISSION });
+        }
+
+        // Root (grandparent) commission - R$0.50
+        if (rootId && rootId !== directId) {
+          const { data: rootProfile } = await supabase
+            .from('profiles')
+            .select('balance')
+            .eq('id', rootId)
+            .single();
+
+          if (rootProfile) {
+            await supabase
+              .from('profiles')
+              .update({ balance: (rootProfile.balance || 0) + ROOT_COMMISSION })
+              .eq('id', rootId);
+
+            console.log('[webhook] Root commission paid:', { rootId, amount: ROOT_COMMISSION });
+          }
+        }
+
+        // Record affiliate log
+        await supabase.from('referrals').insert({
+          referrer_id: directId,
+          referred_id: userId,
+          referral_code: metadata.referral_code || 'DIRECT',
+          commission_earned: DIRECT_COMMISSION,
+          status: 'completed',
+        });
+      }
+
+      // Record transaction
+      await supabase.from('transactions').insert({
+        user_id: userId,
+        type: 'registration',
+        amount,
+        status: 'completed',
+        payment_method: payment.payment_method_id,
+        external_id: externalRef,
+        metadata: { event_type: eventType, direct_id: directId, root_id: rootId },
+      });
+
+      console.log('[webhook] Registration completed:', userId);
+
+    } else if (eventType === 'LIVE_ACCESS') {
+      const liveId = metadata.live_id;
+      console.log('[webhook] Processing live access:', { userId, liveId });
+
+      if (liveId) {
+        // Grant live access
+        await supabase.from('live_access').upsert({
+          live_id: liveId,
+          user_id: userId,
+          granted_at: new Date().toISOString(),
+        }, { onConflict: 'live_id,user_id' });
+      }
+
+      // Record transaction
+      await supabase.from('transactions').insert({
+        user_id: userId,
+        type: 'live_access',
+        amount,
+        status: 'completed',
+        payment_method: payment.payment_method_id,
+        external_id: externalRef,
+        metadata: { event_type: eventType, live_id: liveId },
+      });
+
+      console.log('[webhook] Live access granted:', { userId, liveId });
+    }
+
+    return new Response(JSON.stringify({ success: true, processed: eventType }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
     });
   } catch (error) {
-    console.error('Error processing webhook:', error);
+    console.error('[webhook] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

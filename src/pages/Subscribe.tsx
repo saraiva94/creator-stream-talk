@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ApiError, api, type RegistrationCheckoutPayload } from "@/lib/api";
 import { validatePasswordStrength } from "@/lib/password";
+import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -91,21 +91,20 @@ const Subscribe = () => {
 
     setLoading(true);
     try {
-      const validation = await api.affiliates.validateCode(trimmedReferral);
+      const validation = await validateAffiliateCode(trimmedReferral);
       if (!validation.valid) {
         setErrors({ referral: "Código de indicação inválido." });
+        setLoading(false);
         return;
       }
 
-      const payload: RegistrationCheckoutPayload = {
+      const response = await registrationCheckout({
         fullName: fullName.trim(),
         email,
         password,
         referralCode: trimmedReferral,
         acceptTerms,
-      };
-
-      const response = await api.registration.checkout(payload);
+      });
 
       if (response.token && response.refresh_token) {
         await supabase.auth.setSession({
@@ -128,11 +127,11 @@ const Subscribe = () => {
       });
     } catch (error: unknown) {
       console.error("[subscribe] checkout error", error);
-      const apiError = error as ApiError;
+      const err = error as Error;
       const message =
-        apiError?.message?.includes("email")
+        err?.message?.includes("email") || err?.message?.includes("already")
           ? "E-mail já cadastrado."
-          : apiError?.message || "Erro ao processar pagamento. Tente novamente em alguns instantes.";
+          : err?.message || "Erro ao processar pagamento. Tente novamente em alguns instantes.";
       toast({
         title: "Erro ao processar assinatura",
         description: message,
