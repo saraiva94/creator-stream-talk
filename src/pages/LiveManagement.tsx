@@ -1,23 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import JitsiPlayer from "@/components/JitsiPlayer";
 import ChatBox from "@/components/ChatBox";
-import ChatModerationPanel from "@/components/ChatModerationPanel";
-import DeviceSelector from "@/components/DeviceSelector";
-import { Button } from "@/components/ui/button";
+import { NativeVideoPreview } from "@/components/NativeVideoPreview";
+import { StreamToggle } from "@/components/StreamToggle";
+import { LiveConfigPanel } from "@/components/LiveConfigPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Users, DollarSign, TrendingUp, Circle, MonitorOff } from "lucide-react";
+import { Users, DollarSign, TrendingUp } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
-
-type CreatorProfile = {
-  approved_for_live?: boolean | null;
-  daily_room_url?: string | null; // Legacy column name, stores Jitsi room
-};
 
 type RoomRecord = {
   id: string;
@@ -33,10 +26,13 @@ const LiveManagement = () => {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [room, setRoom] = useState<RoomRecord | null>(null);
-  const [jitsiRoomUrl, setJitsiRoomUrl] = useState<string | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [participants, setParticipants] = useState(0);
   const [revenue, setRevenue] = useState({ total: 0, superchats: 0 });
   const [loading, setLoading] = useState(true);
+  const [liveTitle, setLiveTitle] = useState("");
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState<string | null>(null);
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -48,10 +44,10 @@ const LiveManagement = () => {
       }
       setUser(session.user);
 
-      // Get creator profile (align with backend guard)
+      // Get creator profile
       const { data: creatorProfile, error: creatorError } = await supabase
         .from("creator_profiles")
-        .select("*, profiles(username)")
+        .select("*")
         .eq("id", session.user.id)
         .maybeSingle();
 
@@ -66,52 +62,144 @@ const LiveManagement = () => {
         return;
       }
 
-      if (!(creatorProfile as Record<string, unknown>).approved_for_live) {
+      if (!creatorProfile.approved_for_live) {
         logger.creator.warn("Creator not approved for live");
         toast({
           title: "Aguardando aprovação",
           description: "Sua conta ainda não foi aprovada para transmissão ao vivo.",
           variant: "destructive",
         });
-        navigate("/dashboard");
+        navigate("/");
         return;
       }
 
-      // Check for Jitsi room (stored in legacy daily_room_url column)
-      if (!creatorProfile?.daily_room_url) {
-        logger.creator.warn("No Jitsi room configured");
-        toast({
-          title: "Erro",
-          description: "Você precisa iniciar a transmissão primeiro",
-          variant: "destructive",
-        });
-        navigate("/dashboard");
-        return;
-      }
+      // Check current streaming status
+      setIsStreaming(creatorProfile.is_streaming || false);
 
-      setJitsiRoomUrl(creatorProfile.daily_room_url);
-      logger.creator.info("Jitsi room loaded", { roomUrl: creatorProfile.daily_room_url });
-
-      // Get active room
-      const { data: activeRoom } = await supabase
+      // Get or create active room
+      let activeRoom = null;
+      const { data: existingRoom } = await supabase
         .from("rooms")
         .select("*")
         .eq("creator_id", session.user.id)
         .eq("is_active", true)
         .single();
 
+      if (existingRoom) {
+        activeRoom = existingRoom;
+      }
+
       setRoom(activeRoom);
-      logger.creator.info("Active room status", { hasRoom: !!activeRoom, roomId: activeRoom?.id });
+      logger.creator.info("Room status", { hasRoom: !!activeRoom, roomId: activeRoom?.id });
       setLoading(false);
     };
 
     checkAuth();
   }, [navigate, toast]);
 
+  // Handle streaming toggle
+  const handleStreamToggle = async (streaming: boolean) => {
+    if (!user) return;
+
+    try {
+      if (streaming) {
+        // Create room if doesn't exist
+        let roomId = room?.id;
+        
+        if (!roomId) {
+          const roomName = `stream-${user.id}-${Date.now()}`;
+          const { data: newRoom, error: roomError } = await supabase
+            .from("rooms")
+            .insert({
+              creator_id: user.id,
+              title: liveTitle || "Live Stream",
+              is_active: true,
+              daily_room_name: roomName,
+            })
+            .select()
+            .single();
+
+          if (roomError) throw roomError;
+          roomId = newRoom.id;
+          setRoom(newRoom);
+
+          // Create chat settings for the room
+          await supabase.from("chat_settings").insert({
+            room_id: roomId,
+          });
+        }
+
+        // Create live record
+        await supabase.from("lives").insert({
+          creator_id: user.id,
+          title: liveTitle || "Live Stream",
+          status: "live",
+          is_active: true,
+          room_name: roomId,
+        });
+
+        // Update creator profile
+        await supabase
+          .from("creator_profiles")
+          .update({ 
+            is_streaming: true,
+            daily_room_url: roomId,
+          })
+          .eq("id", user.id);
+
+        setIsStreaming(true);
+        logger.live.info("Stream started", { roomId });
+        toast({
+          title: "Transmissão iniciada!",
+          description: "Você está ao vivo agora",
+        });
+      } else {
+        // End stream
+        if (room?.id) {
+          await supabase
+            .from("rooms")
+            .update({ is_active: false, ended_at: new Date().toISOString() })
+            .eq("id", room.id);
+        }
+
+        // Update any active lives
+        await supabase
+          .from("lives")
+          .update({ 
+            is_active: false, 
+            status: "ended",
+            ended_at: new Date().toISOString() 
+          })
+          .eq("creator_id", user.id)
+          .eq("is_active", true);
+
+        await supabase
+          .from("creator_profiles")
+          .update({ is_streaming: false, daily_room_url: null })
+          .eq("id", user.id);
+
+        setIsStreaming(false);
+        logger.live.info("Stream ended");
+        toast({
+          title: "Transmissão encerrada",
+          description: "Você está offline agora",
+        });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao alterar transmissão";
+      logger.live.error("Stream toggle error", { error: message });
+      toast({
+        title: "Erro",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Fetch participants
   useEffect(() => {
     if (!room?.id) return;
 
-    // Fetch participants count
     const fetchParticipants = async () => {
       const { count } = await supabase
         .from("room_participants")
@@ -119,12 +207,10 @@ const LiveManagement = () => {
         .eq("room_id", room.id);
 
       setParticipants(count || 0);
-      logger.live.debug("Participants count", { count: count || 0 });
     };
 
     fetchParticipants();
 
-    // Real-time participants
     const channel = supabase
       .channel(`live_participants:${room.id}`)
       .on(
@@ -135,9 +221,7 @@ const LiveManagement = () => {
           table: "room_participants",
           filter: `room_id=eq.${room.id}`,
         },
-        () => {
-          fetchParticipants();
-        }
+        () => fetchParticipants()
       )
       .subscribe();
 
@@ -146,10 +230,10 @@ const LiveManagement = () => {
     };
   }, [room?.id]);
 
+  // Fetch revenue
   useEffect(() => {
     if (!user?.id) return;
 
-    // Fetch revenue data
     const fetchRevenue = async () => {
       const { data: transactions } = await supabase
         .from("transactions")
@@ -163,13 +247,11 @@ const LiveManagement = () => {
           .filter((t: TransactionRow) => t.type === "superchat")
           .reduce((sum: number, t: TransactionRow) => sum + Number(t.amount ?? 0), 0);
         setRevenue({ total, superchats });
-        logger.live.debug("Revenue fetched", { total, superchats });
       }
     };
 
     fetchRevenue();
 
-    // Real-time revenue updates
     const channel = supabase
       .channel(`live_revenue:${user.id}`)
       .on(
@@ -180,9 +262,7 @@ const LiveManagement = () => {
           table: "transactions",
           filter: `creator_id=eq.${user.id}`,
         },
-        () => {
-          fetchRevenue();
-        }
+        () => fetchRevenue()
       )
       .subscribe();
 
@@ -191,48 +271,19 @@ const LiveManagement = () => {
     };
   }, [user?.id]);
 
-  const handleEndStream = async () => {
-    if (!room?.id || !user?.id) return;
+  const handleDevicesChange = useCallback((audioId: string, videoId: string) => {
+    setSelectedAudioDevice(audioId);
+    setSelectedVideoDevice(videoId);
+  }, []);
 
-    logger.live.info("Ending stream", { roomId: room.id });
-
-    try {
-      // Update room status
-      await supabase
-        .from("rooms")
-        .update({ is_active: false, ended_at: new Date().toISOString() })
-        .eq("id", room.id);
-
-      // Update creator profile (clear Jitsi room from legacy column)
-      await supabase
-        .from("creator_profiles")
-        .update({ is_streaming: false, daily_room_url: null })
-        .eq("id", user.id);
-
-      logger.live.info("Stream ended successfully");
-      toast({
-        title: "Transmissão encerrada",
-        description: "Você está offline agora",
-      });
-
-      navigate("/dashboard");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erro ao encerrar";
-      logger.live.error("End stream error", { error: message });
-      toast({
-        title: "Erro ao encerrar",
-        description: message,
-        variant: "destructive",
-      });
-    }
-  };
+  const handleTitleChange = useCallback((title: string) => {
+    setLiveTitle(title);
+  }, []);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">
-          Carregando...
-        </div>
+        <div className="animate-pulse text-muted-foreground">Carregando...</div>
       </div>
     );
   }
@@ -242,22 +293,12 @@ const LiveManagement = () => {
       <Navbar user={user} />
 
       <main className="container mx-auto px-4 py-6">
-        {/* Header with stats */}
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Badge className="bg-destructive text-white animate-pulse h-8 px-4">
-              <Circle className="h-3 w-3 mr-2 fill-white" />
-              AO VIVO
-            </Badge>
-            <Button
-              variant="destructive"
-              onClick={handleEndStream}
-              className="h-8"
-            >
-              <MonitorOff className="h-4 w-4 mr-2" />
-              Encerrar Live
-            </Button>
-          </div>
+        {/* Header with toggle and stats */}
+        <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+          <StreamToggle
+            isStreaming={isStreaming}
+            onToggle={handleStreamToggle}
+          />
 
           <div className="flex gap-4">
             <Card className="border-border">
@@ -275,7 +316,7 @@ const LiveManagement = () => {
             <Card className="border-border">
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-success" />
+                  <DollarSign className="h-5 w-5 text-green-500" />
                   <div>
                     <p className="text-2xl font-bold">R$ {revenue.total.toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">Receita Total</p>
@@ -302,23 +343,21 @@ const LiveManagement = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Video + Chat */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Video */}
+            {/* Native Video Preview */}
             <Card className="border-border overflow-hidden">
-              <div className="aspect-video bg-secondary">
-                {jitsiRoomUrl && (
-                  <JitsiPlayer roomName={jitsiRoomUrl} />
-                )}
-              </div>
+              <NativeVideoPreview
+                audioDeviceId={selectedAudioDevice}
+                videoDeviceId={selectedVideoDevice}
+                isStreaming={isStreaming}
+              />
             </Card>
 
             {/* Chat */}
-            {room && (
+            {room && user && (
               <Card className="border-border">
                 <CardHeader>
                   <CardTitle>Chat ao Vivo</CardTitle>
-                  <CardDescription>
-                    Interaja com seus espectadores
-                  </CardDescription>
+                  <CardDescription>Interaja com seus espectadores</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[400px]">
@@ -333,12 +372,14 @@ const LiveManagement = () => {
             )}
           </div>
 
-          {/* Moderation Panel & Device Settings */}
-          <div className="space-y-6">
-            <DeviceSelector />
-            {room && (
-              <ChatModerationPanel roomId={room.id} creatorId={user.id} />
-            )}
+          {/* Configuration Panel */}
+          <div>
+            <LiveConfigPanel
+              roomId={room?.id || null}
+              creatorId={user?.id || ""}
+              onTitleChange={handleTitleChange}
+              onDevicesChange={handleDevicesChange}
+            />
           </div>
         </div>
       </main>
