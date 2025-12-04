@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions."password-reset"]
 verify_jwt = false
+
+[functions."create-superchat-payment"]
+verify_jwt = false
+
+[functions."pix-withdraw"]
+verify_jwt = false
