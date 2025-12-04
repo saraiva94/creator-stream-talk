@@ -9,7 +9,8 @@ const corsHeaders = {
 };
 
 interface PasswordResetRequest {
-  email: string;
+  email?: string;
+  userId?: string;
   redirectTo: string;
 }
 
@@ -19,11 +20,11 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email, redirectTo }: PasswordResetRequest = await req.json();
+    const { email, userId, redirectTo }: PasswordResetRequest = await req.json();
     
-    if (!email) {
+    if (!email && !userId) {
       return new Response(
-        JSON.stringify({ error: "Email é obrigatório" }),
+        JSON.stringify({ error: "Email ou userId é obrigatório" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -58,21 +59,29 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    // Find user by email or userId
+    let user;
+    if (userId) {
+      user = userData.users.find(u => u.id === userId);
+    } else if (email) {
+      user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    }
     
-    if (!user) {
+    if (!user || !user.email) {
       // Don't reveal if user exists or not for security
-      console.log("User not found for email:", email);
+      console.log("User not found for:", email || userId);
       return new Response(
-        JSON.stringify({ success: true, message: "Se o email existir, você receberá um link de recuperação." }),
+        JSON.stringify({ success: true, message: "Se o usuário existir, você receberá um link de recuperação." }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    
+    const userEmail = user.email;
 
     // Generate password reset link using admin API
     const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
       type: "recovery",
-      email: email,
+      email: userEmail,
       options: {
         redirectTo: redirectTo,
       },
@@ -147,7 +156,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { error: emailError } = await resend.emails.send({
       from: "Stream Star <onboarding@resend.dev>",
-      to: [email],
+      to: [userEmail],
       subject: "Redefinir sua senha - Stream Star",
       html: emailHtml,
     });
@@ -160,7 +169,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("Password reset email sent successfully to:", email);
+    console.log("Password reset email sent successfully to:", userEmail);
 
     return new Response(
       JSON.stringify({ success: true, message: "Email de recuperação enviado com sucesso!" }),
