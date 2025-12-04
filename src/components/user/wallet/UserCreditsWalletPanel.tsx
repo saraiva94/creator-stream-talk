@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, RefreshCcw, ShoppingBag } from "lucide-react";
 import { fetchCreditsBalance, createCreditsPayment } from "@/lib/supabaseApi";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import { logger } from "@/lib/logger";
 
 const formatMinutes = (credits: number) => {
@@ -15,12 +16,13 @@ const formatMinutes = (credits: number) => {
 };
 
 const CREDITS_PACKAGES = [
-  { credits: 180, priceBRL: 5 },
-  { credits: 360, priceBRL: 9 },
+  { credits: 180, priceBRL: 5, label: "30min" },
+  { credits: 360, priceBRL: 9, label: "1h" },
 ];
 
 export const UserCreditsWalletPanel = () => {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [balanceCredits, setBalanceCredits] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export const UserCreditsWalletPanel = () => {
       setBalanceCredits(balance);
     } catch (err) {
       logger.credits.error('Erro ao carregar saldo na UI', {}, err as Error);
-      const friendly = err instanceof Error ? err.message : "Não foi possível carregar o saldo agora.";
+      const friendly = err instanceof Error ? err.message : "Error loading balance";
       setError(friendly);
     } finally {
       setIsLoading(false);
@@ -76,7 +78,7 @@ export const UserCreditsWalletPanel = () => {
       
       if (!user?.id) {
         logger.payment.error('Usuário não autenticado para checkout');
-        throw new Error("Usuário não autenticado");
+        throw new Error("User not authenticated");
       }
 
       logger.payment.debug('Usuário autenticado', { userId: user.id });
@@ -88,7 +90,7 @@ export const UserCreditsWalletPanel = () => {
 
       if (!preference?.init_point) {
         logger.payment.error('Preferência sem init_point', { preference });
-        throw new Error("Não foi possível iniciar a compra de créditos.");
+        throw new Error("Could not start credits purchase");
       }
 
       logger.payment.info('Redirecionando para Mercado Pago', { 
@@ -102,10 +104,10 @@ export const UserCreditsWalletPanel = () => {
         credits: selectedPackage.credits 
       }, err as Error);
       
-      const message = err instanceof Error ? err.message : "Não foi possível iniciar a compra.";
+      const message = err instanceof Error ? err.message : "Could not start purchase";
       setError(message);
       toast({
-        title: "Erro ao iniciar compra",
+        title: t.common.error,
         description: message,
         variant: "destructive",
       });
@@ -116,44 +118,43 @@ export const UserCreditsWalletPanel = () => {
 
   return (
     <Card className="border-border/60">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
         <div>
-          <CardTitle className="text-xl font-semibold">Meus créditos</CardTitle>
-          <p className="text-sm text-muted-foreground">Saldo para assistir lives.</p>
+          <CardTitle className="text-lg sm:text-xl font-semibold">{t.credits.title}</CardTitle>
+          <p className="text-xs sm:text-sm text-muted-foreground">{t.credits.balance}</p>
         </div>
         <Button variant="ghost" size="icon" onClick={fetchBalance} disabled={isLoading}>
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
         </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
         {error && (
           <Alert variant="destructive">
-            <AlertTitle>Erro</AlertTitle>
+            <AlertTitle>{t.common.error}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-border/60 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Saldo de créditos</p>
-            <p className="text-2xl font-semibold">
-              {isLoading || balanceCredits === null ? "..." : `${balanceCredits} créditos`}
+            <p className="text-xs uppercase text-muted-foreground">{t.credits.credits}</p>
+            <p className="text-xl sm:text-2xl font-semibold">
+              {isLoading || balanceCredits === null ? "..." : `${balanceCredits}`}
             </p>
           </div>
           <div className="rounded-lg border border-border/60 p-3">
-            <p className="text-xs uppercase text-muted-foreground">Tempo restante estimado</p>
-            <p className="text-2xl font-semibold">
+            <p className="text-xs uppercase text-muted-foreground">≈</p>
+            <p className="text-xl sm:text-2xl font-semibold">
               {isLoading || balanceCredits === null ? "..." : formatMinutes(balanceCredits)}
             </p>
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 p-4 space-y-3">
+        <div className="rounded-lg border border-border/60 p-3 sm:p-4 space-y-3">
           <div className="flex items-center gap-3">
             <ShoppingBag className="h-5 w-5 text-muted-foreground" />
             <div>
-              <p className="text-sm font-medium">Comprar créditos</p>
-              <p className="text-xs text-muted-foreground">Selecione um pacote:</p>
+              <p className="text-sm font-medium">{t.credits.buyCredits}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -164,26 +165,26 @@ export const UserCreditsWalletPanel = () => {
                   logger.payment.debug('Pacote selecionado', { credits: pkg.credits, price: pkg.priceBRL });
                   setSelectedPackage(pkg);
                 }}
-                className={`rounded-md border p-2 text-sm transition-colors ${
+                className={`rounded-md border p-2 sm:p-3 text-sm transition-colors ${
                   selectedPackage.credits === pkg.credits
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border hover:border-primary/50"
                 }`}
               >
-                <div className="font-medium">{pkg.credits} créditos</div>
+                <div className="font-medium text-xs sm:text-sm">{pkg.label}</div>
                 <div className="text-xs text-muted-foreground">
                   R$ {pkg.priceBRL.toFixed(2)}
                 </div>
               </button>
             ))}
           </div>
-          <Button onClick={startCheckout} disabled={checkoutLoading} className="w-full">
+          <Button onClick={startCheckout} disabled={checkoutLoading} className="w-full text-sm">
             {checkoutLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando checkout...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t.credits.processing}
               </>
             ) : (
-              `Comprar ${selectedPackage.credits} créditos por R$ ${selectedPackage.priceBRL.toFixed(2)}`
+              `${t.credits.buy} - R$ ${selectedPackage.priceBRL.toFixed(2)}`
             )}
           </Button>
         </div>

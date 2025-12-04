@@ -143,14 +143,14 @@ const Profile = () => {
       setProfile({ ...profile, avatar_url: publicUrl });
 
       toast({
-        title: "Foto atualizada!",
-        description: "Lembre-se de salvar as alterações.",
+        title: t.profile.photoUpdated,
+        description: t.profile.rememberToSave,
       });
     } catch (error: unknown) {
       logger.profile.error('Erro fatal no upload', {}, error as Error);
-      const message = error instanceof Error ? error.message : "Erro no upload";
+      const message = error instanceof Error ? error.message : t.common.error;
       toast({
-        title: "Erro no upload",
+        title: t.common.error,
         description: message,
         variant: "destructive",
       });
@@ -164,8 +164,8 @@ const Profile = () => {
     if (!profile.username.trim()) {
       logger.profile.warn('Validação falhou: username vazio');
       toast({
-        title: "Erro",
-        description: "Nome de usuário é obrigatório",
+        title: t.common.error,
+        description: t.profile.usernameRequired,
         variant: "destructive",
       });
       return;
@@ -196,14 +196,14 @@ const Profile = () => {
 
       logger.profile.info('Perfil atualizado com sucesso', { userId: user?.id });
       toast({
-        title: "Perfil atualizado!",
-        description: "Suas informações foram salvas com sucesso.",
+        title: t.profile.profileUpdated,
+        description: t.profile.infoSaved,
       });
     } catch (error: unknown) {
       logger.profile.error('Erro fatal na atualização', {}, error as Error);
-      const message = error instanceof Error ? error.message : "Erro ao atualizar";
+      const message = error instanceof Error ? error.message : t.common.error;
       toast({
-        title: "Erro",
+        title: t.common.error,
         description: message,
         variant: "destructive",
       });
@@ -216,7 +216,7 @@ const Profile = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">
-          Carregando...
+          {t.common.loading}
         </div>
       </div>
     );
@@ -226,30 +226,30 @@ const Profile = () => {
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
 
-      <main className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
-        <div className="flex items-center gap-3 mb-8">
-          <User className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold">Meu Perfil</h1>
+      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl space-y-4 sm:space-y-6">
+        <div className="flex items-center gap-3 mb-6 sm:mb-8">
+          <User className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-bold">{t.profile.title}</h1>
         </div>
 
         <Card className="border-border shadow-card">
-          <CardHeader>
-            <CardTitle>Informações Pessoais</CardTitle>
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-lg sm:text-xl">{t.profile.personalInfo}</CardTitle>
             <CardDescription>
-              Configure suas informações públicas e preferências
+              {t.profile.personalInfoDesc}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
             {/* Avatar Circular Clicável */}
             <div className="flex flex-col items-center gap-3">
-              <Label className="self-start">Foto de Perfil</Label>
+              <Label className="self-start">{t.profile.profilePhoto}</Label>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 className="relative group"
               >
-                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary bg-muted flex items-center justify-center transition-all hover:border-primary/70 hover:opacity-90">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-primary bg-muted flex items-center justify-center transition-all hover:border-primary/70 hover:opacity-90">
                   {profile.avatar_url ? (
                     <img
                       src={profile.avatar_url}
@@ -257,15 +257,15 @@ const Profile = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User className="w-10 h-10 text-muted-foreground" />
+                    <User className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
                   )}
                 </div>
                 <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Camera className="w-6 h-6 text-white" />
+                  <Camera className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 {uploading && (
                   <div className="absolute inset-0 rounded-full bg-black/70 flex items-center justify-center">
-                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   </div>
                 )}
               </button>
@@ -277,12 +277,12 @@ const Profile = () => {
                 className="hidden"
               />
               <p className="text-xs text-muted-foreground">
-                Clique para alterar sua foto
+                {t.profile.clickToChange}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="username">Nome de Usuário *</Label>
+              <Label htmlFor="username">{t.profile.username} *</Label>
               <Input
                 id="username"
                 value={profile.username}
@@ -294,7 +294,7 @@ const Profile = () => {
             <div className="space-y-2">
               <Label htmlFor="website">
                 <Globe className="inline h-4 w-4 mr-1" />
-                Site Pessoal
+                {t.profile.personalSite}
               </Label>
               <Input
                 id="website"
@@ -306,30 +306,30 @@ const Profile = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
+              <Label htmlFor="bio">{t.profile.bio}</Label>
               <Textarea
                 id="bio"
                 value={profile.bio}
                 onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-                placeholder="Conte um pouco sobre você..."
+                placeholder={t.profile.bioPlaceholder}
                 rows={4}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="gender">Gênero</Label>
+              <Label htmlFor="gender">{t.profile.gender}</Label>
               <Select
                 value={profile.gender}
                 onValueChange={(value) => setProfile({ ...profile, gender: value })}
               >
                 <SelectTrigger id="gender">
-                  <SelectValue placeholder="Selecione seu gênero" />
+                  <SelectValue placeholder={t.profile.selectGender} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="male">Masculino</SelectItem>
-                  <SelectItem value="female">Feminino</SelectItem>
-                  <SelectItem value="other">Outro</SelectItem>
-                  <SelectItem value="prefer_not_to_say">Prefiro não dizer</SelectItem>
+                  <SelectItem value="male">{t.profile.genderMale}</SelectItem>
+                  <SelectItem value="female">{t.profile.genderFemale}</SelectItem>
+                  <SelectItem value="other">{t.profile.genderOther}</SelectItem>
+                  <SelectItem value="prefer_not_to_say">{t.profile.genderPreferNot}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -339,7 +339,7 @@ const Profile = () => {
               className="w-full"
               disabled={loading}
             >
-              {loading ? "Salvando..." : "Salvar Alterações"}
+              {loading ? t.profile.saving : t.profile.saveChanges}
             </Button>
           </CardContent>
         </Card>
