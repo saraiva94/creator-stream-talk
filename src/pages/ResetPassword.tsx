@@ -140,7 +140,7 @@ const ResetPassword = () => {
       let emailToSend = input;
       const isEmail = /\S+@\S+\.\S+/.test(input);
 
-      // Se não for email, busca o email pelo username
+      // Se não for email, busca o email pelo username via edge function
       if (!isEmail) {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -154,13 +154,13 @@ const ResetPassword = () => {
           return;
         }
 
-        // Buscar email via edge function (não temos acesso direto ao auth.users)
+        // Usar edge function para buscar email e enviar reset via admin API
         const { data: userData, error: userError } = await supabase.functions.invoke("password-reset", {
           body: { userId: profile.id, redirectTo: `${siteUrl}/reset-password` },
         });
 
         if (userError || userData?.error) {
-          setRequestError(userData?.error || "Não foi possível encontrar o email do usuário.");
+          setRequestError(userData?.error || "Não foi possível enviar o link de recuperação.");
           setRequesting(false);
           return;
         }
@@ -170,27 +170,19 @@ const ResetPassword = () => {
         return;
       }
 
+      // Para emails, usar o método nativo do Supabase Auth
       const redirectTo = `${siteUrl}/reset-password`;
-      
-      // Use custom edge function with Resend for better email delivery
-      const response = await supabase.functions.invoke("password-reset", {
-        body: { email: emailToSend, redirectTo },
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToSend, {
+        redirectTo,
       });
 
-      if (response.error) {
-        console.error("[AUTH][RESET_LINK] Edge function error:", response.error);
+      if (error) {
+        console.error("[AUTH][RESET_LINK] Supabase error:", error);
         setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
         return;
       }
 
-      const data = response.data as { success?: boolean; error?: string; message?: string };
-      
-      if (data.error) {
-        setRequestError(data.error);
-        return;
-      }
-
-      setRequestMessage(data.message || "Enviamos um link de recuperação para o seu e-mail.");
+      setRequestMessage("Enviamos um link de recuperação para o seu e-mail.");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
