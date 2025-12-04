@@ -62,9 +62,41 @@ const Auth = () => {
     setLoading(true);
     try {
       let emailToUse = loginInput;
+      
+      // If input doesn't look like email, try to resolve username
       if (!loginInput.includes("@")) {
-        const resolved = await api.auth.resolveUsername(loginInput);
-        emailToUse = resolved.email;
+        try {
+          const resolved = await api.auth.resolveUsername(loginInput);
+          emailToUse = resolved.email;
+        } catch {
+          // Fallback: query profiles table directly for username
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("id")
+            .ilike("username", loginInput)
+            .maybeSingle();
+          
+          if (profileError || !profileData) {
+            toast({
+              title: "Usuário não encontrado",
+              description: "Verifique o nome de usuário e tente novamente.",
+              variant: "destructive",
+            });
+            setLoading(false);
+            return;
+          }
+          
+          // Get email from auth.users via admin or use profile id for lookup
+          // Since we can't access auth.users, we need to check if email exists
+          // For now, show error asking user to use email
+          toast({
+            title: "Use seu email",
+            description: "Por favor, faça login usando seu endereço de email.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
       }
 
       const { error } = await supabase.auth.signInWithPassword({
@@ -133,11 +165,11 @@ const Auth = () => {
   const renderLoginForm = () => (
     <form onSubmit={handleSignIn} className="space-y-4 mt-4">
       <div className="space-y-2">
-        <Label htmlFor="login-email">Email ou usuário</Label>
+        <Label htmlFor="login-email">Email</Label>
         <Input
           id="login-email"
           type="text"
-          placeholder="seu@email.com ou usuario"
+          placeholder="seu@email.com"
           value={loginInput}
           onChange={(e) => setLoginInput(e.target.value)}
           disabled={loading}
