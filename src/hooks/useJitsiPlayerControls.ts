@@ -1,39 +1,44 @@
 import { useCallback, useState } from "react";
-import { toggleMute, toggleCamera, reconnectCall, type JitsiControlState, type DailyCallControls } from "@/lib/jitsiPlayerService";
+import type { JitsiControlState } from "@/lib/jitsiPlayerService";
 
 type UseJitsiPlayerControlsParams = {
-  call: DailyCallControls | null;
   roomUrl: string;
 };
 
-export const useJitsiPlayerControls = ({ call, roomUrl }: UseJitsiPlayerControlsParams) => {
+// Jitsi uses iframe-based embedding, so audio/video controls are handled
+// directly by the Jitsi Meet interface within the iframe.
+// This hook provides local state tracking for UI consistency.
+
+export const useJitsiPlayerControls = ({ roomUrl }: UseJitsiPlayerControlsParams) => {
   const [state, setState] = useState<JitsiControlState>({
     isMuted: false,
     isCameraOff: false,
     isReconnecting: false,
   });
 
-  const handleToggleMute = useCallback(async () => {
-    const nextMuted = !state.isMuted;
-    setState((prev) => ({ ...prev, isMuted: nextMuted }));
-    await toggleMute(call, nextMuted);
-  }, [call, state.isMuted]);
+  const handleToggleMute = useCallback(() => {
+    // Jitsi controls audio via its own interface
+    // This is for local UI state only
+    setState((prev) => ({ ...prev, isMuted: !prev.isMuted }));
+  }, []);
 
-  const handleToggleCamera = useCallback(async () => {
-    const nextCameraOff = !state.isCameraOff;
-    setState((prev) => ({ ...prev, isCameraOff: nextCameraOff }));
-    await toggleCamera(call, nextCameraOff);
-  }, [call, state.isCameraOff]);
+  const handleToggleCamera = useCallback(() => {
+    // Jitsi controls video via its own interface
+    // This is for local UI state only
+    setState((prev) => ({ ...prev, isCameraOff: !prev.isCameraOff }));
+  }, []);
 
-  const handleReconnect = useCallback(async () => {
+  const handleReconnect = useCallback(() => {
     if (state.isReconnecting) return;
     setState((prev) => ({ ...prev, isReconnecting: true }));
-    try {
-      await reconnectCall(call, roomUrl);
-    } finally {
+    // Reload the iframe by forcing a re-render
+    // The actual reconnection happens when the component remounts
+    setTimeout(() => {
       setState((prev) => ({ ...prev, isReconnecting: false }));
-    }
-  }, [call, roomUrl, state.isReconnecting]);
+      // Force page to reload the iframe
+      window.location.reload();
+    }, 1000);
+  }, [state.isReconnecting]);
 
   return {
     state,
