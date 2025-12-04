@@ -17,8 +17,6 @@ const formatMinutes = (credits: number) => {
 const CREDITS_PACKAGES = [
   { credits: 180, priceBRL: 5, label: "30 min" },
   { credits: 360, priceBRL: 9, label: "1 hora" },
-  { credits: 720, priceBRL: 16, label: "2 horas" },
-  { credits: 1800, priceBRL: 35, label: "5 horas" },
 ];
 
 export const UserCreditsWalletPanel = () => {
