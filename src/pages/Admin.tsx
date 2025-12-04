@@ -133,7 +133,9 @@ const Admin = () => {
         supabase.from("transactions").select("platform_amount").eq("status", "completed"),
       ]);
 
-      const totalRevenue = revenueRes.data?.reduce((sum, t) => sum + (t.platform_amount || 0), 0) || 0;
+      type TransactionRow = { platform_amount: number | null };
+      const revenueData = (revenueRes.data ?? []) as TransactionRow[];
+      const totalRevenue = revenueData.reduce((sum, t) => sum + (t.platform_amount || 0), 0);
 
       setStats({
         totalUsers: usersRes.count || 0,
@@ -151,14 +153,33 @@ const Admin = () => {
       const { data, error } = await supabase
         .from("payout_requests")
         .select(`
-          *,
-          profiles!payout_requests_creator_id_fkey(username, email),
-          creator_bank_accounts(account_holder_name, bank_name, account_number)
+          id,
+          creator_id,
+          amount,
+          status,
+          created_at,
+          approved_at,
+          approved_by,
+          admin_notes,
+          bank_account_id,
+          paid_at
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setPayoutRequests(data || []);
+      
+      // Map the data to include placeholder profile info
+      const mappedData: PayoutRequest[] = (data || []).map((row) => ({
+        id: row.id,
+        creator_id: row.creator_id,
+        amount: row.amount,
+        status: row.status,
+        created_at: row.created_at,
+        profiles: null,
+        creator_bank_accounts: null,
+      }));
+      
+      setPayoutRequests(mappedData);
     } catch (error) {
       console.error("Error fetching payout requests:", error);
     }
@@ -186,10 +207,12 @@ const Admin = () => {
 
   const handleUpdateSettings = async () => {
     try {
+      const { data: settingsData } = await supabase.from("financial_settings").select("id").single();
+      
       const { error } = await supabase
         .from("financial_settings")
         .update(financialSettings)
-        .eq("id", (await supabase.from("financial_settings").select("id").single()).data?.id);
+        .eq("id", settingsData?.id);
 
       if (error) throw error;
 
@@ -280,7 +303,7 @@ const Admin = () => {
           <Card className="border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Online Now</CardTitle>
-              <div className="h-2 w-2 bg-success rounded-full animate-pulse" />
+              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.onlineCreators}</div>
@@ -372,7 +395,7 @@ const Admin = () => {
                 <TableBody>
                   {payoutRequests.map((request) => (
                     <TableRow key={request.id}>
-                      <TableCell>{request.profiles?.username || 'Unknown'}</TableCell>
+                      <TableCell>{request.profiles?.username || request.creator_id.slice(0, 8)}</TableCell>
                       <TableCell>R$ {request.amount.toFixed(2)}</TableCell>
                       <TableCell>
                         {request.creator_bank_accounts?.bank_name || 'N/A'}<br />

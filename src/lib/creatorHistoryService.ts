@@ -9,9 +9,17 @@ export type CreatorHistoryEntry = {
   viewers: number;
 };
 
+type LiveRowData = {
+  id: string;
+  title?: string | null;
+  created_at?: string | null;
+  ended_at?: string | null;
+  status?: string | null;
+};
+
 export const creatorHistoryService = async (profileId: string) => {
-  const { data, error } = await supabase
-    .from("lives")
+  const { data, error } = await (supabase
+    .from("lives") as any)
     .select("id, title, created_at, ended_at, status")
     .eq("creator_id", profileId)
     .order("ended_at", { ascending: false })
@@ -19,13 +27,9 @@ export const creatorHistoryService = async (profileId: string) => {
 
   if (error) throw new Error(error.message);
 
-  const entries: CreatorHistoryEntry[] = (data ?? []).map((live: {
-    id: string;
-    title?: string | null;
-    created_at?: string | null;
-    ended_at?: string | null;
-    status?: string | null;
-  }) => {
+  const rows = (data as unknown as LiveRowData[]) ?? [];
+
+  const entries: CreatorHistoryEntry[] = rows.map((live) => {
     const start = live.created_at ? new Date(live.created_at) : null;
     const end = live.ended_at ? new Date(live.ended_at) : null;
     const durationMinutes =

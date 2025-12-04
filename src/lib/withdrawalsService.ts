@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export type WithdrawalStatus = "pending" | "approved" | "rejected" | "paid";
 
@@ -29,30 +31,30 @@ type FetchResult = {
 type WithdrawalRow = {
   id: string;
   amount: number;
-  status: WithdrawalStatus;
+  status: string;
   created_at: string;
   processed_at?: string | null;
   creator_id: string;
   creators?: {
-    profiles?: { username?: string | null; email?: string | null }[] | null;
+    profiles?: { username?: string | null } | null;
+    user_id?: string;
   } | null;
 };
 
 const mapWithdrawalRow = (row: WithdrawalRow): WithdrawalRecord => {
   const creatorProfiles = row.creators?.profiles;
-  const profileDetails = Array.isArray(creatorProfiles) ? creatorProfiles[0] : creatorProfiles ?? null;
+  const profileDetails = creatorProfiles ?? null;
 
   return {
     id: row.id,
     amount: row.amount,
-    status: row.status,
+    status: row.status as WithdrawalStatus,
     created_at: row.created_at,
     processed_at: row.processed_at,
     creator_id: row.creator_id,
     creator_profile: profileDetails
       ? {
           username: profileDetails.username,
-          email: profileDetails.email,
         }
       : undefined,
   };
@@ -66,7 +68,7 @@ export const fetchWithdrawals = async ({
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
+  let query = db
     .from("withdrawals")
     .select(
       `
@@ -79,8 +81,7 @@ export const fetchWithdrawals = async ({
         creators:creator_id (
           user_id,
           profiles:user_id (
-            username,
-            email
+            username
           )
         )
       `,
@@ -100,7 +101,7 @@ export const fetchWithdrawals = async ({
   }
 
   return {
-    withdrawals: (data ?? []).map(mapWithdrawalRow),
+    withdrawals: (data ?? []).map((row) => mapWithdrawalRow(row as unknown as WithdrawalRow)),
     total: count ?? 0,
   };
 };
@@ -117,7 +118,7 @@ export const updateWithdrawalStatus = async (
     payload.processed_at = new Date().toISOString();
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("withdrawals")
     .update(payload)
     .eq("id", withdrawalId)

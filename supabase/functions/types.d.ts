@@ -6,8 +6,4 @@ declare module "https://esm.sh/@supabase/supabase-js@2" {
   export * from "@supabase/supabase-js";
 }
 
-declare const Deno: {
-  env: {
-    get: (key: string) => string | undefined;
-  };
-};
+// Deno types are provided by the runtime - no need to redeclare

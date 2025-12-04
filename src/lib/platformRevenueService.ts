@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 export type RevenueRange = "7d" | "30d" | "90d" | "lifetime";

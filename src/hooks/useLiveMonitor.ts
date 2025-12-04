@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { fetchLiveMonitorData, type LiveMonitorData } from "@/lib/liveMonitorService";
 
 const REFRESH_INTERVAL_MS = 15_000;
@@ -9,7 +9,7 @@ export const useLiveMonitor = () => {
     queryKey: ["live-monitor"],
     queryFn: fetchLiveMonitorData,
     refetchInterval: REFRESH_INTERVAL_MS,
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const summary = useMemo(() => {

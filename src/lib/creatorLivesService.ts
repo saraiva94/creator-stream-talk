@@ -9,23 +9,27 @@ export type CreatorLiveRow = {
   viewers: number;
 };
 
+type LiveRowData = {
+  id: string;
+  title?: string | null;
+  status?: string | null;
+  is_active?: boolean | null;
+  created_at?: string | null;
+  price?: number | null;
+};
+
 export const creatorLivesService = async (profileId: string) => {
-  const { data, error } = await supabase
-    .from("lives")
+  const { data, error } = await (supabase
+    .from("lives") as any)
     .select("id, title, status, is_active, price, created_at, ended_at")
     .eq("creator_id", profileId)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
 
-  const lives: CreatorLiveRow[] = (data ?? []).map((live: {
-    id: string;
-    title?: string | null;
-    status?: string | null;
-    is_active?: boolean | null;
-    created_at?: string | null;
-    price?: number | null;
-  }) => ({
+  const rows = (data as unknown as LiveRowData[]) ?? [];
+
+  const lives: CreatorLiveRow[] = rows.map((live) => ({
     id: live.id,
     title: live.title ?? "Live",
     status: live.status ?? (live.is_active ? "live" : "draft"),

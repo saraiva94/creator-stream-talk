@@ -1,8 +1,31 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Tables } from '../types/supabaseTypes';
 
-export type LiveConsumptionRow = Tables<'live_consumption'>;
-type CreditsWalletRow = Tables<'credits_wallet'>;
+export type LiveConsumptionRow = {
+  id: string;
+  live_id: string;
+  user_id: string;
+  session_token: string;
+  seconds_watched: number;
+  credits_consumed: number;
+  started_at: string;
+  ended_at: string | null;
+  last_heartbeat_at: string | null;
+};
+
+export type CreditsWalletRow = {
+  profile_id: string;
+  balance_credits: number;
+  updated_at: string;
+};
+
+export type Database = {
+  public: {
+    Tables: {
+      live_consumption: { Row: LiveConsumptionRow };
+      credits_wallet: { Row: CreditsWalletRow };
+    };
+  };
+};
 
 type LiveConsumptionServiceDeps = {
   client: SupabaseClient<Database>;
@@ -51,12 +74,12 @@ const ensureWallet = async (
   }
 
   if (data) {
-    return data as CreditsWalletRow;
+    return data as unknown as CreditsWalletRow;
   }
 
   const { data: inserted, error: insertError } = await client
     .from('credits_wallet')
-    .insert({ profile_id: profileId, balance_credits: 0, updated_at: nowIso })
+    .insert({ profile_id: profileId, balance_credits: 0, updated_at: nowIso } as never)
     .select('profile_id, balance_credits, updated_at')
     .maybeSingle();
 
@@ -64,7 +87,7 @@ const ensureWallet = async (
     throw new Error(`Failed to create credits wallet: ${insertError?.message ?? 'unknown error'}`);
   }
 
-  return inserted as CreditsWalletRow;
+  return inserted as unknown as CreditsWalletRow;
 };
 
 export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceDeps) => {
@@ -89,7 +112,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
     }
 
     if (data) {
-      return data as LiveConsumptionRow;
+      return data as unknown as LiveConsumptionRow;
     }
 
     const { data: inserted, error: insertError } = await client
@@ -100,7 +123,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
         session_token: sessionToken,
         started_at: nowIso,
         last_heartbeat_at: nowIso,
-      })
+      } as never)
       .select(LIVE_CONSUMPTION_FIELDS)
       .maybeSingle();
 
@@ -108,7 +131,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
       throw new Error(`Failed to create live consumption session: ${insertError?.message ?? 'unknown error'}`);
     }
 
-    return inserted as LiveConsumptionRow;
+    return inserted as unknown as LiveConsumptionRow;
   };
 
   const applyHeartbeatAndChargeCredits = async ({
@@ -130,11 +153,10 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
     const totalCreditsShouldHaveBeenConsumed = Math.floor(newSecondsWatched / 10);
     const newCreditsToCharge = totalCreditsShouldHaveBeenConsumed - previousCredits;
 
-    // Always persist latest heartbeat + seconds_watched, even if no credits to charge.
     const persistBase = async (patch: Partial<LiveConsumptionRow>) => {
       const { error } = await client
         .from('live_consumption')
-        .update(patch)
+        .update(patch as never)
         .eq('id', session.id);
 
       if (error) {
@@ -161,7 +183,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
 
       const { error: walletError } = await client
         .from('credits_wallet')
-        .update({ balance_credits: nextWalletBalance, updated_at: nowIso })
+        .update({ balance_credits: nextWalletBalance, updated_at: nowIso } as never)
         .eq('profile_id', userId)
         .eq('balance_credits', wallet.balance_credits);
 
@@ -192,7 +214,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
 
     const { error: zeroWalletError } = await client
       .from('credits_wallet')
-      .update({ balance_credits: 0, updated_at: nowIso })
+      .update({ balance_credits: 0, updated_at: nowIso } as never)
       .eq('profile_id', userId);
 
     if (zeroWalletError) {
