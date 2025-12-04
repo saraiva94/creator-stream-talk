@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import SuperChatDialog from "./SuperChatDialog";
+import SuperChatDisplay from "./SuperChatDisplay";
 
 interface Message {
   id: string;
@@ -17,10 +18,20 @@ interface Message {
   };
 }
 
+interface ActiveSuperchat {
+  id: string;
+  message: string;
+  tier: "blue" | "yellow" | "red";
+  duration_seconds: number;
+  username: string;
+  expires_at: string;
+}
+
 interface ChatBoxProps {
   roomId: string;
   currentUserId: string;
   creatorId: string;
+  isCreator?: boolean;
 }
 
 type SupabaseMessageRow = {
@@ -33,13 +44,87 @@ type SupabaseMessageRow = {
   } | null;
 };
 
-const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
+type SupabaseSuperChatRow = {
+  id: string;
+  message: string;
+  tier: string;
+  duration_seconds: number;
+  expires_at: string;
+  status: string;
+  user_id: string;
+  profiles?: {
+    username?: string | null;
+  } | null;
+};
+
+const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSuperChat, setShowSuperChat] = useState(false);
+  const [activeSuperchats, setActiveSuperchats] = useState<ActiveSuperchat[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Fetch active superchats
+  useEffect(() => {
+    const fetchActiveSuperchats = async () => {
+      const { data, error } = await supabase
+        .from("superchats")
+        .select("*")
+        .eq("room_id", roomId)
+        .eq("status", "displaying")
+        .gt("expires_at", new Date().toISOString());
+
+      if (error) {
+        console.error("Error fetching active superchats:", error);
+        return;
+      }
+
+      // Fetch usernames separately
+      const userIds = [...new Set((data || []).map(d => d.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p.username]) || []);
+
+      const formatted = (data || []).map((item) => ({
+        id: item.id,
+        message: item.message,
+        tier: item.tier as "blue" | "yellow" | "red",
+        duration_seconds: item.duration_seconds,
+        username: profileMap.get(item.user_id) || "Usuário",
+        expires_at: item.expires_at || "",
+      }));
+
+      setActiveSuperchats(formatted);
+    };
+
+    fetchActiveSuperchats();
+
+    // Subscribe to superchat changes
+    const superchatChannel = supabase
+      .channel(`superchats-display:${roomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "superchats",
+          filter: `room_id=eq.${roomId}`,
+        },
+        () => {
+          fetchActiveSuperchats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(superchatChannel);
+    };
+  }, [roomId]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -127,6 +212,15 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
     }
   };
 
+  const handleSuperchatExpire = useCallback(async (id: string) => {
+    setActiveSuperchats((prev) => prev.filter((sc) => sc.id !== id));
+    
+    await supabase
+      .from("superchats")
+      .update({ status: "displayed" })
+      .eq("id", id);
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-card border-l border-border">
       <div className="p-4 border-b border-border">
@@ -135,6 +229,19 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
           {messages.length} mensagens
         </p>
       </div>
+
+      {/* Active SuperChats - Pinned at bottom of video area */}
+      {activeSuperchats.length > 0 && (
+        <div className="p-2 border-b border-border space-y-2 bg-background/50">
+          {activeSuperchats.map((superchat) => (
+            <SuperChatDisplay
+              key={superchat.id}
+              superchat={superchat}
+              onExpire={handleSuperchatExpire}
+            />
+          ))}
+        </div>
+      )}
 
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-3">
@@ -165,15 +272,17 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
 
       <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
         <div className="flex gap-2">
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            onClick={() => setShowSuperChat(true)}
-            title="Enviar SuperChat"
-          >
-            <Coins className="h-4 w-4" />
-          </Button>
+          {!isCreator && (
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => setShowSuperChat(true)}
+              title="Enviar SuperChat"
+            >
+              <Coins className="h-4 w-4" />
+            </Button>
+          )}
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -192,6 +301,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId }: ChatBoxProps) => {
         onOpenChange={setShowSuperChat}
         creatorId={creatorId}
         userId={currentUserId}
+        roomId={roomId}
       />
     </div>
   );

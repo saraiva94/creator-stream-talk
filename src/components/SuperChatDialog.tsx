@@ -18,21 +18,23 @@ interface SuperChatDialogProps {
   onOpenChange: (open: boolean) => void;
   creatorId: string;
   userId: string;
+  roomId: string;
 }
 
-const SUPERCHAT_OPTIONS = [
-  { amount: 2, color: "bg-blue-500" },
-  { amount: 5, color: "bg-purple-500" },
-  { amount: 10, color: "bg-yellow-500" },
-];
+export const SUPERCHAT_TIERS = [
+  { amount: 3, tier: "blue", color: "bg-blue-500", duration: 60, label: "1 minuto" },
+  { amount: 5, tier: "yellow", color: "bg-yellow-500", duration: 120, label: "2 minutos" },
+  { amount: 8, tier: "red", color: "bg-red-500", duration: 180, label: "3 minutos" },
+] as const;
 
 const SuperChatDialog = ({
   open,
   onOpenChange,
   creatorId,
   userId,
+  roomId,
 }: SuperChatDialogProps) => {
-  const [selectedAmount, setSelectedAmount] = useState<number>(5);
+  const [selectedTier, setSelectedTier] = useState<typeof SUPERCHAT_TIERS[number]>(SUPERCHAT_TIERS[1]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -49,19 +51,20 @@ const SuperChatDialog = ({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-payment", {
+      const { data, error } = await supabase.functions.invoke("create-superchat-payment", {
         body: {
           creatorId,
           userId,
-          type: "superchat",
-          amount: selectedAmount,
-          description: message,
+          roomId,
+          tier: selectedTier.tier,
+          amount: selectedTier.amount,
+          duration: selectedTier.duration,
+          message: message.trim(),
         },
       });
 
       if (error) throw error;
 
-      // Redirect to Mercado Pago
       if (data?.init_point) {
         window.open(data.init_point, "_blank");
         toast({
@@ -69,6 +72,7 @@ const SuperChatDialog = ({
           description: "Complete o pagamento para enviar seu SuperChat",
         });
         onOpenChange(false);
+        setMessage("");
       }
     } catch (error: unknown) {
       const description = error instanceof Error ? error.message : "Não foi possível enviar o SuperChat";
@@ -97,16 +101,19 @@ const SuperChatDialog = ({
 
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Escolha o valor</Label>
+            <Label>Escolha o valor e duração</Label>
             <div className="grid grid-cols-3 gap-2">
-              {SUPERCHAT_OPTIONS.map((option) => (
+              {SUPERCHAT_TIERS.map((tier) => (
                 <Button
-                  key={option.amount}
-                  variant={selectedAmount === option.amount ? "default" : "outline"}
-                  onClick={() => setSelectedAmount(option.amount)}
-                  className="flex flex-col h-auto py-3"
+                  key={tier.tier}
+                  variant={selectedTier.tier === tier.tier ? "default" : "outline"}
+                  onClick={() => setSelectedTier(tier)}
+                  className={`flex flex-col h-auto py-3 ${
+                    selectedTier.tier === tier.tier ? tier.color : ""
+                  }`}
                 >
-                  <span className="text-lg font-bold">R$ {option.amount}</span>
+                  <span className="text-lg font-bold">R$ {tier.amount}</span>
+                  <span className="text-xs opacity-80">{tier.label}</span>
                 </Button>
               ))}
             </div>
@@ -126,12 +133,17 @@ const SuperChatDialog = ({
             </p>
           </div>
 
+          <div className={`p-3 rounded-lg ${selectedTier.color} animate-pulse`}>
+            <p className="text-white text-sm font-medium">Prévia do SuperChat</p>
+            <p className="text-white text-xs mt-1">{message || "Sua mensagem aparecerá aqui..."}</p>
+          </div>
+
           <Button
             onClick={handleSendSuperChat}
             disabled={loading || !message.trim()}
             className="w-full"
           >
-            {loading ? "Processando..." : `Enviar SuperChat de R$ ${selectedAmount}`}
+            {loading ? "Processando..." : `Enviar SuperChat R$ ${selectedTier.amount}`}
           </Button>
         </div>
       </DialogContent>

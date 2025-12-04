@@ -228,6 +228,61 @@ serve(async (req) => {
       });
 
       console.log('[webhook] Live access granted:', { userId, liveId });
+
+    } else if (eventType === 'SUPERCHAT') {
+      const roomId = metadata.room_id;
+      const creatorId = metadata.creator_id;
+      const tier = metadata.tier;
+      const duration = metadata.duration;
+      const message = metadata.message;
+
+      console.log('[webhook] Processing superchat:', { userId, roomId, tier, amount });
+
+      // Create superchat record
+      await supabase.from('superchats').insert({
+        room_id: roomId,
+        user_id: userId,
+        creator_id: creatorId,
+        message: message,
+        amount: Math.round(amount * 100), // Convert to cents
+        tier: tier,
+        duration_seconds: duration,
+        status: 'pending',
+        payment_id: externalRef,
+      });
+
+      // Record transaction
+      await supabase.from('transactions').insert({
+        user_id: userId,
+        creator_id: creatorId,
+        type: 'superchat',
+        amount,
+        status: 'completed',
+        payment_method: payment.payment_method_id,
+        external_id: externalRef,
+        metadata: { event_type: eventType, room_id: roomId, tier, duration },
+      });
+
+      // Credit creator (80% of superchat)
+      const creatorAmount = amount * 0.8;
+      const { data: creatorWallet } = await supabase
+        .from('creator_wallet')
+        .select('balance_cents')
+        .eq('creator_id', creatorId)
+        .maybeSingle();
+
+      if (creatorWallet) {
+        await supabase
+          .from('creator_wallet')
+          .update({ balance_cents: (creatorWallet.balance_cents || 0) + Math.round(creatorAmount * 100) })
+          .eq('creator_id', creatorId);
+      } else {
+        await supabase
+          .from('creator_wallet')
+          .insert({ creator_id: creatorId, balance_cents: Math.round(creatorAmount * 100) });
+      }
+
+      console.log('[webhook] SuperChat processed:', { userId, roomId, tier, creatorAmount });
     }
 
     return new Response(JSON.stringify({ success: true, processed: eventType }), {
