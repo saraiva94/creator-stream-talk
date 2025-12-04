@@ -104,6 +104,23 @@ serve(async (req) => {
       metadata: { pix_key: pixKey.substring(0, 3) + '***' },
     });
 
+    // Notify admins about the withdrawal
+    const { data: admins } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'admin');
+
+    if (admins && admins.length > 0) {
+      const notifications = admins.map(admin => ({
+        user_id: admin.user_id,
+        title: 'Novo saque PIX',
+        message: `Saque de R$ ${(amountCents / 100).toFixed(2)} processado`,
+        type: 'withdrawal',
+      }));
+      await supabase.from('notifications').insert(notifications);
+      console.log('[pix-withdraw] Admin notifications sent');
+    }
+
     console.log('[pix-withdraw] Success:', { userId, amountCents, newBalance });
 
     return new Response(JSON.stringify({
