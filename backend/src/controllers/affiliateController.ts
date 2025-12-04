@@ -11,34 +11,46 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
       return respondError(res, 401, 'Authentication required');
     }
 
-    const { data: sumRows, error: sumError } = await supabase
-      .from('transactions')
-      .select('affiliate_amount, status')
-      .eq('affiliate_id', profileId)
-      .eq('type', 'affiliate');
+    // Sum from affiliate_logs where user is direct_referrer OR root_creator
+    const { data: logsAsDirect, error: directError } = await supabase
+      .from('affiliate_logs')
+      .select('amount_direct')
+      .eq('direct_referrer', profileId);
 
-    if (sumError) {
-      throw new Error(`Failed to load affiliate transactions: ${sumError.message}`);
+    if (directError) {
+      throw new Error(`Failed to load affiliate logs (direct): ${directError.message}`);
     }
 
-    const totalEarningsCents = (sumRows ?? [])
-      .filter((row) => (row.status ?? '').toString().toLowerCase() === 'completed')
-      .reduce((acc, row) => acc + Math.round((row.affiliate_amount as number | null) ?? 0), 0);
+    const { data: logsAsRoot, error: rootError } = await supabase
+      .from('affiliate_logs')
+      .select('amount_root')
+      .eq('root_creator', profileId);
 
+    if (rootError) {
+      throw new Error(`Failed to load affiliate logs (root): ${rootError.message}`);
+    }
+
+    const directEarnings = (logsAsDirect ?? []).reduce((acc, row) => acc + (row.amount_direct ?? 0), 0);
+    const rootEarnings = (logsAsRoot ?? []).reduce((acc, row) => acc + (row.amount_root ?? 0), 0);
+    const totalEarningsCents = directEarnings + rootEarnings;
+
+    // Also get from profiles.affiliate_earnings as source of truth
     const { data: profileRow, error: profileError } = await supabase
       .from('profiles')
-      .select('balance')
+      .select('affiliate_earnings, balance')
       .eq('id', profileId)
       .maybeSingle();
 
     if (profileError) {
-      throw new Error(`Failed to load profile balance: ${profileError.message}`);
+      throw new Error(`Failed to load profile: ${profileError.message}`);
     }
 
+    const affiliateEarningsCents = profileRow?.affiliate_earnings ?? 0;
     const availableBalanceCents = Math.round(((profileRow?.balance as number | null) ?? 0) * 100);
 
+    // Count referrals from registration_referrals table
     const { count: referralCount, error: referralError } = await supabase
-      .from('referrals')
+      .from('registration_referrals')
       .select('id', { count: 'exact', head: true })
       .eq('referrer_id', profileId);
 
@@ -47,7 +59,7 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     }
 
     return respondSuccess(res, 200, {
-      totalEarningsCents,
+      totalEarningsCents: Math.max(totalEarningsCents, affiliateEarningsCents),
       availableBalanceCents,
       totalReferrals: referralCount ?? 0,
     });
@@ -63,27 +75,31 @@ export const getAffiliateHistory = async (req: Request, res: Response, next: Nex
       return respondError(res, 401, 'Authentication required');
     }
 
+    // Get history from affiliate_logs where user is direct_referrer OR root_creator
     const { data, error } = await supabase
-      .from('transactions')
-      .select('id, created_at, affiliate_amount, metadata, user_id')
-      .eq('affiliate_id', profileId)
-      .eq('type', 'affiliate')
+      .from('affiliate_logs')
+      .select('id, created_at, amount_direct, amount_root, event_type, new_user, direct_referrer, root_creator')
+      .or(`direct_referrer.eq.${profileId},root_creator.eq.${profileId}`)
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (error) {
       throw new Error(`Failed to load affiliate history: ${error.message}`);
     }
 
     const history = (data ?? []).map((row) => {
-      const meta = (row.metadata as Record<string, unknown> | null) || {};
-      const level = (meta.level as number | undefined) ?? null;
+      const isDirect = row.direct_referrer === profileId;
+      const isRoot = row.root_creator === profileId && !isDirect;
+      const amountCents = isDirect ? (row.amount_direct ?? 0) : (row.amount_root ?? 0);
+      const level = isDirect ? 1 : 2;
+
       return {
         id: row.id,
         createdAt: row.created_at,
-        amountCents: Math.round((row.affiliate_amount as number | null) ?? 0),
+        amountCents,
         level,
-        referredUserId: row.user_id ?? null,
+        eventType: row.event_type,
+        referredUserId: row.new_user ?? null,
       };
     });
 
