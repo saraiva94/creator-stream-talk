@@ -179,6 +179,30 @@ export type Database = {
           },
         ]
       }
+      credits_wallet: {
+        Row: {
+          balance_credits: number
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          balance_credits?: number
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          balance_credits?: number
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_queue: {
         Row: {
           created_at: string | null
@@ -245,6 +269,27 @@ export type Database = {
           subscription_price?: number
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      live_access: {
+        Row: {
+          granted_at: string | null
+          id: string
+          live_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string | null
+          id?: string
+          live_id: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string | null
+          id?: string
+          live_id?: string
+          user_id?: string
         }
         Relationships: []
       }
