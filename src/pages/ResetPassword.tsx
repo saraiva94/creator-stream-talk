@@ -143,18 +143,26 @@ const ResetPassword = () => {
     setRequesting(true);
     try {
       const redirectTo = `${siteUrl}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(requestEmail, { redirectTo });
+      
+      // Use custom edge function with Resend for better email delivery
+      const response = await supabase.functions.invoke("password-reset", {
+        body: { email: requestEmail, redirectTo },
+      });
 
-      if (error) {
-        if (error.message.toLowerCase().includes("not found")) {
-          setRequestError("Esse e-mail não está cadastrado. Verifique se digitou corretamente.");
-        } else {
-          setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
-        }
+      if (response.error) {
+        console.error("[AUTH][RESET_LINK] Edge function error:", response.error);
+        setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
         return;
       }
 
-      setRequestMessage("Enviamos um link de recuperação para o seu e-mail.");
+      const data = response.data as { success?: boolean; error?: string; message?: string };
+      
+      if (data.error) {
+        setRequestError(data.error);
+        return;
+      }
+
+      setRequestMessage(data.message || "Enviamos um link de recuperação para o seu e-mail.");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
