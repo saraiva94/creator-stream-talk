@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Users, Video, TrendingUp } from "lucide-react";
+import { DollarSign, Users, Video, TrendingUp, UserCheck } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 
 type AdminStats = {
@@ -276,7 +276,15 @@ const Admin = () => {
       <Navbar user={user} />
       
       <main className="container mx-auto px-4 py-8">
-        <h1 className="text-4xl font-bold mb-8 text-primary">Admin Dashboard</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-4xl font-bold text-primary">Admin Dashboard</h1>
+          <Link to="/admin/creators">
+            <Button variant="outline">
+              <UserCheck className="h-4 w-4 mr-2" />
+              Gerenciar Criadores
+            </Button>
+          </Link>
+        </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
