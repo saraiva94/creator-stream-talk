@@ -137,10 +137,10 @@ const ResetPassword = () => {
 
     setRequesting(true);
     try {
-      let emailToSend = input;
       const isEmail = /\S+@\S+\.\S+/.test(input);
+      const redirectTo = `${siteUrl}/reset-password`;
 
-      // Se não for email, busca o email pelo username via edge function
+      // Se for username, buscar o userId primeiro
       if (!isEmail) {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -154,12 +154,13 @@ const ResetPassword = () => {
           return;
         }
 
-        // Usar edge function para buscar email e enviar reset via admin API
+        // Usar edge function com userId
         const { data: userData, error: userError } = await supabase.functions.invoke("password-reset", {
-          body: { userId: profile.id, redirectTo: `${siteUrl}/reset-password` },
+          body: { userId: profile.id, redirectTo },
         });
 
         if (userError || userData?.error) {
+          console.error("[AUTH][RESET_LINK] Edge function error:", userError || userData?.error);
           setRequestError(userData?.error || "Não foi possível enviar o link de recuperação.");
           setRequesting(false);
           return;
@@ -170,19 +171,18 @@ const ResetPassword = () => {
         return;
       }
 
-      // Para emails, usar o método nativo do Supabase Auth
-      const redirectTo = `${siteUrl}/reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(emailToSend, {
-        redirectTo,
+      // Para emails, também usar edge function (Resend tem melhor deliverabilidade)
+      const { data: emailData, error: emailError } = await supabase.functions.invoke("password-reset", {
+        body: { email: input, redirectTo },
       });
 
-      if (error) {
-        console.error("[AUTH][RESET_LINK] Supabase error:", error);
-        setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
+      if (emailError || emailData?.error) {
+        console.error("[AUTH][RESET_LINK] Edge function error:", emailError || emailData?.error);
+        setRequestError(emailData?.error || "Não foi possível enviar o link de recuperação.");
         return;
       }
 
-      setRequestMessage("Enviamos um link de recuperação para o seu e-mail.");
+      setRequestMessage(emailData?.message || "Enviamos um link de recuperação para o seu e-mail.");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
