@@ -13,7 +13,8 @@ export type LiveConsumptionRow = {
 };
 
 export type CreditsWalletRow = {
-  profile_id: string;
+  user_id: string;
+  profile_id: string | null;
   balance_credits: number;
   updated_at: string;
 };
@@ -63,10 +64,11 @@ const ensureWallet = async (
   profileId: string,
   nowIso: string,
 ): Promise<CreditsWalletRow> => {
+  // Query by both user_id and profile_id since they should be the same
   const { data, error } = await client
     .from('credits_wallet')
-    .select('profile_id, balance_credits, updated_at')
-    .eq('profile_id', profileId)
+    .select('profile_id, user_id, balance_credits, updated_at')
+    .or(`user_id.eq.${profileId},profile_id.eq.${profileId}`)
     .maybeSingle();
 
   if (error) {
@@ -77,10 +79,11 @@ const ensureWallet = async (
     return data as unknown as CreditsWalletRow;
   }
 
+  // Insert requires user_id (not nullable)
   const { data: inserted, error: insertError } = await client
     .from('credits_wallet')
-    .insert({ profile_id: profileId, balance_credits: 0, updated_at: nowIso } as never)
-    .select('profile_id, balance_credits, updated_at')
+    .insert({ user_id: profileId, profile_id: profileId, balance_credits: 0, updated_at: nowIso } as never)
+    .select('profile_id, user_id, balance_credits, updated_at')
     .maybeSingle();
 
   if (insertError || !inserted) {
@@ -184,7 +187,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
       const { error: walletError } = await client
         .from('credits_wallet')
         .update({ balance_credits: nextWalletBalance, updated_at: nowIso } as never)
-        .eq('profile_id', userId)
+        .or(`user_id.eq.${userId},profile_id.eq.${userId}`)
         .eq('balance_credits', wallet.balance_credits);
 
       if (walletError) {
@@ -215,7 +218,7 @@ export const createLiveConsumptionService = ({ client }: LiveConsumptionServiceD
     const { error: zeroWalletError } = await client
       .from('credits_wallet')
       .update({ balance_credits: 0, updated_at: nowIso } as never)
-      .eq('profile_id', userId);
+      .or(`user_id.eq.${userId},profile_id.eq.${userId}`);
 
     if (zeroWalletError) {
       throw new Error(`Failed to zero wallet after partial charge: ${zeroWalletError.message}`);

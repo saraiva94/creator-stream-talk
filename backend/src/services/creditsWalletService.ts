@@ -8,10 +8,11 @@ type CreditPurchaseRow = Tables<'credit_purchases'>;
 const walletSelect = 'profile_id, balance_credits, updated_at';
 
 export const getOrCreateCreditsWallet = async (profileId: string): Promise<CreditsWalletRow> => {
+  // Try by profile_id first, then by user_id (they should be the same)
   const { data, error } = await supabase
     .from('credits_wallet')
     .select(walletSelect)
-    .eq('profile_id', profileId)
+    .or(`profile_id.eq.${profileId},user_id.eq.${profileId}`)
     .maybeSingle();
 
   if (error) {
@@ -22,9 +23,10 @@ export const getOrCreateCreditsWallet = async (profileId: string): Promise<Credi
     return data as CreditsWalletRow;
   }
 
+  // Insert requires user_id (not nullable), profile_id is optional
   const { data: inserted, error: insertError } = await supabase
     .from('credits_wallet')
-    .insert({ profile_id: profileId })
+    .insert({ user_id: profileId, profile_id: profileId })
     .select(walletSelect)
     .maybeSingle();
 
@@ -81,10 +83,11 @@ export const adjustWalletBalance = async (profileId: string, deltaCredits: numbe
   const clampedDelta = deltaCredits < 0 ? Math.max(deltaCredits, -current) : deltaCredits;
   const nextBalance = current + clampedDelta;
 
-  const { error: updateError } = await supabase
+  // Try update by user_id first (required column), fallback to profile_id
+  const { error: updateError, count } = await supabase
     .from('credits_wallet')
     .update({ balance_credits: nextBalance, updated_at: new Date().toISOString() })
-    .eq('profile_id', profileId)
+    .or(`user_id.eq.${profileId},profile_id.eq.${profileId}`)
     .eq('balance_credits', current);
 
   if (updateError) {
