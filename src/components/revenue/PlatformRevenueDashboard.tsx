@@ -131,25 +131,25 @@ const PlatformRevenueDashboard = () => {
       <CardContent className="space-y-6">
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="bg-green-500/10 border-green-500/30">
+          <Card className="bg-primary/10 border-primary/30">
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <Wallet className="h-8 w-8 text-green-500" />
+                <Wallet className="h-8 w-8 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Receita Total da Plataforma</p>
-                  <p className="text-2xl font-bold text-green-500">{formatBRL(data.totalIncome)}</p>
+                  <p className="text-2xl font-bold text-primary">{formatBRL(data.totalIncome)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-red-500/10 border-red-500/30">
+          <Card className="bg-green-500/10 border-green-500/30">
             <CardContent className="pt-4">
               <div className="flex items-center gap-3">
-                <ArrowDownCircle className="h-8 w-8 text-red-500" />
+                <ArrowDownCircle className="h-8 w-8 text-green-500" />
                 <div>
                   <p className="text-sm text-muted-foreground">Total de Saques</p>
-                  <p className="text-2xl font-bold text-red-500">{formatBRL(data.withdrawals)}</p>
+                  <p className="text-2xl font-bold text-green-500">{formatBRL(data.withdrawals)}</p>
                 </div>
               </div>
             </CardContent>
@@ -181,7 +181,7 @@ const PlatformRevenueDashboard = () => {
         <div className="pt-4 border-t border-border">
           <div className="flex items-center justify-between">
             <span className="text-lg font-semibold">Saldo Líquido da Plataforma</span>
-            <span className={`text-2xl font-bold ${data.platformBalance >= 0 ? "text-green-500" : "text-red-500"}`}>
+            <span className={`text-2xl font-bold ${data.platformBalance >= 0 ? "text-primary" : "text-destructive"}`}>
               {formatBRL(data.platformBalance)}
             </span>
           </div>
