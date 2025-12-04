@@ -73,6 +73,7 @@ export const translations = {
       edit: "Edit",
       delete: "Delete",
       confirm: "Confirm",
+      installApp: "Install App",
     },
     sidebar: {
       followedChannels: "Followed Channels",
@@ -162,6 +163,7 @@ export const translations = {
       edit: "Editar",
       delete: "Eliminar",
       confirm: "Confirmar",
+      installApp: "Instalar App",
     },
     sidebar: {
       followedChannels: "Canales Seguidos",
@@ -251,6 +253,7 @@ export const translations = {
       edit: "Editar",
       delete: "Excluir",
       confirm: "Confirmar",
+      installApp: "Instalar App",
     },
     sidebar: {
       followedChannels: "Canais Seguidos",

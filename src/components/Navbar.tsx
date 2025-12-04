@@ -10,6 +10,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { StreamStarLogo } from "./StreamStarLogo";
 import { TransmitButton } from "./TransmitButton";
 import { NotificationBell } from "./NotificationBell";
+import { InstallPWAButton } from "./InstallPWAButton";
 
 interface NavbarProps {
   user?: SupabaseUser | null;
@@ -93,6 +94,7 @@ const Navbar = ({ user }: NavbarProps) => {
           </div>
 
           <div className="flex items-center gap-4">
+            <InstallPWAButton />
             <LanguageSelector />
             {user && <NotificationBell user={user} />}
             {user ? (
