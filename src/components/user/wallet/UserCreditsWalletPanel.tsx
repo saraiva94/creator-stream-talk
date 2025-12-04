@@ -15,8 +15,8 @@ const formatMinutes = (credits: number) => {
 };
 
 const CREDITS_PACKAGES = [
-  { credits: 180, priceBRL: 5, label: "30 min" },
-  { credits: 360, priceBRL: 9, label: "1 hora" },
+  { credits: 180, priceBRL: 5 },
+  { credits: 360, priceBRL: 9 },
 ];
 
 export const UserCreditsWalletPanel = () => {
@@ -170,9 +170,9 @@ export const UserCreditsWalletPanel = () => {
                     : "border-border hover:border-primary/50"
                 }`}
               >
-                <div className="font-medium">{pkg.label}</div>
+                <div className="font-medium">{pkg.credits} créditos</div>
                 <div className="text-xs text-muted-foreground">
-                  {pkg.credits} créditos • R$ {pkg.priceBRL.toFixed(2)}
+                  R$ {pkg.priceBRL.toFixed(2)}
                 </div>
               </button>
             ))}
