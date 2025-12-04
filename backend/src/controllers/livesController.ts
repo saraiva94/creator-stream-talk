@@ -184,7 +184,7 @@ export const heartbeatViewerController = async (req: Request, res: Response, nex
     const { data: walletRow, error: walletError } = await supabase
       .from('credits_wallet')
       .select('balance_credits')
-      .eq('profile_id', profileId)
+      .eq('user_id', profileId)
       .maybeSingle();
 
     if (walletError) {
