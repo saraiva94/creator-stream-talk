@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -83,10 +83,8 @@ const Home = () => {
   const offlineLives = filteredLives.filter((live) => live.status === "ended");
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar user={user} />
-      
-      <main className="container mx-auto px-4 py-8">
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8">
         <div className="mb-8 text-center">
           <div className="max-w-md mx-auto relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
@@ -154,7 +152,6 @@ const Home = () => {
             )}
           </>
         )}
-      </main>
 
       <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
         <DialogContent className="border-primary/20">
@@ -181,7 +178,8 @@ const Home = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
