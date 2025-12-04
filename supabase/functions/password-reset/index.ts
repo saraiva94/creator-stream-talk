@@ -88,9 +88,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (linkError || !linkData?.properties?.action_link) {
       console.error("[password-reset] ERROR generating link:", linkError?.message);
+      // Security: Don't reveal if user exists or not - always return success
       return new Response(
-        JSON.stringify({ error: "Erro ao gerar link de recuperação. Tente novamente." }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: true, message: "Se o email estiver cadastrado, você receberá um link de recuperação." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
