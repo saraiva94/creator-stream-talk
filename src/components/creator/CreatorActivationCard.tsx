@@ -98,16 +98,34 @@ const CreatorActivationCard = () => {
           display_name: displayName.trim(),
           bio: bio.trim() || null,
           tags: formattedTags,
+          approved_for_live: false, // Requires admin approval
         },
         { onConflict: "id" },
       );
 
       if (error) throw error;
 
+      // Notify admins about new creator request
+      const { data: admins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+
+      if (admins && admins.length > 0) {
+        const notifications = admins.map((admin) => ({
+          user_id: admin.user_id,
+          type: "creator_activation_request",
+          title: "Nova solicitação de criador",
+          message: `O usuário ${displayName.trim()} solicitou aprovação para fazer lives.`,
+        }));
+
+        await supabase.from("notifications").insert(notifications);
+      }
+
       setIsCreator(true);
       toast({
-        title: "Perfil de criador ativado!",
-        description: "Agora você pode iniciar lives e configurar suas informações.",
+        title: "Solicitação enviada!",
+        description: "Aguarde a aprovação de um administrador para iniciar suas lives.",
       });
     } catch (error: unknown) {
       console.error("[creator] activation error", error);
@@ -137,8 +155,8 @@ const CreatorActivationCard = () => {
     return (
       <Card className="border-border shadow-card">
         <CardHeader>
-          <CardTitle>Perfil de criador ativo</CardTitle>
-          <CardDescription>Seu perfil de criador já está habilitado.</CardDescription>
+          <CardTitle>Solicitação de criador enviada</CardTitle>
+          <CardDescription>Sua solicitação foi enviada para aprovação.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
@@ -149,7 +167,9 @@ const CreatorActivationCard = () => {
               Tags: <span className="font-semibold text-foreground">{tags}</span>
             </p>
           )}
-          <p className="text-sm text-muted-foreground">Configure lives e edite detalhes no painel do criador.</p>
+          <p className="text-sm text-warning">
+            ⏳ Aguardando aprovação de um administrador para iniciar lives.
+          </p>
         </CardContent>
       </Card>
     );

@@ -16,7 +16,7 @@ const ReferralLinkBox: React.FC<ReferralLinkBoxProps> = ({ referralCode, loading
 
   const referralLink = useMemo(() => {
     if (!referralCode || typeof window === "undefined") return null;
-    return `${window.location.origin}/register?ref=${referralCode}`;
+    return `${window.location.origin}/subscribe?ref=${referralCode}`;
   }, [referralCode]);
 
   const handleCopy = useCallback(() => {
