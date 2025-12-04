@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export type CreatorDashboardSummary = {
   activeLives: number;
@@ -56,8 +58,8 @@ const groupTransactionsByDate = (transactions: TransactionRow[]) => {
 
 export const creatorDashboardService = async (profileId: string) => {
   const [profileRes, livesRes, txRes] = await Promise.all([
-    (supabase.from("creator_profiles") as any).select("viewer_count").eq("id", profileId).maybeSingle(),
-    (supabase.from("lives") as any).select("id, status, is_active, created_at, title").eq("creator_id", profileId),
+    db.from("creator_profiles").select("viewer_count").eq("id", profileId).maybeSingle(),
+    db.from("lives").select("id, status, is_active, created_at, title").eq("creator_id", profileId),
     supabase
       .from("transactions")
       .select("amount, creator_amount, created_at, status")

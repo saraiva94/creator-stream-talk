@@ -63,7 +63,7 @@ const LiveManagement = () => {
         return;
       }
 
-      if (!creatorProfile.approved_for_live) {
+      if (!(creatorProfile as Record<string, unknown>).approved_for_live) {
         toast({
           title: "Aguardando aprovacao",
           description: "Sua conta ainda nao foi aprovada para transmissao ao vivo.",
