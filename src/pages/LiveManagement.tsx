@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import DailyVideoPlayer from "@/components/DailyVideoPlayer";
+import JitsiPlayer from "@/components/JitsiPlayer";
 import ChatBox from "@/components/ChatBox";
 import ChatModerationPanel from "@/components/ChatModerationPanel";
 import DeviceSelector from "@/components/DeviceSelector";
@@ -292,7 +292,7 @@ const LiveManagement = () => {
             <Card className="border-border overflow-hidden">
               <div className="aspect-video bg-secondary">
                 {dailyRoomUrl && (
-                  <DailyVideoPlayer roomUrl={dailyRoomUrl} isCreator={true} />
+                  <JitsiPlayer roomName={dailyRoomUrl} />
                 )}
               </div>
             </Card>

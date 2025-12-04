@@ -1,6 +1,4 @@
-import { createDailyCall, joinRoom, leaveRoom, type DailyCallControls } from "@/lib/daily";
-
-export type { DailyCallControls };
+// Jitsi Player Service - handles Jitsi room management
 
 export type JitsiControlState = {
   isMuted: boolean;
@@ -8,30 +6,21 @@ export type JitsiControlState = {
   isReconnecting: boolean;
 };
 
-export const createCall = (roomUrl: string) => {
-  return createDailyCall(roomUrl);
+// Jitsi uses iframe-based embedding, so we don't need complex call management
+// The JitsiPlayer component handles the iframe directly
+
+export const buildJitsiRoomUrl = (roomName: string, token?: string | null): string => {
+  const trimmedRoom = roomName.trim();
+  const baseUrl = `https://meet.jit.si/${encodeURIComponent(trimmedRoom)}`;
+  if (!token) {
+    return baseUrl;
+  }
+  const params = new URLSearchParams({ jwt: token });
+  return `${baseUrl}?${params.toString()}`;
 };
 
-export const joinJitsiRoom = async (call: DailyCallControls | null, roomUrl: string) => {
-  await joinRoom(call, roomUrl);
-};
-
-export const leaveJitsiRoom = async (call: DailyCallControls | null) => {
-  await leaveRoom(call);
-};
-
-export const toggleMute = async (call: DailyCallControls | null, muted: boolean) => {
-  if (!call) return;
-  await call.setLocalAudio(!muted);
-};
-
-export const toggleCamera = async (call: DailyCallControls | null, cameraOff: boolean) => {
-  if (!call) return;
-  await call.setLocalVideo(!cameraOff);
-};
-
-export const reconnectCall = async (call: DailyCallControls | null, roomUrl: string) => {
-  if (!call) return;
-  await leaveJitsiRoom(call);
-  await joinJitsiRoom(call, roomUrl);
+export const generateRoomName = (creatorId: string, liveId?: string): string => {
+  const timestamp = Date.now();
+  const suffix = liveId ? liveId.slice(0, 8) : timestamp.toString(36);
+  return `streamstar-${creatorId.slice(0, 8)}-${suffix}`;
 };

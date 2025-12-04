@@ -1,8 +1,8 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import DailyVideoPlayer from "@/components/DailyVideoPlayer";
+import JitsiPlayer from "@/components/JitsiPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import {
 import ChatModerationPanel from "@/components/ChatModerationPanel";
 import type { User } from "@supabase/supabase-js";
 
-type DailyRoomResponse = {
+type JitsiRoomResponse = {
   url: string;
   name?: string;
 };
@@ -157,23 +157,17 @@ const Dashboard = () => {
     try {
       let roomUrl = dailyRoomUrl;
 
-      // Create Daily.co room if going live and no room exists
+      // Create Jitsi room if going live and no room exists
       if (checked && !roomUrl) {
-        const { data: roomData, error: roomError } = await supabase.functions.invoke<DailyRoomResponse>(
-          "create-daily-room",
-          {
-            body: { roomTitle: displayName },
-          }
-        );
-
-        if (roomError) throw roomError;
-        roomUrl = roomData.url;
+        // Generate a unique room name for Jitsi
+        const jitsiRoomName = `streamstar-${user?.id?.slice(0, 8)}-${Date.now().toString(36)}`;
+        roomUrl = jitsiRoomName;
         setDailyRoomUrl(roomUrl);
 
-        // Update creator profile with room URL
+        // Update creator profile with room name
         await supabase
           .from("creator_profiles")
-          .update({ daily_room_url: roomUrl })
+          .update({ daily_room_url: roomUrl, daily_room_name: jitsiRoomName })
           .eq("id", user?.id);
 
         // Create room record
@@ -182,7 +176,7 @@ const Dashboard = () => {
           .insert({
             creator_id: user?.id,
             title: displayName,
-            daily_room_name: roomData.name,
+            daily_room_name: jitsiRoomName,
             is_active: true,
           })
           .select()
@@ -369,7 +363,7 @@ const Dashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="aspect-video bg-secondary rounded-lg overflow-hidden">
-                      <DailyVideoPlayer roomUrl={dailyRoomUrl} isCreator={true} />
+                      <JitsiPlayer roomName={dailyRoomUrl || ''} />
                     </div>
                   </CardContent>
                 </Card>

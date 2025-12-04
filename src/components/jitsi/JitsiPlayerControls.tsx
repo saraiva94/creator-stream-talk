@@ -1,53 +1,32 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJitsiPlayerControls } from "@/hooks/useJitsiPlayerControls";
-import type { DailyCallControls } from "@/lib/jitsiPlayerService";
-import { Mic, MicOff, Video, VideoOff, RotateCw, Loader2 } from "lucide-react";
+import { RotateCw, Loader2, Info } from "lucide-react";
 
 type Props = {
-  call: DailyCallControls | null;
   roomUrl: string;
 };
 
-const JitsiPlayerControls = ({ call, roomUrl }: Props) => {
-  const { state, handleToggleMute, handleToggleCamera, handleReconnect } = useJitsiPlayerControls({ call, roomUrl });
+const JitsiPlayerControls = ({ roomUrl }: Props) => {
+  const { state, handleReconnect } = useJitsiPlayerControls({ roomUrl });
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg bg-black/60 px-3 py-2 text-white">
-      <Button
-        size="sm"
-        variant={state.isMuted ? "destructive" : "secondary"}
-        onClick={handleToggleMute}
-        className="flex items-center gap-2"
-      >
-        {state.isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        <span>{state.isMuted ? "Muted" : "Mute"}</span>
-      </Button>
-
-      <Button
-        size="sm"
-        variant={state.isCameraOff ? "destructive" : "secondary"}
-        onClick={handleToggleCamera}
-        className="flex items-center gap-2"
-      >
-        {state.isCameraOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-        <span>{state.isCameraOff ? "Camera Off" : "Camera On"}</span>
-      </Button>
+      <Badge variant="outline" className="flex items-center gap-1">
+        <Info className="h-3 w-3" />
+        Use os controles do Jitsi na janela de vídeo
+      </Badge>
 
       <Button
         size="sm"
         variant="outline"
         onClick={handleReconnect}
         disabled={state.isReconnecting}
-        className="flex items-center gap-2"
+        className="ml-auto flex items-center gap-2"
       >
         {state.isReconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
         <span>{state.isReconnecting ? "Reconectando..." : "Reconectar"}</span>
       </Button>
-
-      <Badge variant="outline" className="ml-auto">
-        {state.isMuted ? "Áudio: off" : "Áudio: on"} · {state.isCameraOff ? "Vídeo: off" : "Vídeo: on"}
-      </Badge>
     </div>
   );
 };
