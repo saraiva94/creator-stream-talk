@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface Channel {
   id: string;
@@ -18,6 +19,7 @@ interface FollowedChannel extends Channel {
 }
 
 export const ChannelsSidebar = () => {
+  const { t } = useLanguage();
   const [isExpanded, setIsExpanded] = useState(true);
   const [followedChannels, setFollowedChannels] = useState<FollowedChannel[]>([]);
   const [liveChannels, setLiveChannels] = useState<Channel[]>([]);
@@ -196,7 +198,7 @@ export const ChannelsSidebar = () => {
           <div className="mb-6">
             {isExpanded && (
               <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Canais Seguidos
+                {t.sidebar.followedChannels}
               </h3>
             )}
             <div className="space-y-0.5 px-2">
@@ -212,7 +214,7 @@ export const ChannelsSidebar = () => {
           <div>
             {isExpanded && (
               <h3 className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Canais ao Vivo
+                {t.sidebar.liveChannels}
               </h3>
             )}
             <div className="space-y-0.5 px-2">
@@ -226,7 +228,7 @@ export const ChannelsSidebar = () => {
         {/* Empty State */}
         {liveChannels.length === 0 && followedChannels.length === 0 && isExpanded && (
           <div className="px-3 py-8 text-center text-muted-foreground text-sm">
-            Nenhum canal ao vivo no momento
+            {t.sidebar.noChannels}
           </div>
         )}
       </div>
