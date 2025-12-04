@@ -198,10 +198,10 @@ export const LiveConfigPanel = ({
   // Handle cropped thumbnail
   const handleThumbnailCropComplete = async (blob: Blob) => {
     try {
-      const fileName = `thumbnails/${creatorId}/${Date.now()}.jpg`;
+      const fileName = `${creatorId}/${Date.now()}.jpg`;
       
       const { error: uploadError } = await supabase.storage
-        .from("avatars")
+        .from("live-thumbnails")
         .upload(fileName, blob, {
           contentType: "image/jpeg",
           upsert: true,
@@ -210,7 +210,7 @@ export const LiveConfigPanel = ({
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
+        .from("live-thumbnails")
         .getPublicUrl(fileName);
 
       setThumbnailUrl(publicUrl);
