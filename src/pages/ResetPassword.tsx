@@ -171,18 +171,19 @@ const ResetPassword = () => {
         return;
       }
 
-      // Para emails, também usar edge function (Resend tem melhor deliverabilidade)
-      const { data: emailData, error: emailError } = await supabase.functions.invoke("password-reset", {
-        body: { email: input, redirectTo },
+      // Usar método nativo do Supabase Auth (não depende de Resend)
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(input, {
+        redirectTo,
       });
 
-      if (emailError || emailData?.error) {
-        console.error("[AUTH][RESET_LINK] Edge function error:", emailError || emailData?.error);
-        setRequestError(emailData?.error || "Não foi possível enviar o link de recuperação.");
+      if (resetError) {
+        console.error("[AUTH][RESET_LINK] Supabase error:", resetError);
+        // Não revelar se o email existe ou não por segurança
+        setRequestMessage("Se o e-mail estiver cadastrado, você receberá um link de recuperação.");
         return;
       }
 
-      setRequestMessage(emailData?.message || "Enviamos um link de recuperação para o seu e-mail.");
+      setRequestMessage("Se o e-mail estiver cadastrado, você receberá um link de recuperação.");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
