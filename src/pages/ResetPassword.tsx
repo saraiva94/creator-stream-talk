@@ -129,24 +129,52 @@ const ResetPassword = () => {
     setRequestError(null);
     setRequestMessage(null);
 
-    if (!requestEmail) {
-      setRequestError("Digite o e-mail cadastrado para recuperar a senha.");
-      return;
-    }
-
-    const emailValid = /\S+@\S+\.\S+/.test(requestEmail);
-    if (!emailValid) {
-      setRequestError("Digite um e-mail válido.");
+    const input = requestEmail.trim();
+    if (!input) {
+      setRequestError("Digite o e-mail ou usuário cadastrado para recuperar a senha.");
       return;
     }
 
     setRequesting(true);
     try {
+      let emailToSend = input;
+      const isEmail = /\S+@\S+\.\S+/.test(input);
+
+      // Se não for email, busca o email pelo username
+      if (!isEmail) {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("username", input)
+          .maybeSingle();
+
+        if (profileError || !profile) {
+          setRequestError("Usuário não encontrado.");
+          setRequesting(false);
+          return;
+        }
+
+        // Buscar email via edge function (não temos acesso direto ao auth.users)
+        const { data: userData, error: userError } = await supabase.functions.invoke("password-reset", {
+          body: { userId: profile.id, redirectTo: `${siteUrl}/reset-password` },
+        });
+
+        if (userError || userData?.error) {
+          setRequestError(userData?.error || "Não foi possível encontrar o email do usuário.");
+          setRequesting(false);
+          return;
+        }
+
+        setRequestMessage(userData?.message || "Enviamos um link de recuperação para o e-mail cadastrado.");
+        setRequesting(false);
+        return;
+      }
+
       const redirectTo = `${siteUrl}/reset-password`;
       
       // Use custom edge function with Resend for better email delivery
       const response = await supabase.functions.invoke("password-reset", {
-        body: { email: requestEmail, redirectTo },
+        body: { email: emailToSend, redirectTo },
       });
 
       if (response.error) {
@@ -240,11 +268,11 @@ const ResetPassword = () => {
             ) : (
               <form onSubmit={handleSendResetEmail} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reset-email">E-mail cadastrado</Label>
+                  <Label htmlFor="reset-email">E-mail ou usuário</Label>
                   <Input
                     id="reset-email"
-                    type="email"
-                    placeholder="seu@email.com"
+                    type="text"
+                    placeholder="seu@email.com ou username"
                     value={requestEmail}
                     onChange={(e) => setRequestEmail(e.target.value)}
                     disabled={requesting}
