@@ -1,7 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-import type { PostgrestFilterBuilder } from "@supabase/supabase-js";
 
 export type RevenueRange = "7d" | "30d" | "90d" | "lifetime";
 
@@ -59,20 +58,22 @@ const sumAmounts = (values: Array<number | null | undefined>) =>
 export const fetchPlatformRevenue = async (range: RevenueRange): Promise<PlatformRevenueResponse> => {
   const startDate = toStartDate(range);
 
-  const dateFilter = <T>(
-    builder: PostgrestFilterBuilder<T>,
-    column: string,
-  ): PostgrestFilterBuilder<T> => {
-    if (startDate) {
-      return builder.gte(column, startDate.toISOString());
-    }
-    return builder;
-  };
+  // Build queries with optional date filter
+  let platformRevenueQuery = db.from("platform_revenue").select("amount, created_at");
+  let paymentsQuery = db.from("payments").select("amount, status, created_at");
+  let withdrawalsQuery = db.from("withdrawals").select("amount, status, processed_at, created_at");
+
+  if (startDate) {
+    const startIso = startDate.toISOString();
+    platformRevenueQuery = platformRevenueQuery.gte("created_at", startIso);
+    paymentsQuery = paymentsQuery.gte("created_at", startIso);
+    withdrawalsQuery = withdrawalsQuery.gte("created_at", startIso);
+  }
 
   const [platformRevenueRes, paymentsRes, withdrawalsRes] = await Promise.all([
-    dateFilter(supabase.from("platform_revenue").select("amount, created_at"), "created_at"),
-    dateFilter(supabase.from("payments").select("amount, status, created_at"), "created_at"),
-    dateFilter(supabase.from("withdrawals").select("amount, status, processed_at, created_at"), "created_at"),
+    platformRevenueQuery,
+    paymentsQuery,
+    withdrawalsQuery,
   ]);
 
   if (platformRevenueRes.error) {

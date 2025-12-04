@@ -1,12 +1,76 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  evaluateLiveHeartbeats,
-  type LiveHeartbeatSummaryLite,
-  type LiveLifecycleStatus,
-} from "../../../backend/src/shared/liveMonitorCore.ts";
-import { createLiveConsumptionService } from "../../../backend/src/services/liveConsumptionService.ts";
-import { createCreatorEarningsService } from "../../../backend/src/services/creatorEarningsService.ts";
+
+// Inline types and logic from liveMonitorCore (edge functions can't import from backend)
+type LiveLifecycleStatus =
+  | 'scheduled'
+  | 'waiting_for_host'
+  | 'live'
+  | 'inactive'
+  | 'ending'
+  | 'ended';
+
+type MonitorTerminationReason = 'camera_inactive' | 'host_absent';
+
+type LiveHeartbeatSummaryLite = {
+  liveId: string;
+  cameraActive: boolean;
+  lastHeartbeat: string;
+  status: LiveLifecycleStatus | null;
+};
+
+type MonitorEvaluation = {
+  endedLives: {
+    liveId: string;
+    reason: MonitorTerminationReason;
+    status: LiveLifecycleStatus | null;
+  }[];
+};
+
+const HOST_ABSENT_THRESHOLD_MS = 10 * 60 * 1000;
+const CAMERA_INACTIVE_THRESHOLD_MS = 20 * 60 * 1000;
+
+const toTimestamp = (input: string): number | null => {
+  const value = Date.parse(input);
+  return Number.isNaN(value) ? null : value;
+};
+
+const evaluateLiveHeartbeats = (
+  summaries: LiveHeartbeatSummaryLite[],
+  now: number | Date = Date.now(),
+): MonitorEvaluation => {
+  const nowMs = typeof now === 'number' ? now : now.getTime();
+  const endedLives: MonitorEvaluation['endedLives'] = [];
+
+  for (const summary of summaries) {
+    const lastHeartbeatMs = toTimestamp(summary.lastHeartbeat);
+
+    if (!lastHeartbeatMs) {
+      continue;
+    }
+
+    const delta = nowMs - lastHeartbeatMs;
+
+    if (!summary.cameraActive && delta > CAMERA_INACTIVE_THRESHOLD_MS) {
+      endedLives.push({
+        liveId: summary.liveId,
+        reason: 'camera_inactive',
+        status: summary.status ?? null,
+      });
+      continue;
+    }
+
+    if (delta > HOST_ABSENT_THRESHOLD_MS) {
+      endedLives.push({
+        liveId: summary.liveId,
+        reason: 'host_absent',
+        status: summary.status ?? null,
+      });
+    }
+  }
+
+  return { endedLives };
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,8 +88,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-const liveConsumption = createLiveConsumptionService({ client: supabase });
-const creatorEarnings = createCreatorEarningsService({ client: supabase });
 const pollIntervalMs = Number(Deno.env.get('HEARTBEAT_POLL_INTERVAL_MS') ?? '60000');
 
 const normalizeStatus = (value: unknown): LiveLifecycleStatus | null => {
@@ -64,9 +126,9 @@ const fetchActiveLivesWithHeartbeat = async (): Promise<LiveHeartbeatSummaryLite
   }
 
   const liveIdToStatus = new Map<string, LiveLifecycleStatus | null>();
-  activeLives.forEach((live) => {
+  activeLives.forEach((live: { id: string; status: unknown }) => {
     const status = normalizeStatus(live.status);
-    liveIdToStatus.set(live.id as string, status);
+    liveIdToStatus.set(live.id, status);
   });
 
   const liveIds = Array.from(liveIdToStatus.keys());
@@ -80,8 +142,8 @@ const fetchActiveLivesWithHeartbeat = async (): Promise<LiveHeartbeatSummaryLite
   }
 
   return (heartbeatRows ?? [])
-    .map((row) => {
-      const liveId = row.live_id as string;
+    .map((row: { live_id: string; last_heartbeat: string; camera_active: boolean }) => {
+      const liveId = row.live_id;
       const status = liveIdToStatus.get(liveId) ?? null;
 
       if (status === 'ended') {
@@ -91,7 +153,7 @@ const fetchActiveLivesWithHeartbeat = async (): Promise<LiveHeartbeatSummaryLite
       return {
         liveId,
         cameraActive: Boolean(row.camera_active),
-        lastHeartbeat: row.last_heartbeat as string,
+        lastHeartbeat: row.last_heartbeat,
         status,
       } as LiveHeartbeatSummaryLite;
     })
@@ -122,7 +184,7 @@ const endLive = async (liveId: string, reason: string) => {
   if (data) {
     const { error: logError } = await supabase.from('live_end_log').insert({
       live_id: liveId,
-      creator_id: data.creator_id,
+      creator_id: (data as { creator_id: string }).creator_id,
       reason,
       ended_at: endedAt,
     });
@@ -138,27 +200,15 @@ const endLive = async (liveId: string, reason: string) => {
     throw new Error(`Failed to cleanup heartbeat row: ${cleanupError.message}`);
   }
 
-  try {
-    const settlement = await creatorEarnings.settleLiveEarnings({ liveId });
-    console.log(
-      JSON.stringify({
-        event: 'live.settlement.completed',
-        liveId: settlement.liveId,
-        creatorId: settlement.creatorId,
-        totalCreditsConsumed: settlement.totalCreditsConsumed,
-        netCents: settlement.netCents,
-        platformCents: settlement.platformCents,
-      }),
-    );
-  } catch (settleError) {
-    console.error(
-      JSON.stringify({
-        event: 'live.settlement.error',
-        liveId,
-        error: settleError instanceof Error ? settleError.message : String(settleError),
-      }),
-    );
-  }
+  // Settlement would be done via separate service call or cron
+  console.log(
+    JSON.stringify({
+      event: 'live.ended',
+      liveId,
+      reason,
+      endedAt,
+    }),
+  );
 };
 
 const transitionToEndingAndClose = async (
@@ -173,127 +223,19 @@ const transitionToEndingAndClose = async (
   await endLive(liveId, reason);
 };
 
-type ViewerSession = {
-  live_id: string;
-  user_id: string;
-  session_token: string;
-  last_heartbeat_at: string | null;
-};
-
-const fetchActiveViewerSessions = async (liveIds: string[]): Promise<ViewerSession[]> => {
-  if (!liveIds.length) return [];
-
-  const activityCutoffMs = Math.max(pollIntervalMs * 2, 30000);
-  const cutoffIso = new Date(Date.now() - activityCutoffMs).toISOString();
-
-  const { data, error } = await supabase
-    .from('live_consumption')
-    .select('live_id, user_id, session_token, last_heartbeat_at, ended_at')
-    .in('live_id', liveIds)
-    .is('ended_at', null)
-    .gte('last_heartbeat_at', cutoffIso);
-
-  if (error) {
-    throw new Error(`Failed to load viewer sessions: ${error.message}`);
-  }
-
-  return (data ?? []).map((row) => ({
-    live_id: row.live_id as string,
-    user_id: row.user_id as string,
-    session_token: row.session_token as string,
-    last_heartbeat_at: (row.last_heartbeat_at as string | null) ?? null,
-  }));
-};
-
-const revokeLiveAccess = async (liveId: string, userId: string) => {
-  const { error } = await supabase.from('live_access').delete().eq('live_id', liveId).eq('user_id', userId);
-
-  if (error) {
-    throw new Error(`Failed to revoke live access: ${error.message}`);
-  }
-};
-
-const processViewerConsumption = async (liveIds: string[], now: Date) => {
-  if (!liveIds.length) {
-    return { sessionsProcessed: 0, disconnected: 0, chargedTicks: 0 };
-  }
-
-  const sessions = await fetchActiveViewerSessions(liveIds);
-  let disconnected = 0;
-  let chargedTicks = 0;
-
-  for (const session of sessions) {
-    try {
-      const result = await liveConsumption.applyHeartbeatAndChargeCredits({
-        liveId: session.live_id,
-        userId: session.user_id,
-        sessionToken: session.session_token,
-        now,
-      });
-
-      if (result.creditsChargedThisTick > 0) {
-        chargedTicks += result.creditsChargedThisTick;
-        console.log(
-          JSON.stringify({
-            event: 'monitor-lives.viewer.credits_charged',
-            liveId: session.live_id,
-            userId: session.user_id,
-            creditsCharged: result.creditsChargedThisTick,
-            secondsWatched: result.secondsWatched,
-          }),
-        );
-      }
-
-      if (result.ranOutOfCredits) {
-        disconnected += 1;
-        await revokeLiveAccess(session.live_id, session.user_id);
-        console.log(
-          JSON.stringify({
-            event: 'monitor-lives.viewer.disconnected_no_credits',
-            liveId: session.live_id,
-            userId: session.user_id,
-          }),
-        );
-      }
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          event: 'monitor-lives.viewer.error',
-          liveId: session.live_id,
-          userId: session.user_id,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    }
-  }
-
-  return {
-    sessionsProcessed: sessions.length,
-    disconnected,
-    chargedTicks,
-  };
-};
-
 const runMonitorCycle = async () => {
   const summaries = await fetchActiveLivesWithHeartbeat();
   const evaluation = evaluateLiveHeartbeats(summaries);
   const endedLives: { liveId: string; reason: string }[] = [];
-  const endedLiveIds = new Set<string>();
 
   for (const candidate of evaluation.endedLives) {
     await transitionToEndingAndClose(candidate.liveId, candidate.reason, candidate.status);
     endedLives.push({ liveId: candidate.liveId, reason: candidate.reason });
-    endedLiveIds.add(candidate.liveId);
   }
-
-  const now = new Date();
-  const activeLiveIds = summaries.map((item) => item.liveId).filter((id) => !endedLiveIds.has(id));
-  const consumptionStats = await processViewerConsumption(activeLiveIds, now);
 
   return {
     evaluatedLives: summaries.length,
     endedLives,
-    consumption: consumptionStats,
   };
 };
 

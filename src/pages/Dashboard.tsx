@@ -68,7 +68,7 @@ const Dashboard = () => {
         setTags(creatorData.tags?.join(", ") || "");
         setIsStreaming(creatorData.is_streaming);
         setDailyRoomUrl(creatorData.daily_room_url);
-        setApprovedForLive(Boolean(creatorData.approved_for_live));
+        setApprovedForLive(Boolean((creatorData as Record<string, unknown>).approved_for_live ?? false));
 
         // Get current room if streaming
         if (creatorData.is_streaming) {

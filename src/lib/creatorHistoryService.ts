@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 export type CreatorHistoryEntry = {
   id: string;
@@ -18,8 +20,8 @@ type LiveRowData = {
 };
 
 export const creatorHistoryService = async (profileId: string) => {
-  const { data, error } = await (supabase
-    .from("lives") as any)
+  const { data, error } = await db
+    .from("lives")
     .select("id, title, created_at, ended_at, status")
     .eq("creator_id", profileId)
     .order("ended_at", { ascending: false })

@@ -23,7 +23,7 @@ const CreatorLives = () => {
 
         <LivesFilters status={status} onStatusChange={setStatus} search={search} onSearchChange={setSearch} />
 
-        <LivesTable lives={lives} />
+        <LivesTable lives={lives as { id: string; title: string; status: "draft" | "scheduled" | "live" | "ended"; scheduledFor?: string | null; price?: number | null; viewers: number }[]} />
 
         <LivesCharts data={chartData} isLoading={isLoading} />
       </main>
