@@ -5,12 +5,14 @@ interface NativeVideoPreviewProps {
   audioDeviceId: string | null;
   videoDeviceId: string | null;
   isStreaming: boolean;
+  isMirrored?: boolean;
 }
 
 export const NativeVideoPreview = ({
   audioDeviceId,
   videoDeviceId,
   isStreaming,
+  isMirrored = false,
 }: NativeVideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -93,7 +95,7 @@ export const NativeVideoPreview = ({
         autoPlay
         playsInline
         muted
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover ${isMirrored ? "scale-x-[-1]" : ""}`}
       />
       {isStreaming && (
         <div className="absolute top-4 left-4 flex items-center gap-2 bg-destructive text-white px-3 py-1 rounded-full text-sm font-medium">

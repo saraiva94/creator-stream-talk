@@ -6,7 +6,7 @@ import ChatBox from "@/components/ChatBox";
 import { NativeVideoPreview } from "@/components/NativeVideoPreview";
 import { StreamToggle } from "@/components/StreamToggle";
 import { LiveConfigPanel } from "@/components/LiveConfigPanel";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Users, DollarSign, TrendingUp } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
@@ -33,6 +33,8 @@ const LiveManagement = () => {
   const [liveTitle, setLiveTitle] = useState("");
   const [selectedAudioDevice, setSelectedAudioDevice] = useState<string | null>(null);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState<string | null>(null);
+  const [isMirrored, setIsMirrored] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -44,7 +46,6 @@ const LiveManagement = () => {
       }
       setUser(session.user);
 
-      // Get creator profile
       const { data: creatorProfile, error: creatorError } = await supabase
         .from("creator_profiles")
         .select("*")
@@ -73,10 +74,8 @@ const LiveManagement = () => {
         return;
       }
 
-      // Check current streaming status
       setIsStreaming(creatorProfile.is_streaming || false);
 
-      // Get or create active room
       let activeRoom = null;
       const { data: existingRoom } = await supabase
         .from("rooms")
@@ -97,13 +96,11 @@ const LiveManagement = () => {
     checkAuth();
   }, [navigate, toast]);
 
-  // Handle streaming toggle
   const handleStreamToggle = async (streaming: boolean) => {
     if (!user) return;
 
     try {
       if (streaming) {
-        // Create room if doesn't exist
         let roomId = room?.id;
         
         if (!roomId) {
@@ -123,13 +120,11 @@ const LiveManagement = () => {
           roomId = newRoom.id;
           setRoom(newRoom);
 
-          // Create chat settings for the room
           await supabase.from("chat_settings").insert({
             room_id: roomId,
           });
         }
 
-        // Create live record
         await supabase.from("lives").insert({
           creator_id: user.id,
           title: liveTitle || "Live Stream",
@@ -138,7 +133,6 @@ const LiveManagement = () => {
           room_name: roomId,
         });
 
-        // Update creator profile
         await supabase
           .from("creator_profiles")
           .update({ 
@@ -154,7 +148,6 @@ const LiveManagement = () => {
           description: "Você está ao vivo agora",
         });
       } else {
-        // End stream
         if (room?.id) {
           await supabase
             .from("rooms")
@@ -162,7 +155,6 @@ const LiveManagement = () => {
             .eq("id", room.id);
         }
 
-        // Update any active lives
         await supabase
           .from("lives")
           .update({ 
@@ -280,6 +272,14 @@ const LiveManagement = () => {
     setLiveTitle(title);
   }, []);
 
+  const handleMirrorChange = useCallback((mirrored: boolean) => {
+    setIsMirrored(mirrored);
+  }, []);
+
+  const handleThumbnailChange = useCallback((url: string) => {
+    setThumbnailUrl(url);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -339,9 +339,9 @@ const LiveManagement = () => {
           </div>
         </div>
 
-        {/* Main content */}
+        {/* Main content - Twitch-style layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Video + Chat */}
+          {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
             {/* Native Video Preview */}
             <Card className="border-border overflow-hidden">
@@ -349,37 +349,38 @@ const LiveManagement = () => {
                 audioDeviceId={selectedAudioDevice}
                 videoDeviceId={selectedVideoDevice}
                 isStreaming={isStreaming}
+                isMirrored={isMirrored}
               />
             </Card>
 
-            {/* Chat */}
-            {room && user && (
-              <Card className="border-border">
-                <CardHeader>
-                  <CardTitle>Chat ao Vivo</CardTitle>
-                  <CardDescription>Interaja com seus espectadores</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]">
-                    <ChatBox
-                      roomId={room.id}
-                      currentUserId={user.id}
-                      creatorId={user.id}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Configuration Panel */}
-          <div>
+            {/* Config Panel below video */}
             <LiveConfigPanel
               roomId={room?.id || null}
               creatorId={user?.id || ""}
               onTitleChange={handleTitleChange}
               onDevicesChange={handleDevicesChange}
+              onMirrorChange={handleMirrorChange}
+              onThumbnailChange={handleThumbnailChange}
             />
+          </div>
+
+          {/* Right side: Chat */}
+          <div className="lg:col-span-1">
+            {room && user ? (
+              <div className="h-[calc(100vh-200px)] min-h-[500px] sticky top-24">
+                <ChatBox
+                  roomId={room.id}
+                  currentUserId={user.id}
+                  creatorId={user.id}
+                />
+              </div>
+            ) : (
+              <Card className="border-border h-[500px] flex items-center justify-center">
+                <p className="text-muted-foreground">
+                  Inicie a transmissão para ativar o chat
+                </p>
+              </Card>
+            )}
           </div>
         </div>
       </main>

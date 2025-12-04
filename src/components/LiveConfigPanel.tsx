@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,14 +7,18 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Settings, MessageSquare, X, Camera, Mic } from "lucide-react";
+import { Settings, MessageSquare, X, Camera, Mic, Image, FlipHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { ThumbnailCropDialog } from "./ThumbnailCropDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface LiveConfigPanelProps {
   roomId: string | null;
   creatorId: string;
   onTitleChange: (title: string) => void;
   onDevicesChange: (audioId: string, videoId: string) => void;
+  onMirrorChange?: (mirrored: boolean) => void;
+  onThumbnailChange?: (url: string) => void;
 }
 
 interface MediaDevice {
@@ -27,10 +31,20 @@ export const LiveConfigPanel = ({
   creatorId,
   onTitleChange,
   onDevicesChange,
+  onMirrorChange,
+  onThumbnailChange,
 }: LiveConfigPanelProps) => {
+  const { toast } = useToast();
+  
   // Live settings
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [isMirrored, setIsMirrored] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [showThumbnailCrop, setShowThumbnailCrop] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   // Chat settings
   const [slowModeEnabled, setSlowModeEnabled] = useState(false);
@@ -51,10 +65,8 @@ export const LiveConfigPanel = ({
   useEffect(() => {
     const loadDevices = async () => {
       try {
-        // Request permissions first
         await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
           .then(stream => {
-            // Stop the stream immediately after getting permissions
             stream.getTracks().forEach(track => track.stop());
             setPermissionsGranted(true);
           });
@@ -78,7 +90,6 @@ export const LiveConfigPanel = ({
         setAudioDevices(audio);
         setVideoDevices(video);
 
-        // Auto-select first devices
         if (audio.length > 0 && !selectedAudio) {
           setSelectedAudio(audio[0].deviceId);
         }
@@ -92,7 +103,6 @@ export const LiveConfigPanel = ({
 
     loadDevices();
 
-    // Listen for device changes
     navigator.mediaDevices.addEventListener("devicechange", loadDevices);
     return () => {
       navigator.mediaDevices.removeEventListener("devicechange", loadDevices);
@@ -110,6 +120,11 @@ export const LiveConfigPanel = ({
   useEffect(() => {
     onTitleChange(title);
   }, [title, onTitleChange]);
+
+  // Propagate mirror changes
+  useEffect(() => {
+    onMirrorChange?.(isMirrored);
+  }, [isMirrored, onMirrorChange]);
 
   // Load chat settings if room exists
   useEffect(() => {
@@ -167,9 +182,58 @@ export const LiveConfigPanel = ({
     setBannedWords(bannedWords.filter((w) => w !== word));
   };
 
+  // Handle thumbnail selection
+  const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImage(reader.result as string);
+      setShowThumbnailCrop(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle cropped thumbnail
+  const handleThumbnailCropComplete = async (blob: Blob) => {
+    try {
+      const fileName = `thumbnails/${creatorId}/${Date.now()}.jpg`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, blob, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+
+      setThumbnailUrl(publicUrl);
+      setThumbnailPreview(URL.createObjectURL(blob));
+      onThumbnailChange?.(publicUrl);
+      
+      toast({
+        title: "Thumbnail salva!",
+        description: "A thumbnail da live foi atualizada.",
+      });
+    } catch (error) {
+      console.error("Error uploading thumbnail:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar a thumbnail.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Live Title & Description */}
+      {/* Live Title, Description & Thumbnail */}
       <Card className="border-border">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -189,6 +253,7 @@ export const LiveConfigPanel = ({
             />
             <p className="text-xs text-muted-foreground">{title.length}/100</p>
           </div>
+          
           <div className="space-y-2">
             <Label htmlFor="live-description">Descrição (opcional)</Label>
             <Textarea
@@ -198,6 +263,65 @@ export const LiveConfigPanel = ({
               onChange={(e) => setDescription(e.target.value)}
               maxLength={500}
               rows={2}
+            />
+          </div>
+
+          {/* Thumbnail Upload */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Image className="h-4 w-4" />
+              Thumbnail da Live
+            </Label>
+            <div className="flex items-center gap-3">
+              {thumbnailPreview ? (
+                <div className="relative w-32 aspect-video rounded-md overflow-hidden border border-border">
+                  <img 
+                    src={thumbnailPreview} 
+                    alt="Thumbnail preview" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-32 aspect-video rounded-md border border-dashed border-border flex items-center justify-center bg-secondary/30">
+                  <Image className="h-6 w-6 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1">
+                <input
+                  ref={thumbnailInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailSelect}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => thumbnailInputRef.current?.click()}
+                >
+                  {thumbnailPreview ? "Trocar" : "Selecionar"} imagem
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Formato 16:9 recomendado
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Mirror Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FlipHorizontal className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label>Espelhar vídeo</Label>
+                <p className="text-xs text-muted-foreground">
+                  Inverte a imagem horizontalmente
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={isMirrored}
+              onCheckedChange={setIsMirrored}
             />
           </div>
         </CardContent>
@@ -361,6 +485,16 @@ export const LiveConfigPanel = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Thumbnail Crop Dialog */}
+      {selectedImage && (
+        <ThumbnailCropDialog
+          open={showThumbnailCrop}
+          onOpenChange={setShowThumbnailCrop}
+          imageSrc={selectedImage}
+          onCropComplete={handleThumbnailCropComplete}
+        />
+      )}
     </div>
   );
 };
