@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, RefreshCcw, ShoppingBag } from "lucide-react";
 import { fetchCreditsBalance, createCreditsPayment } from "@/lib/supabaseApi";
 import { useToast } from "@/hooks/use-toast";
+import { logger } from "@/lib/logger";
 
 const formatMinutes = (credits: number) => {
   // 180 credits = 30 minutes
@@ -29,13 +30,28 @@ export const UserCreditsWalletPanel = () => {
   const [selectedPackage, setSelectedPackage] = useState(CREDITS_PACKAGES[0]);
 
   const fetchBalance = async () => {
+    logger.credits.info('UserCreditsWalletPanel: Carregando saldo');
     setIsLoading(true);
     setError(null);
+    
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        logger.credits.warn('Sem sessão ativa, não é possível carregar saldo');
+        setBalanceCredits(0);
+        return;
+      }
+
+      logger.credits.debug('Sessão encontrada', { userId: session.user.id });
+      
       const data = await fetchCreditsBalance();
-      setBalanceCredits(data.balance_credits ?? data.creditBalance ?? 0);
+      const balance = data.balance_credits ?? data.creditBalance ?? 0;
+      
+      logger.credits.info('Saldo carregado na UI', { balance });
+      setBalanceCredits(balance);
     } catch (err) {
-      console.error("[credits] failed to load balance", err);
+      logger.credits.error('Erro ao carregar saldo na UI', {}, err as Error);
       const friendly = err instanceof Error ? err.message : "Não foi possível carregar o saldo agora.";
       setError(friendly);
     } finally {
@@ -44,17 +60,28 @@ export const UserCreditsWalletPanel = () => {
   };
 
   useEffect(() => {
+    logger.credits.debug('UserCreditsWalletPanel montado');
     fetchBalance();
   }, []);
 
   const startCheckout = async () => {
+    logger.payment.info('Iniciando checkout de créditos', { 
+      credits: selectedPackage.credits,
+      price: selectedPackage.priceBRL,
+    });
+    
     setCheckoutLoading(true);
     setError(null);
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (!user?.id) {
+        logger.payment.error('Usuário não autenticado para checkout');
         throw new Error("Usuário não autenticado");
       }
+
+      logger.payment.debug('Usuário autenticado', { userId: user.id });
 
       const preference = await createCreditsPayment({
         credits: selectedPackage.credits,
@@ -62,12 +89,21 @@ export const UserCreditsWalletPanel = () => {
       });
 
       if (!preference?.init_point) {
+        logger.payment.error('Preferência sem init_point', { preference });
         throw new Error("Não foi possível iniciar a compra de créditos.");
       }
 
+      logger.payment.info('Redirecionando para Mercado Pago', { 
+        initPoint: preference.init_point,
+        credits: selectedPackage.credits,
+      });
+      
       window.location.assign(preference.init_point);
     } catch (err) {
-      console.error("[credits] checkout error", err);
+      logger.payment.error('Erro no checkout', { 
+        credits: selectedPackage.credits 
+      }, err as Error);
+      
       const message = err instanceof Error ? err.message : "Não foi possível iniciar a compra.";
       setError(message);
       toast({
@@ -126,7 +162,10 @@ export const UserCreditsWalletPanel = () => {
             {CREDITS_PACKAGES.map((pkg) => (
               <button
                 key={pkg.credits}
-                onClick={() => setSelectedPackage(pkg)}
+                onClick={() => {
+                  logger.payment.debug('Pacote selecionado', { credits: pkg.credits, price: pkg.priceBRL });
+                  setSelectedPackage(pkg);
+                }}
                 className={`rounded-md border p-2 text-sm transition-colors ${
                   selectedPackage.credits === pkg.credits
                     ? "border-primary bg-primary/10 text-primary"

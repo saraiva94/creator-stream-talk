@@ -1,4 +1,10 @@
+/**
+ * API para interação com Supabase Edge Functions
+ * Centraliza chamadas de autenticação, créditos, pagamentos e afiliados
+ */
+
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -33,65 +39,135 @@ const getAuthToken = async (): Promise<string | null> => {
   return data.session?.access_token || null;
 };
 
-// Credits balance - uses edge function
+// ==================== CREDITS ====================
+
 export const fetchCreditsBalance = async (): Promise<CreditBalanceResponse> => {
+  logger.credits.info('Buscando saldo de créditos via edge function');
+  
   const token = await getAuthToken();
+  logger.credits.debug('Token obtido', { hasToken: !!token });
   
   if (!token) {
+    logger.credits.warn('Sem token de autenticação, retornando saldo zero');
     return { creditBalance: 0, balance_credits: 0, estimated_time: 0 };
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/credits-balance`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const url = `${SUPABASE_URL}/functions/v1/credits-balance`;
+  logger.credits.debug('Chamando edge function', { url });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to fetch credits balance');
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    logger.credits.debug('Resposta recebida', { 
+      status: response.status, 
+      ok: response.ok 
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      logger.credits.error('Edge function retornou erro', { 
+        status: response.status,
+        error 
+      });
+      throw new Error(error.error || 'Failed to fetch credits balance');
+    }
+
+    const data = await response.json();
+    logger.credits.info('Saldo obtido com sucesso', { 
+      creditBalance: data.creditBalance,
+      balance_credits: data.balance_credits,
+      estimated_time: data.estimated_time,
+    });
+
+    return data;
+  } catch (error) {
+    logger.credits.error('Erro ao buscar saldo', {}, error as Error);
+    throw error;
   }
-
-  return response.json();
 };
 
-// Create payment for credits - uses edge function
+// ==================== PAYMENTS ====================
+
 export const createCreditsPayment = async (params: {
   credits: number;
   userId?: string;
 }): Promise<PaymentResponse> => {
+  logger.payment.info('Criando pagamento de créditos', { 
+    credits: params.credits,
+    userId: params.userId ?? 'auto-detect',
+  });
+
   const token = await getAuthToken();
   const { data: { user } } = await supabase.auth.getUser();
   
   const userId = params.userId || user?.id;
+  
+  logger.payment.debug('Dados de autenticação', { 
+    hasToken: !!token,
+    userId,
+  });
+
   if (!userId) {
+    logger.payment.error('Usuário não autenticado');
     throw new Error('User not authenticated');
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/create-payment`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      userId,
-      purchaseType: 'credits',
-      credits: params.credits,
-    }),
-  });
+  const url = `${SUPABASE_URL}/functions/v1/create-payment`;
+  const payload = {
+    userId,
+    purchaseType: 'credits',
+    credits: params.credits,
+  };
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create payment');
+  logger.payment.info('Chamando edge function create-payment', { url, payload });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    logger.payment.debug('Resposta recebida', { 
+      status: response.status, 
+      ok: response.ok 
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      logger.payment.error('Edge function retornou erro', { 
+        status: response.status,
+        error,
+        payload,
+      });
+      throw new Error(error.error || 'Failed to create payment');
+    }
+
+    const data = await response.json();
+    logger.payment.info('Pagamento criado com sucesso', { 
+      hasInitPoint: !!data.init_point,
+      preferenceId: data.preferenceId,
+      amount: data.amount,
+    });
+
+    return data;
+  } catch (error) {
+    logger.payment.error('Erro ao criar pagamento', { credits: params.credits }, error as Error);
+    throw error;
   }
-
-  return response.json();
 };
 
-// Registration checkout - uses edge function
+// ==================== REGISTRATION ====================
+
 export const registrationCheckout = async (params: {
   fullName: string;
   email: string;
@@ -101,57 +177,125 @@ export const registrationCheckout = async (params: {
   free?: boolean;
   root?: boolean;
 }): Promise<RegistrationResponse> => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/registration-checkout`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(params),
+  logger.register.info('Iniciando registration-checkout', {
+    fullName: params.fullName,
+    email: params.email,
+    referralCode: params.referralCode ?? 'SEM_CODIGO',
+    free: params.free,
+    root: params.root,
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to process registration');
-  }
+  const url = `${SUPABASE_URL}/functions/v1/registration-checkout`;
+  
+  logger.register.debug('Chamando edge function', { 
+    url,
+    payload: { ...params, password: '***REDACTED***' },
+  });
 
-  return response.json();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    logger.register.debug('Resposta recebida', { 
+      status: response.status, 
+      ok: response.ok 
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      logger.register.error('Edge function retornou erro', { 
+        status: response.status,
+        error,
+        email: params.email,
+      });
+      throw new Error(error.error || 'Failed to process registration');
+    }
+
+    const data = await response.json();
+    logger.register.info('Registration-checkout concluído', { 
+      hasToken: !!data.token,
+      hasRefreshToken: !!data.refresh_token,
+      hasInitPoint: !!data.init_point,
+      status: data.status,
+      profileId: data.profileId,
+    });
+
+    return data;
+  } catch (error) {
+    logger.register.error('Erro no registration-checkout', { email: params.email }, error as Error);
+    throw error;
+  }
 };
 
-// Validate affiliate code
-export const validateAffiliateCode = async (code: string): Promise<{ valid: boolean; ownerId: string | null }> => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('referral_code', code.toUpperCase())
-    .maybeSingle();
+// ==================== AFFILIATE ====================
 
-  if (error) {
-    console.error('Error validating code:', error);
+export const validateAffiliateCode = async (code: string): Promise<{ valid: boolean; ownerId: string | null }> => {
+  logger.affiliate.info('Validando código de afiliado', { code });
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('referral_code', code.toUpperCase())
+      .maybeSingle();
+
+    if (error) {
+      logger.affiliate.error('Erro na query de validação', { code }, error);
+      return { valid: false, ownerId: null };
+    }
+
+    const isValid = !!data;
+    logger.affiliate.info('Resultado da validação', { 
+      code,
+      valid: isValid,
+      ownerId: data?.id ?? null,
+    });
+
+    return { valid: isValid, ownerId: data?.id || null };
+  } catch (error) {
+    logger.affiliate.error('Erro ao validar código', { code }, error as Error);
     return { valid: false, ownerId: null };
   }
-
-  return { valid: !!data, ownerId: data?.id || null };
 };
 
-// Get user's affiliate code
 export const getAffiliateCode = async (): Promise<{ code: string | null }> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
+  logger.affiliate.debug('Buscando código de afiliado do usuário');
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      logger.affiliate.debug('Usuário não autenticado');
+      return { code: null };
+    }
+
+    logger.affiliate.debug('Buscando código para usuário', { userId: user.id });
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('referral_code')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      logger.affiliate.error('Erro ao buscar código', { userId: user.id }, error);
+      return { code: null };
+    }
+
+    logger.affiliate.info('Código de afiliado obtido', { 
+      userId: user.id,
+      code: data?.referral_code ?? null,
+    });
+
+    return { code: data?.referral_code || null };
+  } catch (error) {
+    logger.affiliate.error('Erro fatal ao buscar código', {}, error as Error);
     return { code: null };
   }
-
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('referral_code')
-    .eq('id', user.id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching affiliate code:', error);
-    return { code: null };
-  }
-
-  return { code: data?.referral_code || null };
 };

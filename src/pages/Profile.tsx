@@ -14,6 +14,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import CreatorActivationCard from "@/components/creator/CreatorActivationCard";
+import { logger } from "@/lib/logger";
 
 type ProfileFormState = {
   username: string;
@@ -39,21 +40,40 @@ const Profile = () => {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
+    logger.profile.info('Página de perfil carregada');
+    
     const checkAuth = async () => {
+      logger.auth.debug('Verificando autenticação');
       const { data: { session } } = await supabase.auth.getSession();
+      
       if (!session) {
+        logger.auth.warn('Sem sessão, redirecionando para /auth');
         navigate("/auth");
         return;
       }
+      
+      logger.auth.info('Sessão válida', { userId: session.user.id, email: session.user.email });
       setUser(session.user);
 
-      const { data: profileData } = await supabase
+      logger.profile.debug('Carregando dados do perfil', { userId: session.user.id });
+      const { data: profileData, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", session.user.id)
         .single();
 
+      if (error) {
+        logger.profile.error('Erro ao carregar perfil', { userId: session.user.id }, error);
+      }
+
       if (profileData) {
+        logger.profile.info('Perfil carregado', { 
+          userId: session.user.id,
+          username: profileData.username,
+          hasAvatar: !!profileData.avatar_url,
+          referralCode: profileData.referral_code,
+        });
+        
         setProfile({
           username: profileData.username || "",
           website: profileData.website || "",
@@ -73,6 +93,12 @@ const Profile = () => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
+    logger.profile.info('Iniciando upload de avatar', { 
+      fileName: file.name,
+      fileSize: file.size,
+      userId: user.id,
+    });
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/${Math.random()}.${fileExt}`;
 
@@ -82,12 +108,16 @@ const Profile = () => {
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        logger.profile.error('Erro no upload do avatar', { fileName }, uploadError);
+        throw uploadError;
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName);
 
+      logger.profile.info('Avatar enviado com sucesso', { publicUrl });
       setProfile({ ...profile, avatar_url: publicUrl });
 
       toast({
@@ -95,6 +125,7 @@ const Profile = () => {
         description: "Lembre-se de salvar as alterações.",
       });
     } catch (error: unknown) {
+      logger.profile.error('Erro fatal no upload', {}, error as Error);
       const message = error instanceof Error ? error.message : "Erro no upload";
       toast({
         title: "Erro no upload",
@@ -108,6 +139,7 @@ const Profile = () => {
 
   const handleUpdateProfile = async () => {
     if (!profile.username.trim()) {
+      logger.profile.warn('Validação falhou: username vazio');
       toast({
         title: "Erro",
         description: "Nome de usuário é obrigatório",
@@ -115,6 +147,11 @@ const Profile = () => {
       });
       return;
     }
+
+    logger.profile.info('Atualizando perfil', { 
+      userId: user?.id,
+      username: profile.username,
+    });
 
     setLoading(true);
     try {
@@ -127,15 +164,20 @@ const Profile = () => {
           gender: profile.gender || null,
           avatar_url: profile.avatar_url.trim() || null,
         })
-        .eq("id", user.id);
+        .eq("id", user!.id);
 
-      if (error) throw error;
+      if (error) {
+        logger.profile.error('Erro ao atualizar perfil', { userId: user?.id }, error);
+        throw error;
+      }
 
+      logger.profile.info('Perfil atualizado com sucesso', { userId: user?.id });
       toast({
         title: "Perfil atualizado!",
         description: "Suas informações foram salvas com sucesso.",
       });
     } catch (error: unknown) {
+      logger.profile.error('Erro fatal na atualização', {}, error as Error);
       const message = error instanceof Error ? error.message : "Erro ao atualizar";
       toast({
         title: "Erro",
