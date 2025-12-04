@@ -8,6 +8,12 @@ export type CreatorProfileSettings = {
   notifications: boolean;
 };
 
+type CreatorProfileRow = {
+  display_name: string | null;
+  bio: string | null;
+  tags: string[] | null;
+};
+
 export const creatorSettingsService = async (profileId: string) => {
   const { data, error } = await supabase
     .from("creator_profiles")
@@ -17,10 +23,12 @@ export const creatorSettingsService = async (profileId: string) => {
 
   if (error) throw new Error(error.message);
 
+  const row = data as CreatorProfileRow | null;
+  
   const profile: CreatorProfileSettings = {
-    displayName: data?.display_name ?? "",
-    bio: data?.bio ?? "",
-    tags: data?.tags ?? [],
+    displayName: row?.display_name ?? "",
+    bio: row?.bio ?? "",
+    tags: row?.tags ?? [],
     language: "pt-BR",
     notifications: true,
   };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   fetchWithdrawals,
@@ -27,7 +27,7 @@ export const useWithdrawals = () => {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["withdrawals", { statusFilter, page }],
     queryFn: () => fetchWithdrawals({ status: statusFilter, page, pageSize: PAGE_SIZE }),
-    keepPreviousData: true,
+    placeholderData: keepPreviousData,
   });
 
   const mutation = useMutation({

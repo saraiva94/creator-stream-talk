@@ -20,10 +20,29 @@ export type CreatorTopLive = {
   revenue: number;
 };
 
-const sumTransactions = (transactions: { amount: number; creator_amount: number | null }[]) =>
+type TransactionRow = { 
+  amount: number; 
+  creator_amount: number | null; 
+  created_at: string; 
+  status: string;
+};
+
+type LiveRow = {
+  id: string;
+  status: string | null;
+  is_active: boolean | null;
+  created_at: string;
+  title: string | null;
+};
+
+type CreatorProfileRow = {
+  viewer_count: number | null;
+};
+
+const sumTransactions = (transactions: TransactionRow[]) =>
   transactions.reduce((acc, t) => acc + (t.creator_amount ?? t.amount ?? 0), 0);
 
-const groupTransactionsByDate = (transactions: { created_at: string; amount: number; creator_amount: number | null }[]) => {
+const groupTransactionsByDate = (transactions: TransactionRow[]) => {
   const map = new Map<string, number>();
   transactions.forEach((tx) => {
     const key = tx.created_at.slice(0, 10);
@@ -37,8 +56,8 @@ const groupTransactionsByDate = (transactions: { created_at: string; amount: num
 
 export const creatorDashboardService = async (profileId: string) => {
   const [profileRes, livesRes, txRes] = await Promise.all([
-    supabase.from("creator_profiles").select("viewer_count").eq("id", profileId).maybeSingle(),
-    supabase.from("lives").select("id, status, is_active, created_at, title").eq("creator_id", profileId),
+    (supabase.from("creator_profiles") as any).select("viewer_count").eq("id", profileId).maybeSingle(),
+    (supabase.from("lives") as any).select("id, status, is_active, created_at, title").eq("creator_id", profileId),
     supabase
       .from("transactions")
       .select("amount, creator_amount, created_at, status")
@@ -50,8 +69,9 @@ export const creatorDashboardService = async (profileId: string) => {
   if (livesRes.error) throw new Error(livesRes.error.message);
   if (txRes.error) throw new Error(txRes.error.message);
 
-  const lives = livesRes.data ?? [];
-  const transactions = txRes.data ?? [];
+  const lives = (livesRes.data as unknown as LiveRow[]) ?? [];
+  const transactions = (txRes.data as unknown as TransactionRow[]) ?? [];
+  const profileData = profileRes.data as unknown as CreatorProfileRow | null;
 
   const activeLives = lives.filter((live) => live.is_active).length;
   const upcomingLives = lives.filter((live) => ["scheduled", "waiting_for_host"].includes((live.status ?? "").toString())).length;
@@ -60,7 +80,7 @@ export const creatorDashboardService = async (profileId: string) => {
   const topLives: CreatorTopLive[] = lives.slice(0, 5).map((live) => ({
     id: live.id,
     title: live.title ?? "Live",
-    viewers: Math.floor(Math.random() * 200), // placeholder metric until real metrics are wired
+    viewers: Math.floor(Math.random() * 200),
     revenue: 0,
   }));
 
@@ -70,7 +90,7 @@ export const creatorDashboardService = async (profileId: string) => {
     summary: {
       activeLives,
       totalRevenue,
-      followers: profileRes.data?.viewer_count ?? 0,
+      followers: profileData?.viewer_count ?? 0,
       upcomingLives,
     },
     chart,

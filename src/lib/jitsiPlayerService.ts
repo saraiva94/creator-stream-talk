@@ -1,14 +1,11 @@
-import { createDailyCall, joinRoom, leaveRoom } from "@/lib/daily";
+import { createDailyCall, joinRoom, leaveRoom, type DailyCallControls } from "@/lib/daily";
+
+export type { DailyCallControls };
 
 export type JitsiControlState = {
   isMuted: boolean;
   isCameraOff: boolean;
   isReconnecting: boolean;
-};
-
-export type DailyCallControls = {
-  setLocalAudio: (enabled: boolean) => Promise<void> | void;
-  setLocalVideo: (enabled: boolean) => Promise<void> | void;
 };
 
 export const createCall = (roomUrl: string) => {

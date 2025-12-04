@@ -42,28 +42,36 @@ export type LiveMonitorData = {
   alerts: LiveAlert[];
 };
 
-const toDateKey = (value: string | null | undefined) => {
-  if (!value) return null;
-  return value.slice(0, 10);
+type HeartbeatRow = { live_id: string; last_heartbeat?: string | null; camera_active?: boolean | null };
+type LiveRowData = {
+  id: string;
+  title?: string | null;
+  status?: string | null;
+  creator_id: string;
+  room_name?: string | null;
+  created_at?: string | null;
+  ended_at?: string | null;
+  is_active?: boolean;
 };
+type AlertRow = { live_id: string; creator_id: string; reason?: string | null; ended_at?: string | null };
 
 export const fetchLiveMonitorData = async (): Promise<LiveMonitorData> => {
   const now = new Date();
   const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
 
   const [livesRes, heartbeatRes, recentLivesRes, alertsRes] = await Promise.all([
-    supabase
+    (supabase as any)
       .from("lives")
       .select("id, title, status, is_active, creator_id, room_name, created_at")
       .eq("is_active", true),
-    supabase.from("live_heartbeat").select("live_id, last_heartbeat, camera_active"),
-    supabase
+    (supabase as any).from("live_heartbeat").select("live_id, last_heartbeat, camera_active"),
+    (supabase as any)
       .from("lives")
       .select("id, title, status, creator_id, room_name, created_at, ended_at")
       .gte("ended_at", fortyEightHoursAgo)
       .order("ended_at", { ascending: false })
       .limit(10),
-    supabase
+    (supabase as any)
       .from("live_end_log")
       .select("live_id, creator_id, reason, ended_at")
       .gte("ended_at", fortyEightHoursAgo)
@@ -76,55 +84,47 @@ export const fetchLiveMonitorData = async (): Promise<LiveMonitorData> => {
   if (recentLivesRes.error) throw new Error(recentLivesRes.error.message);
   if (alertsRes.error) throw new Error(alertsRes.error.message);
 
-  type HeartbeatRow = { live_id: string; last_heartbeat?: string | null; camera_active?: boolean | null };
-  type LiveRow = {
-    id: string;
-    title?: string | null;
-    status?: LiveLifecycleStatus | null;
-    creator_id: string;
-    room_name?: string | null;
-    created_at?: string | null;
-    ended_at?: string | null;
-  };
-  type AlertRow = { live_id: string; creator_id: string; reason?: string | null; ended_at?: string | null };
-
   const heartbeatLookup = new Map<string, { last_heartbeat?: string | null; camera_active?: boolean | null }>();
-  (heartbeatRes.data ?? []).forEach((row: HeartbeatRow) => {
+  const heartbeatData = (heartbeatRes.data as unknown as HeartbeatRow[]) ?? [];
+  heartbeatData.forEach((row) => {
     heartbeatLookup.set(row.live_id, {
       last_heartbeat: row.last_heartbeat,
       camera_active: row.camera_active,
     });
   });
 
-  const activeLives: ActiveLive[] = (livesRes.data ?? []).map((row: LiveRow) => {
+  const livesData = (livesRes.data as unknown as LiveRowData[]) ?? [];
+  const activeLives: ActiveLive[] = livesData.map((row) => {
     const hb = heartbeatLookup.get(row.id) ?? {};
     return {
       id: row.id,
-      title: row.title,
-      status: row.status,
+      title: row.title ?? null,
+      status: (row.status as LiveLifecycleStatus) ?? null,
       creator_id: row.creator_id,
-      room_name: row.room_name,
-      created_at: row.created_at,
+      room_name: row.room_name ?? null,
+      created_at: row.created_at ?? null,
       last_heartbeat: hb.last_heartbeat ?? null,
       camera_active: hb.camera_active ?? null,
     };
   });
 
-  const recentLives: RecentLive[] = (recentLivesRes.data ?? []).map((row: LiveRow) => ({
+  const recentData = (recentLivesRes.data as unknown as LiveRowData[]) ?? [];
+  const recentLives: RecentLive[] = recentData.map((row) => ({
     id: row.id,
-    title: row.title,
-    status: row.status,
+    title: row.title ?? null,
+    status: (row.status as LiveLifecycleStatus) ?? null,
     creator_id: row.creator_id,
-    room_name: row.room_name,
-    created_at: row.created_at,
-    ended_at: row.ended_at,
+    room_name: row.room_name ?? null,
+    created_at: row.created_at ?? null,
+    ended_at: row.ended_at ?? null,
   }));
 
-  const alerts: LiveAlert[] = (alertsRes.data ?? []).map((row: AlertRow) => ({
+  const alertsData = (alertsRes.data as unknown as AlertRow[]) ?? [];
+  const alerts: LiveAlert[] = alertsData.map((row) => ({
     live_id: row.live_id,
     creator_id: row.creator_id,
-    reason: row.reason,
-    ended_at: row.ended_at,
+    reason: row.reason ?? null,
+    ended_at: row.ended_at ?? null,
   }));
 
   return {

@@ -15,6 +15,12 @@ type CreatorProfile = {
   tags?: string[] | null;
 };
 
+type CreatorProfileRow = {
+  display_name: string | null;
+  bio: string | null;
+  tags: string[] | null;
+};
+
 const CreatorActivationCard = () => {
   const { toast } = useToast();
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -40,16 +46,16 @@ const CreatorActivationCard = () => {
 
       const { data: creatorData } = await supabase
         .from("creator_profiles")
-        .select("*")
+        .select("display_name, bio, tags")
         .eq("id", session.user.id)
-        .single();
+        .maybeSingle();
 
       if (creatorData) {
-        const profile: CreatorProfile = creatorData;
+        const row = creatorData as CreatorProfileRow;
         setIsCreator(true);
-        setDisplayName(profile.display_name ?? "");
-        setBio(profile.bio ?? "");
-        setTags(profile.tags?.join(", ") ?? "");
+        setDisplayName(row.display_name ?? "");
+        setBio(row.bio ?? "");
+        setTags(row.tags?.join(", ") ?? "");
       }
 
       setLoading(false);
