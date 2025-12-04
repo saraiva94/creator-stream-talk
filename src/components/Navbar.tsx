@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { StreamStarLogo } from "./StreamStarLogo";
 import { TransmitButton } from "./TransmitButton";
+import { NotificationBell } from "./NotificationBell";
 
 interface NavbarProps {
   user?: SupabaseUser | null;
@@ -93,6 +94,7 @@ const Navbar = ({ user }: NavbarProps) => {
 
           <div className="flex items-center gap-4">
             <LanguageSelector />
+            {user && <NotificationBell user={user} />}
             {user ? (
               <>
                 {isAdmin && (
