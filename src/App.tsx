@@ -15,6 +15,7 @@ import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
 import LiveManagement from "./pages/LiveManagement";
 import LiveViewer from "./pages/LiveViewer";
+import CreatorRoom from "./pages/CreatorRoom";
 import NotFound from "./pages/NotFound";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import CreatorLives from "./pages/CreatorLives";
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/invite" element={<InviteSignup />} />
             <Route path="/live-management" element={<LiveManagement />} />
             <Route path="/live/:liveId" element={<LiveViewer />} />
+            <Route path="/room/:creatorId" element={<CreatorRoom />} />
             <Route path="/subscribe" element={<Subscribe />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/update-password" element={<UpdatePassword />} />
