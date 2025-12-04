@@ -7,11 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasswordStrength } from "@/lib/password";
 import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
 import { logger } from "@/lib/logger";
+import { TermsDialog } from "@/components/TermsDialog";
+import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -25,7 +28,12 @@ const Subscribe = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [errors, setErrors] = useState<{ referral?: string }>({});
+  const [errors, setErrors] = useState<{ referral?: string; age?: string }>({});
+  
+  // Date of birth
+  const [birthDay, setBirthDay] = useState("");
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthYear, setBirthYear] = useState("");
 
   useEffect(() => {
     logger.register.info('Página de cadastro carregada');
@@ -61,6 +69,7 @@ const Subscribe = () => {
       hasPassword: !!password,
       referralCode: trimmedReferral || 'VAZIO',
       acceptTerms,
+      birthDate: `${birthDay}/${birthMonth}/${birthYear}`,
     });
 
     if (!fullName.trim()) {
@@ -74,6 +83,27 @@ const Subscribe = () => {
       toast({ title: "E-mail inválido", description: "Informe um e-mail válido.", variant: "destructive" });
       return;
     }
+
+    // Validate age (18+)
+    const ageValidation = validateAge(birthDay, birthMonth, birthYear);
+    if (!birthDay || !birthMonth || !birthYear) {
+      logger.register.warn('Validação falhou: Data de nascimento incompleta');
+      setErrors(prev => ({ ...prev, age: "Preencha sua data de nascimento completa." }));
+      toast({ title: "Data de nascimento obrigatória", description: "Preencha dia, mês e ano de nascimento.", variant: "destructive" });
+      return;
+    }
+    
+    if (!ageValidation.valid) {
+      logger.register.warn('Validação falhou: Usuário menor de 18 anos', { age: ageValidation.age });
+      setErrors(prev => ({ ...prev, age: "Você deve ter 18 anos completos para se cadastrar." }));
+      toast({ 
+        title: "Idade mínima não atingida", 
+        description: "Você precisa ter 18 anos completos para se cadastrar na plataforma.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    setErrors(prev => ({ ...prev, age: undefined }));
 
     const passwordCheck = validatePasswordStrength(password);
     if (!passwordCheck.valid) {
@@ -98,17 +128,17 @@ const Subscribe = () => {
 
     if (!trimmedReferral) {
       logger.register.warn('Validação falhou: Código de afiliado obrigatório não informado');
-      setErrors({ referral: "Você precisa de um código de indicação para se cadastrar." });
+      setErrors(prev => ({ ...prev, referral: "Você precisa de um código de indicação para se cadastrar." }));
       return;
     }
 
-    setErrors({});
+    setErrors(prev => ({ ...prev, referral: undefined }));
 
     if (!acceptTerms) {
       logger.register.warn('Validação falhou: Termos não aceitos');
       toast({
         title: "Confirme os termos",
-        description: "É necessário aceitar os termos para continuar.",
+        description: "É necessário aceitar os termos e condições para continuar.",
         variant: "destructive",
       });
       return;
@@ -130,7 +160,7 @@ const Subscribe = () => {
 
       if (!validation.valid) {
         logger.affiliate.error('Código de afiliado inválido', { code: trimmedReferral });
-        setErrors({ referral: "Código de indicação inválido." });
+        setErrors(prev => ({ ...prev, referral: "Código de indicação inválido." }));
         setLoading(false);
         return;
       }
@@ -209,14 +239,16 @@ const Subscribe = () => {
       <main className="container mx-auto px-4 py-16">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4">Cadastro e Assinatura</h1>
+            <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+              Cadastro e Assinatura
+            </h1>
             <p className="text-xl text-muted-foreground">
               Preencha seus dados para concluir o cadastro e acessar tudo.
             </p>
           </div>
 
           <Card className="p-6 border-2 border-primary relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-primary-foreground text-sm font-semibold rounded-full">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-primary to-secondary text-primary-foreground text-sm font-semibold rounded-full">
               Cadastro
             </div>
 
@@ -242,6 +274,19 @@ const Subscribe = () => {
                   disabled={loading}
                 />
               </div>
+
+              {/* Date of Birth Selector */}
+              <DateOfBirthSelector
+                day={birthDay}
+                month={birthMonth}
+                year={birthYear}
+                onDayChange={setBirthDay}
+                onMonthChange={setBirthMonth}
+                onYearChange={setBirthYear}
+                disabled={loading}
+              />
+              {errors.age && <p className="text-sm text-destructive">{errors.age}</p>}
+
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha *</Label>
@@ -278,23 +323,23 @@ const Subscribe = () => {
                 </div>
               </div>
 
+              {/* Terms and Conditions with Info Icon */}
               <div className="flex items-center gap-2">
-                <input
+                <Checkbox
                   id="accept-terms"
-                  type="checkbox"
                   checked={acceptTerms}
-                  onChange={(e) => setAcceptTerms(e.target.checked)}
-                  className="h-4 w-4"
+                  onCheckedChange={(checked) => setAcceptTerms(checked === true)}
                   disabled={loading}
                 />
-                <Label htmlFor="accept-terms" className="text-sm">
-                  Li e aceito os termos.
+                <Label htmlFor="accept-terms" className="text-sm flex items-center gap-1">
+                  Li e aceito os termos e condições
+                  <TermsDialog />
                 </Label>
               </div>
 
-              <Card className="p-4 border-primary">
+              <Card className="p-4 border-primary/50 bg-gradient-to-br from-card to-card/80">
                 <h3 className="text-lg font-semibold mb-1">Taxa de Ativação</h3>
-                <p className="text-2xl font-bold">R$ 5,00</p>
+                <p className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">R$ 5,00</p>
                 <div className="space-y-2 text-sm text-muted-foreground mt-2">
                   <div className="flex items-start gap-2">
                     <Check className="h-4 w-4 text-primary mt-0.5" />
@@ -311,7 +356,7 @@ const Subscribe = () => {
                 </div>
               </Card>
 
-              <Button className="w-full" onClick={handleSubscribe} disabled={loading}>
+              <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" onClick={handleSubscribe} disabled={loading}>
                 {loading ? "Processando..." : "Pagar R$ 5,00 e concluir cadastro"}
               </Button>
 

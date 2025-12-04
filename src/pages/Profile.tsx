@@ -16,6 +16,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import CreatorActivationCard from "@/components/creator/CreatorActivationCard";
 import { logger } from "@/lib/logger";
 import AvatarCropDialog from "@/components/AvatarCropDialog";
+import { InstructionsDialog } from "@/components/InstructionsDialog";
 
 type ProfileFormState = {
   username: string;
@@ -227,9 +228,14 @@ const Profile = () => {
       <Navbar user={user} />
 
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl space-y-4 sm:space-y-6">
-        <div className="flex items-center gap-3 mb-6 sm:mb-8">
-          <User className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-          <h1 className="text-2xl sm:text-3xl font-bold">{t.profile.title}</h1>
+        <div className="flex items-center justify-between mb-6 sm:mb-8">
+          <div className="flex items-center gap-3">
+            <User className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+              {t.profile.title}
+            </h1>
+          </div>
+          <InstructionsDialog />
         </div>
 
         <Card className="border-border shadow-card">
@@ -336,7 +342,7 @@ const Profile = () => {
 
             <Button
               onClick={handleUpdateProfile}
-              className="w-full"
+              className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90"
               disabled={loading}
             >
               {loading ? t.profile.saving : t.profile.saveChanges}
