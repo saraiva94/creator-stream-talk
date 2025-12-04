@@ -462,18 +462,30 @@ export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
 
 // Public API surface
 export const apiClient = {
-  fetchPublicLives: (signal?: AbortSignal) =>
-    withFallback(
-      () => request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
-      async () => {
-        try {
-          return await request<{ lives: LiveSummary[] }>('/lives', { method: 'GET', auth: 'optional', signal });
-        } catch (error) {
-          console.warn('[api] lives fallback failed, returning empty list', error);
-          return { lives: [] };
-        }
-      },
-    ),
+  fetchPublicLives: async (signal?: AbortSignal) => {
+    // Try backend first, fallback to direct Supabase query
+    try {
+      return await withFallback(
+        () => request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
+        () => request<{ lives: LiveSummary[] }>('/lives', { method: 'GET', auth: 'optional', signal }),
+      );
+    } catch (error) {
+      // Direct Supabase fallback when backend is unavailable
+      console.debug('[api] Backend unavailable, using direct Supabase query');
+      const { data, error: dbError } = await supabase
+        .from('lives')
+        .select('id, creator_id, title, description, price, status, is_active, room_name, creator_percent, affiliate_percent, platform_percent, created_at, ended_at')
+        .in('status', ['scheduled', 'waiting_for_host', 'live', 'inactive', 'ending'])
+        .order('created_at', { ascending: false });
+
+      if (dbError) {
+        console.warn('[api] Supabase fallback failed:', dbError);
+        return { lives: [] };
+      }
+
+      return { lives: (data ?? []) as LiveSummary[] };
+    }
+  },
 
   startLive: (payload: LiveIdentifierPayload) =>
     request<StartLiveResponse>('/lives/start', { method: 'POST', body: payload, auth: 'required' }),

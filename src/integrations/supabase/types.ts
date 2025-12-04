@@ -93,6 +93,51 @@ export type Database = {
           },
         ]
       }
+      commissions: {
+        Row: {
+          commission_amount: number | null
+          created_at: string | null
+          creator_id: string
+          id: string
+          payment_id: string | null
+        }
+        Insert: {
+          commission_amount?: number | null
+          created_at?: string | null
+          creator_id: string
+          id?: string
+          payment_id?: string | null
+        }
+        Update: {
+          commission_amount?: number | null
+          created_at?: string | null
+          creator_id?: string
+          id?: string
+          payment_id?: string | null
+        }
+        Relationships: []
+      }
+      creator_balance: {
+        Row: {
+          balance: number | null
+          creator_id: string
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          balance?: number | null
+          creator_id: string
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          balance?: number | null
+          creator_id?: string
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       creator_bank_accounts: {
         Row: {
           account_holder_name: string
@@ -137,6 +182,7 @@ export type Database = {
       }
       creator_profiles: {
         Row: {
+          approved_for_live: boolean | null
           bio: string | null
           created_at: string
           daily_room_name: string | null
@@ -148,6 +194,7 @@ export type Database = {
           viewer_count: number | null
         }
         Insert: {
+          approved_for_live?: boolean | null
           bio?: string | null
           created_at?: string
           daily_room_name?: string | null
@@ -159,6 +206,7 @@ export type Database = {
           viewer_count?: number | null
         }
         Update: {
+          approved_for_live?: boolean | null
           bio?: string | null
           created_at?: string
           daily_room_name?: string | null
@@ -173,6 +221,41 @@ export type Database = {
           {
             foreignKeyName: "creator_profiles_id_fkey"
             columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creators: {
+        Row: {
+          bio: string | null
+          created_at: string | null
+          display_name: string | null
+          id: string
+          is_approved: boolean | null
+          user_id: string
+        }
+        Insert: {
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          is_approved?: boolean | null
+          user_id: string
+        }
+        Update: {
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          is_approved?: boolean | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creators_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -293,6 +376,62 @@ export type Database = {
         }
         Relationships: []
       }
+      lives: {
+        Row: {
+          affiliate_percent: number | null
+          created_at: string | null
+          creator_id: string
+          creator_percent: number | null
+          description: string | null
+          ended_at: string | null
+          id: string
+          is_active: boolean | null
+          platform_percent: number | null
+          price: number | null
+          room_name: string | null
+          status: string | null
+          title: string | null
+        }
+        Insert: {
+          affiliate_percent?: number | null
+          created_at?: string | null
+          creator_id: string
+          creator_percent?: number | null
+          description?: string | null
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          platform_percent?: number | null
+          price?: number | null
+          room_name?: string | null
+          status?: string | null
+          title?: string | null
+        }
+        Update: {
+          affiliate_percent?: number | null
+          created_at?: string | null
+          creator_id?: string
+          creator_percent?: number | null
+          description?: string | null
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          platform_percent?: number | null
+          price?: number | null
+          room_name?: string | null
+          status?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lives_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
@@ -358,6 +497,39 @@ export type Database = {
           read?: boolean | null
           title?: string
           type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          external_id: string | null
+          id: string
+          live_id: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string | null
+          external_id?: string | null
+          id?: string
+          live_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          external_id?: string | null
+          id?: string
+          live_id?: string | null
+          status?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
