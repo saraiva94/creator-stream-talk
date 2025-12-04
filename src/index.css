@@ -8,7 +8,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Twitch/Kick-inspired black and purple theme */
+    /* Neon Pink/Orange/Purple gradient theme inspired by DOT logo */
     --background: 0 0% 0%; /* Pure black #000000 */
     --foreground: 0 0% 98%;
 
@@ -18,18 +18,21 @@ All colors MUST be HSL.
     --popover: 0 0% 8%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 270 80% 55%; /* Vibrant purple #8B45F0 */
+    /* Primary: Neon Pink */
+    --primary: 330 90% 60%; /* Neon pink #F050A0 */
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 270 80% 65%;
+    --primary-glow: 330 90% 70%;
 
-    --secondary: 0 0% 10%;
-    --secondary-foreground: 270 80% 55%;
+    /* Secondary: Neon Orange */
+    --secondary: 25 95% 55%; /* Neon orange #F07020 */
+    --secondary-foreground: 0 0% 100%;
+
+    /* Accent: Neon Purple */
+    --accent: 270 80% 60%; /* Neon purple #9060F0 */
+    --accent-foreground: 0 0% 100%;
 
     --muted: 0 0% 15%;
     --muted-foreground: 0 0% 60%;
-
-    --accent: 270 80% 55%;
-    --accent-foreground: 0 0% 100%;
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
@@ -39,18 +42,19 @@ All colors MUST be HSL.
 
     --border: 0 0% 15%;
     --input: 0 0% 15%;
-    --ring: 270 80% 55%;
+    --ring: 330 90% 60%;
 
     --radius: 0.75rem;
 
-    /* Purple-themed gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(270 80% 55%), hsl(280 70% 60%));
+    /* Neon gradient palette */
+    --gradient-primary: linear-gradient(135deg, hsl(330 90% 60%), hsl(25 95% 55%));
+    --gradient-neon: linear-gradient(90deg, hsl(330 90% 60%), hsl(25 95% 55%), hsl(270 80% 60%));
     --gradient-card: linear-gradient(180deg, hsl(0 0% 5%), hsl(0 0% 2%));
-    --gradient-purple-shine: linear-gradient(90deg, hsl(270 80% 45%), hsl(270 80% 65%), hsl(270 80% 45%));
+    --gradient-shine: linear-gradient(90deg, hsl(330 90% 50%), hsl(330 90% 70%), hsl(330 90% 50%));
     
-    /* Purple-themed shadows */
-    --shadow-glow: 0 0 40px hsl(270 80% 55% / 0.3);
-    --shadow-purple: 0 4px 24px hsl(270 80% 55% / 0.2);
+    /* Neon shadows */
+    --shadow-glow: 0 0 40px hsl(330 90% 60% / 0.4);
+    --shadow-neon: 0 0 30px hsl(25 95% 55% / 0.3), 0 0 60px hsl(330 90% 60% / 0.2);
     --shadow-card: 0 8px 32px hsl(0 0% 0% / 0.6);
     
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -65,4 +69,18 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Neon glow animation */
+@keyframes neon-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px hsl(330 90% 60%)) drop-shadow(0 0 10px hsl(25 95% 55%));
+  }
+  50% {
+    filter: drop-shadow(0 0 15px hsl(330 90% 60%)) drop-shadow(0 0 25px hsl(25 95% 55%));
+  }
+}
+
+.neon-glow {
+  animation: neon-pulse 2s ease-in-out infinite;
 }
