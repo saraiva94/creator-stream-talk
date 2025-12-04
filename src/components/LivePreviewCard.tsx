@@ -20,6 +20,7 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
     display_name: string;
     avatar_url: string | null;
   } | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCreatorInfo = async () => {
@@ -45,6 +46,23 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
 
     fetchCreatorInfo();
   }, [live.creator_id, live.creator_username]);
+
+  // Fetch thumbnail from lives table
+  useEffect(() => {
+    const fetchThumbnail = async () => {
+      const { data } = await supabase
+        .from("lives")
+        .select("thumbnail_url")
+        .eq("id", live.id)
+        .single();
+
+      if (data?.thumbnail_url) {
+        setThumbnailUrl(data.thumbnail_url);
+      }
+    };
+
+    fetchThumbnail();
+  }, [live.id]);
 
   const handleEnter = () => {
     if (!isLoggedIn) {
@@ -89,14 +107,17 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
 
   const priceDisplay = live.price ? `R$ ${live.price.toFixed(2)}` : "Free";
 
+  // Determine which image to show: custom thumbnail > avatar > placeholder
+  const displayImage = thumbnailUrl || creatorInfo?.avatar_url;
+
   return (
     <Card className="h-full flex flex-col border-border bg-card shadow-sm overflow-hidden">
-      {/* Thumbnail with creator's square avatar */}
+      {/* Thumbnail - prioritize custom thumbnail, then avatar */}
       <div className="relative aspect-video bg-gradient-to-br from-primary/20 via-background to-secondary overflow-hidden">
-        {creatorInfo?.avatar_url ? (
+        {displayImage ? (
           <img
-            src={creatorInfo.avatar_url}
-            alt={creatorInfo.display_name}
+            src={displayImage}
+            alt={creatorInfo?.display_name || "Live"}
             className="w-full h-full object-cover"
           />
         ) : (

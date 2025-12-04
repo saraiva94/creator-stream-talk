@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "@/hooks/useLanguage";
 import type { User } from "@supabase/supabase-js";
 
 interface NotificationBellProps {
@@ -31,6 +32,7 @@ interface Notification {
 
 export const NotificationBell = ({ user }: NotificationBellProps) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [followedCreatorIds, setFollowedCreatorIds] = useState<string[]>([]);
@@ -201,7 +203,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Notificações</span>
+          <span>{t.notifications?.title || "Notificações"}</span>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
@@ -209,7 +211,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
               className="h-auto py-1 px-2 text-xs"
               onClick={markAllAsRead}
             >
-              Marcar todas como lidas
+              {t.notifications?.markAllRead || "Marcar todas como lidas"}
             </Button>
           )}
         </DropdownMenuLabel>
@@ -217,7 +219,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
         
         {notifications.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
-            Nenhuma notificação
+            {t.notifications?.noNotifications || "Nenhuma notificação"}
           </div>
         ) : (
           notifications.slice(0, 10).map((notification) => (
@@ -240,8 +242,8 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {notification.type === "followed_live"
-                    ? "Está ao vivo agora!"
-                    : `Entrou no Top 5 • ${notification.viewerCount} espectadores`}
+                    ? t.notifications?.isLive || "Está ao vivo agora!"
+                    : `${t.notifications?.enteredTop5 || "Entrou no Top 5"} • ${notification.viewerCount} ${t.notifications?.viewers || "espectadores"}`}
                 </p>
               </div>
               {!notification.read && (

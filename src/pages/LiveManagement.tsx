@@ -131,6 +131,7 @@ const LiveManagement = () => {
           status: "live",
           is_active: true,
           room_name: roomId,
+          thumbnail_url: thumbnailUrl,
         });
 
         await supabase

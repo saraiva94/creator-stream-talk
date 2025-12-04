@@ -79,6 +79,14 @@ export const translations = {
       liveChannels: "Live Channels",
       noChannels: "No channels live right now",
     },
+    notifications: {
+      title: "Notifications",
+      markAllRead: "Mark all as read",
+      noNotifications: "No notifications",
+      isLive: "Is live now!",
+      enteredTop5: "Entered Top 5",
+      viewers: "viewers",
+    },
   },
   es: {
     nav: {
@@ -160,6 +168,14 @@ export const translations = {
       liveChannels: "Canales en Vivo",
       noChannels: "No hay canales en vivo ahora",
     },
+    notifications: {
+      title: "Notificaciones",
+      markAllRead: "Marcar todas como leídas",
+      noNotifications: "Sin notificaciones",
+      isLive: "¡Está en vivo ahora!",
+      enteredTop5: "Entró al Top 5",
+      viewers: "espectadores",
+    },
   },
   pt: {
     nav: {
@@ -240,6 +256,14 @@ export const translations = {
       followedChannels: "Canais Seguidos",
       liveChannels: "Canais ao Vivo",
       noChannels: "Nenhum canal ao vivo no momento",
+    },
+    notifications: {
+      title: "Notificações",
+      markAllRead: "Marcar todas como lidas",
+      noNotifications: "Nenhuma notificação",
+      isLive: "Está ao vivo agora!",
+      enteredTop5: "Entrou no Top 5",
+      viewers: "espectadores",
     },
   },
 };

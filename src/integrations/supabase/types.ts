@@ -570,6 +570,7 @@ export type Database = {
           price: number | null
           room_name: string | null
           status: string | null
+          thumbnail_url: string | null
           title: string | null
         }
         Insert: {
@@ -585,6 +586,7 @@ export type Database = {
           price?: number | null
           room_name?: string | null
           status?: string | null
+          thumbnail_url?: string | null
           title?: string | null
         }
         Update: {
@@ -600,6 +602,7 @@ export type Database = {
           price?: number | null
           room_name?: string | null
           status?: string | null
+          thumbnail_url?: string | null
           title?: string | null
         }
         Relationships: [
