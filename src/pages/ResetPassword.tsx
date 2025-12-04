@@ -138,7 +138,7 @@ const ResetPassword = () => {
     setRequesting(true);
     try {
       const isEmail = /\S+@\S+\.\S+/.test(input);
-      const redirectTo = `${siteUrl}/reset-password`;
+      const redirectTo = `${siteUrl}/update-password`;
 
       // Se for username, buscar o userId primeiro
       if (!isEmail) {
