@@ -24,11 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import ChatModerationPanel from "@/components/ChatModerationPanel";
 import type { User } from "@supabase/supabase-js";
-
-type JitsiRoomResponse = {
-  url: string;
-  name?: string;
-};
+import { logger } from "@/lib/logger";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -40,34 +36,48 @@ const Dashboard = () => {
   const [bio, setBio] = useState("");
   const [tags, setTags] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
+  const [jitsiRoomUrl, setJitsiRoomUrl] = useState<string | null>(null);
   const [showGoLiveDialog, setShowGoLiveDialog] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [approvedForLive, setApprovedForLive] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
+      logger.auth.info("Dashboard checkAuth started");
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        logger.auth.info("No session, redirecting to auth");
         navigate("/auth");
         return;
       }
       setUser(session.user);
+      logger.auth.info("Session found", { userId: session.user.id });
 
       // Check if user is a creator
-      const { data: creatorData } = await supabase
+      const { data: creatorData, error: creatorError } = await supabase
         .from("creator_profiles")
         .select("*")
         .eq("id", session.user.id)
         .single();
 
+      if (creatorError) {
+        logger.creator.warn("Creator profile fetch error", { error: creatorError.message });
+      }
+
       if (creatorData) {
+        logger.creator.info("Creator profile loaded", { 
+          displayName: creatorData.display_name,
+          isStreaming: creatorData.is_streaming,
+          approvedForLive: (creatorData as Record<string, unknown>).approved_for_live 
+        });
+        
         setIsCreator(true);
         setDisplayName(creatorData.display_name);
         setBio(creatorData.bio || "");
         setTags(creatorData.tags?.join(", ") || "");
         setIsStreaming(creatorData.is_streaming);
-        setDailyRoomUrl(creatorData.daily_room_url);
+        // Use daily_room_url from DB (legacy column name, but stores Jitsi room)
+        setJitsiRoomUrl(creatorData.daily_room_url);
         setApprovedForLive(Boolean((creatorData as Record<string, unknown>).approved_for_live ?? false));
 
         // Get current room if streaming
@@ -81,6 +91,7 @@ const Dashboard = () => {
           
           if (roomData) {
             setCurrentRoomId(roomData.id);
+            logger.creator.info("Active room found", { roomId: roomData.id });
           }
         }
       }
@@ -91,10 +102,9 @@ const Dashboard = () => {
     checkAuth();
   }, [navigate]);
 
-
-
   const handleUpdateProfile = async () => {
     setLoading(true);
+    logger.profile.info("Updating creator profile", { displayName, bio, tags });
     try {
       const { error } = await supabase
         .from("creator_profiles")
@@ -107,11 +117,13 @@ const Dashboard = () => {
 
       if (error) throw error;
 
+      logger.profile.info("Profile updated successfully");
       toast({
         title: "Perfil atualizado!",
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao atualizar";
+      logger.profile.error("Profile update error", { error: message });
       toast({
         title: "Erro ao atualizar",
         description: message,
@@ -123,11 +135,12 @@ const Dashboard = () => {
   };
 
   const handleToggleStreamingRequest = (checked: boolean) => {
+    logger.creator.info("Toggle streaming request", { checked, approvedForLive });
     if (checked) {
       if (!approvedForLive) {
         toast({
-          title: "Aguardando aprovacao",
-          description: "Sua conta ainda nao foi aprovada para iniciar lives.",
+          title: "Aguardando aprovação",
+          description: "Sua conta ainda não foi aprovada para iniciar lives.",
           variant: "destructive",
         });
         return;
@@ -144,10 +157,12 @@ const Dashboard = () => {
   };
 
   const handleToggleStreaming = async (checked: boolean) => {
+    logger.creator.info("Toggle streaming", { checked, approvedForLive });
+    
     if (checked && !approvedForLive) {
       toast({
-        title: "Aguardando aprovacao",
-        description: "Sua conta ainda nao foi aprovada para iniciar lives.",
+        title: "Aguardando aprovação",
+        description: "Sua conta ainda não foi aprovada para iniciar lives.",
         variant: "destructive",
       });
       return;
@@ -155,23 +170,24 @@ const Dashboard = () => {
 
     setLoading(true);
     try {
-      let roomUrl = dailyRoomUrl;
+      let roomUrl = jitsiRoomUrl;
 
       // Create Jitsi room if going live and no room exists
       if (checked && !roomUrl) {
         // Generate a unique room name for Jitsi
         const jitsiRoomName = `streamstar-${user?.id?.slice(0, 8)}-${Date.now().toString(36)}`;
         roomUrl = jitsiRoomName;
-        setDailyRoomUrl(roomUrl);
+        setJitsiRoomUrl(roomUrl);
+        logger.creator.info("Generated Jitsi room", { jitsiRoomName });
 
-        // Update creator profile with room name
+        // Update creator profile with room name (using legacy column names)
         await supabase
           .from("creator_profiles")
           .update({ daily_room_url: roomUrl, daily_room_name: jitsiRoomName })
           .eq("id", user?.id);
 
         // Create room record
-        const { data: newRoom } = await supabase
+        const { data: newRoom, error: roomError } = await supabase
           .from("rooms")
           .insert({
             creator_id: user?.id,
@@ -182,8 +198,13 @@ const Dashboard = () => {
           .select()
           .single();
 
+        if (roomError) {
+          logger.creator.error("Room creation error", { error: roomError.message });
+        }
+
         if (newRoom) {
           setCurrentRoomId(newRoom.id);
+          logger.creator.info("Room created", { roomId: newRoom.id });
         }
       }
 
@@ -195,10 +216,11 @@ const Dashboard = () => {
       if (error) throw error;
 
       setIsStreaming(checked);
+      logger.creator.info("Streaming status updated", { isStreaming: checked });
       
       if (checked) {
         toast({
-          title: "TransmissÃ£o ativada!",
+          title: "Transmissão ativada!",
           description: "Redirecionando para painel de controle...",
         });
         
@@ -208,12 +230,13 @@ const Dashboard = () => {
         }, 1000);
       } else {
         toast({
-          title: "TransmissÃ£o desativada",
-          description: "VocÃª ficou offline",
+          title: "Transmissão desativada",
+          description: "Você ficou offline",
         });
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao alterar status";
+      logger.creator.error("Streaming toggle error", { error: message });
       toast({
         title: "Erro ao alterar status",
         description: message,
@@ -249,12 +272,12 @@ const Dashboard = () => {
             <CardHeader>
               <CardTitle>Ative seu perfil de criador</CardTitle>
               <CardDescription>
-                Para comecar a transmitir, ative seu perfil de criador na pagina de perfil.
+                Para começar a transmitir, ative seu perfil de criador na página de perfil.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Va ate a pagina de perfil para definir seu nome de exibicao e ativar o perfil de criador.
+                Vá até a página de perfil para definir seu nome de exibição e ativar o perfil de criador.
               </p>
               <Button onClick={() => navigate("/profile")} className="w-full">
                 Ir para meu perfil
@@ -265,17 +288,17 @@ const Dashboard = () => {
           <div className="space-y-6">
             {!approvedForLive && (
               <Alert>
-                <AlertTitle>Conta em avaliacao</AlertTitle>
+                <AlertTitle>Conta em avaliação</AlertTitle>
                 <AlertDescription>
-                  Aguarde a aprovacao da equipe para iniciar transmissao ao vivo. Voce ja pode configurar seu perfil.
+                  Aguarde a aprovação da equipe para iniciar transmissão ao vivo. Você já pode configurar seu perfil.
                 </AlertDescription>
               </Alert>
             )}
             <Card className="border-border shadow-card">
               <CardHeader>
-                <CardTitle>Status de TransmissÃ£o</CardTitle>
+                <CardTitle>Status de Transmissão</CardTitle>
                 <CardDescription>
-                  Ative para aparecer como AO VIVO na pÃ¡gina inicial
+                  Ative para aparecer como AO VIVO na página inicial
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -310,12 +333,12 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Editar Perfil</CardTitle>
                 <CardDescription>
-                  Atualize suas informaÃ§Ãµes de criador
+                  Atualize suas informações de criador
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-display-name">Nome de ExibiÃ§Ã£o</Label>
+                  <Label htmlFor="edit-display-name">Nome de Exibição</Label>
                   <Input
                     id="edit-display-name"
                     value={displayName}
@@ -347,23 +370,23 @@ const Dashboard = () => {
                   className="w-full"
                   disabled={loading}
                 >
-                  {loading ? "Salvando..." : "Salvar AlteraÃ§Ãµes"}
+                  {loading ? "Salvando..." : "Salvar Alterações"}
                 </Button>
               </CardContent>
             </Card>
 
-            {isStreaming && dailyRoomUrl && currentRoomId && (
+            {isStreaming && jitsiRoomUrl && currentRoomId && (
               <>
                 <Card className="border-border shadow-card bg-gradient-card">
                   <CardHeader>
-                    <CardTitle>Sua TransmissÃ£o</CardTitle>
+                    <CardTitle>Sua Transmissão</CardTitle>
                     <CardDescription>
-                      Controle sua cÃ¢mera, microfone e compartilhamento de tela
+                      Controle sua câmera, microfone e compartilhamento de tela
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="aspect-video bg-secondary rounded-lg overflow-hidden">
-                      <JitsiPlayer roomName={dailyRoomUrl || ''} />
+                      <JitsiPlayer roomName={jitsiRoomUrl} />
                     </div>
                   </CardContent>
                 </Card>
@@ -407,9 +430,9 @@ const Dashboard = () => {
       <AlertDialog open={showGoLiveDialog} onOpenChange={setShowGoLiveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Iniciar TransmissÃ£o ao Vivo?</AlertDialogTitle>
+            <AlertDialogTitle>Iniciar Transmissão ao Vivo?</AlertDialogTitle>
             <AlertDialogDescription>
-              VocÃª estÃ¡ prestes a ficar online. Seus espectadores poderÃ£o ver sua transmissÃ£o assim que vocÃª confirmar. Sua cÃ¢mera e microfone serÃ£o ativados.
+              Você está prestes a ficar online. Seus espectadores poderão ver sua transmissão assim que você confirmar. Sua câmera e microfone serão ativados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -425,6 +448,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
-
-

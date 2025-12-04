@@ -12,10 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Users, DollarSign, TrendingUp, Circle, MonitorOff } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 
 type CreatorProfile = {
   approved_for_live?: boolean | null;
-  daily_room_url?: string | null;
+  daily_room_url?: string | null; // Legacy column name, stores Jitsi room
 };
 
 type RoomRecord = {
@@ -32,13 +33,14 @@ const LiveManagement = () => {
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [room, setRoom] = useState<RoomRecord | null>(null);
-  const [dailyRoomUrl, setDailyRoomUrl] = useState<string | null>(null);
+  const [jitsiRoomUrl, setJitsiRoomUrl] = useState<string | null>(null);
   const [participants, setParticipants] = useState(0);
   const [revenue, setRevenue] = useState({ total: 0, superchats: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkAuth = async () => {
+      logger.auth.info("LiveManagement checkAuth started");
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/auth");
@@ -54,6 +56,7 @@ const LiveManagement = () => {
         .maybeSingle();
 
       if (creatorError || !creatorProfile) {
+        logger.creator.warn("Creator profile not found", { error: creatorError?.message });
         toast({
           title: "Acesso negado",
           description: "Apenas criadores podem acessar esta página",
@@ -64,16 +67,19 @@ const LiveManagement = () => {
       }
 
       if (!(creatorProfile as Record<string, unknown>).approved_for_live) {
+        logger.creator.warn("Creator not approved for live");
         toast({
-          title: "Aguardando aprovacao",
-          description: "Sua conta ainda nao foi aprovada para transmissao ao vivo.",
+          title: "Aguardando aprovação",
+          description: "Sua conta ainda não foi aprovada para transmissão ao vivo.",
           variant: "destructive",
         });
         navigate("/dashboard");
         return;
       }
 
+      // Check for Jitsi room (stored in legacy daily_room_url column)
       if (!creatorProfile?.daily_room_url) {
+        logger.creator.warn("No Jitsi room configured");
         toast({
           title: "Erro",
           description: "Você precisa iniciar a transmissão primeiro",
@@ -83,7 +89,8 @@ const LiveManagement = () => {
         return;
       }
 
-      setDailyRoomUrl(creatorProfile.daily_room_url);
+      setJitsiRoomUrl(creatorProfile.daily_room_url);
+      logger.creator.info("Jitsi room loaded", { roomUrl: creatorProfile.daily_room_url });
 
       // Get active room
       const { data: activeRoom } = await supabase
@@ -94,6 +101,7 @@ const LiveManagement = () => {
         .single();
 
       setRoom(activeRoom);
+      logger.creator.info("Active room status", { hasRoom: !!activeRoom, roomId: activeRoom?.id });
       setLoading(false);
     };
 
@@ -111,6 +119,7 @@ const LiveManagement = () => {
         .eq("room_id", room.id);
 
       setParticipants(count || 0);
+      logger.live.debug("Participants count", { count: count || 0 });
     };
 
     fetchParticipants();
@@ -154,6 +163,7 @@ const LiveManagement = () => {
           .filter((t: TransactionRow) => t.type === "superchat")
           .reduce((sum: number, t: TransactionRow) => sum + Number(t.amount ?? 0), 0);
         setRevenue({ total, superchats });
+        logger.live.debug("Revenue fetched", { total, superchats });
       }
     };
 
@@ -184,6 +194,8 @@ const LiveManagement = () => {
   const handleEndStream = async () => {
     if (!room?.id || !user?.id) return;
 
+    logger.live.info("Ending stream", { roomId: room.id });
+
     try {
       // Update room status
       await supabase
@@ -191,12 +203,13 @@ const LiveManagement = () => {
         .update({ is_active: false, ended_at: new Date().toISOString() })
         .eq("id", room.id);
 
-      // Update creator profile
+      // Update creator profile (clear Jitsi room from legacy column)
       await supabase
         .from("creator_profiles")
         .update({ is_streaming: false, daily_room_url: null })
         .eq("id", user.id);
 
+      logger.live.info("Stream ended successfully");
       toast({
         title: "Transmissão encerrada",
         description: "Você está offline agora",
@@ -205,6 +218,7 @@ const LiveManagement = () => {
       navigate("/dashboard");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao encerrar";
+      logger.live.error("End stream error", { error: message });
       toast({
         title: "Erro ao encerrar",
         description: message,
@@ -291,8 +305,8 @@ const LiveManagement = () => {
             {/* Video */}
             <Card className="border-border overflow-hidden">
               <div className="aspect-video bg-secondary">
-                {dailyRoomUrl && (
-                  <JitsiPlayer roomName={dailyRoomUrl} />
+                {jitsiRoomUrl && (
+                  <JitsiPlayer roomName={jitsiRoomUrl} />
                 )}
               </div>
             </Card>
