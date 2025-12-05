@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions."process-pix-payout"]
 verify_jwt = true
+
+[functions."auth-email-hook"]
+verify_jwt = false
