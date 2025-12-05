@@ -116,9 +116,9 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Stream Live Hub <onboarding@resend.dev>",
+        from: "Stream Star <onboarding@resend.dev>",
         to: [userEmail],
-        subject: "Redefinição de Senha - Stream Live Hub",
+        subject: "🔐 Redefinição de Senha - Stream Star",
         html: `
           <!DOCTYPE html>
           <html>
@@ -126,40 +126,56 @@ const handler = async (req: Request): Promise<Response> => {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
           </head>
-          <body style="font-family: Arial, sans-serif; background-color: #1a1a2e; color: #ffffff; padding: 40px 20px; margin: 0;">
-            <div style="max-width: 600px; margin: 0 auto; background-color: #16213e; border-radius: 12px; padding: 40px; box-shadow: 0 4px 20px rgba(123, 63, 243, 0.3);">
-              <h1 style="color: #9A5CFF; text-align: center; margin-bottom: 30px; font-size: 28px;">
-                🔐 Redefinição de Senha
-              </h1>
+          <body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #0a0a0f; color: #ffffff; padding: 40px 20px; margin: 0;">
+            <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(145deg, #1a1a2e 0%, #12121c 100%); border-radius: 16px; padding: 40px; box-shadow: 0 8px 32px rgba(123, 63, 243, 0.25); border: 1px solid rgba(154, 92, 255, 0.2);">
               
-              <p style="color: #e0e0e0; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Olá! Recebemos uma solicitação para redefinir sua senha na <strong style="color: #9A5CFF;">Stream Live Hub</strong>.
+              <!-- Logo Header -->
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="font-size: 32px; margin: 0; background: linear-gradient(135deg, #ff6b9d 0%, #ffa64d 25%, #9A5CFF 50%, #7B3FF3 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                  ⭐ Stream Star
+                </h1>
+              </div>
+              
+              <h2 style="color: #9A5CFF; text-align: center; margin-bottom: 25px; font-size: 24px; font-weight: 600;">
+                🔐 Redefinição de Senha
+              </h2>
+              
+              <p style="color: #e0e0e0; font-size: 16px; line-height: 1.7; margin-bottom: 20px; text-align: center;">
+                Olá! Recebemos uma solicitação para redefinir sua senha na <strong style="color: #9A5CFF;">Stream Star</strong>.
               </p>
               
-              <p style="color: #e0e0e0; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
+              <p style="color: #b0b0b0; font-size: 15px; line-height: 1.6; margin-bottom: 30px; text-align: center;">
                 Clique no botão abaixo para criar uma nova senha:
               </p>
               
-              <div style="text-align: center; margin: 30px 0;">
+              <div style="text-align: center; margin: 35px 0;">
                 <a href="${recoveryLink}" 
-                   style="display: inline-block; background: linear-gradient(135deg, #7B3FF3 0%, #9A5CFF 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 15px rgba(123, 63, 243, 0.4);">
-                  Redefinir Senha
+                   style="display: inline-block; background: linear-gradient(135deg, #7B3FF3 0%, #9A5CFF 100%); color: #ffffff; text-decoration: none; padding: 18px 48px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 6px 20px rgba(123, 63, 243, 0.5); transition: all 0.3s ease;">
+                  ✨ Redefinir Senha
                 </a>
               </div>
               
-              <p style="color: #888; font-size: 14px; line-height: 1.6; margin-top: 30px;">
-                Se você não solicitou esta redefinição, ignore este email. Sua senha permanecerá a mesma.
+              <div style="background: rgba(123, 63, 243, 0.1); border-radius: 8px; padding: 16px; margin: 25px 0; border-left: 4px solid #9A5CFF;">
+                <p style="color: #a0a0a0; font-size: 14px; line-height: 1.6; margin: 0;">
+                  ⚠️ Se você não solicitou esta redefinição, ignore este email. Sua senha permanecerá a mesma.
+                </p>
+              </div>
+              
+              <p style="color: #888; font-size: 13px; line-height: 1.6; text-align: center;">
+                ⏰ Este link expira em 24 horas.
               </p>
               
-              <p style="color: #888; font-size: 14px; line-height: 1.6;">
-                Este link expira em 24 horas.
-              </p>
+              <hr style="border: none; border-top: 1px solid rgba(154, 92, 255, 0.2); margin: 30px 0;">
               
-              <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
-              
-              <p style="color: #666; font-size: 12px; text-align: center;">
-                Stream Live Hub - Sua plataforma de streaming ao vivo
-              </p>
+              <!-- Footer -->
+              <div style="text-align: center;">
+                <p style="color: #9A5CFF; font-size: 14px; margin-bottom: 8px; font-weight: 500;">
+                  Made with ❤️ by Stream Star Support
+                </p>
+                <p style="color: #666; font-size: 12px; margin: 0;">
+                  Sua plataforma de streaming ao vivo
+                </p>
+              </div>
             </div>
           </body>
           </html>
