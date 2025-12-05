@@ -303,10 +303,34 @@ serve(async (req) => {
     };
 
     console.log(`[AUTH-EMAIL-HOOK] Processing ${email_action_type} email for ${user.email}`);
+    console.log(`[AUTH-EMAIL-HOOK] Original redirect_to: ${redirect_to}`);
 
     // Build confirmation URL
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}`;
+    
+    // Determine the correct redirect URL based on action type
+    // Use the production site URL
+    const siteUrl = "https://creator-stream-talk.vercel.app";
+    let finalRedirectTo = redirect_to;
+    
+    // If redirect_to is empty or invalid, use defaults based on action type
+    if (!redirect_to || redirect_to === "" || redirect_to === "undefined") {
+      switch (email_action_type) {
+        case "recovery":
+          finalRedirectTo = `${siteUrl}/reset-password`;
+          break;
+        case "signup":
+        case "email_change":
+          finalRedirectTo = `${siteUrl}/`;
+          break;
+        default:
+          finalRedirectTo = `${siteUrl}/`;
+      }
+    }
+    
+    console.log(`[AUTH-EMAIL-HOOK] Final redirect_to: ${finalRedirectTo}`);
+    
+    const confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(finalRedirectTo)}`;
 
     const subject = getEmailSubject(email_action_type);
     const html = getEmailHtml(email_action_type, confirmationUrl, token);
