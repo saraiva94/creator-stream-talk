@@ -24,6 +24,7 @@ import CreatorSettings from "./pages/CreatorSettings";
 import CreatorPayouts from "./pages/CreatorPayouts";
 import AdminCreators from "./pages/AdminCreators";
 import AdminWithdrawals from "./pages/AdminWithdrawals";
+import AdminPixWithdrawals from "./pages/AdminPixWithdrawals";
 import Dashboard from "./pages/Dashboard";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/admin" element={<Admin />} />
             <Route path="/admin/creators" element={<AdminCreators />} />
             <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
+            <Route path="/admin/pix-withdrawals" element={<AdminPixWithdrawals />} />
             <Route path="/affiliate" element={<Affiliate />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/dashboard" element={<Dashboard />} />
