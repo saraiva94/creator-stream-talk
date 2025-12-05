@@ -13,19 +13,21 @@ export const StreamStarLogo = ({ size = "default", variant = "neon" }: StreamSta
     ? {
         gradient: "from-[hsl(330,90%,60%)] via-[hsl(25,95%,55%)] to-[hsl(270,80%,60%)]",
         icon: "text-[hsl(330,90%,60%)]",
-        ring: "border-[hsl(330,90%,60%)]/50"
+        ring: "border-[hsl(330,90%,60%)]/50",
+        glow: "from-[hsl(330,90%,60%)] via-[hsl(25,95%,55%)] to-[hsl(270,80%,60%)]"
       }
     : {
         gradient: "from-[hsl(280,85%,65%)] via-[hsl(265,80%,55%)] to-[hsl(250,75%,50%)]",
-        icon: "text-[hsl(270,80%,60%)]",
-        ring: "border-[hsl(270,80%,60%)]/50"
+        icon: "text-white",
+        ring: "border-white/50",
+        glow: "from-white via-white to-white"
       };
   
   return (
     <div className="flex items-center gap-2 group cursor-pointer">
       <div className="relative">
         {/* Neon glow effect */}
-        <div className={`absolute inset-0 bg-gradient-to-r ${colors.gradient} rounded-lg blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-500`} />
+        <div className={`absolute inset-0 bg-gradient-to-r ${colors.glow} rounded-lg blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-500`} />
         
         {/* Icon with pulse animation */}
         <div className="relative neon-glow">
