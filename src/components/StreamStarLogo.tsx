@@ -18,9 +18,9 @@ export const StreamStarLogo = ({ size = "default", variant = "neon" }: StreamSta
       }
     : {
         gradient: "from-[hsl(280,85%,65%)] via-[hsl(265,80%,55%)] to-[hsl(250,75%,50%)]",
-        icon: "text-white",
-        ring: "border-white/50",
-        glow: "from-white via-white to-white"
+        icon: "text-[hsl(270,70%,85%)]",
+        ring: "border-[hsl(270,70%,85%)]/50",
+        glow: "from-[hsl(270,70%,85%)] via-[hsl(270,70%,85%)] to-[hsl(270,70%,85%)]"
       };
   
   return (
