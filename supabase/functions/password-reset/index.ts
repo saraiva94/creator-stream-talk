@@ -137,27 +137,27 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
               
               <h2 style="color: #9A5CFF; text-align: center; margin-bottom: 25px; font-size: 24px; font-weight: 600;">
-                🔐 Redefinição de Senha
+                🔐 Esqueceu a senha?
               </h2>
               
-              <p style="color: #e0e0e0; font-size: 16px; line-height: 1.7; margin-bottom: 20px; text-align: center;">
-                Olá! Recebemos uma solicitação para redefinir sua senha na <strong style="color: #9A5CFF;">Stream Star</strong>.
+              <p style="color: #e0e0e0; font-size: 17px; line-height: 1.8; margin-bottom: 25px; text-align: center;">
+                Refaça a sua senha que você recentemente esqueceu, clique no botão e vamos resolver isso!
               </p>
               
-              <p style="color: #b0b0b0; font-size: 15px; line-height: 1.6; margin-bottom: 30px; text-align: center;">
-                Clique no botão abaixo para criar uma nova senha:
+              <p style="color: #ffa64d; font-size: 15px; line-height: 1.6; margin-bottom: 30px; text-align: center; font-style: italic;">
+                😉 Agora vê se anota pra não esquecer de novo!
               </p>
               
               <div style="text-align: center; margin: 35px 0;">
                 <a href="${recoveryLink}" 
                    style="display: inline-block; background: linear-gradient(135deg, #7B3FF3 0%, #9A5CFF 100%); color: #ffffff; text-decoration: none; padding: 18px 48px; border-radius: 12px; font-size: 18px; font-weight: bold; box-shadow: 0 6px 20px rgba(123, 63, 243, 0.5); transition: all 0.3s ease;">
-                  ✨ Redefinir Senha
+                  ✨ Criar Nova Senha
                 </a>
               </div>
               
               <div style="background: rgba(123, 63, 243, 0.1); border-radius: 8px; padding: 16px; margin: 25px 0; border-left: 4px solid #9A5CFF;">
                 <p style="color: #a0a0a0; font-size: 14px; line-height: 1.6; margin: 0;">
-                  ⚠️ Se você não solicitou esta redefinição, ignore este email. Sua senha permanecerá a mesma.
+                  🔒 Se você não solicitou esta redefinição, pode ignorar este email com segurança.
                 </p>
               </div>
               
@@ -170,7 +170,7 @@ const handler = async (req: Request): Promise<Response> => {
               <!-- Footer -->
               <div style="text-align: center;">
                 <p style="color: #9A5CFF; font-size: 14px; margin-bottom: 8px; font-weight: 500;">
-                  Made with ❤️ by Stream Star Support
+                  Stream Star ⭐
                 </p>
                 <p style="color: #666; font-size: 12px; margin: 0;">
                   Sua plataforma de streaming ao vivo

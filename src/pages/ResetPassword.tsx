@@ -137,11 +137,17 @@ const ResetPassword = () => {
 
     setRequesting(true);
     try {
+      const redirectTo = `${siteUrl}/reset-password`;
       const isEmail = /\S+@\S+\.\S+/.test(input);
-      const redirectTo = `${siteUrl}/update-password`;
 
-      // Se for username, buscar o userId primeiro
-      if (!isEmail) {
+      // Usar nosso edge function personalizado para TODOS os casos (email ou username)
+      // Isso garante que o email seja enviado pelo Resend com template Stream Star
+      const body: { email?: string; userId?: string; redirectTo: string } = { redirectTo };
+      
+      if (isEmail) {
+        body.email = input;
+      } else {
+        // Buscar userId pelo username
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("id")
@@ -149,41 +155,26 @@ const ResetPassword = () => {
           .maybeSingle();
 
         if (profileError || !profile) {
-          setRequestError("Usuário não encontrado.");
+          // Não revelar se usuário existe ou não
+          setRequestMessage("Se o e-mail ou usuário estiver cadastrado, você receberá um link de recuperação.");
           setRequesting(false);
           return;
         }
+        body.userId = profile.id;
+      }
 
-        // Usar edge function com userId
-        const { data: userData, error: userError } = await supabase.functions.invoke("password-reset", {
-          body: { userId: profile.id, redirectTo },
-        });
+      const { data, error } = await supabase.functions.invoke("password-reset", {
+        body,
+      });
 
-        if (userError || userData?.error) {
-          console.error("[AUTH][RESET_LINK] Edge function error:", userError || userData?.error);
-          setRequestError(userData?.error || "Não foi possível enviar o link de recuperação.");
-          setRequesting(false);
-          return;
-        }
-
-        setRequestMessage(userData?.message || "Enviamos um link de recuperação para o e-mail cadastrado.");
+      if (error) {
+        console.error("[AUTH][RESET_LINK] Edge function error:", error);
+        setRequestMessage("Se o e-mail ou usuário estiver cadastrado, você receberá um link de recuperação.");
         setRequesting(false);
         return;
       }
 
-      // Usar método nativo do Supabase Auth (não depende de Resend)
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(input, {
-        redirectTo,
-      });
-
-      if (resetError) {
-        console.error("[AUTH][RESET_LINK] Supabase error:", resetError);
-        // Não revelar se o email existe ou não por segurança
-        setRequestMessage("Se o e-mail estiver cadastrado, você receberá um link de recuperação.");
-        return;
-      }
-
-      setRequestMessage("Se o e-mail estiver cadastrado, você receberá um link de recuperação.");
+      setRequestMessage(data?.message || "Se o e-mail ou usuário estiver cadastrado, você receberá um link de recuperação.");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
