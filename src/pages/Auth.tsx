@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { useLanguage } from "@/hooks/useLanguage";
-import { LanguageSelector } from "@/components/LanguageSelector";
 import { AuthApiError } from "@supabase/supabase-js";
 import { ApiError, api } from "@/lib/api";
 
@@ -211,10 +210,6 @@ const Auth = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="flex items-center justify-center p-4 pt-24">
-        <div className="absolute top-4 right-4">
-          <LanguageSelector />
-        </div>
-      
         <div className="w-full max-w-md">
           <div className="flex items-center justify-center mb-8">
             <StreamStarLogo size="large" />
