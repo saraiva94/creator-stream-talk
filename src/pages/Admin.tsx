@@ -4,12 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, Users, Video, TrendingUp, UserCheck } from "lucide-react";
+import { Users, Video, TrendingUp, UserCheck } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 import type { User } from "@supabase/supabase-js";
 
 type AdminStats = {
@@ -17,12 +16,6 @@ type AdminStats = {
   totalCreators: number;
   onlineCreators: number;
   totalRevenue: number;
-};
-
-type FinancialSettings = {
-  subscription_price: number;
-  creator_percentage: number;
-  platform_percentage: number;
 };
 
 type PayoutRequest = {
@@ -46,13 +39,9 @@ const Admin = () => {
     onlineCreators: 0,
     totalRevenue: 0,
   });
-  const [financialSettings, setFinancialSettings] = useState<FinancialSettings>({
-    subscription_price: 5.0,
-    creator_percentage: 80,
-    platform_percentage: 20,
-  });
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   useEffect(() => {
     checkAdminAccess();
@@ -102,8 +91,8 @@ const Admin = () => {
 
       if (!hasAdminRole) {
         toast({
-          title: "Access Denied",
-          description: "You don't have permission to access this page",
+          title: t.admin.accessDenied,
+          description: t.admin.noPermission,
           variant: "destructive",
         });
         navigate("/");
@@ -114,7 +103,6 @@ const Admin = () => {
       await Promise.all([
         fetchStats(),
         fetchPayoutRequests(),
-        fetchFinancialSettings(),
       ]);
     } catch (error) {
       console.error("Error checking admin access:", error);
@@ -135,7 +123,7 @@ const Admin = () => {
 
       type TransactionRow = { platform_amount: number | null };
       const revenueData = (revenueRes.data ?? []) as TransactionRow[];
-      const totalRevenue = revenueData.reduce((sum, t) => sum + (t.platform_amount || 0), 0);
+      const totalRevenue = revenueData.reduce((sum, tx) => sum + (tx.platform_amount || 0), 0);
 
       setStats({
         totalUsers: usersRes.count || 0,
@@ -168,7 +156,6 @@ const Admin = () => {
 
       if (error) throw error;
       
-      // Map the data to include placeholder profile info
       const mappedData: PayoutRequest[] = (data || []).map((row) => ({
         id: row.id,
         creator_id: row.creator_id,
@@ -182,51 +169,6 @@ const Admin = () => {
       setPayoutRequests(mappedData);
     } catch (error) {
       console.error("Error fetching payout requests:", error);
-    }
-  };
-
-  const fetchFinancialSettings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("financial_settings")
-        .select("*")
-        .single();
-
-      if (error) throw error;
-      if (data) {
-        setFinancialSettings({
-          subscription_price: data.subscription_price,
-          creator_percentage: data.creator_percentage,
-          platform_percentage: data.platform_percentage,
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching financial settings:", error);
-    }
-  };
-
-  const handleUpdateSettings = async () => {
-    try {
-      const { data: settingsData } = await supabase.from("financial_settings").select("id").single();
-      
-      const { error } = await supabase
-        .from("financial_settings")
-        .update(financialSettings)
-        .eq("id", settingsData?.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Settings updated",
-        description: "Financial settings have been updated successfully",
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Error updating settings";
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
     }
   };
 
@@ -244,15 +186,15 @@ const Admin = () => {
       if (error) throw error;
 
       toast({
-        title: `Payout ${action}`,
-        description: `The payout request has been ${action}`,
+        title: action === "approved" ? t.admin.payoutApproved : t.admin.payoutRejected,
+        description: t.admin.payoutUpdated,
       });
 
       fetchPayoutRequests();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Error updating payout request";
+      const message = error instanceof Error ? error.message : t.admin.errorUpdating;
       toast({
-        title: "Error",
+        title: t.common.error,
         description: message,
         variant: "destructive",
       });
@@ -262,7 +204,7 @@ const Admin = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t.common.loading}</p>
       </div>
     );
   }
@@ -277,11 +219,11 @@ const Admin = () => {
       
       <main className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-4xl font-bold text-primary">Admin Dashboard</h1>
+          <h1 className="text-4xl font-bold text-primary">{t.admin.title}</h1>
           <Link to="/admin/creators">
             <Button variant="outline">
               <UserCheck className="h-4 w-4 mr-2" />
-              Gerenciar Criadores
+              {t.admin.manageCreators}
             </Button>
           </Link>
         </div>
@@ -290,7 +232,7 @@ const Admin = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <CardTitle className="text-sm font-medium">{t.admin.totalUsers}</CardTitle>
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
@@ -300,7 +242,7 @@ const Admin = () => {
 
           <Card className="border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Creators</CardTitle>
+              <CardTitle className="text-sm font-medium">{t.admin.totalCreators}</CardTitle>
               <Video className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
@@ -310,7 +252,7 @@ const Admin = () => {
 
           <Card className="border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Online Now</CardTitle>
+              <CardTitle className="text-sm font-medium">{t.admin.onlineNow}</CardTitle>
               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
             </CardHeader>
             <CardContent>
@@ -320,84 +262,34 @@ const Admin = () => {
 
           <Card className="border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Platform Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium">{t.admin.platformRevenue}</CardTitle>
               <TrendingUp className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">R$ {stats.totalRevenue.toFixed(2)}</div>
+              <div className="text-2xl font-bold">R$ {(stats.totalRevenue / 100).toFixed(2)}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Financial Settings */}
-        <Card className="mb-8 border-primary/20">
-          <CardHeader>
-            <CardTitle>Financial Settings</CardTitle>
-            <CardDescription>Manage subscription pricing and revenue splits</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="price">Subscription Price (R$)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  value={financialSettings.subscription_price}
-                  onChange={(e) => setFinancialSettings({
-                    ...financialSettings,
-                    subscription_price: parseFloat(e.target.value)
-                  })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="creator">Creator % (currently 80%)</Label>
-                <Input
-                  id="creator"
-                  type="number"
-                  value={financialSettings.creator_percentage}
-                  onChange={(e) => setFinancialSettings({
-                    ...financialSettings,
-                    creator_percentage: parseInt(e.target.value),
-                    platform_percentage: 100 - parseInt(e.target.value)
-                  })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="platform">Platform % (currently 20%)</Label>
-                <Input
-                  id="platform"
-                  type="number"
-                  value={financialSettings.platform_percentage}
-                  disabled
-                />
-              </div>
-            </div>
-            <Button onClick={handleUpdateSettings}>
-              Update Settings
-            </Button>
-          </CardContent>
-        </Card>
-
         {/* Payout Requests */}
         <Card className="border-primary/20">
           <CardHeader>
-            <CardTitle>Payout Requests</CardTitle>
-            <CardDescription>Review and approve creator withdrawal requests</CardDescription>
+            <CardTitle>{t.admin.payoutRequests}</CardTitle>
+            <CardDescription>{t.admin.payoutRequestsDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             {payoutRequests.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">No pending payout requests</p>
+              <p className="text-muted-foreground text-center py-4">{t.admin.noPendingPayouts}</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Creator</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Bank Account</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>{t.admin.creator}</TableHead>
+                    <TableHead>{t.admin.amount}</TableHead>
+                    <TableHead>{t.admin.bankAccount}</TableHead>
+                    <TableHead>{t.admin.status}</TableHead>
+                    <TableHead>{t.admin.date}</TableHead>
+                    <TableHead>{t.admin.actions}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -430,14 +322,14 @@ const Admin = () => {
                               size="sm"
                               onClick={() => handlePayoutAction(request.id, 'approved')}
                             >
-                              Approve
+                              {t.admin.approve}
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
                               onClick={() => handlePayoutAction(request.id, 'rejected')}
                             >
-                              Reject
+                              {t.admin.reject}
                             </Button>
                           </div>
                         )}
