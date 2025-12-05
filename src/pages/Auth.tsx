@@ -212,7 +212,7 @@ const Auth = () => {
       <div className="flex items-center justify-center p-4 pt-24">
         <div className="w-full max-w-md">
           <div className="flex items-center justify-center mb-8">
-            <StreamStarLogo size="large" />
+            <StreamStarLogo size="large" variant="purple" />
           </div>
 
           <Card className="border-border shadow-gold">
