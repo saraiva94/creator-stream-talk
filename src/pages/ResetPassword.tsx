@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Video, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { validatePasswordStrength } from "@/lib/password";
 import { siteUrl } from "@/lib/siteUrl";
 
@@ -200,8 +201,7 @@ const ResetPassword = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
-          <Video className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold text-primary">Stream Star</h1>
+          <StreamStarLogo />
         </div>
 
         <Card className="border-border shadow-gold">
