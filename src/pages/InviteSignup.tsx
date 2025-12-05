@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Video } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { validatePasswordStrength } from "@/lib/password";
@@ -140,8 +141,7 @@ const InviteSignup = () => {
 
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
-          <Video className="h-12 w-12 text-primary mr-3" />
-          <h1 className="text-4xl font-bold text-primary">Stream Star</h1>
+          <StreamStarLogo />
         </div>
 
         <Card className="border-border shadow-gold">
