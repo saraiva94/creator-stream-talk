@@ -495,7 +495,7 @@ const Subscribe = () => {
               </Card>
 
               <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" onClick={handleSubscribe} disabled={loading}>
-                {loading ? "Processando..." : "Ativar minha conta por R$ 5,00"}
+                {loading ? "Processando..." : "Cadastre-se"}
               </Button>
 
               <p className="text-sm text-muted-foreground text-center">
