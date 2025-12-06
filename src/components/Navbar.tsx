@@ -243,11 +243,17 @@ const Navbar = ({ user }: NavbarProps) => {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-72">
-                <div className="flex items-center justify-between pb-4 border-b border-border">
+              <SheetContent 
+                side="right" 
+                className="w-72"
+                onSwipeClose={() => setMobileMenuOpen(false)}
+              >
+                <div className="flex items-center justify-between pb-4 border-b border-border animate-fade-in">
                   <StreamStarLogo />
                 </div>
-                <MobileMenuContent />
+                <div className="animate-fade-in" style={{ animationDelay: '0.05s' }}>
+                  <MobileMenuContent />
+                </div>
               </SheetContent>
             </Sheet>
           </div>
