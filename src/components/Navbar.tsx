@@ -87,20 +87,20 @@ const Navbar = ({ user }: NavbarProps) => {
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
-  // Mobile menu content - order: Início, Transmitir, Perfil, Finanças, Sair, Admin (last for admins)
+  // Mobile menu content - order: Transmitir, Início, Perfil, Finanças, Sair, Admin (last for admins)
   const MobileMenuContent = () => (
     <div className="flex flex-col gap-2 pt-4">
       {user ? (
         <>
-          {/* Início first */}
+          {/* Transmitir first */}
+          <TransmitButton user={user ?? null} />
+          {/* Início second */}
           <Link to="/" onClick={closeMobileMenu}>
             <Button variant="ghost" className="w-full justify-start">
               <Home className="h-4 w-4 mr-2" />
               {t.nav.home}
             </Button>
           </Link>
-          {/* Transmitir second */}
-          <TransmitButton user={user ?? null} />
           <Link to="/profile" onClick={closeMobileMenu}>
             <Button variant="ghost" className="w-full justify-start">
               <User className="h-4 w-4 mr-2" />
