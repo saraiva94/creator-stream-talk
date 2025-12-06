@@ -437,22 +437,22 @@ const Subscribe = () => {
               </div>
 
               {/* Commercial Benefits Card */}
-              <Card className="p-5 border-primary/50 bg-gradient-to-br from-primary/10 via-card to-secondary/10 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-secondary/20 to-transparent rounded-full blur-2xl" />
+              <Card className="p-5 border-primary/50 bg-gradient-to-br from-primary/10 via-card to-secondary/10 relative overflow-hidden animate-fade-in">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl animate-pulse" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-secondary/20 to-transparent rounded-full blur-2xl animate-pulse" style={{ animationDelay: "1s" }} />
                 
                 <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-3 animate-fade-in" style={{ animationDelay: "0.1s" }}>
                     <h3 className="text-lg font-bold text-foreground">Taxa Única de Ativação</h3>
                     <p className="text-2xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">R$ 5,00</p>
                   </div>
                   
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-sm text-muted-foreground mb-4 animate-fade-in" style={{ animationDelay: "0.15s" }}>
                     Desbloqueie todo o potencial de ganhos da plataforma:
                   </p>
                   
                   <div className="space-y-3 text-sm">
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.2s" }}>
                       <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
@@ -462,7 +462,7 @@ const Subscribe = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.3s" }}>
                       <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
@@ -472,7 +472,7 @@ const Subscribe = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.4s" }}>
                       <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
@@ -482,7 +482,7 @@ const Subscribe = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.5s" }}>
                       <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
