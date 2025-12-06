@@ -230,8 +230,10 @@ const Navbar = ({ user }: NavbarProps) => {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center gap-2">
-            {/* Notification bell in external navbar, left of PWA button */}
+          <div className="md:hidden flex items-center gap-1">
+            {/* Language selector - always visible on mobile */}
+            <LanguageSelector />
+            {/* Notification bell in external navbar */}
             {user && <NotificationBell user={user} />}
             <div className="flex-shrink-0">
               <InstallPWAButton />

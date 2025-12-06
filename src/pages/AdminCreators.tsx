@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, ShieldCheck, ShieldOff, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import type { User } from "@supabase/supabase-js";
 
 type CreatorRow = {
@@ -22,6 +23,7 @@ type CreatorRow = {
 
 const AdminCreators = () => {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [creators, setCreators] = useState<CreatorRow[]>([]);
@@ -47,8 +49,8 @@ const AdminCreators = () => {
       const isAdmin = roles?.some((r) => r.role === "admin") || false;
       if (!isAdmin) {
         toast({
-          title: "Acesso negado",
-          description: "Você não tem permissão para acessar esta página",
+          title: t.admin?.accessDenied || "Access denied",
+          description: t.admin?.noPermission || "You don't have permission to access this page",
           variant: "destructive",
         });
         navigate("/");
@@ -122,16 +124,18 @@ const AdminCreators = () => {
       );
 
       toast({
-        title: nextValue ? "Criador aprovado!" : "Aprovação revogada",
+        title: nextValue 
+          ? (t.adminCreators?.approved || "Creator approved!") 
+          : (t.adminCreators?.revoke || "Approval revoked"),
         description: nextValue
-          ? "O criador agora pode iniciar lives."
-          : "O criador não pode mais iniciar lives.",
+          ? (t.live?.pendingApproval ? "" : "The creator can now start lives.")
+          : (t.live?.pendingApproval ? "" : "The creator can no longer start lives."),
       });
     } catch (err) {
       console.error("[admin-creators] toggle error:", err);
       setError((err as Error).message);
       toast({
-        title: "Erro ao atualizar",
+        title: t.common?.error || "Error",
         description: (err as Error).message,
         variant: "destructive",
       });
@@ -153,19 +157,19 @@ const AdminCreators = () => {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Admin · Criadores</h1>
-              <p className="text-muted-foreground">Aprovar ou revogar criadores para fazer lives.</p>
+              <h1 className="text-3xl font-bold">{t.adminCreators?.title || "Manage Creators"}</h1>
+              <p className="text-muted-foreground">{t.adminCreators?.subtitle || "Review and approve creator accounts"}</p>
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={fetchCreators} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
+            {t.adminCreators?.refresh || "Refresh"}
           </Button>
         </div>
 
         {error && (
           <Alert variant="destructive">
-            <AlertTitle>Erro</AlertTitle>
+            <AlertTitle>{t.common?.error || "Error"}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -178,21 +182,21 @@ const AdminCreators = () => {
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando criadores...
+                {t.common?.loading || "Loading..."}
               </div>
             ) : creators.length === 0 ? (
               <div className="text-sm text-muted-foreground py-4">
-                Nenhum criador encontrado.
+                {t.adminCreators?.noCreators || "No creators found"}
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome de Exibição</TableHead>
-                    <TableHead>Username</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Solicitado em</TableHead>
-                    <TableHead className="text-right">Ação</TableHead>
+                    <TableHead>{t.profile?.username || "Username"}</TableHead>
+                    <TableHead>{t.admin?.status || "Status"}</TableHead>
+                    <TableHead>{t.adminCreators?.createdAt || "Created"}</TableHead>
+                    <TableHead className="text-right">{t.admin?.actions || "Actions"}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -202,9 +206,9 @@ const AdminCreators = () => {
                       <TableCell>{creator.username || "-"}</TableCell>
                       <TableCell>
                         {creator.isApprovedForLive ? (
-                          <Badge variant="default" className="bg-green-600">Aprovado</Badge>
+                          <Badge variant="default" className="bg-green-600">{t.adminCreators?.approved || "Approved"}</Badge>
                         ) : (
-                          <Badge variant="secondary">Pendente</Badge>
+                          <Badge variant="secondary">{t.adminCreators?.pending || "Pending"}</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{formatDate(creator.createdAt)}</TableCell>
@@ -219,11 +223,11 @@ const AdminCreators = () => {
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : creator.isApprovedForLive ? (
                             <>
-                              <ShieldOff className="mr-1 h-4 w-4" /> Revogar
+                              <ShieldOff className="mr-1 h-4 w-4" /> {t.adminCreators?.revoke || "Revoke"}
                             </>
                           ) : (
                             <>
-                              <ShieldCheck className="mr-1 h-4 w-4" /> Aprovar
+                              <ShieldCheck className="mr-1 h-4 w-4" /> {t.adminCreators?.approve || "Approve"}
                             </>
                           )}
                         </Button>
