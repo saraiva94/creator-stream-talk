@@ -22,12 +22,22 @@ export const InstallPWAButton = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isAndroid = /Android/.test(navigator.userAgent);
-  const isMobile = isIOS || isAndroid;
+  // These need to be calculated after mount to avoid SSR issues
+  const [isIOS, setIsIOS] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    // Set mounted state and detect platform
+    setIsMounted(true);
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const android = /Android/.test(navigator.userAgent);
+    setIsIOS(ios);
+    setIsAndroid(android);
+    setIsMobile(ios || android);
+
     // Check if already installed
     if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
@@ -71,6 +81,9 @@ export const InstallPWAButton = () => {
     }
   };
 
+  // Don't render until mounted (prevents flash)
+  if (!isMounted) return null;
+  
   // Don't show if already installed
   if (isInstalled) return null;
 
