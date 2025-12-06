@@ -6,9 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// PIX withdrawal configuration
-const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
-const PLATFORM_FEE_PERCENT = 0; // 0% fee for PIX withdrawals
+// PIX withdrawal configuration - NO minimum, NO fees
+const PLATFORM_FEE_PERCENT = 0;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -40,22 +39,22 @@ serve(async (req) => {
       });
     }
 
-    // Validate PIX key type
-    const validPixKeyTypes = ['cpf', 'cnpj', 'email', 'phone', 'random'];
-    const keyType = pixKeyType || detectPixKeyType(pixKey);
-    if (!validPixKeyTypes.includes(keyType)) {
+    // Validate amount is positive
+    if (amountCents <= 0) {
       return new Response(JSON.stringify({ 
-        error: 'Tipo de chave PIX inválido' 
+        error: 'O valor do saque deve ser maior que zero' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Validate minimum amount
-    if (amountCents < MIN_WITHDRAW_CENTS) {
+    // Validate PIX key type
+    const validPixKeyTypes = ['cpf', 'cnpj', 'email', 'phone', 'random'];
+    const keyType = pixKeyType || detectPixKeyType(pixKey);
+    if (!validPixKeyTypes.includes(keyType)) {
       return new Response(JSON.stringify({ 
-        error: `Valor mínimo para saque é R$ ${(MIN_WITHDRAW_CENTS / 100).toFixed(2)}` 
+        error: 'Tipo de chave PIX inválido' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -117,12 +116,13 @@ serve(async (req) => {
       });
     }
 
-    // Calculate fees
+    // Calculate fees (currently 0%)
     const feeAmountCents = Math.round(amountCents * PLATFORM_FEE_PERCENT / 100);
     const netAmountCents = amountCents - feeAmountCents;
 
-    // Create payout request for admin approval
+    // Create payout request - AUTO-APPROVED and PAID immediately
     const payoutId = crypto.randomUUID();
+    const now = new Date().toISOString();
     
     const { error: payoutError } = await supabase
       .from('payout_requests')
@@ -130,7 +130,9 @@ serve(async (req) => {
         id: payoutId,
         creator_id: userId,
         amount: amountCents / 100, // Store in BRL
-        status: 'pending',
+        status: 'paid', // Auto-approved and marked as paid
+        approved_at: now,
+        paid_at: now,
         admin_notes: JSON.stringify({
           pix_key: pixKey,
           pix_key_type: keyType,
@@ -138,7 +140,9 @@ serve(async (req) => {
           fee_cents: feeAmountCents,
           net_amount_cents: netAmountCents,
           balance_source: balanceSource,
-          requested_at: new Date().toISOString(),
+          requested_at: now,
+          auto_approved: true,
+          auto_approved_at: now,
         }),
       });
 
@@ -147,13 +151,13 @@ serve(async (req) => {
       throw new Error('Erro ao criar solicitação de saque');
     }
 
-    // Deduct from balance immediately (hold funds)
+    // Deduct from balance immediately (permanent deduction since auto-approved)
     if (isCreator) {
       const { error: updateError } = await supabase
         .from('creator_wallet')
         .update({ 
           balance_cents: availableBalanceCents - amountCents,
-          pending_cents: amountCents,
+          // No pending_cents since it's auto-approved
         })
         .eq('creator_id', userId);
 
@@ -177,12 +181,12 @@ serve(async (req) => {
       }
     }
 
-    // Record transaction
+    // Record transaction as completed
     await supabase.from('transactions').insert({
       user_id: userId,
-      type: 'pix_withdraw_request',
+      type: 'pix_withdraw',
       amount: -(amountCents / 100),
-      status: 'pending',
+      status: 'completed', // Auto-completed
       payment_method: 'pix',
       external_id: payoutId,
       metadata: { 
@@ -190,33 +194,42 @@ serve(async (req) => {
         pix_key_type: keyType,
         fee_cents: feeAmountCents,
         net_cents: netAmountCents,
+        auto_approved: true,
       },
     });
 
-    // Notify admins
+    // Notify user of successful withdrawal
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', userId)
+      .single();
+
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      title: '💰 Saque PIX processado',
+      message: `Seu saque de R$ ${(netAmountCents / 100).toFixed(2)} foi processado automaticamente.`,
+      type: 'withdrawal_completed',
+    });
+
+    // Notify admins for record keeping
     const { data: admins } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('role', 'admin');
 
     if (admins && admins.length > 0) {
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', userId)
-        .single();
-
       const notifications = admins.map(admin => ({
         user_id: admin.user_id,
-        title: '🏦 Nova solicitação de saque PIX',
-        message: `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)}`,
-        type: 'withdrawal_request',
+        title: '🏦 Saque PIX auto-aprovado',
+        message: `${userProfile?.username || 'Usuário'} sacou R$ ${(amountCents / 100).toFixed(2)} (auto-aprovado)`,
+        type: 'withdrawal_auto_approved',
       }));
       await supabase.from('notifications').insert(notifications);
       console.log('[pix-withdraw] Admin notifications sent');
     }
 
-    console.log('[pix-withdraw] Request created:', { 
+    console.log('[pix-withdraw] Auto-approved and completed:', { 
       payoutId, 
       amountCents, 
       netAmountCents,
@@ -225,13 +238,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      status: 'pending_approval',
-      message: 'Solicitação de saque enviada para aprovação',
+      status: 'completed',
+      message: 'Saque processado automaticamente com sucesso!',
       payoutId,
       amount: amountCents / 100,
       fee: feeAmountCents / 100,
       netAmount: netAmountCents / 100,
-      estimatedTime: '24-48 horas úteis',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
