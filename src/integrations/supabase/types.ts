@@ -1287,43 +1287,28 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string | null
-          gender: string | null
           id: string | null
           is_subscribed: boolean | null
-          language: string | null
           referral_code: string | null
-          status: string | null
-          updated_at: string | null
           username: string | null
-          website: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
-          gender?: string | null
           id?: string | null
           is_subscribed?: boolean | null
-          language?: string | null
           referral_code?: string | null
-          status?: string | null
-          updated_at?: string | null
           username?: string | null
-          website?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
-          gender?: string | null
           id?: string | null
           is_subscribed?: boolean | null
-          language?: string | null
           referral_code?: string | null
-          status?: string | null
-          updated_at?: string | null
           username?: string | null
-          website?: string | null
         }
         Relationships: []
       }
