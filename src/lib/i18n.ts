@@ -48,7 +48,7 @@ export const translations = {
       premium: "Premium",
       perMonth: "per month",
       currentPlan: "Current Plan",
-      subscribeNow: "Subscribe Now",
+      subscribeNow: "Sign Up",
       cancel: "Cancel anytime. No commitment.",
     },
     dashboard: {
@@ -252,7 +252,7 @@ export const translations = {
       premium: "Premium",
       perMonth: "por mes",
       currentPlan: "Plan actual",
-      subscribeNow: "Suscribirse ahora",
+      subscribeNow: "Regístrate",
       cancel: "Cancela en cualquier momento. Sin compromiso.",
     },
     dashboard: {
@@ -456,7 +456,7 @@ export const translations = {
       premium: "Premium",
       perMonth: "por mês",
       currentPlan: "Plano Atual",
-      subscribeNow: "Assinar Agora",
+      subscribeNow: "Cadastre-se",
       cancel: "Cancele a qualquer momento. Sem compromisso.",
     },
     dashboard: {
