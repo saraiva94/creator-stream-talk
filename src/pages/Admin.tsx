@@ -296,7 +296,7 @@ const Admin = () => {
       
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
+        <div className="flex flex-col gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-3">
             <Shield className="h-8 w-8 text-primary" />
             <div>
@@ -304,17 +304,17 @@ const Admin = () => {
               <p className="text-sm text-muted-foreground">Gerencie a plataforma e monitore a receita</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Link to="/admin/creators">
-              <Button variant="outline" size="sm">
+          <div className="grid grid-cols-2 gap-3">
+            <Link to="/admin/creators" className="w-full">
+              <Button variant="outline" size="sm" className="w-full">
                 <UserCheck className="h-4 w-4 mr-2" />
-                {t.admin.manageCreators}
+                <span className="truncate">{t.admin.manageCreators}</span>
               </Button>
             </Link>
-            <Link to="/admin/pix-withdrawals">
-              <Button variant="outline" size="sm">
+            <Link to="/admin/pix-withdrawals" className="w-full">
+              <Button variant="outline" size="sm" className="w-full">
                 <Banknote className="h-4 w-4 mr-2" />
-                Saques PIX
+                <span className="truncate">Saques PIX</span>
               </Button>
             </Link>
           </div>
