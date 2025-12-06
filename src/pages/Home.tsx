@@ -3,26 +3,23 @@ import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api, ApiError, LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
-import { useToast } from "@/hooks/use-toast";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
   const [filteredLives, setFilteredLives] = useState<LiveSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { toast } = useToast();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -59,21 +56,11 @@ const Home = () => {
       const response = await api.lives.getPublic();
       setLives(response.lives ?? []);
       setFilteredLives(response.lives ?? []);
-      setError(null);
     } catch (err: unknown) {
       console.error("Error fetching lives:", err);
-      if (err instanceof ApiError && err.status === 404) {
-        setLives([]);
-        setFilteredLives([]);
-        setError(null);
-        return;
-      }
-      setError("Não foi possível carregar os criadores agora.");
-      toast({
-        title: "Não foi possível carregar os criadores",
-        description: "Tente novamente em alguns instantes.",
-        variant: "destructive",
-      });
+      // Silently handle errors - just show empty state
+      setLives([]);
+      setFilteredLives([]);
     } finally {
       setLoading(false);
     }
@@ -97,10 +84,6 @@ const Home = () => {
             />
           </div>
         </div>
-
-        {error && (
-          <div className="text-center text-destructive mb-6">{error}</div>
-        )}
 
         {loading ? (
           <div className="text-center py-12">
@@ -146,8 +129,41 @@ const Home = () => {
             )}
 
             {filteredLives.length === 0 && (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground text-lg">{t.home.noCreators}</p>
+              <div className="flex flex-col items-center justify-center py-16 space-y-6">
+                {/* REC indicator with blinking red circle */}
+                <div className="flex items-center gap-3">
+                  <span 
+                    className="w-4 h-4 bg-destructive rounded-full"
+                    style={{
+                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                    }}
+                  />
+                  <div className="flex items-center gap-2 text-destructive font-bold text-lg">
+                    <Video className="h-6 w-6" />
+                    <span>REC</span>
+                  </div>
+                </div>
+                
+                {/* Friendly empty state message */}
+                <div className="text-center space-y-2">
+                  <p className="text-xl text-foreground font-medium">
+                    Está meio vazio por aqui...
+                  </p>
+                  <p className="text-muted-foreground">
+                    Seja o primeiro a entrar ao vivo!
+                  </p>
+                </div>
+
+                {/* CTA button for creators */}
+                {user && (
+                  <Button 
+                    onClick={() => navigate("/live-management")}
+                    className="mt-4 gap-2"
+                  >
+                    <Video className="h-4 w-4" />
+                    Iniciar transmissão
+                  </Button>
+                )}
               </div>
             )}
           </>
