@@ -1327,6 +1327,45 @@ export type Database = {
         }
         Relationships: []
       }
+      registration_referrals_safe: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string | null
+          is_free: boolean | null
+          is_root_creator: boolean | null
+          payment_id: string | null
+          referrer_id: string | null
+          referrer_parent_id: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_free?: boolean | null
+          is_root_creator?: boolean | null
+          payment_id?: string | null
+          referrer_id?: string | null
+          referrer_parent_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_free?: boolean | null
+          is_root_creator?: boolean | null
+          payment_id?: string | null
+          referrer_id?: string | null
+          referrer_parent_id?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_or_create_creator_wallet: {
