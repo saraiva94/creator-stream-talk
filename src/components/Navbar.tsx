@@ -90,10 +90,6 @@ const Navbar = ({ user }: NavbarProps) => {
   // Mobile menu content
   const MobileMenuContent = () => (
     <div className="flex flex-col gap-2 pt-4">
-      <div className="pb-4 border-b border-border mb-2">
-        <LanguageSelector />
-      </div>
-      
       {user && <NotificationBell user={user} />}
       
       <TransmitButton user={user ?? null} />
@@ -108,14 +104,12 @@ const Navbar = ({ user }: NavbarProps) => {
               </Button>
             </Link>
           )}
-          {location.pathname !== "/" && (
-            <Link to="/" onClick={closeMobileMenu}>
-              <Button variant="ghost" className="w-full justify-start">
-                <Home className="h-4 w-4 mr-2" />
-                {t.nav.home}
-              </Button>
-            </Link>
-          )}
+          <Link to="/" onClick={closeMobileMenu}>
+            <Button variant="ghost" className="w-full justify-start">
+              <Home className="h-4 w-4 mr-2" />
+              {t.nav.home}
+            </Button>
+          </Link>
           <Link to="/profile" onClick={closeMobileMenu}>
             <Button variant="ghost" className="w-full justify-start">
               <User className="h-4 w-4 mr-2" />
@@ -135,14 +129,15 @@ const Navbar = ({ user }: NavbarProps) => {
         </>
       ) : (
         <div className="flex flex-col gap-2 pt-2">
-          {location.pathname !== "/" && (
-            <Link to="/" onClick={closeMobileMenu}>
-              <Button variant="ghost" className="w-full justify-start">
-                <Home className="h-4 w-4 mr-2" />
-                {t.nav.home}
-              </Button>
-            </Link>
-          )}
+          <Link to="/" onClick={closeMobileMenu}>
+            <Button variant="ghost" className="w-full justify-start">
+              <Home className="h-4 w-4 mr-2" />
+              {t.nav.home}
+            </Button>
+          </Link>
+          <div className="py-2">
+            <LanguageSelector />
+          </div>
           <Link to="/auth" onClick={closeMobileMenu}>
             <Button variant="outline" className="w-full">
               {t.nav.login}
