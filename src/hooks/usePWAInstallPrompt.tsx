@@ -63,7 +63,7 @@ export function usePWAInstallPrompt() {
       description: (
         <div className="space-y-2">
           <p className="text-sm text-primary-foreground/90">
-            Adicione Stream Star à sua tela inicial para uma experiência mais rápida e acesso offline.
+            Adicione Stream Star à sua tela inicial para uma experiência mais rápida.
           </p>
           <div className="flex gap-2 mt-2">
             <Button
