@@ -436,39 +436,74 @@ const Subscribe = () => {
                 </Label>
               </div>
 
-              <Card className="p-4 border-primary/50 bg-gradient-to-br from-card to-card/80">
-                <h3 className="text-lg font-semibold mb-1">Taxa de Ativação</h3>
-                <p className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">R$ 5,00</p>
-                <div className="space-y-2 text-sm text-muted-foreground mt-2">
-                  <div className="flex items-start gap-2">
-                    <Check className="h-4 w-4 text-primary mt-0.5" />
-                    <span>Ativação única para acesso completo às lives</span>
+              {/* Commercial Benefits Card */}
+              <Card className="p-5 border-primary/50 bg-gradient-to-br from-primary/10 via-card to-secondary/10 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-secondary/20 to-transparent rounded-full blur-2xl" />
+                
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-bold text-foreground">Taxa Única de Ativação</h3>
+                    <p className="text-2xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">R$ 5,00</p>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <Check className="h-4 w-4 text-primary mt-0.5" />
-                    <span>Participa da rede de afiliados (pai e avô)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Check className="h-4 w-4 text-primary mt-0.5" />
-                    <span>Chat ao vivo e sem anúncios</span>
+                  
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Desbloqueie todo o potencial de ganhos da plataforma:
+                  </p>
+                  
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Comissões em duas camadas</span>
+                        <p className="text-xs text-muted-foreground">Ganhe por quem você indicar e também por quem seus indicados trouxerem</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Monetização para criadores</span>
+                        <p className="text-xs text-muted-foreground">Receba SuperChats e converta visualizações em saques via PIX automaticamente</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Acesso completo à plataforma</span>
+                        <p className="text-xs text-muted-foreground">Lives ilimitadas, chat ao vivo e experiência sem anúncios</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50">
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Rede de afiliados ativa</span>
+                        <p className="text-xs text-muted-foreground">Seu link gera renda passiva a cada novo cadastro na sua rede</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Card>
 
               <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" onClick={handleSubscribe} disabled={loading}>
-                {loading ? "Processando..." : "Pagar R$ 5,00 e concluir cadastro"}
+                {loading ? "Processando..." : "Ativar minha conta por R$ 5,00"}
               </Button>
 
               <p className="text-sm text-muted-foreground text-center">
-                Pagamento seguro via Mercado Pago (Pix ou cartão). Ao continuar, você confirma que aceita os termos e
-                condições.
+                Pagamento seguro via Mercado Pago (Pix ou cartão). Ao continuar, você confirma que aceita os termos e condições.
               </p>
             </div>
           </Card>
-
-          <div className="mt-8 text-center text-sm text-muted-foreground">
-            <p>Cancele a qualquer momento. Sem compromisso.</p>
-          </div>
         </div>
       </main>
     </div>
