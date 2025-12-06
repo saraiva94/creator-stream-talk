@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
-import PlatformRevenueDashboard from "@/components/revenue/PlatformRevenueDashboard";
+
 
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
@@ -38,7 +38,7 @@ const Affiliate = () => {
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  
 
   const refreshBalance = async () => {
     if (!user) return;
@@ -64,13 +64,6 @@ const Affiliate = () => {
 
       setUser(session.user);
       
-      // Check if user is admin
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id);
-      
-      setIsAdmin(roles?.some(r => r.role === "admin") || false);
       
       try {
         // Load profile to get referral code and affiliate earnings
@@ -259,12 +252,6 @@ const Affiliate = () => {
 
         {error ? <div className="mb-6 text-destructive text-sm">{error}</div> : null}
 
-        {/* Platform Revenue Dashboard - Admin Only */}
-        {isAdmin && (
-          <div className="mb-8">
-            <PlatformRevenueDashboard />
-          </div>
-        )}
 
         <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-3 mb-6 sm:mb-8">
           <Card>
