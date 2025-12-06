@@ -28,7 +28,8 @@ const getDurationMs = (
 ) => {
   if (entitlementState === "entitled") return 0;
   if (typeof overrideMs === "number" && overrideMs > 0) return overrideMs;
-  return role === "anonymous" ? 30_000 : 10_000;
+  // 20 seconds for all users as specified
+  return 20_000;
 };
 
 export function usePreviewTimer({ role, entitlementState, liveId, durationOverrideMs }: UsePreviewTimerOptions): PreviewTimerState {
