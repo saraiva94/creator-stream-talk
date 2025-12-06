@@ -161,20 +161,25 @@ const PlatformRevenueDashboard = () => {
         {/* Income Breakdown */}
         <div>
           <h4 className="font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t.revenue.entriesByType}</h4>
-          <div className="space-y-2 sm:space-y-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
             {incomeItems.map((item) => (
-              <div key={item.label} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  {item.icon}
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.revenue.gross}: {formatBRL(item.total)}
-                    </p>
+              <Card key={item.label} className={`bg-${item.color.replace('text-', '')}/10 border-${item.color.replace('text-', '')}/30`} style={{ 
+                backgroundColor: item.color === 'text-blue-500' ? 'rgba(59, 130, 246, 0.1)' : item.color === 'text-yellow-500' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                borderColor: item.color === 'text-blue-500' ? 'rgba(59, 130, 246, 0.3)' : item.color === 'text-yellow-500' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(34, 197, 94, 0.3)'
+              }}>
+                <CardContent className="p-3 sm:pt-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    {item.icon}
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{item.label}</p>
+                      <p className="text-[10px] text-muted-foreground/70">
+                        {t.revenue.gross}: {formatBRL(item.total)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <p className={`font-bold text-sm sm:text-base ${item.color} flex-shrink-0`}>+{formatBRL(item.value)}</p>
-              </div>
+                  <p className={`font-bold text-lg sm:text-2xl mt-2 ${item.color}`}>+{formatBRL(item.value)}</p>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
