@@ -87,23 +87,13 @@ const Navbar = ({ user }: NavbarProps) => {
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
-  // Mobile menu content
+  // Mobile menu content - order: Transmitir, Início, Perfil, Finanças, Sair, Admin (last for admins)
   const MobileMenuContent = () => (
     <div className="flex flex-col gap-2 pt-4">
-      {user && <NotificationBell user={user} />}
-      
       <TransmitButton user={user ?? null} />
       
       {user ? (
         <>
-          {isAdmin && (
-            <Link to="/admin" onClick={closeMobileMenu}>
-              <Button variant="ghost" className="w-full justify-start">
-                <Shield className="h-4 w-4 mr-2" />
-                {t.nav.admin}
-              </Button>
-            </Link>
-          )}
           <Link to="/" onClick={closeMobileMenu}>
             <Button variant="ghost" className="w-full justify-start">
               <Home className="h-4 w-4 mr-2" />
@@ -126,6 +116,15 @@ const Navbar = ({ user }: NavbarProps) => {
             <LogOut className="h-4 w-4 mr-2" />
             {t.nav.logout}
           </Button>
+          {/* Admin at the end, only for admins */}
+          {isAdmin && (
+            <Link to="/admin" onClick={closeMobileMenu}>
+              <Button variant="ghost" className="w-full justify-start">
+                <Shield className="h-4 w-4 mr-2" />
+                {t.nav.admin}
+              </Button>
+            </Link>
+          )}
         </>
       ) : (
         <div className="flex flex-col gap-2 pt-2">
@@ -230,6 +229,8 @@ const Navbar = ({ user }: NavbarProps) => {
 
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center gap-2">
+            {/* Notification bell in external navbar, left of PWA button */}
+            {user && <NotificationBell user={user} />}
             <div className="flex-shrink-0">
               <InstallPWAButton />
             </div>
