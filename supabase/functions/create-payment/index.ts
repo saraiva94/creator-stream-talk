@@ -85,12 +85,16 @@ serve(async (req) => {
     const preference = {
       items: [
         {
-          title: paymentDescription || 'Compra - Stream Live Hub',
+          id: eventType.toLowerCase(),
+          title: `StreamStar - ${paymentDescription || 'Compra'}`,
+          description: paymentDescription || 'Compra na plataforma StreamStar',
+          category_id: 'services',
           quantity: 1,
           unit_price: paymentAmount,
           currency_id: 'BRL',
         },
       ],
+      statement_descriptor: 'STREAMSTAR',
       metadata: {
         event_type: eventType,
         user_id: userId,
