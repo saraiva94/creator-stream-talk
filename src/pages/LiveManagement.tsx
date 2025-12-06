@@ -9,8 +9,9 @@ import { LiveConfigPanel } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Users, DollarSign, TrendingUp } from "lucide-react";
+import { Users, DollarSign, TrendingUp, Video, UserPlus } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 
@@ -23,10 +24,13 @@ type TransactionRow = {
   type?: string | null;
 };
 
+type CreatorStatus = "loading" | "not_creator" | "pending_approval" | "approved";
+
 const LiveManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
+  const [creatorStatus, setCreatorStatus] = useState<CreatorStatus>("loading");
   const [room, setRoom] = useState<RoomRecord | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [participants, setParticipants] = useState(0);
@@ -64,25 +68,19 @@ const LiveManagement = () => {
 
       if (creatorError || !creatorProfile) {
         logger.creator.warn("Creator profile not found", { error: creatorError?.message });
-        toast({
-          title: "Acesso negado",
-          description: "Apenas criadores podem acessar esta página",
-          variant: "destructive",
-        });
-        navigate("/");
+        setCreatorStatus("not_creator");
+        setLoading(false);
         return;
       }
 
       if (!creatorProfile.approved_for_live) {
         logger.creator.warn("Creator not approved for live");
-        toast({
-          title: "Aguardando aprovação",
-          description: "Sua conta ainda não foi aprovada para transmissão ao vivo.",
-          variant: "destructive",
-        });
-        navigate("/");
+        setCreatorStatus("pending_approval");
+        setLoading(false);
         return;
       }
+
+      setCreatorStatus("approved");
 
       // Check for existing active room
       const { data: existingRoom } = await supabase
@@ -333,6 +331,78 @@ const LiveManagement = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  // Show overlay if user is not a creator or not approved
+  if (creatorStatus === "not_creator" || creatorStatus === "pending_approval") {
+    return (
+      <div className="min-h-screen bg-background relative">
+        <Navbar user={user} />
+        
+        {/* Blurred background content placeholder */}
+        <div className="container mx-auto px-4 py-6 blur-sm pointer-events-none opacity-30">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card className="border-border h-[400px] bg-muted/20" />
+              <Card className="border-border h-[200px] bg-muted/20" />
+            </div>
+            <div className="lg:col-span-1">
+              <Card className="border-border h-[500px] bg-muted/20" />
+            </div>
+          </div>
+        </div>
+
+        {/* Overlay */}
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50">
+          <Card className="max-w-md mx-4 border-primary/20 shadow-2xl">
+            <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
+              {/* REC indicator */}
+              <div className="flex items-center justify-center gap-3">
+                <span 
+                  className="w-4 h-4 bg-destructive rounded-full"
+                  style={{
+                    animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                  }}
+                />
+                <div className="flex items-center gap-2 text-destructive font-bold text-lg">
+                  <Video className="h-6 w-6" />
+                  <span>REC</span>
+                </div>
+              </div>
+
+              {/* Message */}
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold text-foreground">
+                  {creatorStatus === "not_creator" 
+                    ? "Você ainda não é um criador"
+                    : "Aguardando aprovação"
+                  }
+                </h2>
+                <p className="text-muted-foreground">
+                  {creatorStatus === "not_creator"
+                    ? "Para transmitir ao vivo, você precisa solicitar uma conta de criador."
+                    : "Sua solicitação está sendo analisada. Você será notificado quando for aprovado."
+                  }
+                </p>
+              </div>
+
+              {/* CTA Button */}
+              <Button 
+                onClick={() => navigate("/profile")}
+                className="w-full gap-2"
+                size="lg"
+              >
+                <UserPlus className="h-5 w-5" />
+                {creatorStatus === "not_creator"
+                  ? "Solicitar conta de criador"
+                  : "Ir para o perfil"
+                }
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
