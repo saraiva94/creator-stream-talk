@@ -1,21 +1,26 @@
 {
-  "name": "LiveCash",
-  "short_name": "LiveCash",
+  "name": "Stream Star",
+  "short_name": "Stream Star",
+  "description": "Plataforma de streaming ao vivo com chat e interação em tempo real",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#7B3FF3",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "categories": ["entertainment", "social"]
 }
