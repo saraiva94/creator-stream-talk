@@ -1,6 +1,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useMemo } from "react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type Props = {
   day: string;
@@ -12,21 +13,6 @@ type Props = {
   disabled?: boolean;
 };
 
-const months = [
-  { value: "01", label: "Janeiro" },
-  { value: "02", label: "Fevereiro" },
-  { value: "03", label: "Março" },
-  { value: "04", label: "Abril" },
-  { value: "05", label: "Maio" },
-  { value: "06", label: "Junho" },
-  { value: "07", label: "Julho" },
-  { value: "08", label: "Agosto" },
-  { value: "09", label: "Setembro" },
-  { value: "10", label: "Outubro" },
-  { value: "11", label: "Novembro" },
-  { value: "12", label: "Dezembro" },
-];
-
 export const DateOfBirthSelector = ({
   day,
   month,
@@ -36,9 +22,17 @@ export const DateOfBirthSelector = ({
   onYearChange,
   disabled = false,
 }: Props) => {
+  const { t } = useLanguage();
   const currentYear = new Date().getFullYear();
   const minYear = currentYear - 100;
-  const maxYear = currentYear - 18; // Must be at least 18 years old
+  const maxYear = currentYear - 18;
+
+  const months = useMemo(() => {
+    return t.subscribe.monthNames.map((label, index) => ({
+      value: (index + 1).toString().padStart(2, "0"),
+      label,
+    }));
+  }, [t.subscribe.monthNames]);
 
   const years = useMemo(() => {
     const arr = [];
@@ -58,14 +52,14 @@ export const DateOfBirthSelector = ({
 
   return (
     <div className="space-y-2">
-      <Label>Data de nascimento *</Label>
+      <Label>{t.subscribe.dateOfBirth} *</Label>
       <p className="text-xs text-muted-foreground mb-2">
-        Você deve ter 18 anos completos para se cadastrar
+        {t.subscribe.dateOfBirthHint}
       </p>
       <div className="grid grid-cols-3 gap-2">
         <Select value={day} onValueChange={onDayChange} disabled={disabled}>
           <SelectTrigger>
-            <SelectValue placeholder="Dia" />
+            <SelectValue placeholder={t.subscribe.day} />
           </SelectTrigger>
           <SelectContent>
             {days.map((d) => (
@@ -78,7 +72,7 @@ export const DateOfBirthSelector = ({
 
         <Select value={month} onValueChange={onMonthChange} disabled={disabled}>
           <SelectTrigger>
-            <SelectValue placeholder="Mês" />
+            <SelectValue placeholder={t.subscribe.month} />
           </SelectTrigger>
           <SelectContent>
             {months.map((m) => (
@@ -91,7 +85,7 @@ export const DateOfBirthSelector = ({
 
         <Select value={year} onValueChange={onYearChange} disabled={disabled}>
           <SelectTrigger>
-            <SelectValue placeholder="Ano" />
+            <SelectValue placeholder={t.subscribe.year} />
           </SelectTrigger>
           <SelectContent>
             {years.map((y) => (
