@@ -442,9 +442,8 @@ const Subscribe = () => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-secondary/20 to-transparent rounded-full blur-2xl animate-pulse" style={{ animationDelay: "1s" }} />
                 
                 <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-3 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+                  <div className="mb-3 animate-fade-in" style={{ animationDelay: "0.1s" }}>
                     <h3 className="text-lg font-bold text-foreground">Taxa Única de Ativação</h3>
-                    <p className="text-2xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">R$ 5,00</p>
                   </div>
                   
                   <p className="text-sm text-muted-foreground mb-4 animate-fade-in" style={{ animationDelay: "0.15s" }}>
