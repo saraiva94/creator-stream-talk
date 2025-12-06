@@ -38,8 +38,6 @@ const PixWithdrawDialog = ({
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const minWithdraw = 1000; // R$ 10,00 minimum
-
   const handleWithdraw = async () => {
     const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
     
@@ -52,10 +50,10 @@ const PixWithdrawDialog = ({
       return;
     }
 
-    if (isNaN(amountCents) || amountCents < minWithdraw) {
+    if (isNaN(amountCents) || amountCents <= 0) {
       toast({
-        title: t.pix?.minAmount || "Minimum amount",
-        description: `${t.pix?.minAmountDesc || "The minimum withdrawal is"} ${formatBRL(minWithdraw)}`,
+        title: t.pix?.invalidAmount || "Invalid amount",
+        description: t.pix?.invalidAmountDesc || "Enter a value greater than zero",
         variant: "destructive",
       });
       return;
@@ -85,8 +83,8 @@ const PixWithdrawDialog = ({
       if (data?.success) {
         setSuccess(true);
         toast({
-          title: t.pix?.success || "Withdrawal requested!",
-          description: t.pix?.successDesc || "Your withdrawal will be processed soon",
+          title: t.pix?.successAuto || "Withdrawal processed!",
+          description: t.pix?.successAutoDesc || "Your PIX withdrawal was processed automatically",
         });
         onSuccess();
         
@@ -111,15 +109,19 @@ const PixWithdrawDialog = ({
     }
   };
 
+  const handleWithdrawAll = () => {
+    setAmount((availableBalanceCents / 100).toFixed(2).replace('.', ','));
+  };
+
   if (success) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
           <div className="flex flex-col items-center justify-center py-8">
             <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
-            <h3 className="text-xl font-bold mb-2">{t.pix?.success || "Withdrawal Requested!"}</h3>
+            <h3 className="text-xl font-bold mb-2">{t.pix?.successAuto || "Withdrawal Processed!"}</h3>
             <p className="text-muted-foreground text-center">
-              {t.pix?.successDesc || "Your withdrawal will be processed soon"}
+              {t.pix?.successAutoDesc || "Your PIX withdrawal was processed automatically"}
             </p>
           </div>
         </DialogContent>
@@ -136,7 +138,7 @@ const PixWithdrawDialog = ({
             {t.pix?.withdrawTitle || "PIX Withdrawal"}
           </DialogTitle>
           <DialogDescription>
-            {t.pix?.withdrawDesc || "Withdraw your earnings via PIX"}
+            {t.pix?.withdrawDescAuto || "Withdraw your earnings instantly via PIX"}
           </DialogDescription>
         </DialogHeader>
 
@@ -144,6 +146,16 @@ const PixWithdrawDialog = ({
           <div className="bg-secondary p-4 rounded-lg">
             <p className="text-sm text-muted-foreground">{t.pix?.availableBalance || "Available balance"}</p>
             <p className="text-2xl font-bold text-green-500">{formatBRL(availableBalanceCents)}</p>
+            {availableBalanceCents > 0 && (
+              <Button 
+                variant="link" 
+                size="sm" 
+                onClick={handleWithdrawAll}
+                className="p-0 h-auto text-primary"
+              >
+                {t.pix?.withdrawAll || "Withdraw all"}
+              </Button>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -162,18 +174,15 @@ const PixWithdrawDialog = ({
               id="amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder={t.pix?.amountPlaceholder || "Ex: 10,00"}
+              placeholder={t.pix?.amountPlaceholder || "Ex: 5,00"}
               type="text"
               inputMode="decimal"
             />
-            <p className="text-xs text-muted-foreground">
-              {t.pix?.minWithdraw || "Minimum: R$10,00"}
-            </p>
           </div>
 
           <Button
             onClick={handleWithdraw}
-            disabled={loading || availableBalanceCents < minWithdraw}
+            disabled={loading || availableBalanceCents <= 0}
             className="w-full bg-green-600 hover:bg-green-700"
           >
             {loading ? (
@@ -184,13 +193,13 @@ const PixWithdrawDialog = ({
             ) : (
               <>
                 <Banknote className="h-4 w-4 mr-2" />
-                {t.pix?.withdraw || "Withdraw"}
+                {t.pix?.withdrawNow || "Withdraw Now"}
               </>
             )}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            Saques são processados instantaneamente via Mercado Pago
+            {t.pix?.instantProcessing || "Withdrawals are processed instantly and automatically"}
           </p>
         </div>
       </DialogContent>
