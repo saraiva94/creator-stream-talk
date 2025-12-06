@@ -239,14 +239,13 @@ export const validateAffiliateCode = async (code: string): Promise<{ valid: bool
   logger.affiliate.info('Validando código de afiliado', { code });
 
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('referral_code', code.toUpperCase())
-      .maybeSingle();
+    // Use RPC function to validate code (works for unauthenticated users)
+    const { data, error } = await supabase.rpc('validate_referral_code', {
+      p_code: code.toUpperCase()
+    });
 
     if (error) {
-      logger.affiliate.error('Erro na query de validação', { code }, error);
+      logger.affiliate.error('Erro na RPC de validação', { code }, error);
       return { valid: false, ownerId: null };
     }
 
@@ -254,10 +253,10 @@ export const validateAffiliateCode = async (code: string): Promise<{ valid: bool
     logger.affiliate.info('Resultado da validação', { 
       code,
       valid: isValid,
-      ownerId: data?.id ?? null,
+      ownerId: data ?? null,
     });
 
-    return { valid: isValid, ownerId: data?.id || null };
+    return { valid: isValid, ownerId: data || null };
   } catch (error) {
     logger.affiliate.error('Erro ao validar código', { code }, error as Error);
     return { valid: false, ownerId: null };
