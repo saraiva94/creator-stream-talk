@@ -241,15 +241,15 @@ const Affiliate = () => {
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <Wallet className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Finanças</h1>
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Wallet className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+            <h1 className="text-2xl sm:text-3xl font-bold">Finanças</h1>
           </div>
           <Button 
             onClick={() => setShowWithdrawDialog(true)}
-            className="bg-green-600 hover:bg-green-700"
+            className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
             disabled={availableBalanceCents < 1000}
           >
             <Banknote className="h-4 w-4 mr-2" />
@@ -266,61 +266,61 @@ const Affiliate = () => {
           </div>
         )}
 
-        <div className="grid gap-6 md:grid-cols-3 mb-8">
+        <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-3 mb-6 sm:mb-8">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground">Total de Indicações</CardTitle>
+            <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm text-muted-foreground">Total de Indicações</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <span className="text-3xl font-bold">{totalReferrals}</span>
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                <span className="text-2xl sm:text-3xl font-bold">{totalReferrals}</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground">Comissões Ganhas</CardTitle>
+            <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm text-muted-foreground">Comissões Ganhas</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                <span className="text-3xl font-bold">{formatBRL(totalEarningsCents)}</span>
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
+                <span className="text-2xl sm:text-3xl font-bold">{formatBRL(totalEarningsCents)}</span>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-muted-foreground">Saldo Disponível</CardTitle>
+            <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm text-muted-foreground">Saldo Disponível</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                <span className="text-3xl font-bold">{formatBRL(availableBalanceCents)}</span>
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                <span className="text-2xl sm:text-3xl font-bold">{formatBRL(availableBalanceCents)}</span>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <LinkIcon className="h-5 w-5" />
+        <Card className="mb-6 sm:mb-8">
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
               Código de indicação
             </CardTitle>
-            <CardDescription>Defina ou personalize o código que seus convidados vão usar no cadastro.</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">Defina ou personalize o código que seus convidados vão usar no cadastro.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="flex flex-col gap-2">
               <Input 
                 value={code} 
                 onChange={(e) => setCode(e.target.value.toUpperCase())} 
                 placeholder="SEU-CODIGO" 
-                className="sm:w-80 uppercase"
+                className="uppercase text-sm"
               />
-              <Button onClick={handleSaveCode} disabled={saving}>
+              <Button onClick={handleSaveCode} disabled={saving} className="w-full sm:w-auto">
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" /> Salvando
@@ -332,9 +332,9 @@ const Affiliate = () => {
                 )}
               </Button>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Input value={referralLink} readOnly className="sm:w-80 text-sm" />
-              <Button type="button" variant="outline" onClick={handleCopyLink}>
+            <div className="flex flex-col gap-2">
+              <Input value={referralLink} readOnly className="text-xs sm:text-sm" />
+              <Button type="button" variant="outline" onClick={handleCopyLink} className="w-full sm:w-auto">
                 <Copy className="h-4 w-4 mr-2" />
                 Copiar link
               </Button>
@@ -347,27 +347,27 @@ const Affiliate = () => {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Histórico de Indicações</CardTitle>
-            <CardDescription>Acompanhe suas indicações e comissões</CardDescription>
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">Histórico de Indicações</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Acompanhe suas indicações e comissões</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {history.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>Você ainda não indicou ninguém</p>
-                <p className="text-sm">Compartilhe seu código e comece a ganhar.</p>
+              <div className="text-center py-6 sm:py-8 text-muted-foreground">
+                <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-50" />
+                <p className="text-sm sm:text-base">Você ainda não indicou ninguém</p>
+                <p className="text-xs sm:text-sm">Compartilhe seu código e comece a ganhar.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {history.map((entry) => (
-                  <div key={entry.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-                    <div>
-                      <p className="font-semibold">{entry.eventType === "REGISTRATION" ? "Novo cadastro" : entry.eventType}</p>
+                  <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm sm:text-base truncate">{entry.eventType === "REGISTRATION" ? "Novo cadastro" : entry.eventType}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-green-500">+{formatBRL(entry.amountCents)}</p>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
                       <p className="text-xs text-muted-foreground">
                         {entry.level === 1 ? "Direto" : entry.level === 2 ? "Avô" : ""}
                       </p>
