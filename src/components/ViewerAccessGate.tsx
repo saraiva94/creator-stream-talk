@@ -18,6 +18,7 @@ import { JitsiPlayer } from "@/components/JitsiPlayer";
 import PreviewCountdownOverlay from "@/components/PreviewCountdownOverlay";
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
+import ChatBox from "@/components/ChatBox";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ type ViewerLiveInfo = LiveInfoResponse & {
   price?: number | null;
   currency?: string | null;
   creatorName?: string | null;
+  creatorId?: string | null;
   isEntitled?: boolean;
   requiresPayment?: boolean;
 };
@@ -95,10 +97,12 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
   const [accessInFlight, setAccessInFlight] = React.useState(false);
   const [isRetryingAccess, setIsRetryingAccess] = React.useState(false);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
   const { creditBalance: globalCredits, setCredits } = useCredits();
   const [localCredits, setLocalCredits] = React.useState<number>(0);
   const [paywallReason, setPaywallReason] = React.useState<PaywallReason | null>(null);
   const [isOnline, setIsOnline] = React.useState<boolean>(true);
+  const [roomId, setRoomId] = React.useState<string | null>(null);
   const initialAttemptedRef = React.useRef(false);
   const isMountedRef = React.useRef(true);
   const retryAbortRef = React.useRef<AbortController | null>(null);
@@ -202,12 +206,14 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
       .then(({ data }) => {
         if (!active) return;
         setIsAuthenticated(Boolean(data.session));
+        setCurrentUserId(data.session?.user?.id || null);
       })
       .catch(() => undefined);
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
       if (!active) return;
       setIsAuthenticated(Boolean(session));
+      setCurrentUserId(session?.user?.id || null);
     });
 
     return () => {
@@ -215,6 +221,26 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
       authListener?.subscription.unsubscribe();
     };
   }, []);
+
+  // Fetch room ID for chat
+  // Fetch room ID for chat based on liveInfo
+  React.useEffect(() => {
+    if (!liveInfo?.roomName) return;
+    
+    const fetchRoom = async () => {
+      const { data } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('daily_room_name', liveInfo.roomName)
+        .maybeSingle();
+      
+      if (data) {
+        setRoomId(data.id);
+      }
+    };
+    
+    fetchRoom();
+  }, [liveInfo?.roomName]);
 
   React.useEffect(() => {
     const handleOnline = () => {
@@ -517,11 +543,19 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
   const showPreviewPlayer = Boolean(!hasEntitlement && !showPaywall && resolvedRoomName);
   const showCountdown = isPreviewing && !hasExpired && !showPaywall;
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-  const canRenderJitsi = Boolean(resolvedRoomName && (hasEntitlement || showPreviewPlayer) && !showPaywall);
+  // Always render Jitsi when we have room name (but blur/mute when paywall active)
+  const canRenderJitsi = Boolean(resolvedRoomName && (hasEntitlement || showPreviewPlayer || showPaywall));
+  // Mute and blur when paywall is shown
+  const shouldMuteAndBlur = showPaywall;
+
+  // Get creator ID from liveInfo
+  const creatorId = liveInfo?.creatorId || '';
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Main content - Video and controls */}
+      <div className="lg:col-span-2 space-y-4">
+        <Card>
         <CardHeader>
           <CardTitle>{liveInfo?.title ?? "Live session"}</CardTitle>
           <CardDescription>
@@ -538,7 +572,14 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
           {resolvedRoomName && (hasEntitlement || showPreviewPlayer || showPaywall) && (
             <div className="mb-4">
               <div className="relative overflow-hidden rounded-lg border">
-                {canRenderJitsi && <JitsiPlayer roomName={resolvedRoomName} height="600px" />}
+                {canRenderJitsi && (
+                  <JitsiPlayer 
+                    roomName={resolvedRoomName} 
+                    height="600px" 
+                    muted={shouldMuteAndBlur}
+                    blurred={shouldMuteAndBlur}
+                  />
+                )}
 
                 {showCreditOverlay && <CreditRemainingOverlay creditsLeft={localCredits} />}
 
@@ -643,24 +684,50 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
 
-      {paymentInit && phase === "purchasing" && (
-        <Alert>
-          <AlertTitle>Waiting for Mercado Pago</AlertTitle>
-          <AlertDescription>
-            If you were not redirected automatically, follow this link:
-            <a
-              href={paymentInit.init_point}
-              className="ml-2 text-primary underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open checkout
-            </a>
-          </AlertDescription>
-        </Alert>
-      )}
+        {paymentInit && phase === "purchasing" && (
+          <Alert>
+            <AlertTitle>Waiting for Mercado Pago</AlertTitle>
+            <AlertDescription>
+              If you were not redirected automatically, follow this link:
+              <a
+                href={paymentInit.init_point}
+                className="ml-2 text-primary underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open checkout
+              </a>
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      {/* Sidebar - Chat */}
+      <div className="lg:col-span-1">
+        {roomId && currentUserId && creatorId ? (
+          <div className="h-[600px] sticky top-24">
+            <ChatBox
+              roomId={roomId}
+              currentUserId={currentUserId}
+              creatorId={creatorId}
+              isCreator={false}
+              disabled={showPaywall}
+            />
+          </div>
+        ) : (
+          <Card className="h-[600px] flex items-center justify-center">
+            <CardContent className="text-center text-muted-foreground">
+              {!isAuthenticated ? (
+                <p>Faça login para participar do chat</p>
+              ) : (
+                <p>Carregando chat...</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 };

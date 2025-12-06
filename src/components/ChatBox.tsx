@@ -32,6 +32,7 @@ interface ChatBoxProps {
   currentUserId: string;
   creatorId: string;
   isCreator?: boolean;
+  disabled?: boolean;
 }
 
 type SupabaseMessageRow = {
@@ -57,7 +58,7 @@ type SupabaseSuperChatRow = {
   } | null;
 };
 
-const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false }: ChatBoxProps) => {
+const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled = false }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -271,29 +272,40 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false }: ChatBo
       </ScrollArea>
 
       <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
-        <div className="flex gap-2">
-          {!isCreator && (
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              onClick={() => setShowSuperChat(true)}
-              title="Enviar SuperChat"
-            >
-              <Coins className="h-4 w-4" />
+        {disabled ? (
+          <div className="text-center py-4 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Chat bloqueado
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Compre créditos para participar do chat
+            </p>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            {!isCreator && (
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => setShowSuperChat(true)}
+                title="Enviar SuperChat"
+              >
+                <Coins className="h-4 w-4" />
+              </Button>
+            )}
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Digite sua mensagem..."
+              disabled={loading}
+              maxLength={500}
+            />
+            <Button type="submit" size="icon" disabled={loading || !newMessage.trim()}>
+              <Send className="h-4 w-4" />
             </Button>
-          )}
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Digite sua mensagem..."
-            disabled={loading}
-            maxLength={500}
-          />
-          <Button type="submit" size="icon" disabled={loading || !newMessage.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+          </div>
+        )}
       </form>
 
       <SuperChatDialog
