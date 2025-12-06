@@ -1,56 +1,96 @@
 import React from "react";
-import { CreditCard, Clock, Coins } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { CreditCard, Clock, Coins, VolumeX, MessageSquareOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PaywallOverlayProps {
   priceLabel?: string;
-  onPurchase: () => void;
+  onPurchase?: () => void;
   reason?: 'preview' | 'credits';
   remainingCredits?: number;
 }
 
-const PaywallOverlay: React.FC<PaywallOverlayProps> = ({ priceLabel, onPurchase, reason = 'preview', remainingCredits }) => {
+const PaywallOverlay: React.FC<PaywallOverlayProps> = ({ 
+  priceLabel, 
+  onPurchase, 
+  reason = 'preview', 
+  remainingCredits 
+}) => {
+  const navigate = useNavigate();
+
   const headline =
     reason === 'credits'
-      ? 'Seus créditos acabaram'
-      : 'Prévia encerrada';
-
-  const description =
-    reason === 'credits'
-      ? 'Compre mais créditos para continuar assistindo sem interrupções.'
-      : 'Sua prévia gratuita terminou. Compre créditos para continuar assistindo.';
-
-  const creditsLabel =
-    typeof remainingCredits === 'number'
-      ? `Créditos restantes: ${Math.max(0, Math.floor(remainingCredits))}`
-      : null;
+      ? 'Seus créditos acabaram!'
+      : 'Prévia encerrada!';
 
   const Icon = reason === 'credits' ? Coins : Clock;
 
+  const handleBuyCredits = () => {
+    if (onPurchase) {
+      onPurchase();
+    } else {
+      navigate('/profile');
+    }
+  };
+
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background/95 backdrop-blur-md p-6 text-center">
-      <div className="w-full max-w-md space-y-4 rounded-xl border border-primary/20 bg-card p-8 shadow-2xl">
-        <div className="flex items-center justify-center gap-3 text-xl font-bold text-primary">
-          <Icon className="h-6 w-6 animate-pulse" />
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-6 text-center">
+      <div className="w-full max-w-lg space-y-6 rounded-2xl border-2 border-primary/30 bg-card/95 p-8 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-center gap-3 text-2xl font-bold text-primary">
+          <Icon className="h-8 w-8 animate-pulse" />
           <span>{headline}</span>
         </div>
         
-        <p className="text-sm text-muted-foreground">{description}</p>
+        {/* Main message */}
+        <div className="space-y-3">
+          <p className="text-lg text-foreground">
+            Para continuar assistindo, você precisa comprar créditos.
+          </p>
+          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <VolumeX className="h-4 w-4 text-destructive" />
+              <span>Áudio mutado</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <MessageSquareOff className="h-4 w-4 text-destructive" />
+              <span>Chat bloqueado</span>
+            </div>
+          </div>
+        </div>
         
-        {creditsLabel && (
-          <div className="flex items-center justify-center gap-2 text-xs text-destructive">
+        {/* Credits info box */}
+        <div className="rounded-xl bg-primary/10 border border-primary/20 p-4 space-y-2">
+          <div className="flex items-center justify-center gap-2 text-primary font-semibold">
+            <Coins className="h-5 w-5" />
+            <span>Pacote mínimo: 180 créditos</span>
+          </div>
+          <p className="text-2xl font-bold text-foreground">R$ 5,00</p>
+          <p className="text-xs text-muted-foreground">
+            30 minutos de visualização
+          </p>
+        </div>
+        
+        {/* Remaining credits if any */}
+        {typeof remainingCredits === 'number' && remainingCredits <= 0 && (
+          <div className="flex items-center justify-center gap-2 text-sm text-destructive">
             <Coins className="h-4 w-4" />
-            <span>{creditsLabel}</span>
+            <span>Você não tem créditos restantes</span>
           </div>
         )}
         
-        <Button onClick={onPurchase} size="lg" className="w-full gap-2">
-          <CreditCard className="h-5 w-5" />
-          Comprar Créditos
+        {/* CTA Button */}
+        <Button 
+          onClick={handleBuyCredits} 
+          size="lg" 
+          className="w-full gap-2 text-lg py-6 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+        >
+          <CreditCard className="h-6 w-6" />
+          Comprar Créditos Agora
         </Button>
         
         <p className="text-xs text-muted-foreground">
-          180 créditos = 30 min de visualização
+          Os créditos são adicionados instantaneamente após o pagamento
         </p>
       </div>
     </div>
