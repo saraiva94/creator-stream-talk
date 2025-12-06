@@ -1198,6 +1198,90 @@ export type Database = {
       }
     }
     Views: {
+      affiliate_transaction_summary: {
+        Row: {
+          affiliate_amount: number | null
+          affiliate_id: string | null
+          created_at: string | null
+          id: string | null
+          status: string | null
+        }
+        Insert: {
+          affiliate_amount?: number | null
+          affiliate_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          status?: string | null
+        }
+        Update: {
+          affiliate_amount?: number | null
+          affiliate_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      email_queue_summary: {
+        Row: {
+          created_at: string | null
+          email_type: string | null
+          id: string | null
+          sent_at: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_type?: string | null
+          id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_type?: string | null
+          id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      live_consumption_safe: {
+        Row: {
+          credits_consumed: number | null
+          ended_at: string | null
+          id: string | null
+          last_heartbeat_at: string | null
+          live_id: string | null
+          seconds_watched: number | null
+          started_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          credits_consumed?: number | null
+          ended_at?: string | null
+          id?: string | null
+          last_heartbeat_at?: string | null
+          live_id?: string | null
+          seconds_watched?: number | null
+          started_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          credits_consumed?: number | null
+          ended_at?: string | null
+          id?: string | null
+          last_heartbeat_at?: string | null
+          live_id?: string | null
+          seconds_watched?: number | null
+          started_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       public_profiles: {
         Row: {
           avatar_url: string | null
