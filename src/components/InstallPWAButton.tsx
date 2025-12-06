@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Smartphone } from "lucide-react";
+import { Download } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -80,9 +80,12 @@ export const InstallPWAButton = () => {
         variant="outline"
         size="sm"
         onClick={handleInstallClick}
-        className="gap-2 border-primary/50 text-primary hover:bg-primary/10"
+        className="gap-2 border-primary/50 text-primary hover:bg-primary/10 group"
       >
-        <Smartphone className="h-4 w-4" />
+        <div className="relative">
+          <Download className="h-4 w-4 animate-bounce group-hover:animate-none" />
+          <div className="absolute inset-0 bg-primary/30 rounded-full blur-md animate-ping opacity-50" />
+        </div>
         <span className="hidden sm:inline">{t.common.installApp}</span>
       </Button>
 
@@ -90,7 +93,7 @@ export const InstallPWAButton = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5 text-primary" />
+              <Download className="h-5 w-5 text-primary" />
               Instalar Stream Star
             </DialogTitle>
             <DialogDescription>
