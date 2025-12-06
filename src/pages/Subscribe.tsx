@@ -490,6 +490,16 @@ const Subscribe = () => {
                         <p className="text-xs text-muted-foreground">Seu link gera renda passiva a cada novo cadastro na sua rede</p>
                       </div>
                     </div>
+                    
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.6s" }}>
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">Adquira o seu canal na plataforma</span>
+                        <p className="text-xs text-muted-foreground">Monetize suas lives com superchats e visualizações</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Card>
