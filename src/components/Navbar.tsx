@@ -235,7 +235,9 @@ const Navbar = ({ user }: NavbarProps) => {
 
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center gap-2">
-            <InstallPWAButton />
+            <div className="flex-shrink-0">
+              <InstallPWAButton />
+            </div>
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9">

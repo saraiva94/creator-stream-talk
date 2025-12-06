@@ -266,7 +266,7 @@ export const ChannelsSidebar = () => {
             </div>
           )}
           
-          <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent space-y-0.5 ${effectiveExpanded ? 'px-2' : 'px-1'}`}>
+          <div className={`flex-1 overflow-y-auto scrollbar-none space-y-0.5 ${effectiveExpanded ? 'px-2' : 'px-1'}`}>
             {/* Real followed channels */}
             {visibleFollowed.map((channel) => (
               <ChannelItem key={channel.id} channel={channel} showName={effectiveExpanded} />
@@ -301,7 +301,7 @@ export const ChannelsSidebar = () => {
             </div>
           )}
           
-          <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent space-y-0.5 ${effectiveExpanded ? 'px-2' : 'px-1'}`}>
+          <div className={`flex-1 overflow-y-auto scrollbar-none space-y-0.5 ${effectiveExpanded ? 'px-2' : 'px-1'}`}>
             {/* Real live channels */}
             {visibleLive.map((channel) => (
               <ChannelItem key={channel.id} channel={channel} showName={effectiveExpanded} />
