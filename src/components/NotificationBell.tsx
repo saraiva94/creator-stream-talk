@@ -201,7 +201,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>{t.notifications?.title || "Notificações"}</span>
           {unreadCount > 0 && (
