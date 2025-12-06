@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Channel {
   id: string;
@@ -23,12 +24,16 @@ const PLACEHOLDER_COUNT = 5;
 
 export const ChannelsSidebar = () => {
   const { t } = useLanguage();
+  const isMobile = useIsMobile();
   const [isExpanded, setIsExpanded] = useState(true);
   const [followedChannels, setFollowedChannels] = useState<FollowedChannel[]>([]);
   const [liveChannels, setLiveChannels] = useState<Channel[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [followedVisible, setFollowedVisible] = useState(ITEMS_PER_PAGE);
   const [liveVisible, setLiveVisible] = useState(ITEMS_PER_PAGE);
+
+  // Force collapsed on mobile
+  const effectiveExpanded = isMobile ? false : isExpanded;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -155,7 +160,7 @@ export const ChannelsSidebar = () => {
   const ChannelItem = ({ channel, showName }: { channel: Channel; showName: boolean }) => (
     <Link
       to={`/room/${channel.id}`}
-      className="flex items-center gap-3 px-2 py-1.5 hover:bg-accent/50 rounded-md transition-colors group"
+      className={`flex items-center gap-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors group ${showName ? 'px-2' : 'px-1 justify-center'}`}
     >
       <div className="relative flex-shrink-0">
         <Avatar className="h-8 w-8">
@@ -194,7 +199,7 @@ export const ChannelsSidebar = () => {
   // Placeholder slot for empty state
   const PlaceholderSlot = ({ showName, index }: { showName: boolean; index: number }) => (
     <div 
-      className="flex items-center gap-3 px-2 py-1.5 rounded-md opacity-30 blur-[0.5px]"
+      className={`flex items-center gap-3 py-1.5 rounded-md opacity-30 blur-[0.5px] ${showName ? 'px-2' : 'px-1 justify-center'}`}
       style={{ animationDelay: `${index * 0.1}s` }}
     >
       <div className="relative flex-shrink-0">
@@ -232,25 +237,27 @@ export const ChannelsSidebar = () => {
   return (
     <aside
       className={`fixed left-0 top-[57px] h-[calc(100vh-57px)] bg-card/95 backdrop-blur-sm border-r border-border z-40 transition-all duration-300 ${
-        isExpanded ? "w-60" : "w-14"
+        effectiveExpanded ? "w-60" : "w-14"
       }`}
     >
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1 hover:bg-accent transition-colors z-50"
-      >
-        {isExpanded ? (
-          <ChevronLeft className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
-      </button>
+      {/* Toggle Button - hidden on mobile */}
+      {!isMobile && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1 hover:bg-accent transition-colors z-50"
+        >
+          {isExpanded ? (
+            <ChevronLeft className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
+      )}
 
       <div className="h-full flex flex-col py-4">
         {/* Followed Channels Section - Top Half */}
         <div className="flex-1 min-h-0 flex flex-col border-b border-border/50 pb-3 mb-3">
-          {isExpanded && (
+          {effectiveExpanded && (
             <div className="flex items-center justify-between px-3 mb-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {t.sidebar.followedChannels}
@@ -259,19 +266,19 @@ export const ChannelsSidebar = () => {
             </div>
           )}
           
-          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent px-2 space-y-0.5">
+          <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent space-y-0.5 ${effectiveExpanded ? 'px-2' : 'px-1'}`}>
             {/* Real followed channels */}
             {visibleFollowed.map((channel) => (
-              <ChannelItem key={channel.id} channel={channel} showName={isExpanded} />
+              <ChannelItem key={channel.id} channel={channel} showName={effectiveExpanded} />
             ))}
             
             {/* Placeholder slots when empty */}
             {followedPlaceholders.map((index) => (
-              <PlaceholderSlot key={`followed-placeholder-${index}`} showName={isExpanded} index={index} />
+              <PlaceholderSlot key={`followed-placeholder-${index}`} showName={effectiveExpanded} index={index} />
             ))}
             
             {/* Show more button */}
-            {hasMoreFollowed && isExpanded && (
+            {hasMoreFollowed && effectiveExpanded && (
               <button
                 onClick={showMoreFollowed}
                 className="w-full text-xs text-primary hover:text-primary/80 py-2 flex items-center justify-center gap-1 transition-colors"
@@ -285,7 +292,7 @@ export const ChannelsSidebar = () => {
 
         {/* Live Channels Section - Bottom Half */}
         <div className="flex-1 min-h-0 flex flex-col">
-          {isExpanded && (
+          {effectiveExpanded && (
             <div className="flex items-center justify-between px-3 mb-2">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {t.sidebar.liveChannels}
@@ -294,19 +301,19 @@ export const ChannelsSidebar = () => {
             </div>
           )}
           
-          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent px-2 space-y-0.5">
+          <div className={`flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent space-y-0.5 ${effectiveExpanded ? 'px-2' : 'px-1'}`}>
             {/* Real live channels */}
             {visibleLive.map((channel) => (
-              <ChannelItem key={channel.id} channel={channel} showName={isExpanded} />
+              <ChannelItem key={channel.id} channel={channel} showName={effectiveExpanded} />
             ))}
             
             {/* Placeholder slots when empty */}
             {livePlaceholders.map((index) => (
-              <PlaceholderSlot key={`live-placeholder-${index}`} showName={isExpanded} index={index} />
+              <PlaceholderSlot key={`live-placeholder-${index}`} showName={effectiveExpanded} index={index} />
             ))}
             
             {/* Show more button */}
-            {hasMoreLive && isExpanded && (
+            {hasMoreLive && effectiveExpanded && (
               <button
                 onClick={showMoreLive}
                 className="w-full text-xs text-primary hover:text-primary/80 py-2 flex items-center justify-center gap-1 transition-colors"
