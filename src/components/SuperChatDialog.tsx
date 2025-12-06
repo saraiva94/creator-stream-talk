@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Coins } from "lucide-react";
 
 interface SuperChatDialogProps {
@@ -38,12 +39,13 @@ const SuperChatDialog = ({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const handleSendSuperChat = async () => {
     if (!message.trim()) {
       toast({
-        title: "Mensagem obrigatória",
-        description: "Digite uma mensagem para o SuperChat",
+        title: t.superchat?.messageRequired || "Message required",
+        description: t.superchat?.messageRequiredDesc || "Write a message for the SuperChat",
         variant: "destructive",
       });
       return;
@@ -92,16 +94,16 @@ const SuperChatDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Coins className="h-5 w-5 text-primary" />
-            Enviar SuperChat
+            {t.superchat?.title || "Send SuperChat"}
           </DialogTitle>
           <DialogDescription>
-            Destaque sua mensagem com um SuperChat colorido
+            {t.superchat?.desc || "Support the creator with a highlighted message!"}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Escolha o valor e duração</Label>
+            <Label>{t.superchat?.selectTier || "Select tier"}</Label>
             <div className="grid grid-cols-3 gap-2">
               {SUPERCHAT_TIERS.map((tier) => (
                 <Button
@@ -120,12 +122,12 @@ const SuperChatDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="superchat-message">Sua mensagem</Label>
+            <Label htmlFor="superchat-message">{t.superchat?.message || "Your message"}</Label>
             <Input
               id="superchat-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Digite sua mensagem..."
+              placeholder={t.superchat?.messagePlaceholder || "Write your message to the creator..."}
               maxLength={200}
             />
             <p className="text-xs text-muted-foreground">
@@ -143,7 +145,7 @@ const SuperChatDialog = ({
             disabled={loading || !message.trim()}
             className="w-full"
           >
-            {loading ? "Processando..." : `Enviar SuperChat R$ ${selectedTier.amount}`}
+            {loading ? (t.superchat?.sending || "Sending...") : `${t.superchat?.send || "Send SuperChat"} R$ ${selectedTier.amount}`}
           </Button>
         </div>
       </DialogContent>
