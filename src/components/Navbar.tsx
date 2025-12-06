@@ -244,7 +244,7 @@ const Navbar = ({ user }: NavbarProps) => {
               </SheetTrigger>
               <SheetContent 
                 side="right" 
-                className="w-72"
+                className="w-56"
                 onSwipeClose={() => setMobileMenuOpen(false)}
               >
                 <div className="flex items-center justify-between pb-4 border-b border-border animate-fade-in">
