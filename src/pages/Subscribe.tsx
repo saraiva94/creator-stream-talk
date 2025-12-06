@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Check } from "lucide-react";
+import { Check, Eye, EyeOff, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,11 +29,17 @@ const Subscribe = () => {
   const [referralCode, setReferralCode] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errors, setErrors] = useState<{ referral?: string; age?: string }>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   // Date of birth
   const [birthDay, setBirthDay] = useState("");
   const [birthMonth, setBirthMonth] = useState("");
   const [birthYear, setBirthYear] = useState("");
+
+  // Password validation state
+  const passwordValidation = validatePasswordStrength(password);
+  const passwordsMatch = password && confirmPassword && password === confirmPassword;
 
   useEffect(() => {
     logger.register.info('Página de cadastro carregada');
@@ -290,14 +296,25 @@ const Subscribe = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Digite sua nova senha"
+                      disabled={loading}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="referral">Código de indicação *</Label>
@@ -312,15 +329,97 @@ const Subscribe = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm-password">Confirmar senha *</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Repita a senha"
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Repita a senha"
+                      disabled={loading}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      tabIndex={-1}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
+                
+                {/* Password Requirements Card */}
+                <Card className="p-4 border-muted bg-muted/30">
+                  <p className="text-sm font-medium text-muted-foreground mb-2">A senha deve conter:</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      {passwordValidation.checks.minLength ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className={passwordValidation.checks.minLength ? "text-green-500" : "text-muted-foreground"}>
+                        Mínimo 8 caracteres
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {passwordValidation.checks.hasUppercase ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className={passwordValidation.checks.hasUppercase ? "text-green-500" : "text-muted-foreground"}>
+                        Letra maiúscula
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {passwordValidation.checks.hasLowercase ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className={passwordValidation.checks.hasLowercase ? "text-green-500" : "text-muted-foreground"}>
+                        Letra minúscula
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {passwordValidation.checks.hasNumber ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className={passwordValidation.checks.hasNumber ? "text-green-500" : "text-muted-foreground"}>
+                        Número
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 col-span-2">
+                      {passwordValidation.checks.hasSymbol ? (
+                        <Check className="h-3 w-3 text-green-500" />
+                      ) : (
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      )}
+                      <span className={passwordValidation.checks.hasSymbol ? "text-green-500" : "text-muted-foreground"}>
+                        Símbolo (!@#$%...)
+                      </span>
+                    </div>
+                  </div>
+                  {confirmPassword && (
+                    <div className="mt-2 pt-2 border-t border-border">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {passwordsMatch ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <X className="h-3 w-3 text-destructive" />
+                        )}
+                        <span className={passwordsMatch ? "text-green-500" : "text-destructive"}>
+                          {passwordsMatch ? "Senhas conferem" : "Senhas não conferem"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </Card>
               </div>
 
               {/* Terms and Conditions with Info Icon */}
