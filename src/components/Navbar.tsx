@@ -98,8 +98,6 @@ const Navbar = ({ user }: NavbarProps) => {
       
       <TransmitButton user={user ?? null} />
       
-      <InstallPWAButton />
-      
       {user ? (
         <>
           {isAdmin && (
@@ -236,7 +234,8 @@ const Navbar = ({ user }: NavbarProps) => {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
+            <InstallPWAButton />
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9">
