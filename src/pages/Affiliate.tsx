@@ -243,7 +243,7 @@ const Affiliate = () => {
           <Button 
             onClick={() => setShowWithdrawDialog(true)}
             className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
-            disabled={availableBalanceCents < 1000}
+            disabled={availableBalanceCents <= 0}
           >
             <Banknote className="h-4 w-4 mr-2" />
             Sacar via PIX
