@@ -15,10 +15,12 @@ import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
 import { logger } from "@/lib/logger";
 import { TermsDialog } from "@/components/TermsDialog";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
+import { useLanguage } from "@/hooks/useLanguage";
 
 const Subscribe = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [searchParams] = useSearchParams();
@@ -246,37 +248,37 @@ const Subscribe = () => {
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              Cadastro e Assinatura
+              {t.subscribe.formTitle}
             </h1>
             <p className="text-xl text-muted-foreground">
-              Preencha seus dados para concluir o cadastro e acessar tudo.
+              {t.subscribe.formSubtitle}
             </p>
           </div>
 
           <Card className="p-6 border-2 border-primary relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-primary to-secondary text-primary-foreground text-sm font-semibold rounded-full">
-              Cadastro
+              {t.subscribe.formBadge}
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="full-name">Nome completo *</Label>
+                <Label htmlFor="full-name">{t.subscribe.fullName} *</Label>
                 <Input
                   id="full-name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Digite seu nome completo"
+                  placeholder={t.subscribe.fullNamePlaceholder}
                   disabled={loading}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail *</Label>
+                <Label htmlFor="email">{t.subscribe.email} *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
+                  placeholder={t.subscribe.emailPlaceholder}
                   disabled={loading}
                 />
               </div>
@@ -295,14 +297,14 @@ const Subscribe = () => {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha *</Label>
+                  <Label htmlFor="password">{t.subscribe.password} *</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Digite sua nova senha"
+                      placeholder={t.subscribe.passwordPlaceholder}
                       disabled={loading}
                       className="pr-10"
                     />
@@ -317,25 +319,25 @@ const Subscribe = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="referral">Código de indicação *</Label>
+                  <Label htmlFor="referral">{t.subscribe.referralCode} *</Label>
                   <Input
                     id="referral"
                     value={referralCode}
                     onChange={(e) => setReferralCode(e.target.value)}
-                    placeholder="Digite seu código ou use o link recebido"
+                    placeholder={t.subscribe.referralCodePlaceholder}
                     disabled={loading}
                   />
                   {errors.referral ? <p className="text-sm text-destructive">{errors.referral}</p> : null}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirmar senha *</Label>
+                  <Label htmlFor="confirm-password">{t.subscribe.confirmPassword} *</Label>
                   <div className="relative">
                     <Input
                       id="confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Repita a senha"
+                      placeholder={t.subscribe.confirmPasswordPlaceholder}
                       disabled={loading}
                       className="pr-10"
                     />
@@ -352,7 +354,7 @@ const Subscribe = () => {
                 
                 {/* Password Requirements Card */}
                 <Card className="p-4 border-muted bg-muted/30">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">A senha deve conter:</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">{t.subscribe.passwordRequirements}</p>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex items-center gap-1.5">
                       {passwordValidation.checks.minLength ? (
@@ -361,7 +363,7 @@ const Subscribe = () => {
                         <X className="h-3 w-3 text-muted-foreground" />
                       )}
                       <span className={passwordValidation.checks.minLength ? "text-green-500" : "text-muted-foreground"}>
-                        Mínimo 8 caracteres
+                        {t.subscribe.minChars}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -371,7 +373,7 @@ const Subscribe = () => {
                         <X className="h-3 w-3 text-muted-foreground" />
                       )}
                       <span className={passwordValidation.checks.hasUppercase ? "text-green-500" : "text-muted-foreground"}>
-                        Letra maiúscula
+                        {t.subscribe.uppercase}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -381,7 +383,7 @@ const Subscribe = () => {
                         <X className="h-3 w-3 text-muted-foreground" />
                       )}
                       <span className={passwordValidation.checks.hasLowercase ? "text-green-500" : "text-muted-foreground"}>
-                        Letra minúscula
+                        {t.subscribe.lowercase}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -391,7 +393,7 @@ const Subscribe = () => {
                         <X className="h-3 w-3 text-muted-foreground" />
                       )}
                       <span className={passwordValidation.checks.hasNumber ? "text-green-500" : "text-muted-foreground"}>
-                        Número
+                        {t.subscribe.number}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 col-span-2">
@@ -401,7 +403,7 @@ const Subscribe = () => {
                         <X className="h-3 w-3 text-muted-foreground" />
                       )}
                       <span className={passwordValidation.checks.hasSymbol ? "text-green-500" : "text-muted-foreground"}>
-                        Símbolo (!@#$%...)
+                        {t.subscribe.symbol}
                       </span>
                     </div>
                   </div>
@@ -414,7 +416,7 @@ const Subscribe = () => {
                           <X className="h-3 w-3 text-destructive" />
                         )}
                         <span className={passwordsMatch ? "text-green-500" : "text-destructive"}>
-                          {passwordsMatch ? "Senhas conferem" : "Senhas não conferem"}
+                          {passwordsMatch ? t.subscribe.passwordsMatch : t.subscribe.passwordsNotMatch}
                         </span>
                       </div>
                     </div>
@@ -431,7 +433,7 @@ const Subscribe = () => {
                   disabled={loading}
                 />
                 <Label htmlFor="accept-terms" className="text-sm flex items-center gap-1">
-                  Li e aceito os termos e condições
+                  {t.subscribe.acceptTerms} <span className="text-primary underline">{t.subscribe.termsLink}</span>
                   <TermsDialog />
                 </Label>
               </div>
@@ -442,12 +444,8 @@ const Subscribe = () => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-secondary/20 to-transparent rounded-full blur-2xl animate-pulse" style={{ animationDelay: "1s" }} />
                 
                 <div className="relative z-10">
-                  <div className="mb-3 animate-fade-in" style={{ animationDelay: "0.1s" }}>
-                    <h3 className="text-lg font-bold text-foreground">Taxa Única de Ativação</h3>
-                  </div>
-                  
                   <p className="text-sm text-muted-foreground mb-4 animate-fade-in" style={{ animationDelay: "0.15s" }}>
-                    Desbloqueie todo o potencial de ganhos da plataforma:
+                    {t.subscribe.unlockPotential}
                   </p>
                   
                   <div className="space-y-3 text-sm">
@@ -456,8 +454,8 @@ const Subscribe = () => {
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
                       <div>
-                        <span className="font-medium text-foreground">Comissões em duas camadas</span>
-                        <p className="text-xs text-muted-foreground">Ganhe por quem você indicar e também por quem seus indicados trouxerem</p>
+                        <span className="font-medium text-foreground">{t.subscribe.benefit1Title}</span>
+                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit1Desc}</p>
                       </div>
                     </div>
                     
@@ -466,8 +464,8 @@ const Subscribe = () => {
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
                       <div>
-                        <span className="font-medium text-foreground">Monetização para criadores</span>
-                        <p className="text-xs text-muted-foreground">Receba SuperChats e converta visualizações em saques via PIX automaticamente</p>
+                        <span className="font-medium text-foreground">{t.subscribe.benefit2Title}</span>
+                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit2Desc}</p>
                       </div>
                     </div>
                     
@@ -476,8 +474,8 @@ const Subscribe = () => {
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
                       <div>
-                        <span className="font-medium text-foreground">Acesso completo à plataforma</span>
-                        <p className="text-xs text-muted-foreground">Lives ilimitadas, chat ao vivo e experiência sem anúncios</p>
+                        <span className="font-medium text-foreground">{t.subscribe.benefit3Title}</span>
+                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit3Desc}</p>
                       </div>
                     </div>
                     
@@ -486,8 +484,8 @@ const Subscribe = () => {
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
                       <div>
-                        <span className="font-medium text-foreground">Rede de afiliados ativa</span>
-                        <p className="text-xs text-muted-foreground">Seu link gera renda passiva a cada novo cadastro na sua rede</p>
+                        <span className="font-medium text-foreground">{t.subscribe.benefit4Title}</span>
+                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit4Desc}</p>
                       </div>
                     </div>
                     
@@ -496,8 +494,8 @@ const Subscribe = () => {
                         <Check className="h-3.5 w-3.5 text-primary" />
                       </div>
                       <div>
-                        <span className="font-medium text-foreground">Adquira o seu canal na plataforma</span>
-                        <p className="text-xs text-muted-foreground">Monetize suas lives com superchats e visualizações</p>
+                        <span className="font-medium text-foreground">{t.subscribe.benefit5Title}</span>
+                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit5Desc}</p>
                       </div>
                     </div>
                   </div>
@@ -505,11 +503,11 @@ const Subscribe = () => {
               </Card>
 
               <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" onClick={handleSubscribe} disabled={loading}>
-                {loading ? "Processando..." : "Cadastre-se"}
+                {loading ? t.subscribe.processing : t.subscribe.subscribeNow}
               </Button>
 
               <p className="text-sm text-muted-foreground text-center">
-                Pagamento seguro via Mercado Pago (Pix ou cartão). Ao continuar, você confirma que aceita os termos e condições.
+                {t.subscribe.securePayment}
               </p>
             </div>
           </Card>
