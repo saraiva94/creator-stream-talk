@@ -138,13 +138,19 @@ serve(async (req) => {
     const preference = {
       items: [
         {
-          title: 'Taxa de Ativação - Stream Live Hub',
-          description: 'Ativação de conta e acesso completo à plataforma',
+          id: 'activation',
+          title: 'StreamStar - Ativação de Conta',
+          description: 'Ativação de conta e acesso completo à plataforma StreamStar',
+          category_id: 'services',
           quantity: 1,
           unit_price: REGISTRATION_PRICE,
           currency_id: 'BRL',
         },
       ],
+      payer: {
+        email: email,
+      },
+      statement_descriptor: 'STREAMSTAR',
       metadata: {
         event_type: 'REGISTRATION',
         user_id: userId,
@@ -154,9 +160,9 @@ serve(async (req) => {
         payment_id: externalReference,
       },
       back_urls: {
-        success: `${req.headers.get('origin') || 'https://enacciilzvifhqpenhlz.lovableproject.com'}/dashboard`,
-        failure: `${req.headers.get('origin') || 'https://enacciilzvifhqpenhlz.lovableproject.com'}/subscribe`,
-        pending: `${req.headers.get('origin') || 'https://enacciilzvifhqpenhlz.lovableproject.com'}/subscribe`,
+        success: `${req.headers.get('origin') || 'https://streamstar.vercel.app'}/dashboard`,
+        failure: `${req.headers.get('origin') || 'https://streamstar.vercel.app'}/subscribe`,
+        pending: `${req.headers.get('origin') || 'https://streamstar.vercel.app'}/subscribe`,
       },
       auto_return: 'approved',
       external_reference: externalReference,
