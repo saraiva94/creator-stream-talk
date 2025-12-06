@@ -25,6 +25,14 @@ interface AffiliateHistoryEntry {
   eventType: string;
 }
 
+interface WithdrawalHistoryEntry {
+  id: string;
+  createdAt: string;
+  amountCents: number;
+  status: string;
+  pixKeyMasked: string;
+}
+
 const Affiliate = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -36,6 +44,7 @@ const Affiliate = () => {
   const [totalEarningsCents, setTotalEarningsCents] = useState(0);
   const [availableBalanceCents, setAvailableBalanceCents] = useState(0);
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
+  const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   
@@ -50,6 +59,26 @@ const Affiliate = () => {
     
     if (profile) {
       setAvailableBalanceCents(Math.round((profile.balance ?? 0) * 100));
+    }
+
+    // Also refresh withdrawal history
+    const { data: withdrawals } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("type", "pix_withdraw")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (withdrawals) {
+      const entries: WithdrawalHistoryEntry[] = withdrawals.map((w) => ({
+        id: w.id,
+        createdAt: w.created_at,
+        amountCents: Math.abs(Math.round((w.amount ?? 0) * 100)),
+        status: w.status,
+        pixKeyMasked: (w.metadata as Record<string, unknown>)?.pix_key_masked as string || "***",
+      }));
+      setWithdrawalHistory(entries);
     }
   };
 
@@ -108,6 +137,26 @@ const Affiliate = () => {
             };
           });
           setHistory(historyEntries);
+        }
+
+        // Load withdrawal history
+        const { data: withdrawals } = await supabase
+          .from("transactions")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .eq("type", "pix_withdraw")
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (withdrawals) {
+          const withdrawalEntries: WithdrawalHistoryEntry[] = withdrawals.map((w) => ({
+            id: w.id,
+            createdAt: w.created_at,
+            amountCents: Math.abs(Math.round((w.amount ?? 0) * 100)),
+            status: w.status,
+            pixKeyMasked: (w.metadata as Record<string, unknown>)?.pix_key_masked as string || "***",
+          }));
+          setWithdrawalHistory(withdrawalEntries);
         }
 
         setError(null);
@@ -357,6 +406,43 @@ const Affiliate = () => {
                       <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
                       <p className="text-xs text-muted-foreground">
                         {entry.level === 1 ? "Direto" : entry.level === 2 ? "Avô" : ""}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Withdrawal History */}
+        <Card className="mt-6 sm:mt-8">
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Banknote className="h-4 w-4 sm:h-5 sm:w-5" />
+              Histórico de Saques PIX
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Acompanhe seus saques realizados</CardDescription>
+          </CardHeader>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            {withdrawalHistory.length === 0 ? (
+              <div className="text-center py-6 sm:py-8 text-muted-foreground">
+                <Banknote className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-50" />
+                <p className="text-sm sm:text-base">Nenhum saque realizado</p>
+                <p className="text-xs sm:text-sm">Seus saques PIX aparecerão aqui.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 sm:space-y-3">
+                {withdrawalHistory.map((entry) => (
+                  <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-sm sm:text-base">Saque PIX</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)} • {entry.pixKeyMasked}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <p className="font-bold text-red-500 text-sm sm:text-base">-{formatBRL(entry.amountCents)}</p>
+                      <p className={`text-xs ${entry.status === 'completed' ? 'text-green-500' : 'text-yellow-500'}`}>
+                        {entry.status === 'completed' ? 'Concluído' : 'Processando'}
                       </p>
                     </div>
                   </div>
