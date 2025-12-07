@@ -815,6 +815,7 @@ export type Database = {
           created_at: string
           gender: string | null
           id: string
+          instagram_handle: string | null
           is_root_creator: boolean | null
           is_subscribed: boolean | null
           language: string | null
@@ -825,9 +826,10 @@ export type Database = {
           referrer_parent_id: string | null
           referrer_root: string | null
           status: string | null
+          tiktok_handle: string | null
+          twitter_handle: string | null
           updated_at: string
           username: string
-          website: string | null
         }
         Insert: {
           affiliate_earnings?: number | null
@@ -837,6 +839,7 @@ export type Database = {
           created_at?: string
           gender?: string | null
           id: string
+          instagram_handle?: string | null
           is_root_creator?: boolean | null
           is_subscribed?: boolean | null
           language?: string | null
@@ -847,9 +850,10 @@ export type Database = {
           referrer_parent_id?: string | null
           referrer_root?: string | null
           status?: string | null
+          tiktok_handle?: string | null
+          twitter_handle?: string | null
           updated_at?: string
           username: string
-          website?: string | null
         }
         Update: {
           affiliate_earnings?: number | null
@@ -859,6 +863,7 @@ export type Database = {
           created_at?: string
           gender?: string | null
           id?: string
+          instagram_handle?: string | null
           is_root_creator?: boolean | null
           is_subscribed?: boolean | null
           language?: string | null
@@ -869,9 +874,10 @@ export type Database = {
           referrer_parent_id?: string | null
           referrer_root?: string | null
           status?: string | null
+          tiktok_handle?: string | null
+          twitter_handle?: string | null
           updated_at?: string
           username?: string
-          website?: string | null
         }
         Relationships: []
       }
