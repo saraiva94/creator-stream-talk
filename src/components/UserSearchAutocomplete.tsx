@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, User, Video, X } from "lucide-react";
+import { Search, User, Video, X, Clock, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
 import { cn } from "@/lib/utils";
@@ -18,11 +19,21 @@ type UserResult = {
   relevance_score: number;
 };
 
+type RecentSearch = {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  timestamp: number;
+};
+
 interface UserSearchAutocompleteProps {
   onSelectUser?: (user: UserResult) => void;
   placeholder?: string;
   className?: string;
 }
+
+const RECENT_SEARCHES_KEY = "streamstar_recent_searches";
+const MAX_RECENT_SEARCHES = 5;
 
 export const UserSearchAutocomplete = ({
   onSelectUser,
@@ -31,13 +42,60 @@ export const UserSearchAutocomplete = ({
 }: UserSearchAutocompleteProps) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<UserResult[]>([]);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [showRecent, setShowRecent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
+
+  // Load recent searches from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as RecentSearch[];
+        setRecentSearches(parsed);
+      } catch {
+        setRecentSearches([]);
+      }
+    }
+  }, []);
+
+  // Save recent search to localStorage
+  const saveRecentSearch = (user: UserResult) => {
+    const newRecent: RecentSearch = {
+      id: user.id,
+      username: user.username,
+      avatar_url: user.avatar_url,
+      timestamp: Date.now(),
+    };
+
+    const updated = [
+      newRecent,
+      ...recentSearches.filter((r) => r.id !== user.id),
+    ].slice(0, MAX_RECENT_SEARCHES);
+
+    setRecentSearches(updated);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  };
+
+  // Clear all recent searches
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+  };
+
+  // Remove single recent search
+  const removeRecentSearch = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = recentSearches.filter((r) => r.id !== id);
+    setRecentSearches(updated);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  };
 
   // Debounced search function
   const searchUsers = useCallback(async (searchTerm: string) => {
@@ -48,6 +106,7 @@ export const UserSearchAutocomplete = ({
     }
 
     setLoading(true);
+    setShowRecent(false);
     try {
       // Fetch profiles matching the search
       const { data: profiles, error } = await supabase
@@ -150,15 +209,26 @@ export const UserSearchAutocomplete = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Handle input focus
+  const handleFocus = () => {
+    if (query.length === 0 && recentSearches.length > 0) {
+      setShowRecent(true);
+      setIsOpen(true);
+    } else if (query.length > 0 && results.length > 0) {
+      setIsOpen(true);
+    }
+  };
+
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!isOpen || results.length === 0) return;
+    const itemsToNavigate = showRecent ? recentSearches : results;
+    if (!isOpen || itemsToNavigate.length === 0) return;
 
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
         setSelectedIndex((prev) =>
-          prev < results.length - 1 ? prev + 1 : prev
+          prev < itemsToNavigate.length - 1 ? prev + 1 : prev
         );
         break;
       case "ArrowUp":
@@ -167,34 +237,60 @@ export const UserSearchAutocomplete = ({
         break;
       case "Enter":
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < results.length) {
-          handleSelectUser(results[selectedIndex]);
+        if (selectedIndex >= 0 && selectedIndex < itemsToNavigate.length) {
+          if (showRecent) {
+            handleSelectRecent(recentSearches[selectedIndex]);
+          } else {
+            handleSelectUser(results[selectedIndex]);
+          }
         }
         break;
       case "Escape":
         setIsOpen(false);
+        setShowRecent(false);
         setSelectedIndex(-1);
         break;
     }
   };
 
   const handleSelectUser = (user: UserResult) => {
+    saveRecentSearch(user);
     if (onSelectUser) {
       onSelectUser(user);
     } else {
-      // Default: navigate to user's profile
       navigate(`/profile/${user.username}`);
     }
     setQuery("");
     setIsOpen(false);
+    setShowRecent(false);
     setResults([]);
+  };
+
+  const handleSelectRecent = (recent: RecentSearch) => {
+    navigate(`/profile/${recent.username}`);
+    setQuery("");
+    setIsOpen(false);
+    setShowRecent(false);
   };
 
   const clearSearch = () => {
     setQuery("");
     setResults([]);
     setIsOpen(false);
+    setShowRecent(false);
     inputRef.current?.focus();
+  };
+
+  // Handle input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    if (value.length === 0) {
+      setShowRecent(recentSearches.length > 0);
+      setResults([]);
+    } else {
+      setShowRecent(false);
+    }
   };
 
   // Highlight matching text
@@ -212,6 +308,19 @@ export const UserSearchAutocomplete = ({
     );
   };
 
+  // Format relative time
+  const formatRelativeTime = (timestamp: number) => {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "agora";
+    if (minutes < 60) return `${minutes}m atrás`;
+    if (hours < 24) return `${hours}h atrás`;
+    return `${days}d atrás`;
+  };
+
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
       <div className="relative">
@@ -221,9 +330,9 @@ export const UserSearchAutocomplete = ({
           type="text"
           placeholder={placeholder || t.home.search}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => query.length > 0 && results.length > 0 && setIsOpen(true)}
+          onFocus={handleFocus}
           className="pl-10 pr-10 bg-card/80 backdrop-blur-sm border-primary/20 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
         />
         {query && (
@@ -241,8 +350,64 @@ export const UserSearchAutocomplete = ({
         )}
       </div>
 
-      {/* Dropdown results */}
-      {isOpen && results.length > 0 && (
+      {/* Recent Searches Dropdown */}
+      {isOpen && showRecent && recentSearches.length > 0 && (
+        <div className="absolute z-50 w-full mt-2 bg-card/95 backdrop-blur-md border border-primary/20 rounded-lg shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border/50">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>Buscas recentes</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearRecentSearches}
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Limpar
+            </Button>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            {recentSearches.map((recent, index) => (
+              <button
+                key={recent.id}
+                onClick={() => handleSelectRecent(recent)}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 text-left transition-colors group",
+                  selectedIndex === index
+                    ? "bg-primary/20"
+                    : "hover:bg-muted/50"
+                )}
+              >
+                <Avatar className="h-9 w-9 border border-border">
+                  <AvatarImage src={recent.avatar_url || undefined} />
+                  <AvatarFallback className="bg-muted text-muted-foreground text-sm">
+                    {recent.username?.[0]?.toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-sm">{recent.username}</span>
+                  <p className="text-xs text-muted-foreground">
+                    {formatRelativeTime(recent.timestamp)}
+                  </p>
+                </div>
+
+                <button
+                  onClick={(e) => removeRecentSearch(recent.id, e)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all"
+                >
+                  <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                </button>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search Results Dropdown */}
+      {isOpen && !showRecent && results.length > 0 && (
         <div className="absolute z-50 w-full mt-2 bg-card/95 backdrop-blur-md border border-primary/20 rounded-lg shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           <div className="max-h-[400px] overflow-y-auto">
             {results.map((user, index) => (
@@ -303,7 +468,7 @@ export const UserSearchAutocomplete = ({
       )}
 
       {/* No results message */}
-      {isOpen && query.length > 0 && results.length === 0 && !loading && (
+      {isOpen && !showRecent && query.length > 0 && results.length === 0 && !loading && (
         <div className="absolute z-50 w-full mt-2 bg-card/95 backdrop-blur-md border border-primary/20 rounded-lg shadow-xl p-4 text-center">
           <User className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">
