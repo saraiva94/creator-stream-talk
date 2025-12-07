@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { User, Globe, Camera } from "lucide-react";
+import { User, Camera, Instagram, Twitter } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -18,12 +19,32 @@ import { logger } from "@/lib/logger";
 import AvatarCropDialog from "@/components/AvatarCropDialog";
 import { InstructionsDialog } from "@/components/InstructionsDialog";
 
+// TikTok icon SVG component
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg 
+    className={className} 
+    viewBox="0 0 24 24" 
+    fill="currentColor"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+  </svg>
+);
+
 type ProfileFormState = {
   username: string;
-  website: string;
   bio: string;
   gender: string;
   avatar_url: string;
+  instagram_handle: string;
+  twitter_handle: string;
+  tiktok_handle: string;
+};
+
+type SelectedSocials = {
+  instagram: boolean;
+  twitter: boolean;
+  tiktok: boolean;
 };
 
 const Profile = () => {
@@ -34,10 +55,17 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileFormState>({
     username: "",
-    website: "",
     bio: "",
     gender: "",
     avatar_url: "",
+    instagram_handle: "",
+    twitter_handle: "",
+    tiktok_handle: "",
+  });
+  const [selectedSocials, setSelectedSocials] = useState<SelectedSocials>({
+    instagram: false,
+    twitter: false,
+    tiktok: false,
   });
   const [uploading, setUploading] = useState(false);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
@@ -79,12 +107,24 @@ const Profile = () => {
           referralCode: profileData.referral_code,
         });
         
+        const instagramHandle = (profileData as { instagram_handle?: string | null }).instagram_handle || "";
+        const twitterHandle = (profileData as { twitter_handle?: string | null }).twitter_handle || "";
+        const tiktokHandle = (profileData as { tiktok_handle?: string | null }).tiktok_handle || "";
+        
         setProfile({
           username: profileData.username || "",
-          website: profileData.website || "",
           bio: profileData.bio || "",
           gender: profileData.gender || "",
           avatar_url: profileData.avatar_url || "",
+          instagram_handle: instagramHandle,
+          twitter_handle: twitterHandle,
+          tiktok_handle: tiktokHandle,
+        });
+        
+        setSelectedSocials({
+          instagram: !!instagramHandle,
+          twitter: !!twitterHandle,
+          tiktok: !!tiktokHandle,
         });
       }
 
@@ -183,11 +223,13 @@ const Profile = () => {
         .from("profiles")
         .update({
           username: profile.username.trim(),
-          website: profile.website.trim() || null,
           bio: profile.bio.trim() || null,
           gender: profile.gender || null,
           avatar_url: profile.avatar_url.trim() || null,
-        })
+          instagram_handle: selectedSocials.instagram ? profile.instagram_handle.trim() || null : null,
+          twitter_handle: selectedSocials.twitter ? profile.twitter_handle.trim() || null : null,
+          tiktok_handle: selectedSocials.tiktok ? profile.tiktok_handle.trim() || null : null,
+        } as Record<string, unknown>)
         .eq("id", user!.id);
 
       if (error) {
@@ -297,18 +339,96 @@ const Profile = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="website">
-                <Globe className="inline h-4 w-4 mr-1" />
-                {t.profile.personalSite}
-              </Label>
-              <Input
-                id="website"
-                type="url"
-                value={profile.website}
-                onChange={(e) => setProfile({ ...profile, website: e.target.value })}
-                placeholder="https://seusite.com"
-              />
+            {/* Social Media Section */}
+            <div className="space-y-4">
+              <Label>{t.profile.socialMedia || "Redes Sociais"}</Label>
+              
+              {/* Instagram */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="instagram-check"
+                    checked={selectedSocials.instagram}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, instagram: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="instagram-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <Instagram className="h-4 w-4 text-pink-500" />
+                    Instagram
+                  </label>
+                </div>
+                {selectedSocials.instagram && (
+                  <Input
+                    id="instagram"
+                    value={profile.instagram_handle}
+                    onChange={(e) => setProfile({ ...profile, instagram_handle: e.target.value })}
+                    placeholder="@seu_usuario"
+                    className="ml-6"
+                  />
+                )}
+              </div>
+
+              {/* Twitter/X */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="twitter-check"
+                    checked={selectedSocials.twitter}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, twitter: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="twitter-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <Twitter className="h-4 w-4 text-sky-500" />
+                    Twitter / X
+                  </label>
+                </div>
+                {selectedSocials.twitter && (
+                  <Input
+                    id="twitter"
+                    value={profile.twitter_handle}
+                    onChange={(e) => setProfile({ ...profile, twitter_handle: e.target.value })}
+                    placeholder="@seu_usuario"
+                    className="ml-6"
+                  />
+                )}
+              </div>
+
+              {/* TikTok */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="tiktok-check"
+                    checked={selectedSocials.tiktok}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, tiktok: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="tiktok-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <TikTokIcon className="h-4 w-4" />
+                    TikTok
+                  </label>
+                </div>
+                {selectedSocials.tiktok && (
+                  <Input
+                    id="tiktok"
+                    value={profile.tiktok_handle}
+                    onChange={(e) => setProfile({ ...profile, tiktok_handle: e.target.value })}
+                    placeholder="@seu_usuario"
+                    className="ml-6"
+                  />
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
