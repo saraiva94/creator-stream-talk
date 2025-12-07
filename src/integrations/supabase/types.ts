@@ -813,11 +813,13 @@ export type Database = {
           balance: number | null
           bio: string | null
           created_at: string
+          facebook_handle: string | null
           gender: string | null
           id: string
           instagram_handle: string | null
           is_root_creator: boolean | null
           is_subscribed: boolean | null
+          kwai_handle: string | null
           language: string | null
           referral_code: string | null
           referred_by: string | null
@@ -830,6 +832,8 @@ export type Database = {
           twitter_handle: string | null
           updated_at: string
           username: string
+          website: string | null
+          youtube_handle: string | null
         }
         Insert: {
           affiliate_earnings?: number | null
@@ -837,11 +841,13 @@ export type Database = {
           balance?: number | null
           bio?: string | null
           created_at?: string
+          facebook_handle?: string | null
           gender?: string | null
           id: string
           instagram_handle?: string | null
           is_root_creator?: boolean | null
           is_subscribed?: boolean | null
+          kwai_handle?: string | null
           language?: string | null
           referral_code?: string | null
           referred_by?: string | null
@@ -854,6 +860,8 @@ export type Database = {
           twitter_handle?: string | null
           updated_at?: string
           username: string
+          website?: string | null
+          youtube_handle?: string | null
         }
         Update: {
           affiliate_earnings?: number | null
@@ -861,11 +869,13 @@ export type Database = {
           balance?: number | null
           bio?: string | null
           created_at?: string
+          facebook_handle?: string | null
           gender?: string | null
           id?: string
           instagram_handle?: string | null
           is_root_creator?: boolean | null
           is_subscribed?: boolean | null
+          kwai_handle?: string | null
           language?: string | null
           referral_code?: string | null
           referred_by?: string | null
@@ -878,6 +888,8 @@ export type Database = {
           twitter_handle?: string | null
           updated_at?: string
           username?: string
+          website?: string | null
+          youtube_handle?: string | null
         }
         Relationships: []
       }
