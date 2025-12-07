@@ -4,15 +4,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2, Smile, Check, CheckCheck, Trash2, Image, MoreVertical, Mic, Square, Play, Pause } from "lucide-react";
+import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
-
 
 type Conversation = {
   id: string;
@@ -28,9 +24,6 @@ type MessageMetadata = {
   live_id?: string;
   creator_name?: string;
   thumbnail_url?: string;
-  image_url?: string;
-  audio_url?: string;
-  audio_duration?: number;
 };
 
 type Message = {
@@ -42,7 +35,6 @@ type Message = {
   metadata: MessageMetadata | null;
   created_at: string;
   read_at: string | null;
-  deleted?: boolean;
 };
 
 interface DirectMessagePanelProps {
@@ -70,40 +62,27 @@ export const DirectMessagePanel = ({
   const [searchResults, setSearchResults] = useState<{ id: string; username: string; avatar_url: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [uploadingAudio, setUploadingAudio] = useState(false);
-  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-  const [audioProgress, setAudioProgress] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
-  // Generate pseudo-random waveform bars for visual effect
-  const generateWaveformBars = (messageId: string) => {
-    const seed = messageId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return Array.from({ length: 20 }, (_, i) => {
-      const height = 20 + ((seed * (i + 1) * 7) % 60);
-      return height;
-    });
-  };
-
-  // Initialize notification sound with Web Audio API
+  // Initialize notification sound
   useEffect(() => {
-    // We'll use Web Audio API directly instead of an Audio element
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAgAj8markup4sGoAAABLpJ1AAwBRJk+kAQBRJk+kAQBRJk+k');
+    // Use a simple sine wave tone generated via Web Audio API
+    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gainNode.gain.value = 0;
+    oscillator.start();
+    
+    audioRef.current = { oscillator, gainNode, audioContext } as unknown as HTMLAudioElement;
+    
     return () => {
-      // Cleanup if needed
+      audioContext.close();
     };
   }, []);
 
@@ -133,66 +112,6 @@ export const DirectMessagePanel = ({
     if (!user || !isOpen) return;
     fetchConversations();
   }, [user, isOpen]);
-
-  // Typing indicator presence channel
-  useEffect(() => {
-    if (!user || !selectedConversation) {
-      if (typingChannelRef.current) {
-        supabase.removeChannel(typingChannelRef.current);
-        typingChannelRef.current = null;
-      }
-      setPartnerTyping(false);
-      return;
-    }
-
-    const channelName = `typing:${[user.id, selectedConversation.id].sort().join('-')}`;
-    const channel = supabase.channel(channelName);
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const partnerIsTyping = Object.values(state).some((presences: any) =>
-          presences.some((p: any) => p.userId === selectedConversation.id && p.typing)
-        );
-        setPartnerTyping(partnerIsTyping);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ userId: user.id, typing: false });
-        }
-      });
-
-    typingChannelRef.current = channel;
-
-    return () => {
-      supabase.removeChannel(channel);
-      typingChannelRef.current = null;
-    };
-  }, [user, selectedConversation?.id]);
-
-  // Broadcast typing status
-  const broadcastTyping = (typing: boolean) => {
-    if (typingChannelRef.current && user) {
-      typingChannelRef.current.track({ userId: user.id, typing });
-    }
-  };
-
-  // Handle typing with debounce
-  const handleTyping = () => {
-    if (!isTyping) {
-      setIsTyping(true);
-      broadcastTyping(true);
-    }
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      broadcastTyping(false);
-    }, 2000);
-  };
 
   // Handle initial recipient
   useEffect(() => {
@@ -405,243 +324,6 @@ export const DirectMessagePanel = ({
     setLoading(false);
   };
 
-  const deleteMessage = async (messageId: string) => {
-    const { error } = await supabase
-      .from('direct_messages')
-      .update({ content: '[Mensagem apagada]', message_type: 'deleted' })
-      .eq('id', messageId)
-      .eq('sender_id', user?.id);
-
-    if (!error) {
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, content: '[Mensagem apagada]', message_type: 'deleted', deleted: true }
-          : msg
-      ));
-      toast.success(t.directMessage.messageDeleted);
-    } else {
-      toast.error(t.directMessage.deleteError);
-    }
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user || !selectedConversation) return;
-
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      toast.error(t.directMessage.onlyImages);
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(t.directMessage.imageTooLarge);
-      return;
-    }
-
-    setUploadingImage(true);
-
-    try {
-      // Upload to storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(`dm-images/${fileName}`, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(`dm-images/${fileName}`);
-
-      // Send message with image
-      const { error } = await supabase
-        .from('direct_messages')
-        .insert({
-          sender_id: user.id,
-          receiver_id: selectedConversation.id,
-          content: '📷 Imagem',
-          message_type: 'image',
-          metadata: { image_url: urlData.publicUrl }
-        });
-
-      if (!error) {
-        const newMsg: Message = {
-          id: crypto.randomUUID(),
-          sender_id: user.id,
-          receiver_id: selectedConversation.id,
-          content: '📷 Imagem',
-          message_type: 'image',
-          metadata: { image_url: urlData.publicUrl },
-          created_at: new Date().toISOString(),
-          read_at: null
-        };
-        setMessages(prev => [...prev, newMsg]);
-        toast.success(t.directMessage.imageSent);
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(t.directMessage.imageError);
-    } finally {
-      setUploadingImage(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  // Audio recording functions
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach(track => track.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await uploadAudio(audioBlob, recordingTime);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-
-      // Start timer
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => {
-          if (prev >= 60) {
-            stopRecording();
-            return 60;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      toast.error(t.directMessage.microphoneError);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = null;
-      }
-    }
-  };
-
-  const cancelRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      mediaRecorderRef.current = null;
-    }
-    setIsRecording(false);
-    setRecordingTime(0);
-    audioChunksRef.current = [];
-    if (recordingIntervalRef.current) {
-      clearInterval(recordingIntervalRef.current);
-      recordingIntervalRef.current = null;
-    }
-  };
-
-  const uploadAudio = async (audioBlob: Blob, duration: number) => {
-    if (!user || !selectedConversation) return;
-
-    setUploadingAudio(true);
-
-    try {
-      const fileName = `${user.id}/${Date.now()}.webm`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(`dm-audio/${fileName}`, audioBlob);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(`dm-audio/${fileName}`);
-
-      const { error } = await supabase
-        .from('direct_messages')
-        .insert({
-          sender_id: user.id,
-          receiver_id: selectedConversation.id,
-          content: '🎤 Áudio',
-          message_type: 'audio',
-          metadata: { audio_url: urlData.publicUrl, audio_duration: duration }
-        });
-
-      if (!error) {
-        const newMsg: Message = {
-          id: crypto.randomUUID(),
-          sender_id: user.id,
-          receiver_id: selectedConversation.id,
-          content: '🎤 Áudio',
-          message_type: 'audio',
-          metadata: { audio_url: urlData.publicUrl, audio_duration: duration },
-          created_at: new Date().toISOString(),
-          read_at: null
-        };
-        setMessages(prev => [...prev, newMsg]);
-        toast.success(t.directMessage.audioSent);
-      }
-    } catch (error) {
-      console.error('Audio upload error:', error);
-      toast.error(t.directMessage.audioError);
-    } finally {
-      setUploadingAudio(false);
-      setRecordingTime(0);
-    }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const toggleAudioPlay = (audioUrl: string, messageId: string) => {
-    if (playingAudioId === messageId) {
-      audioPlayerRef.current?.pause();
-      setPlayingAudioId(null);
-    } else {
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
-      }
-      audioPlayerRef.current = new Audio(audioUrl);
-      
-      audioPlayerRef.current.ontimeupdate = () => {
-        if (audioPlayerRef.current) {
-          const progress = (audioPlayerRef.current.currentTime / audioPlayerRef.current.duration) * 100;
-          setAudioProgress(prev => ({ ...prev, [messageId]: progress }));
-        }
-      };
-      
-      audioPlayerRef.current.onended = () => {
-        setPlayingAudioId(null);
-        setAudioProgress(prev => ({ ...prev, [messageId]: 0 }));
-      };
-      
-      audioPlayerRef.current.play();
-      setPlayingAudioId(messageId);
-    }
-  };
-
   const searchUsers = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -666,7 +348,7 @@ export const DirectMessagePanel = ({
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return t.directMessage.now;
+    if (minutes < 1) return 'agora';
     if (minutes < 60) return `${minutes}min`;
     if (hours < 24) return `${hours}h`;
     return `${days}d`;
@@ -690,7 +372,7 @@ export const DirectMessagePanel = ({
             </span>
           )}
         </div>
-        <span className="text-sm font-medium">{t.directMessage.messages}</span>
+        <span className="text-sm font-medium">Mensagens</span>
         {unreadTotal > 0 && (
           <Badge variant="destructive" className="h-5 min-w-5 flex items-center justify-center text-xs animate-pulse">
             {unreadTotal > 9 ? '9+' : unreadTotal}
@@ -724,7 +406,7 @@ export const DirectMessagePanel = ({
           )}
           <MessageCircle className="h-5 w-5 text-primary" />
           <span className="font-semibold">
-            {selectedConversation ? selectedConversation.username : t.directMessage.messages}
+            {selectedConversation ? selectedConversation.username : "Mensagens"}
           </span>
           {unreadTotal > 0 && !selectedConversation && (
             <Badge variant="secondary" className="text-xs">{unreadTotal}</Badge>
@@ -759,7 +441,7 @@ export const DirectMessagePanel = ({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={t.directMessage.searchUser}
+                placeholder="Buscar usuário..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -776,7 +458,7 @@ export const DirectMessagePanel = ({
               <div className="p-2">
                 {searchResults.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-4">
-                    {t.directMessage.noUserFound}
+                    Nenhum usuário encontrado
                   </p>
                 ) : (
                   searchResults.map((user) => (
@@ -802,7 +484,7 @@ export const DirectMessagePanel = ({
               <div className="p-2">
                 {conversations.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-8">
-                    {t.directMessage.noConversations}
+                    Nenhuma conversa ainda
                   </p>
                 ) : (
                   conversations.map((conv) => (
@@ -857,114 +539,19 @@ export const DirectMessagePanel = ({
                 <div
                   key={msg.id}
                   className={cn(
-                    "flex group",
+                    "flex",
                     msg.sender_id === user.id ? "justify-end" : "justify-start"
                   )}
                 >
-                  {/* Delete menu for own messages */}
-                  {msg.sender_id === user.id && msg.message_type !== 'deleted' && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1"
-                        >
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem 
-                          onClick={() => deleteMessage(msg.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          {t.directMessage.deleteMessage}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                  
                   <div
                     className={cn(
                       "max-w-[75%] rounded-2xl px-4 py-2",
                       msg.sender_id === user.id
                         ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted rounded-bl-sm",
-                      msg.message_type === 'deleted' && "opacity-60 italic"
+                        : "bg-muted rounded-bl-sm"
                     )}
                   >
-                    {msg.message_type === 'deleted' ? (
-                      <p className="text-sm italic">{msg.content}</p>
-                    ) : msg.message_type === 'audio' && msg.metadata?.audio_url ? (
-                      <div className="flex items-center gap-3 min-w-[180px]">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className={cn(
-                            "h-10 w-10 shrink-0 rounded-full",
-                            msg.sender_id === user.id 
-                              ? "bg-primary-foreground/20 hover:bg-primary-foreground/30"
-                              : "bg-muted-foreground/20 hover:bg-muted-foreground/30"
-                          )}
-                          onClick={() => toggleAudioPlay(msg.metadata!.audio_url!, msg.id)}
-                        >
-                          {playingAudioId === msg.id ? (
-                            <Pause className="h-5 w-5" />
-                          ) : (
-                            <Play className="h-5 w-5 ml-0.5" />
-                          )}
-                        </Button>
-                        <div className="flex-1 flex flex-col gap-1">
-                          {/* Waveform visualization */}
-                          <div className="flex items-center gap-[2px] h-8">
-                            {generateWaveformBars(msg.id).map((height, i) => {
-                              const progress = audioProgress[msg.id] || 0;
-                              const barProgress = (i / 20) * 100;
-                              const isActive = barProgress < progress;
-                              const isPlaying = playingAudioId === msg.id;
-                              
-                              return (
-                                <div
-                                  key={i}
-                                  className={cn(
-                                    "w-1 rounded-full transition-all duration-150",
-                                    msg.sender_id === user.id
-                                      ? isActive || !isPlaying
-                                        ? "bg-primary-foreground"
-                                        : "bg-primary-foreground/30"
-                                      : isActive || !isPlaying
-                                        ? "bg-foreground"
-                                        : "bg-muted-foreground/30",
-                                    isPlaying && isActive && "animate-pulse"
-                                  )}
-                                  style={{ 
-                                    height: `${height}%`,
-                                    opacity: isPlaying ? (isActive ? 1 : 0.4) : 0.7
-                                  }}
-                                />
-                              );
-                            })}
-                          </div>
-                          <span className={cn(
-                            "text-[10px]",
-                            msg.sender_id === user.id ? "text-primary-foreground/70" : "text-muted-foreground"
-                          )}>
-                            {formatDuration(msg.metadata.audio_duration || 0)}
-                          </span>
-                        </div>
-                      </div>
-                    ) : msg.message_type === 'image' && msg.metadata?.image_url ? (
-                      <div>
-                        <img 
-                          src={msg.metadata.image_url} 
-                          alt="Imagem" 
-                          className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={() => window.open(msg.metadata?.image_url, '_blank')}
-                        />
-                      </div>
-                    ) : msg.message_type === 'live_share' && msg.metadata ? (
+                    {msg.message_type === 'live_share' && msg.metadata ? (
                       <a 
                         href={`/live/${msg.metadata.live_id}`}
                         className="block"
@@ -978,41 +565,15 @@ export const DirectMessagePanel = ({
                     ) : (
                       <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                     )}
-                    <div className={cn(
-                      "flex items-center gap-1 mt-1",
-                      msg.sender_id === user.id ? "justify-end" : "justify-start"
+                    <span className={cn(
+                      "text-[10px] mt-1 block",
+                      msg.sender_id === user.id ? "text-primary-foreground/70" : "text-muted-foreground"
                     )}>
-                      <span className={cn(
-                        "text-[10px]",
-                        msg.sender_id === user.id ? "text-primary-foreground/70" : "text-muted-foreground"
-                      )}>
-                        {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {msg.sender_id === user.id && msg.message_type !== 'deleted' && (
-                        msg.read_at ? (
-                          <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/90" />
-                        ) : (
-                          <Check className="h-3.5 w-3.5 text-primary-foreground/50" />
-                        )
-                      )}
-                    </div>
+                      {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
                 </div>
               ))}
-              
-              {/* Typing indicator */}
-              {partnerTyping && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-2">
-                    <div className="flex items-center gap-1">
-                      <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -1021,113 +582,18 @@ export const DirectMessagePanel = ({
           <div className="p-3 border-t border-border/50">
             <form 
               onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-              className="flex gap-2 items-center"
+              className="flex gap-2"
             >
-              <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
-                <PopoverTrigger asChild>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-9 w-9 shrink-0"
-                  >
-                    <Smile className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent 
-                  side="top" 
-                  align="start" 
-                  className="w-64 p-2"
-                >
-                  <div className="text-center py-4 text-muted-foreground text-sm">
-                    Emoji picker temporarily disabled
-                  </div>
-                </PopoverContent>
-              </Popover>
-              
-              {/* Image upload button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
+              <Input
+                placeholder="Digite uma mensagem..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="flex-1"
+                disabled={loading}
               />
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="icon" 
-                className="h-9 w-9 shrink-0"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImage}
-              >
-                {uploadingImage ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                ) : (
-                  <Image className="h-5 w-5 text-muted-foreground" />
-                )}
+              <Button type="submit" size="icon" disabled={loading || !newMessage.trim()}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
-              
-              {/* Audio recording button */}
-              {isRecording ? (
-                <div className="flex items-center gap-2 flex-1 bg-destructive/10 rounded-lg px-3 py-2">
-                  <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                  <span className="text-sm font-medium text-destructive">{formatDuration(recordingTime)}</span>
-                  <span className="text-xs text-muted-foreground">{t.directMessage.maxOneMin}</span>
-                  <div className="flex-1" />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={cancelRecording}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={stopRecording}
-                    disabled={uploadingAudio}
-                  >
-                    {uploadingAudio ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Square className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-9 w-9 shrink-0"
-                    onClick={startRecording}
-                    disabled={uploadingImage || uploadingAudio}
-                  >
-                    <Mic className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                  
-                  <Input
-                    ref={inputRef}
-                    placeholder={t.directMessage.typePlaceholder}
-                    value={newMessage}
-                    onChange={(e) => {
-                      setNewMessage(e.target.value);
-                      handleTyping();
-                    }}
-                    className="flex-1"
-                    disabled={loading || uploadingImage || uploadingAudio}
-                  />
-                  <Button type="submit" size="icon" disabled={loading || uploadingImage || uploadingAudio || !newMessage.trim()}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
-                </>
-              )}
             </form>
           </div>
         </div>
