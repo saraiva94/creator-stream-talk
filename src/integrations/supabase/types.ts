@@ -1340,28 +1340,46 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string | null
+          facebook_handle: string | null
           id: string | null
+          instagram_handle: string | null
           is_subscribed: boolean | null
+          kwai_handle: string | null
           referral_code: string | null
+          tiktok_handle: string | null
           username: string | null
+          website: string | null
+          youtube_handle: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
+          facebook_handle?: string | null
           id?: string | null
+          instagram_handle?: string | null
           is_subscribed?: boolean | null
+          kwai_handle?: string | null
           referral_code?: string | null
+          tiktok_handle?: string | null
           username?: string | null
+          website?: string | null
+          youtube_handle?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string | null
+          facebook_handle?: string | null
           id?: string | null
+          instagram_handle?: string | null
           is_subscribed?: boolean | null
+          kwai_handle?: string | null
           referral_code?: string | null
+          tiktok_handle?: string | null
           username?: string | null
+          website?: string | null
+          youtube_handle?: string | null
         }
         Relationships: []
       }
