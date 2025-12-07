@@ -356,17 +356,25 @@ export const DirectMessagePanel = ({
 
   if (!user) return null;
 
-  // Collapsed button
+  // Collapsed button with animated unread indicator
   if (!isOpen) {
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-card border border-primary/20 rounded-full shadow-lg hover:shadow-xl transition-all hover:border-primary/40"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-card border border-primary/20 rounded-full shadow-lg hover:shadow-xl transition-all hover:border-primary/40 group"
       >
-        <MessageCircle className="h-5 w-5 text-primary" />
+        <div className="relative">
+          <MessageCircle className="h-5 w-5 text-primary" />
+          {unreadTotal > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive"></span>
+            </span>
+          )}
+        </div>
         <span className="text-sm font-medium">Mensagens</span>
         {unreadTotal > 0 && (
-          <Badge variant="destructive" className="h-5 min-w-5 flex items-center justify-center text-xs">
+          <Badge variant="destructive" className="h-5 min-w-5 flex items-center justify-center text-xs animate-pulse">
             {unreadTotal > 9 ? '9+' : unreadTotal}
           </Badge>
         )}
