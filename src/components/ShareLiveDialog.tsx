@@ -181,6 +181,26 @@ export const ShareLiveDialog = ({
         </DialogHeader>
         
         <div className="space-y-6">
+          {/* Live Preview Card */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
+            {thumbnailUrl ? (
+              <img 
+                src={thumbnailUrl} 
+                alt={creatorName}
+                className="w-16 h-16 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="h-8 w-8 text-primary" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold truncate">{creatorName}</p>
+              <p className="text-sm text-muted-foreground truncate">Ao vivo agora</p>
+            </div>
+          </div>
           {/* Send via Chat - First Option */}
           {user && (
             <div className="space-y-3">
