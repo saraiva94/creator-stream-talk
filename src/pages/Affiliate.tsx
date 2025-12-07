@@ -344,7 +344,7 @@ const Affiliate = () => {
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              Código de indicação
+              Criar código de indicação
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm">Defina ou personalize o código que seus convidados vão usar no cadastro.</CardDescription>
           </CardHeader>
@@ -375,7 +375,7 @@ const Affiliate = () => {
                 Copiar link
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-primary font-medium animate-pulse drop-shadow-[0_0_8px_hsl(var(--primary))]">
               Use apenas letras, números, hífen ou underline. Compartilhe este código para que seus indicados recebam crédito
               e você ganhe comissão.
             </p>
