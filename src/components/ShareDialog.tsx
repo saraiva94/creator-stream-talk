@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import { Copy, Check, MessageCircle, Instagram } from "lucide-react";
+import { Copy, Check, MessageCircle, Instagram, Twitter } from "lucide-react";
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -114,6 +114,12 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
     }
   };
 
+  const shareToTwitter = async () => {
+    await copyToClipboard();
+    const text = encodeURIComponent(title ? `${title}: ${link}` : link);
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank");
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md border-primary/20">
@@ -127,60 +133,71 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Social Media Buttons - Row with 4 buttons */}
-          <div className="grid grid-cols-4 gap-4">
+          {/* Social Media Buttons - Row with 5 buttons */}
+          <div className="grid grid-cols-5 gap-2 sm:gap-4">
             {/* WhatsApp */}
             <button
               onClick={shareToWhatsApp}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors group"
+              className="flex flex-col items-center gap-2 p-2 sm:p-3 rounded-xl hover:bg-muted transition-colors group"
             >
-              <div className="w-12 h-12 rounded-full bg-[#25D366] flex items-center justify-center group-hover:scale-110 transition-transform">
-                <MessageCircle className="h-6 w-6 text-white" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#25D366] flex items-center justify-center group-hover:scale-110 transition-transform">
+                <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-xs text-muted-foreground">WhatsApp</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">WhatsApp</span>
             </button>
 
             {/* Messenger */}
             <button
               onClick={shareToMessenger}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors group"
+              className="flex flex-col items-center gap-2 p-2 sm:p-3 rounded-xl hover:bg-muted transition-colors group"
             >
               <div 
-                className="w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
                 style={{
                   background: "linear-gradient(45deg, #0078FF, #00C6FF)"
                 }}
               >
-                <MessengerIcon className="h-6 w-6 text-white" />
+                <MessengerIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-xs text-muted-foreground">Messenger</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">Messenger</span>
             </button>
 
             {/* Instagram */}
             <button
               onClick={shareToInstagram}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors group"
+              className="flex flex-col items-center gap-2 p-2 sm:p-3 rounded-xl hover:bg-muted transition-colors group"
             >
               <div 
-                className="w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
                 style={{
                   background: "linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)"
                 }}
               >
-                <Instagram className="h-6 w-6 text-white" />
+                <Instagram className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-xs text-muted-foreground">Instagram</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">Instagram</span>
             </button>
 
             {/* TikTok */}
             <button
               onClick={shareToTikTok}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors group"
+              className="flex flex-col items-center gap-2 p-2 sm:p-3 rounded-xl hover:bg-muted transition-colors group"
             >
-              <div className="w-12 h-12 rounded-full bg-black flex items-center justify-center group-hover:scale-110 transition-transform border border-border">
-                <TikTokIcon className="h-6 w-6 text-white" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black flex items-center justify-center group-hover:scale-110 transition-transform border border-border">
+                <TikTokIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <span className="text-xs text-muted-foreground">TikTok</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">TikTok</span>
+            </button>
+
+            {/* Twitter/X */}
+            <button
+              onClick={shareToTwitter}
+              className="flex flex-col items-center gap-2 p-2 sm:p-3 rounded-xl hover:bg-muted transition-colors group"
+            >
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Twitter className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              </div>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">X</span>
             </button>
           </div>
 
