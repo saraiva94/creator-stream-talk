@@ -346,7 +346,12 @@ const Affiliate = () => {
               <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
               Criar código de indicação
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Crie seu link personalizado e comece a ganhar já, cada cadastro conta e você pode sacar na hora!</CardDescription>
+            <CardDescription 
+              className="text-xs sm:text-sm animate-pulse text-foreground" 
+              style={{ textShadow: '0 0 8px hsl(var(--foreground) / 0.5)' }}
+            >
+              Crie seu link personalizado e comece a ganhar já, cada cadastro conta e você pode sacar na hora!
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
             <div className="flex flex-col gap-2">
