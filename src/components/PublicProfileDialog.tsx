@@ -15,6 +15,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useNavigate } from "react-router-dom";
+import { FollowSettingsMenu } from "./FollowSettingsMenu";
 
 interface PublicProfileDialogProps {
   isOpen: boolean;
@@ -71,7 +72,6 @@ export const PublicProfileDialog = ({
     
     setLoading(true);
     try {
-      // Fetch profile data
       const { data: profileData, error } = await supabase
         .from("public_profiles")
         .select("*")
@@ -80,28 +80,25 @@ export const PublicProfileDialog = ({
 
       if (error) throw error;
 
-      // Check if creator
       const { data: creatorData } = await supabase
         .from("creator_profiles")
         .select("id, is_streaming")
         .eq("id", userId)
         .maybeSingle();
 
-      // Count followers (subscriptions)
+      // Count followers using user_follows table
       const { count: followerCount } = await supabase
-        .from("subscriptions")
+        .from("user_follows")
         .select("*", { count: "exact", head: true })
-        .eq("creator_id", userId)
-        .eq("status", "active");
+        .eq("following_id", userId);
 
       // Check if current user is following
       if (currentUserId && currentUserId !== userId) {
         const { data: followData } = await supabase
-          .from("subscriptions")
+          .from("user_follows")
           .select("id")
-          .eq("user_id", currentUserId)
-          .eq("creator_id", userId)
-          .eq("status", "active")
+          .eq("follower_id", currentUserId)
+          .eq("following_id", userId)
           .maybeSingle();
         
         setIsFollowing(!!followData);
@@ -135,20 +132,25 @@ export const PublicProfileDialog = ({
     try {
       if (isFollowing) {
         await supabase
-          .from("subscriptions")
-          .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-          .eq("user_id", currentUserId)
-          .eq("creator_id", userId);
+          .from("user_follows")
+          .delete()
+          .eq("follower_id", currentUserId)
+          .eq("following_id", userId);
         setIsFollowing(false);
+        if (profile) {
+          setProfile({ ...profile, follower_count: Math.max(0, profile.follower_count - 1) });
+        }
       } else {
         await supabase
-          .from("subscriptions")
+          .from("user_follows")
           .insert({
-            user_id: currentUserId,
-            creator_id: userId,
-            status: "active",
+            follower_id: currentUserId,
+            following_id: userId,
           });
         setIsFollowing(true);
+        if (profile) {
+          setProfile({ ...profile, follower_count: profile.follower_count + 1 });
+        }
       }
     } catch (error) {
       console.error("Error toggling follow:", error);
@@ -158,7 +160,14 @@ export const PublicProfileDialog = ({
   const handleWatchLive = () => {
     if (profile?.is_streaming) {
       onClose();
-      navigate(`/live/${username}`);
+      navigate(`/live/${profile.id}`);
+    }
+  };
+
+  const handleViewFullProfile = () => {
+    if (profile?.username) {
+      onClose();
+      navigate(`/u/${profile.username}`);
     }
   };
 
@@ -219,7 +228,7 @@ export const PublicProfileDialog = ({
               )}
               
               <p className="text-sm text-muted-foreground">
-                {profile.follower_count} {t.profile?.followers || "seguidores"}
+                {profile.follower_count} {t.userProfile?.followers || t.profile?.followers || "seguidores"}
               </p>
             </div>
 
@@ -275,31 +284,47 @@ export const PublicProfileDialog = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 w-full pt-4">
+            <div className="flex gap-2 w-full pt-4 items-center justify-center">
               {currentUserId && currentUserId !== profile.id && (
-                <Button
-                  variant={isFollowing ? "outline" : "default"}
-                  className="flex-1"
-                  onClick={handleFollow}
-                >
-                  {isFollowing ? (
-                    <>
-                      <UserCheck className="h-4 w-4 mr-2" />
-                      Seguindo
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      {t.profile?.follow || "Seguir"}
-                    </>
-                  )}
-                </Button>
+                <>
+                  <Button
+                    variant={isFollowing ? "outline" : "default"}
+                    className="flex-1 max-w-[140px]"
+                    onClick={handleFollow}
+                  >
+                    {isFollowing ? (
+                      <>
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        {t.userProfile?.following || "Seguindo"}
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        {t.userProfile?.follow || t.profile?.follow || "Seguir"}
+                      </>
+                    )}
+                  </Button>
+                  
+                  {/* Settings gear menu */}
+                  <FollowSettingsMenu
+                    userId={profile.id}
+                    currentUserId={currentUserId}
+                    isFollowing={isFollowing}
+                    onUnfollow={() => {
+                      setIsFollowing(false);
+                      setProfile({ ...profile, follower_count: Math.max(0, profile.follower_count - 1) });
+                    }}
+                    onBlock={() => {
+                      onClose();
+                    }}
+                  />
+                </>
               )}
               
               {profile.is_streaming && (
                 <Button
                   variant="destructive"
-                  className="flex-1"
+                  className="flex-1 max-w-[140px]"
                   onClick={handleWatchLive}
                 >
                   <Video className="h-4 w-4 mr-2" />
@@ -307,16 +332,14 @@ export const PublicProfileDialog = ({
                 </Button>
               )}
               
+              {/* View full profile button */}
               <Button
                 variant="ghost"
-                size="icon"
-                onClick={() => {
-                  onClose();
-                  navigate(`/profile/${profile.username}`);
-                }}
-                title="Ver perfil completo"
+                onClick={handleViewFullProfile}
+                className="gap-2"
               >
                 <ExternalLink className="h-4 w-4" />
+                {t.userProfile?.viewFullProfile || "Ver perfil completo"}
               </Button>
             </div>
           </div>
