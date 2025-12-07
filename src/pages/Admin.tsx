@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -458,9 +458,7 @@ const Admin = () => {
   const totalPlatformIncome = revenue.platformCredits + revenue.platformSuperchat + revenue.platformRegistration;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar user={user} />
-      
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-6xl">
         {/* Header */}
         <div className="flex flex-col gap-4 mb-6 sm:mb-8">
@@ -902,7 +900,7 @@ const Admin = () => {
         </Card>
 
       </main>
-    </div>
+    </AppLayout>
   );
 };
 

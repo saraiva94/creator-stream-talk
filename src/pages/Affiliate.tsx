@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2 } from "lucide-react";
-import Navbar from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -282,9 +282,7 @@ const Affiliate = () => {
   const referralLink = `${siteUrl}/subscribe?ref=${code || "seu-codigo"}`;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar user={user} />
-
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -492,7 +490,7 @@ const Affiliate = () => {
         link={referralLink}
         title="Cadastre-se no Stream Star"
       />
-    </div>
+    </AppLayout>
   );
 };
 
