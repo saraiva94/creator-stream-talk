@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
 import UserSearchAutocomplete from "@/components/UserSearchAutocomplete";
+import PublicProfileDialog from "@/components/PublicProfileDialog";
 import { Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +17,9 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -52,8 +56,11 @@ const Home = () => {
   const onlineLives = lives.filter((live) => live.status !== "ended");
   const offlineLives = lives.filter((live) => live.status === "ended");
 
+  // Open profile dialog instead of navigating
   const handleUserSelect = (selectedUser: { id: string; username: string }) => {
-    navigate(`/profile/${selectedUser.username}`);
+    setSelectedUserId(selectedUser.id);
+    setSelectedUsername(selectedUser.username);
+    setProfileDialogOpen(true);
   };
 
   return (
@@ -63,7 +70,7 @@ const Home = () => {
           <div className="max-w-lg mx-auto">
             <UserSearchAutocomplete 
               onSelectUser={handleUserSelect}
-              placeholder={t.home.search}
+              placeholder={t.home?.search || "Buscar usuários..."}
             />
           </div>
         </div>
@@ -78,7 +85,7 @@ const Home = () => {
               <section className="mb-12">
                 <h2 className="text-2xl font-bold mb-6 text-primary flex items-center gap-2">
                   <span className="w-3 h-3 bg-success rounded-full animate-pulse"></span>
-                  {t.home.onlineNow}
+                  {t.home?.onlineNow || "Ao vivo agora"}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {onlineLives.map((live) => (
@@ -96,7 +103,7 @@ const Home = () => {
             {offlineLives.length > 0 && (
               <section>
                 <h2 className="text-2xl font-bold mb-6 text-muted-foreground">
-                  {t.home.offline}
+                  {t.home?.offline || "Offline"}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {offlineLives.map((live) => (
@@ -152,31 +159,40 @@ const Home = () => {
           </>
         )}
 
-      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
-        <DialogContent className="border-primary/20">
-          <DialogHeader>
-            <DialogTitle className="text-primary">{t.home.loginToWatch}</DialogTitle>
-            <DialogDescription>
-              Create an account or sign in to watch live streams and interact with creators.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-3 mt-4">
-            <Button
-              className="flex-1"
-              onClick={() => navigate("/auth")}
-            >
-              {t.home.loginButton}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => setShowLoginDialog(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        {/* Login Dialog */}
+        <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+          <DialogContent className="border-primary/20">
+            <DialogHeader>
+              <DialogTitle className="text-primary">{t.home?.loginToWatch || "Faça login para assistir"}</DialogTitle>
+              <DialogDescription>
+                Create an account or sign in to watch live streams and interact with creators.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-3 mt-4">
+              <Button
+                className="flex-1"
+                onClick={() => navigate("/auth")}
+              >
+                {t.home?.loginButton || "Entrar"}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowLoginDialog(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Public Profile Dialog */}
+        <PublicProfileDialog
+          isOpen={profileDialogOpen}
+          onClose={() => setProfileDialogOpen(false)}
+          userId={selectedUserId}
+          username={selectedUsername}
+        />
       </div>
     </AppLayout>
   );
