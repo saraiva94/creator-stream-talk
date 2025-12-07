@@ -79,6 +79,7 @@ export const DirectMessagePanel = ({
   const [recordingTime, setRecordingTime] = useState(0);
   const [uploadingAudio, setUploadingAudio] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [audioProgress, setAudioProgress] = useState<Record<string, number>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -89,6 +90,15 @@ export const DirectMessagePanel = ({
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  // Generate pseudo-random waveform bars for visual effect
+  const generateWaveformBars = (messageId: string) => {
+    const seed = messageId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return Array.from({ length: 20 }, (_, i) => {
+      const height = 20 + ((seed * (i + 1) * 7) % 60);
+      return height;
+    });
+  };
 
   // Initialize notification sound
   useEffect(() => {
@@ -628,8 +638,20 @@ export const DirectMessagePanel = ({
         audioPlayerRef.current.pause();
       }
       audioPlayerRef.current = new Audio(audioUrl);
+      
+      audioPlayerRef.current.ontimeupdate = () => {
+        if (audioPlayerRef.current) {
+          const progress = (audioPlayerRef.current.currentTime / audioPlayerRef.current.duration) * 100;
+          setAudioProgress(prev => ({ ...prev, [messageId]: progress }));
+        }
+      };
+      
+      audioPlayerRef.current.onended = () => {
+        setPlayingAudioId(null);
+        setAudioProgress(prev => ({ ...prev, [messageId]: 0 }));
+      };
+      
       audioPlayerRef.current.play();
-      audioPlayerRef.current.onended = () => setPlayingAudioId(null);
       setPlayingAudioId(messageId);
     }
   };
@@ -889,13 +911,13 @@ export const DirectMessagePanel = ({
                     {msg.message_type === 'deleted' ? (
                       <p className="text-sm italic">{msg.content}</p>
                     ) : msg.message_type === 'audio' && msg.metadata?.audio_url ? (
-                      <div className="flex items-center gap-2 min-w-[120px]">
+                      <div className="flex items-center gap-3 min-w-[180px]">
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className={cn(
-                            "h-8 w-8 shrink-0 rounded-full",
+                            "h-10 w-10 shrink-0 rounded-full",
                             msg.sender_id === user.id 
                               ? "bg-primary-foreground/20 hover:bg-primary-foreground/30"
                               : "bg-muted-foreground/20 hover:bg-muted-foreground/30"
@@ -903,23 +925,41 @@ export const DirectMessagePanel = ({
                           onClick={() => toggleAudioPlay(msg.metadata!.audio_url!, msg.id)}
                         >
                           {playingAudioId === msg.id ? (
-                            <Pause className="h-4 w-4" />
+                            <Pause className="h-5 w-5" />
                           ) : (
-                            <Play className="h-4 w-4 ml-0.5" />
+                            <Play className="h-5 w-5 ml-0.5" />
                           )}
                         </Button>
-                        <div className="flex-1">
-                          <div className={cn(
-                            "h-1 rounded-full",
-                            msg.sender_id === user.id ? "bg-primary-foreground/30" : "bg-muted-foreground/30"
-                          )}>
-                            <div 
-                              className={cn(
-                                "h-1 rounded-full transition-all",
-                                msg.sender_id === user.id ? "bg-primary-foreground" : "bg-foreground",
-                                playingAudioId === msg.id ? "w-1/2" : "w-0"
-                              )}
-                            />
+                        <div className="flex-1 flex flex-col gap-1">
+                          {/* Waveform visualization */}
+                          <div className="flex items-center gap-[2px] h-8">
+                            {generateWaveformBars(msg.id).map((height, i) => {
+                              const progress = audioProgress[msg.id] || 0;
+                              const barProgress = (i / 20) * 100;
+                              const isActive = barProgress < progress;
+                              const isPlaying = playingAudioId === msg.id;
+                              
+                              return (
+                                <div
+                                  key={i}
+                                  className={cn(
+                                    "w-1 rounded-full transition-all duration-150",
+                                    msg.sender_id === user.id
+                                      ? isActive || !isPlaying
+                                        ? "bg-primary-foreground"
+                                        : "bg-primary-foreground/30"
+                                      : isActive || !isPlaying
+                                        ? "bg-foreground"
+                                        : "bg-muted-foreground/30",
+                                    isPlaying && isActive && "animate-pulse"
+                                  )}
+                                  style={{ 
+                                    height: `${height}%`,
+                                    opacity: isPlaying ? (isActive ? 1 : 0.4) : 0.7
+                                  }}
+                                />
+                              );
+                            })}
                           </div>
                           <span className={cn(
                             "text-[10px]",
