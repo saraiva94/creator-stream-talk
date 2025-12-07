@@ -2,6 +2,8 @@ import { ReactNode, useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import { ChannelsSidebar } from "./ChannelsSidebar";
 import { BlockedUserOverlay } from "./BlockedUserOverlay";
+import { DirectMessagePanel } from "./chat/DirectMessagePanel";
+import { useDirectMessages } from "@/hooks/useDirectMessages";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -14,6 +16,7 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const { chatOpen, toggleChat, initialRecipient, initialMessage } = useDirectMessages(user);
 
   useEffect(() => {
     const fetchUserAndCheckStatus = async () => {
@@ -75,6 +78,17 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
       <main className={`${showSidebar ? "ml-14 lg:ml-60" : ""} transition-all duration-300`}>
         {children}
       </main>
+      
+      {/* Direct Message Chat Panel */}
+      {user && (
+        <DirectMessagePanel
+          user={user}
+          isOpen={chatOpen}
+          onToggle={toggleChat}
+          initialRecipientId={initialRecipient}
+          initialMessage={initialMessage}
+        />
+      )}
     </div>
   );
 };
