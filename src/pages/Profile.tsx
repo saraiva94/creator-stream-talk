@@ -369,35 +369,6 @@ const Profile = () => {
             <div className="space-y-4">
               <Label>{t.profile.socialMedia || "Redes Sociais"}</Label>
               
-              {/* YouTube */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="youtube-check"
-                    checked={selectedSocials.youtube}
-                    onCheckedChange={(checked) => 
-                      setSelectedSocials({ ...selectedSocials, youtube: !!checked })
-                    }
-                  />
-                  <label 
-                    htmlFor="youtube-check" 
-                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
-                  >
-                    <Youtube className="h-4 w-4 text-red-500" />
-                    YouTube
-                  </label>
-                </div>
-                {selectedSocials.youtube && (
-                  <Input
-                    id="youtube"
-                    value={profile.youtube_handle}
-                    onChange={(e) => setProfile({ ...profile, youtube_handle: e.target.value })}
-                    placeholder="@seu_canal"
-                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
-                  />
-                )}
-              </div>
-
               {/* Instagram */}
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
@@ -451,6 +422,35 @@ const Profile = () => {
                     value={profile.tiktok_handle}
                     onChange={(e) => setProfile({ ...profile, tiktok_handle: e.target.value })}
                     placeholder="@seu_usuario"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
+                  />
+                )}
+              </div>
+
+              {/* YouTube */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="youtube-check"
+                    checked={selectedSocials.youtube}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, youtube: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="youtube-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <Youtube className="h-4 w-4 text-red-500" />
+                    YouTube
+                  </label>
+                </div>
+                {selectedSocials.youtube && (
+                  <Input
+                    id="youtube"
+                    value={profile.youtube_handle}
+                    onChange={(e) => setProfile({ ...profile, youtube_handle: e.target.value })}
+                    placeholder="@seu_canal"
                     className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
