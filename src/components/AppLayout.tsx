@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, useCallback } from "react";
 import Navbar from "./Navbar";
 import { ChannelsSidebar } from "./ChannelsSidebar";
 import { BlockedUserOverlay } from "./BlockedUserOverlay";
@@ -18,45 +18,45 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const { chatOpen, toggleChat, initialRecipient, initialMessage } = useDirectMessages(user);
 
+  // Check user status - extracted to avoid async in callback
+  const checkUserStatus = useCallback(async (userId: string) => {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("status, blocked_reason")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profile?.status === "banned") {
+      setIsBlocked(true);
+      setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
+      await supabase.auth.signOut();
+    } else {
+      setIsBlocked(false);
+      setBlockedReason(null);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchUserAndCheckStatus = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("status, blocked_reason")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profile?.status === "banned") {
-          setIsBlocked(true);
-          setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
-          await supabase.auth.signOut();
-        }
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        // Use setTimeout to defer Supabase calls (prevents deadlock)
+        setTimeout(() => {
+          checkUserStatus(session.user.id);
+        }, 0);
       }
-    };
-    fetchUserAndCheckStatus();
+    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen for auth changes - NO async operations directly in callback
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("status, blocked_reason")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (profile?.status === "banned") {
-          setIsBlocked(true);
-          setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
-          await supabase.auth.signOut();
-        } else {
-          setIsBlocked(false);
-          setBlockedReason(null);
-        }
+        // Defer Supabase calls with setTimeout to prevent deadlock
+        setTimeout(() => {
+          checkUserStatus(session.user.id);
+        }, 0);
       } else {
         setIsBlocked(false);
         setBlockedReason(null);
@@ -64,7 +64,7 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkUserStatus]);
 
   // Show blocked overlay if user is banned
   if (isBlocked) {
