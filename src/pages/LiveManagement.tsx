@@ -456,8 +456,73 @@ const LiveManagement = () => {
           </div>
         </div>
 
-        {/* Main content - Twitch-style layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 [&>*:first-child]:order-1 [&>*:last-child]:order-2 lg:[&>*]:order-none">
+        {/* Mobile Layout: Video + Chat stacked, Config below */}
+        <div className="lg:hidden space-y-4">
+          {/* Video Preview */}
+          <Card className="border-border overflow-hidden relative">
+            <NativeVideoPreview
+              audioDeviceId={selectedAudioDevice}
+              videoDeviceId={selectedVideoDevice}
+              isStreaming={isStreaming}
+              isMirrored={isMirrored}
+            />
+            {activeSuperchat && (
+              <div className="absolute bottom-4 left-4 right-4 z-10">
+                <SuperChatDisplay
+                  superchat={activeSuperchat}
+                  onExpire={() => setActiveSuperchat(null)}
+                />
+              </div>
+            )}
+          </Card>
+
+          {/* Chat immediately below video on mobile */}
+          <div className="h-[350px]">
+            {room && user ? (
+              <ChatBox
+                roomId={room.id}
+                currentUserId={user.id}
+                creatorId={user.id}
+                isCreator={true}
+              />
+            ) : (
+              <Card className="border-border h-full flex items-center justify-center">
+                <p className="text-muted-foreground text-sm">
+                  Inicie a transmissão para ativar o chat
+                </p>
+              </Card>
+            )}
+          </div>
+
+          {/* SuperChat Queue */}
+          {room && user && (
+            <SuperChatQueue
+              roomId={room.id}
+              creatorId={user.id}
+              onSelectSuperchat={(sc) => setActiveSuperchat({
+                id: sc.id,
+                message: sc.message,
+                tier: sc.tier,
+                duration_seconds: sc.duration_seconds,
+                username: sc.username || "Usuário",
+                expires_at: (sc as { expires_at?: string }).expires_at || new Date(Date.now() + sc.duration_seconds * 1000).toISOString(),
+              })}
+            />
+          )}
+
+          {/* Config Panel */}
+          <LiveConfigPanel
+            roomId={room?.id || null}
+            creatorId={user?.id || ""}
+            onTitleChange={handleTitleChange}
+            onDevicesChange={handleDevicesChange}
+            onMirrorChange={handleMirrorChange}
+            onThumbnailChange={handleThumbnailChange}
+          />
+        </div>
+
+        {/* Desktop Layout: Video + Config on left, Chat on right */}
+        <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
             {/* Native Video Preview */}
@@ -468,7 +533,6 @@ const LiveManagement = () => {
                 isStreaming={isStreaming}
                 isMirrored={isMirrored}
               />
-              {/* Active SuperChat overlay at bottom of video */}
               {activeSuperchat && (
                 <div className="absolute bottom-4 left-4 right-4 z-10">
                   <SuperChatDisplay
@@ -506,10 +570,10 @@ const LiveManagement = () => {
             />
           </div>
 
-          {/* Chat - Below video on mobile/tablet, right side on desktop */}
-          <div className="lg:col-span-1 order-2 lg:order-none">
+          {/* Chat - Right side on desktop */}
+          <div className="lg:col-span-1">
             {room && user ? (
-              <div className="h-[400px] lg:h-[calc(100vh-200px)] lg:min-h-[500px] lg:sticky lg:top-24">
+              <div className="h-[calc(100vh-200px)] min-h-[500px] sticky top-24">
                 <ChatBox
                   roomId={room.id}
                   currentUserId={user.id}
