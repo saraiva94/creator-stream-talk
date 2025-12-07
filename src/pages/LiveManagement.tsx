@@ -459,7 +459,7 @@ const LiveManagement = () => {
         </div>
 
         {/* Main content - Twitch-style layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 [&>*:first-child]:order-1 [&>*:last-child]:order-2 lg:[&>*]:order-none">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
             {/* Native Video Preview */}
@@ -508,10 +508,10 @@ const LiveManagement = () => {
             />
           </div>
 
-          {/* Right side: Chat */}
-          <div className="lg:col-span-1">
+          {/* Chat - Below video on mobile/tablet, right side on desktop */}
+          <div className="lg:col-span-1 order-2 lg:order-none">
             {room && user ? (
-              <div className="h-[calc(100vh-200px)] min-h-[500px] sticky top-24">
+              <div className="h-[400px] lg:h-[calc(100vh-200px)] lg:min-h-[500px] lg:sticky lg:top-24">
                 <ChatBox
                   roomId={room.id}
                   currentUserId={user.id}
