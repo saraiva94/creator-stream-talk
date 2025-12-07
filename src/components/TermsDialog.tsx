@@ -47,6 +47,7 @@ export const TermsDialog = () => {
                 </li>
                 <li>2.3. StreamStar poderá, a seu exclusivo critério, exigir documentos que comprovem a idade e identidade do Usuário ou Criador de Conteúdo, podendo suspender ou encerrar contas em caso de suspeita de falsidade ou uso indevido por menores de idade.</li>
                 <li>2.4. Constatado o uso da Plataforma por menor de idade, a conta poderá ser imediatamente encerrada, sem direito a qualquer tipo de reembolso, ressalvadas as hipóteses previstas em lei.</li>
+                <li>2.5. <strong>RESPONSABILIDADE DOS PAIS E RESPONSÁVEIS LEGAIS:</strong> StreamStar não se responsabiliza, em hipótese alguma, pelo acesso ou uso da Plataforma por menores de 18 (dezoito) anos que, de forma fraudulenta, prestem declaração falsa sobre sua idade para efetuar cadastro. A responsabilidade pelo monitoramento, controle e fiscalização do uso de dispositivos eletrônicos, redes sociais, aplicativos e plataformas digitais por crianças e adolescentes é exclusiva de seus pais, tutores ou responsáveis legais, nos termos do artigo 932, inciso I, do Código Civil Brasileiro e do Estatuto da Criança e do Adolescente (Lei nº 8.069/90). Qualquer dano, prejuízo ou consequência decorrente do acesso indevido de menores de idade à Plataforma será de inteira responsabilidade dos pais ou responsáveis legais, que deverão indenizar StreamStar por eventuais perdas e danos sofridos.</li>
               </ul>
             </section>
 
