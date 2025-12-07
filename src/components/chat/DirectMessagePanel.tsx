@@ -432,9 +432,9 @@ export const DirectMessagePanel = ({
           ? { ...msg, content: '[Mensagem apagada]', message_type: 'deleted', deleted: true }
           : msg
       ));
-      toast.success('Mensagem apagada');
+      toast.success(t.directMessage.messageDeleted);
     } else {
-      toast.error('Erro ao apagar mensagem');
+      toast.error(t.directMessage.deleteError);
     }
   };
 
@@ -444,12 +444,12 @@ export const DirectMessagePanel = ({
 
     // Validate file
     if (!file.type.startsWith('image/')) {
-      toast.error('Apenas imagens são permitidas');
+      toast.error(t.directMessage.onlyImages);
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Imagem muito grande (máximo 5MB)');
+      toast.error(t.directMessage.imageTooLarge);
       return;
     }
 
@@ -494,11 +494,11 @@ export const DirectMessagePanel = ({
           read_at: null
         };
         setMessages(prev => [...prev, newMsg]);
-        toast.success('Imagem enviada');
+        toast.success(t.directMessage.imageSent);
       }
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Erro ao enviar imagem');
+      toast.error(t.directMessage.imageError);
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) {
@@ -543,7 +543,7 @@ export const DirectMessagePanel = ({
       }, 1000);
     } catch (error) {
       console.error('Error starting recording:', error);
-      toast.error('Erro ao acessar microfone');
+      toast.error(t.directMessage.microphoneError);
     }
   };
 
@@ -612,11 +612,11 @@ export const DirectMessagePanel = ({
           read_at: null
         };
         setMessages(prev => [...prev, newMsg]);
-        toast.success('Áudio enviado');
+        toast.success(t.directMessage.audioSent);
       }
     } catch (error) {
       console.error('Audio upload error:', error);
-      toast.error('Erro ao enviar áudio');
+      toast.error(t.directMessage.audioError);
     } finally {
       setUploadingAudio(false);
       setRecordingTime(0);
@@ -680,7 +680,7 @@ export const DirectMessagePanel = ({
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'agora';
+    if (minutes < 1) return t.directMessage.now;
     if (minutes < 60) return `${minutes}min`;
     if (hours < 24) return `${hours}h`;
     return `${days}d`;
@@ -704,7 +704,7 @@ export const DirectMessagePanel = ({
             </span>
           )}
         </div>
-        <span className="text-sm font-medium">Mensagens</span>
+        <span className="text-sm font-medium">{t.directMessage.messages}</span>
         {unreadTotal > 0 && (
           <Badge variant="destructive" className="h-5 min-w-5 flex items-center justify-center text-xs animate-pulse">
             {unreadTotal > 9 ? '9+' : unreadTotal}
@@ -738,7 +738,7 @@ export const DirectMessagePanel = ({
           )}
           <MessageCircle className="h-5 w-5 text-primary" />
           <span className="font-semibold">
-            {selectedConversation ? selectedConversation.username : "Mensagens"}
+            {selectedConversation ? selectedConversation.username : t.directMessage.messages}
           </span>
           {unreadTotal > 0 && !selectedConversation && (
             <Badge variant="secondary" className="text-xs">{unreadTotal}</Badge>
@@ -773,7 +773,7 @@ export const DirectMessagePanel = ({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar usuário..."
+                placeholder={t.directMessage.searchUser}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -790,7 +790,7 @@ export const DirectMessagePanel = ({
               <div className="p-2">
                 {searchResults.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-4">
-                    Nenhum usuário encontrado
+                    {t.directMessage.noUserFound}
                   </p>
                 ) : (
                   searchResults.map((user) => (
@@ -816,7 +816,7 @@ export const DirectMessagePanel = ({
               <div className="p-2">
                 {conversations.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-8">
-                    Nenhuma conversa ainda
+                    {t.directMessage.noConversations}
                   </p>
                 ) : (
                   conversations.map((conv) => (
@@ -893,7 +893,7 @@ export const DirectMessagePanel = ({
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Apagar mensagem
+                          {t.directMessage.deleteMessage}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -1096,7 +1096,7 @@ export const DirectMessagePanel = ({
                 <div className="flex items-center gap-2 flex-1 bg-destructive/10 rounded-lg px-3 py-2">
                   <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
                   <span className="text-sm font-medium text-destructive">{formatDuration(recordingTime)}</span>
-                  <span className="text-xs text-muted-foreground">(max 1min)</span>
+                  <span className="text-xs text-muted-foreground">{t.directMessage.maxOneMin}</span>
                   <div className="flex-1" />
                   <Button
                     type="button"
@@ -1137,7 +1137,7 @@ export const DirectMessagePanel = ({
                   
                   <Input
                     ref={inputRef}
-                    placeholder="Digite uma mensagem..."
+                    placeholder={t.directMessage.typePlaceholder}
                     value={newMessage}
                     onChange={(e) => {
                       setNewMessage(e.target.value);
