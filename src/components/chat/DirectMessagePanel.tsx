@@ -62,8 +62,12 @@ export const DirectMessagePanel = ({
   const [searchResults, setSearchResults] = useState<{ id: string; username: string; avatar_url: string | null }[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
+  const [partnerTyping, setPartnerTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Initialize notification sound
   useEffect(() => {
@@ -112,6 +116,66 @@ export const DirectMessagePanel = ({
     if (!user || !isOpen) return;
     fetchConversations();
   }, [user, isOpen]);
+
+  // Typing indicator presence channel
+  useEffect(() => {
+    if (!user || !selectedConversation) {
+      if (typingChannelRef.current) {
+        supabase.removeChannel(typingChannelRef.current);
+        typingChannelRef.current = null;
+      }
+      setPartnerTyping(false);
+      return;
+    }
+
+    const channelName = `typing:${[user.id, selectedConversation.id].sort().join('-')}`;
+    const channel = supabase.channel(channelName);
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const partnerIsTyping = Object.values(state).some((presences: any) =>
+          presences.some((p: any) => p.userId === selectedConversation.id && p.typing)
+        );
+        setPartnerTyping(partnerIsTyping);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ userId: user.id, typing: false });
+        }
+      });
+
+    typingChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      typingChannelRef.current = null;
+    };
+  }, [user, selectedConversation?.id]);
+
+  // Broadcast typing status
+  const broadcastTyping = (typing: boolean) => {
+    if (typingChannelRef.current && user) {
+      typingChannelRef.current.track({ userId: user.id, typing });
+    }
+  };
+
+  // Handle typing with debounce
+  const handleTyping = () => {
+    if (!isTyping) {
+      setIsTyping(true);
+      broadcastTyping(true);
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      broadcastTyping(false);
+    }, 2000);
+  };
 
   // Handle initial recipient
   useEffect(() => {
@@ -574,6 +638,20 @@ export const DirectMessagePanel = ({
                   </div>
                 </div>
               ))}
+              
+              {/* Typing indicator */}
+              {partnerTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-2">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                      <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                      <span className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -587,7 +665,10 @@ export const DirectMessagePanel = ({
               <Input
                 placeholder="Digite uma mensagem..."
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  handleTyping();
+                }}
                 className="flex-1"
                 disabled={loading}
               />
