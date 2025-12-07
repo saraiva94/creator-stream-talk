@@ -5,8 +5,10 @@ import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield } from "lucide-react";
+import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { User } from "@supabase/supabase-js";
 
 type AdminStats = {
@@ -27,6 +29,23 @@ type RevenueBreakdown = {
   platformBalance: number;
 };
 
+type UserProfile = {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  created_at: string;
+};
+
+type CreatorProfile = {
+  id: string;
+  display_name: string;
+  is_streaming: boolean;
+  approved_for_live: boolean;
+  profiles?: {
+    avatar_url: string | null;
+  };
+};
+
 
 const formatBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -35,6 +54,12 @@ const Admin = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showUsersList, setShowUsersList] = useState(false);
+  const [showCreatorsList, setShowCreatorsList] = useState(false);
+  const [usersList, setUsersList] = useState<UserProfile[]>([]);
+  const [creatorsList, setCreatorsList] = useState<CreatorProfile[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingCreators, setLoadingCreators] = useState(false);
   
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -55,6 +80,61 @@ const Admin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
+
+  const fetchUsersList = async () => {
+    if (usersList.length > 0) {
+      setShowUsersList(!showUsersList);
+      return;
+    }
+    setLoadingUsers(true);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, avatar_url, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setUsersList((data as UserProfile[]) || []);
+      setShowUsersList(true);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const fetchCreatorsList = async () => {
+    if (creatorsList.length > 0) {
+      setShowCreatorsList(!showCreatorsList);
+      return;
+    }
+    setLoadingCreators(true);
+    try {
+      const { data } = await supabase
+        .from("creator_profiles")
+        .select("id, display_name, is_streaming, approved_for_live")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      
+      // Fetch avatars from profiles
+      const creatorsWithAvatars = await Promise.all(
+        (data || []).map(async (creator) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("avatar_url")
+            .eq("id", creator.id)
+            .single();
+          return { ...creator, profiles: profile };
+        })
+      );
+      
+      setCreatorsList(creatorsWithAvatars as CreatorProfile[]);
+      setShowCreatorsList(true);
+    } catch (error) {
+      console.error("Error fetching creators:", error);
+    } finally {
+      setLoadingCreators(false);
+    }
+  };
 
   useEffect(() => {
     checkAdminAccess();
@@ -238,20 +318,42 @@ const Admin = () => {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <Card className="bg-primary/5 border-primary/20">
+          {/* Total Users Card - Clickable */}
+          <Card 
+            className="bg-primary/5 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+            onClick={fetchUsersList}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.totalUsers}</CardTitle>
-              <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              <div className="flex items-center gap-1">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                {loadingUsers ? (
+                  <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  showUsersList ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-6 pt-0">
               <div className="text-xl sm:text-3xl font-bold">{stats.totalUsers}</div>
             </CardContent>
           </Card>
 
-          <Card className="bg-blue-500/5 border-blue-500/20">
+          {/* Total Creators Card - Clickable */}
+          <Card 
+            className="bg-blue-500/5 border-blue-500/20 cursor-pointer hover:bg-blue-500/10 transition-colors"
+            onClick={fetchCreatorsList}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.totalCreators}</CardTitle>
-              <Video className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+              <div className="flex items-center gap-1">
+                <Video className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+                {loadingCreators ? (
+                  <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  showCreatorsList ? <ChevronUp className="h-4 w-4 text-blue-500" /> : <ChevronDown className="h-4 w-4 text-blue-500" />
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-3 sm:p-6 pt-0">
               <div className="text-xl sm:text-3xl font-bold">{stats.totalCreators}</div>
@@ -278,6 +380,80 @@ const Admin = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Users List - Expandable */}
+        {showUsersList && usersList.length > 0 && (
+          <Card className="mb-6 sm:mb-8 border-primary/20">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5 text-primary" />
+                Lista de Usuários ({usersList.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <ScrollArea className="h-[300px]">
+                <div className="space-y-2">
+                  {usersList.map((profile) => (
+                    <div key={profile.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={profile.avatar_url || undefined} />
+                        <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{profile.username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(profile.created_at).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Creators List - Expandable */}
+        {showCreatorsList && creatorsList.length > 0 && (
+          <Card className="mb-6 sm:mb-8 border-blue-500/20">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Video className="h-5 w-5 text-blue-500" />
+                Lista de Criadores ({creatorsList.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <ScrollArea className="h-[300px]">
+                <div className="space-y-2">
+                  {creatorsList.map((creator) => (
+                    <div key={creator.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={creator.profiles?.avatar_url || undefined} />
+                        <AvatarFallback>{creator.display_name?.[0]?.toUpperCase() || "C"}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{creator.display_name}</p>
+                        <div className="flex items-center gap-2">
+                          {creator.is_streaming && (
+                            <span className="flex items-center gap-1 text-xs text-green-500">
+                              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                              Online
+                            </span>
+                          )}
+                          {creator.approved_for_live ? (
+                            <span className="text-xs text-primary">Aprovado</span>
+                          ) : (
+                            <span className="text-xs text-yellow-500">Pendente</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Revenue Dashboard */}
         <Card className="mb-6 sm:mb-8">
