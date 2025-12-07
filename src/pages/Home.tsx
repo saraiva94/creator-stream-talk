@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
-import { Input } from "@/components/ui/input";
-import { Search, Video } from "lucide-react";
+import UserSearchAutocomplete from "@/components/UserSearchAutocomplete";
+import { Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,6 @@ import type { User } from "@supabase/supabase-js";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
-  const [filteredLives, setFilteredLives] = useState<LiveSummary[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -39,48 +37,33 @@ const Home = () => {
     fetchLives();
   }, []);
 
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredLives(lives);
-    } else {
-      const filtered = lives.filter((live) => {
-        const haystack = `${live.title ?? ""} ${live.description ?? ""}`.toLowerCase();
-        return haystack.includes(searchQuery.toLowerCase());
-      });
-      setFilteredLives(filtered);
-    }
-  }, [searchQuery, lives]);
-
   const fetchLives = async () => {
     try {
       const response = await api.lives.getPublic();
       setLives(response.lives ?? []);
-      setFilteredLives(response.lives ?? []);
     } catch (err: unknown) {
       console.error("Error fetching lives:", err);
-      // Silently handle errors - just show empty state
       setLives([]);
-      setFilteredLives([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const onlineLives = filteredLives.filter((live) => live.status !== "ended");
-  const offlineLives = filteredLives.filter((live) => live.status === "ended");
+  const onlineLives = lives.filter((live) => live.status !== "ended");
+  const offlineLives = lives.filter((live) => live.status === "ended");
+
+  const handleUserSelect = (selectedUser: { id: string; username: string }) => {
+    navigate(`/profile/${selectedUser.username}`);
+  };
 
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 text-center">
-          <div className="max-w-md mx-auto relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              type="text"
+          <div className="max-w-lg mx-auto">
+            <UserSearchAutocomplete 
+              onSelectUser={handleUserSelect}
               placeholder={t.home.search}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-card border-primary/20 focus:border-primary"
             />
           </div>
         </div>
@@ -128,7 +111,7 @@ const Home = () => {
               </section>
             )}
 
-            {filteredLives.length === 0 && (
+            {lives.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 space-y-6">
                 {/* REC indicator with blinking red circle */}
                 <div className="flex items-center gap-3">
