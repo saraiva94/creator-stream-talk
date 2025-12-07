@@ -16,6 +16,7 @@ import InviteSignup from "./pages/InviteSignup";
 import Admin from "./pages/Admin";
 import Affiliate from "./pages/Affiliate";
 import Profile from "./pages/Profile";
+import PublicProfile from "./pages/PublicProfile";
 import LiveManagement from "./pages/LiveManagement";
 import LiveViewer from "./pages/LiveViewer";
 import CreatorRoom from "./pages/CreatorRoom";
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/admin/pix-withdrawals" element={<AdminPixWithdrawals />} />
               <Route path="/affiliate" element={<Affiliate />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/u/:username" element={<PublicProfile />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/creator/dashboard" element={<CreatorDashboard />} />
               <Route path="/creator/lives" element={<CreatorLives />} />

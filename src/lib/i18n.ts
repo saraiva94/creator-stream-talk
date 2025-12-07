@@ -197,6 +197,9 @@ export const translations = {
       goLiveStep3: "Click 'Transmit' in the navbar",
       goLiveStep4: "Configure title, thumbnail, and camera settings",
       goLiveStep5: "Toggle 'Online' to start streaming!",
+      notFound: "Profile not found",
+      notFoundDesc: "The user you're looking for doesn't exist.",
+      noInfo: "This user hasn't added any profile information yet.",
     },
     credits: {
       title: "Credits Wallet",
@@ -530,6 +533,9 @@ export const translations = {
       goLiveStep3: "Haz clic en 'Transmitir' en la barra de navegación",
       goLiveStep4: "Configura título, miniatura y ajustes de cámara",
       goLiveStep5: "¡Activa 'En línea' para comenzar a transmitir!",
+      notFound: "Perfil no encontrado",
+      notFoundDesc: "El usuario que buscas no existe.",
+      noInfo: "Este usuario aún no ha añadido información a su perfil.",
     },
     credits: {
       title: "Cartera de Créditos",
@@ -863,6 +869,9 @@ export const translations = {
       goLiveStep3: "Clique em 'Transmitir' na barra de navegação",
       goLiveStep4: "Configure título, thumbnail e ajustes de câmera",
       goLiveStep5: "Ative 'Online' para começar a transmitir!",
+      notFound: "Perfil não encontrado",
+      notFoundDesc: "O usuário que você procura não existe.",
+      noInfo: "Este usuário ainda não adicionou informações ao perfil.",
     },
     credits: {
       title: "Carteira de Créditos",
