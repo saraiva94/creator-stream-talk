@@ -25,6 +25,7 @@ interface Friend {
   id: string;
   username: string;
   avatar_url: string | null;
+  isOnline?: boolean;
 }
 
 interface Message {
@@ -43,6 +44,7 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [activeTab, setActiveTab] = useState<"conversas" | "amigos" | "chat">("conversas");
   const [activeChat, setActiveChat] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
@@ -50,6 +52,51 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const { t } = useLanguage();
+
+  // Track user presence
+  useEffect(() => {
+    if (!user) return;
+
+    const presenceChannel = supabase.channel("online-users", {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
+    });
+
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {
+        const state = presenceChannel.presenceState();
+        const onlineIds = new Set<string>();
+        Object.keys(state).forEach((key) => {
+          onlineIds.add(key);
+        });
+        setOnlineUsers(onlineIds);
+      })
+      .on("presence", { event: "join" }, ({ key }) => {
+        setOnlineUsers((prev) => new Set([...prev, key]));
+      })
+      .on("presence", { event: "leave" }, ({ key }) => {
+        setOnlineUsers((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await presenceChannel.track({
+            user_id: user.id,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [user]);
 
   // Listen for openChat events from profile pages
   useEffect(() => {
@@ -413,38 +460,50 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                   </div>
                 ) : (
                   <ScrollArea className="h-[350px]">
-                    {conversations.map((conv) => (
-                      <button
-                        key={conv.id}
-                        className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
-                        onClick={() => openChat(conv.recipientId, conv.recipientName, conv.recipientAvatar)}
-                      >
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={conv.recipientAvatar || undefined} />
-                          <AvatarFallback>
-                            {conv.recipientName.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-sm truncate">
-                              {conv.recipientName}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatTime(conv.lastMessageAt)}
-                            </span>
+                    {conversations.map((conv) => {
+                      const isOnline = onlineUsers.has(conv.recipientId);
+                      return (
+                        <button
+                          key={conv.id}
+                          className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
+                          onClick={() => openChat(conv.recipientId, conv.recipientName, conv.recipientAvatar)}
+                        >
+                          <div className="relative">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={conv.recipientAvatar || undefined} />
+                              <AvatarFallback>
+                                {conv.recipientName.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* Online indicator */}
+                            <span 
+                              className={cn(
+                                "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card",
+                                isOnline ? "bg-green-500" : "bg-muted-foreground/50"
+                              )}
+                            />
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {conv.lastMessage}
-                          </p>
-                        </div>
-                        {conv.unreadCount > 0 && (
-                          <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                            {conv.unreadCount}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-sm truncate">
+                                {conv.recipientName}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTime(conv.lastMessageAt)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {conv.lastMessage}
+                            </p>
+                          </div>
+                          {conv.unreadCount > 0 && (
+                            <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                              {conv.unreadCount}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </ScrollArea>
                 )}
               </>
@@ -463,26 +522,44 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                   </div>
                 ) : (
                   <ScrollArea className="h-[350px]">
-                    {friends.map((friend) => (
-                      <button
-                        key={friend.id}
-                        className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
-                        onClick={() => openChat(friend.id, friend.username, friend.avatar_url)}
-                      >
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={friend.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {friend.username.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium text-sm truncate">
-                            {friend.username}
-                          </span>
-                        </div>
-                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    ))}
+                    {friends.map((friend) => {
+                      const isOnline = onlineUsers.has(friend.id);
+                      return (
+                        <button
+                          key={friend.id}
+                          className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
+                          onClick={() => openChat(friend.id, friend.username, friend.avatar_url)}
+                        >
+                          <div className="relative">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={friend.avatar_url || undefined} />
+                              <AvatarFallback>
+                                {friend.username.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* Online/Offline indicator */}
+                            <span 
+                              className={cn(
+                                "absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card",
+                                isOnline ? "bg-green-500" : "bg-muted-foreground/50"
+                              )}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium text-sm truncate block">
+                              {friend.username}
+                            </span>
+                            <span className={cn(
+                              "text-xs",
+                              isOnline ? "text-green-500" : "text-muted-foreground"
+                            )}>
+                              {isOnline ? "Online" : "Offline"}
+                            </span>
+                          </div>
+                          <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                      );
+                    })}
                   </ScrollArea>
                 )}
               </>
