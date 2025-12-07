@@ -12,8 +12,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
+
 
 type Conversation = {
   id: string;
@@ -1038,20 +1037,11 @@ export const DirectMessagePanel = ({
                 <PopoverContent 
                   side="top" 
                   align="start" 
-                  className="w-auto p-0 border-0 bg-transparent shadow-none"
+                  className="w-64 p-2"
                 >
-                  <Picker 
-                    data={data} 
-                    onEmojiSelect={(emoji: { native: string }) => {
-                      setNewMessage(prev => prev + emoji.native);
-                      setShowEmojiPicker(false);
-                      inputRef.current?.focus();
-                    }}
-                    theme="dark"
-                    locale="pt"
-                    previewPosition="none"
-                    skinTonePosition="none"
-                  />
+                  <div className="text-center py-4 text-muted-foreground text-sm">
+                    Emoji picker temporarily disabled
+                  </div>
                 </PopoverContent>
               </Popover>
               
