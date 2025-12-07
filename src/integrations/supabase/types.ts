@@ -99,6 +99,13 @@ export type Database = {
             referencedRelation: "rooms_public"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "banned_users_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       chat_settings: {
@@ -142,6 +149,13 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: true
             referencedRelation: "rooms_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_settings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: true
+            referencedRelation: "rooms_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -714,6 +728,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "messages_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -1036,6 +1057,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "room_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "room_participants_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -1191,6 +1219,13 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rooms_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "superchats_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -1371,6 +1406,56 @@ export type Database = {
         }
         Relationships: []
       }
+      lives_public: {
+        Row: {
+          created_at: string | null
+          creator_id: string | null
+          description: string | null
+          ended_at: string | null
+          id: string | null
+          is_active: boolean | null
+          price: number | null
+          room_name: string | null
+          status: string | null
+          thumbnail_url: string | null
+          title: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          creator_id?: string | null
+          description?: string | null
+          ended_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          price?: number | null
+          room_name?: string | null
+          status?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          creator_id?: string | null
+          description?: string | null
+          ended_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          price?: number | null
+          room_name?: string | null
+          status?: string | null
+          thumbnail_url?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lives_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creator_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       public_profiles: {
         Row: {
           avatar_url: string | null
@@ -1381,7 +1466,6 @@ export type Database = {
           instagram_handle: string | null
           is_subscribed: boolean | null
           kwai_handle: string | null
-          referral_code: string | null
           tiktok_handle: string | null
           username: string | null
           website: string | null
@@ -1396,7 +1480,6 @@ export type Database = {
           instagram_handle?: string | null
           is_subscribed?: boolean | null
           kwai_handle?: string | null
-          referral_code?: string | null
           tiktok_handle?: string | null
           username?: string | null
           website?: string | null
@@ -1411,7 +1494,6 @@ export type Database = {
           instagram_handle?: string | null
           is_subscribed?: boolean | null
           kwai_handle?: string | null
-          referral_code?: string | null
           tiktok_handle?: string | null
           username?: string | null
           website?: string | null
@@ -1459,6 +1541,54 @@ export type Database = {
         Relationships: []
       }
       rooms_public: {
+        Row: {
+          created_at: string | null
+          creator_id: string | null
+          daily_room_name: string | null
+          ended_at: string | null
+          id: string | null
+          is_active: boolean | null
+          title: string | null
+          viewer_count: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          creator_id?: string | null
+          daily_room_name?: string | null
+          ended_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          title?: string | null
+          viewer_count?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          creator_id?: string | null
+          daily_room_name?: string | null
+          ended_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          title?: string | null
+          viewer_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rooms_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "public_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms_safe: {
         Row: {
           created_at: string | null
           creator_id: string | null
