@@ -71,7 +71,7 @@ const PublicProfile = () => {
       const { data, error } = await supabase
         .from("public_profiles")
         .select("id, username, avatar_url, bio, youtube_handle, instagram_handle, tiktok_handle, facebook_handle, kwai_handle, website")
-        .eq("username", username)
+        .ilike("username", username)
         .single();
 
       if (error || !data) {
