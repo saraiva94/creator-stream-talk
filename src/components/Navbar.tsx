@@ -169,7 +169,6 @@ const Navbar = ({ user }: NavbarProps) => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-4">
-            <InstallPWAButton />
             <LanguageSelector />
             {user && <NotificationBell user={user} />}
             {user ? (
