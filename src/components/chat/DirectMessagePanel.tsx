@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2, Smile, Check, CheckCheck, Trash2, Image, MoreVertical } from "lucide-react";
+import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2, Smile, Check, CheckCheck, Trash2, Image, MoreVertical, Mic, Square, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,8 @@ type MessageMetadata = {
   creator_name?: string;
   thumbnail_url?: string;
   image_url?: string;
+  audio_url?: string;
+  audio_duration?: number;
 };
 
 type Message = {
@@ -73,12 +75,20 @@ export const DirectMessagePanel = ({
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize notification sound
   useEffect(() => {
@@ -487,6 +497,143 @@ export const DirectMessagePanel = ({
     }
   };
 
+  // Audio recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await uploadAudio(audioBlob, recordingTime);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      // Start timer
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => {
+          if (prev >= 60) {
+            stopRecording();
+            return 60;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Erro ao acessar microfone');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingTime(0);
+    audioChunksRef.current = [];
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
+    }
+  };
+
+  const uploadAudio = async (audioBlob: Blob, duration: number) => {
+    if (!user || !selectedConversation) return;
+
+    setUploadingAudio(true);
+
+    try {
+      const fileName = `${user.id}/${Date.now()}.webm`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(`dm-audio/${fileName}`, audioBlob);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(`dm-audio/${fileName}`);
+
+      const { error } = await supabase
+        .from('direct_messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: selectedConversation.id,
+          content: '🎤 Áudio',
+          message_type: 'audio',
+          metadata: { audio_url: urlData.publicUrl, audio_duration: duration }
+        });
+
+      if (!error) {
+        const newMsg: Message = {
+          id: crypto.randomUUID(),
+          sender_id: user.id,
+          receiver_id: selectedConversation.id,
+          content: '🎤 Áudio',
+          message_type: 'audio',
+          metadata: { audio_url: urlData.publicUrl, audio_duration: duration },
+          created_at: new Date().toISOString(),
+          read_at: null
+        };
+        setMessages(prev => [...prev, newMsg]);
+        toast.success('Áudio enviado');
+      }
+    } catch (error) {
+      console.error('Audio upload error:', error);
+      toast.error('Erro ao enviar áudio');
+    } finally {
+      setUploadingAudio(false);
+      setRecordingTime(0);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const toggleAudioPlay = (audioUrl: string, messageId: string) => {
+    if (playingAudioId === messageId) {
+      audioPlayerRef.current?.pause();
+      setPlayingAudioId(null);
+    } else {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+      }
+      audioPlayerRef.current = new Audio(audioUrl);
+      audioPlayerRef.current.play();
+      audioPlayerRef.current.onended = () => setPlayingAudioId(null);
+      setPlayingAudioId(messageId);
+    }
+  };
+
   const searchUsers = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -741,6 +888,47 @@ export const DirectMessagePanel = ({
                   >
                     {msg.message_type === 'deleted' ? (
                       <p className="text-sm italic">{msg.content}</p>
+                    ) : msg.message_type === 'audio' && msg.metadata?.audio_url ? (
+                      <div className="flex items-center gap-2 min-w-[120px]">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "h-8 w-8 shrink-0 rounded-full",
+                            msg.sender_id === user.id 
+                              ? "bg-primary-foreground/20 hover:bg-primary-foreground/30"
+                              : "bg-muted-foreground/20 hover:bg-muted-foreground/30"
+                          )}
+                          onClick={() => toggleAudioPlay(msg.metadata!.audio_url!, msg.id)}
+                        >
+                          {playingAudioId === msg.id ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4 ml-0.5" />
+                          )}
+                        </Button>
+                        <div className="flex-1">
+                          <div className={cn(
+                            "h-1 rounded-full",
+                            msg.sender_id === user.id ? "bg-primary-foreground/30" : "bg-muted-foreground/30"
+                          )}>
+                            <div 
+                              className={cn(
+                                "h-1 rounded-full transition-all",
+                                msg.sender_id === user.id ? "bg-primary-foreground" : "bg-foreground",
+                                playingAudioId === msg.id ? "w-1/2" : "w-0"
+                              )}
+                            />
+                          </div>
+                          <span className={cn(
+                            "text-[10px]",
+                            msg.sender_id === user.id ? "text-primary-foreground/70" : "text-muted-foreground"
+                          )}>
+                            {formatDuration(msg.metadata.audio_duration || 0)}
+                          </span>
+                        </div>
+                      </div>
                     ) : msg.message_type === 'image' && msg.metadata?.image_url ? (
                       <div>
                         <img 
@@ -863,20 +1051,66 @@ export const DirectMessagePanel = ({
                 )}
               </Button>
               
-              <Input
-                ref={inputRef}
-                placeholder="Digite uma mensagem..."
-                value={newMessage}
-                onChange={(e) => {
-                  setNewMessage(e.target.value);
-                  handleTyping();
-                }}
-                className="flex-1"
-                disabled={loading || uploadingImage}
-              />
-              <Button type="submit" size="icon" disabled={loading || uploadingImage || !newMessage.trim()}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
+              {/* Audio recording button */}
+              {isRecording ? (
+                <div className="flex items-center gap-2 flex-1 bg-destructive/10 rounded-lg px-3 py-2">
+                  <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                  <span className="text-sm font-medium text-destructive">{formatDuration(recordingTime)}</span>
+                  <span className="text-xs text-muted-foreground">(max 1min)</span>
+                  <div className="flex-1" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={cancelRecording}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={stopRecording}
+                    disabled={uploadingAudio}
+                  >
+                    {uploadingAudio ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-9 w-9 shrink-0"
+                    onClick={startRecording}
+                    disabled={uploadingImage || uploadingAudio}
+                  >
+                    <Mic className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                  
+                  <Input
+                    ref={inputRef}
+                    placeholder="Digite uma mensagem..."
+                    value={newMessage}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      handleTyping();
+                    }}
+                    className="flex-1"
+                    disabled={loading || uploadingImage || uploadingAudio}
+                  />
+                  <Button type="submit" size="icon" disabled={loading || uploadingImage || uploadingAudio || !newMessage.trim()}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </>
+              )}
             </form>
           </div>
         </div>
