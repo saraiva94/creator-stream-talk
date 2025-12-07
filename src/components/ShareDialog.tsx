@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import { Copy, Check, MessageCircle, Facebook } from "lucide-react";
+import { Copy, Check, MessageCircle, Instagram } from "lucide-react";
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -17,6 +17,13 @@ interface ShareDialogProps {
 const TikTokIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+  </svg>
+);
+
+// Messenger icon
+const MessengerIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.44 3.14 7.17.16.13.26.35.27.57l.05 1.78c.02.57.6.94 1.12.71l1.98-.87c.17-.08.36-.1.55-.06.91.25 1.88.38 2.89.38 5.64 0 10-4.13 10-9.7S17.64 2 12 2zm6 7.68l-2.93 4.65c-.47.74-1.44.93-2.13.41l-2.34-1.75c-.18-.13-.42-.13-.6 0l-3.15 2.39c-.42.32-.97-.18-.68-.62l2.93-4.65c.47-.74 1.44-.93 2.13-.41l2.34 1.75c.18.13.42.13.6 0l3.15-2.39c.42-.32.97.18.68.62z"/>
   </svg>
 );
 
@@ -50,11 +57,8 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
     await copyToClipboard();
     const text = encodeURIComponent(title ? `${title}: ${link}` : link);
     
-    if (isMobile()) {
-      window.location.href = `whatsapp://send?text=${text}`;
-    } else {
-      window.open(`https://web.whatsapp.com/send?text=${text}`, "_blank");
-    }
+    // WhatsApp universal link works on both mobile and desktop
+    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
   };
 
   const shareToMessenger = async () => {
@@ -62,7 +66,11 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
     const encodedLink = encodeURIComponent(link);
     
     if (isMobile()) {
+      // Try deep link first, fallback to web
       window.location.href = `fb-messenger://share?link=${encodedLink}`;
+      setTimeout(() => {
+        window.open(`https://m.me/?link=${encodedLink}`, "_blank");
+      }, 500);
     } else {
       window.open(`https://www.facebook.com/dialog/send?link=${encodedLink}&app_id=966242223397117&redirect_uri=${encodeURIComponent(window.location.href)}`, "_blank");
     }
@@ -72,22 +80,38 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
     await copyToClipboard();
     
     toast({
-      title: t.share?.linkCopied || "Link copiado!",
-      description: "Cole o link em sua bio do TikTok",
+      title: "Link copiado!",
+      description: "Cole o link em sua bio ou vídeo do TikTok",
     });
     
+    // TikTok doesn't have a direct share API, so we open the app/site
     if (isMobile()) {
       window.location.href = "snssdk1233://";
+      setTimeout(() => {
+        window.open("https://www.tiktok.com", "_blank");
+      }, 500);
     } else {
-      window.open("https://tiktok.com", "_blank");
+      window.open("https://www.tiktok.com", "_blank");
     }
   };
 
-  const shareToFacebook = async () => {
+  const shareToInstagram = async () => {
     await copyToClipboard();
-    const encodedLink = encodeURIComponent(link);
     
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedLink}`, "_blank");
+    toast({
+      title: "Link copiado!",
+      description: "Cole o link em sua bio ou story do Instagram",
+    });
+    
+    // Instagram doesn't have a direct share API for links
+    if (isMobile()) {
+      window.location.href = "instagram://";
+      setTimeout(() => {
+        window.open("https://www.instagram.com", "_blank");
+      }, 500);
+    } else {
+      window.open("https://www.instagram.com", "_blank");
+    }
   };
 
   return (
@@ -127,11 +151,25 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
                   background: "linear-gradient(45deg, #0078FF, #00C6FF)"
                 }}
               >
-                <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.44 3.14 7.17.16.13.26.35.27.57l.05 1.78c.02.57.6.94 1.12.71l1.98-.87c.17-.08.36-.1.55-.06.91.25 1.88.38 2.89.38 5.64 0 10-4.13 10-9.7S17.64 2 12 2zm6 7.68l-2.93 4.65c-.47.74-1.44.93-2.13.41l-2.34-1.75c-.18-.13-.42-.13-.6 0l-3.15 2.39c-.42.32-.97-.18-.68-.62l2.93-4.65c.47-.74 1.44-.93 2.13-.41l2.34 1.75c.18.13.42.13.6 0l3.15-2.39c.42-.32.97.18.68.62z"/>
-                </svg>
+                <MessengerIcon className="h-6 w-6 text-white" />
               </div>
               <span className="text-xs text-muted-foreground">Messenger</span>
+            </button>
+
+            {/* Instagram */}
+            <button
+              onClick={shareToInstagram}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors group"
+            >
+              <div 
+                className="w-12 h-12 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"
+                style={{
+                  background: "linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)"
+                }}
+              >
+                <Instagram className="h-6 w-6 text-white" />
+              </div>
+              <span className="text-xs text-muted-foreground">Instagram</span>
             </button>
 
             {/* TikTok */}
@@ -143,17 +181,6 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
                 <TikTokIcon className="h-6 w-6 text-white" />
               </div>
               <span className="text-xs text-muted-foreground">TikTok</span>
-            </button>
-
-            {/* Facebook */}
-            <button
-              onClick={shareToFacebook}
-              className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-muted transition-colors group"
-            >
-              <div className="w-12 h-12 rounded-full bg-[#1877F2] flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Facebook className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-xs text-muted-foreground">Facebook</span>
             </button>
           </div>
 
