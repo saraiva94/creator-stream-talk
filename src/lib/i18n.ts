@@ -350,6 +350,12 @@ export const translations = {
       copyKey: "Copy PIX Key",
       keyCopied: "PIX key copied!",
     },
+    errors: {
+      accessDenied: "Access Denied",
+      accessDeniedDescription: "You do not have permission to access this page. This area is restricted to administrators.",
+      notFound: "Page Not Found",
+      notFoundDescription: "The page you are looking for does not exist.",
+    },
   },
   es: {
     nav: {
@@ -702,6 +708,12 @@ export const translations = {
       copyKey: "Copiar Clave PIX",
       keyCopied: "¡Clave PIX copiada!",
     },
+    errors: {
+      accessDenied: "Acceso Denegado",
+      accessDeniedDescription: "No tienes permiso para acceder a esta página. Esta área está restringida a administradores.",
+      notFound: "Página No Encontrada",
+      notFoundDescription: "La página que buscas no existe.",
+    },
   },
   pt: {
     nav: {
@@ -1053,6 +1065,12 @@ export const translations = {
       paid: "Pago",
       copyKey: "Copiar Chave PIX",
       keyCopied: "Chave PIX copiada!",
+    },
+    errors: {
+      accessDenied: "Acesso Negado",
+      accessDeniedDescription: "Você não tem permissão para acessar esta página. Esta área é restrita a administradores.",
+      notFound: "Página Não Encontrada",
+      notFoundDescription: "A página que você está procurando não existe.",
     },
   },
 };
