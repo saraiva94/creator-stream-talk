@@ -47,6 +47,18 @@ export const TermsDialog = () => {
                 </li>
                 <li>2.3. StreamStar poderá, a seu exclusivo critério, exigir documentos que comprovem a idade e identidade do Usuário ou Criador de Conteúdo, podendo suspender ou encerrar contas em caso de suspeita de falsidade ou uso indevido por menores de idade.</li>
                 <li>2.4. Constatado o uso da Plataforma por menor de idade, a conta poderá ser imediatamente encerrada, sem direito a qualquer tipo de reembolso, ressalvadas as hipóteses previstas em lei.</li>
+                <li className="bg-muted/50 p-3 rounded-lg border border-border">
+                  <strong className="text-foreground">2.5. RESPONSABILIDADE DOS PAIS E RESPONSÁVEIS LEGAIS:</strong>
+                  <p className="mt-2">
+                    Conforme o <strong>Código Civil Brasileiro (Lei nº 10.406/2002)</strong>, especialmente os artigos 932 e 1.634, e o <strong>Estatuto da Criança e do Adolescente - ECA (Lei nº 8.069/1990)</strong>, a responsabilidade pelo monitoramento, controle e supervisão do uso de plataformas digitais por menores de idade é <strong>exclusiva dos pais ou responsáveis legais</strong>.
+                  </p>
+                  <p className="mt-2">
+                    Caso um menor de 18 (dezoito) anos, ao se cadastrar na Plataforma, preste informações falsas sobre sua idade, a responsabilidade pelo acesso indevido, bem como por quaisquer danos, prejuízos ou consequências decorrentes do uso da Plataforma por esse menor, recairá <strong>exclusivamente sobre os pais ou responsáveis legais</strong>, que têm o dever legal de vigiar, orientar e acompanhar as atividades online de seus filhos ou tutelados.
+                  </p>
+                  <p className="mt-2">
+                    A Plataforma adota mecanismos de verificação de idade no momento do cadastro, porém não pode ser responsabilizada por declarações falsas prestadas por usuários que afirmem ter idade superior à real. Em tais casos, os pais ou responsáveis legais assumem integralmente os riscos e responsabilidades decorrentes.
+                  </p>
+                </li>
               </ul>
             </section>
 
