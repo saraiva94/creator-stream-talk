@@ -4,10 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, Banknote } from "lucide-react";
+import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { User } from "@supabase/supabase-js";
 
@@ -29,15 +27,6 @@ type RevenueBreakdown = {
   platformBalance: number;
 };
 
-type PayoutRequest = {
-  id: string;
-  creator_id: string;
-  amount: number;
-  status: string;
-  created_at: string;
-  profiles?: { username?: string | null; email?: string | null } | null;
-  creator_bank_accounts?: { bank_name?: string | null; account_number?: string | null; account_holder_name?: string | null } | null;
-};
 
 const formatBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -46,7 +35,7 @@ const Admin = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalCreators: 0,
@@ -127,7 +116,6 @@ const Admin = () => {
       await Promise.all([
         fetchStats(),
         fetchRevenueBreakdown(),
-        fetchPayoutRequests(),
       ]);
     } catch (error) {
       console.error("Error checking admin access:", error);
@@ -211,70 +199,6 @@ const Admin = () => {
     }
   };
 
-  const fetchPayoutRequests = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("payout_requests")
-        .select(`
-          id,
-          creator_id,
-          amount,
-          status,
-          created_at,
-          approved_at,
-          approved_by,
-          admin_notes,
-          bank_account_id,
-          paid_at
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      
-      const mappedData: PayoutRequest[] = (data || []).map((row) => ({
-        id: row.id,
-        creator_id: row.creator_id,
-        amount: row.amount,
-        status: row.status,
-        created_at: row.created_at,
-        profiles: null,
-        creator_bank_accounts: null,
-      }));
-      
-      setPayoutRequests(mappedData);
-    } catch (error) {
-      console.error("Error fetching payout requests:", error);
-    }
-  };
-
-  const handlePayoutAction = async (requestId: string, action: "approved" | "rejected") => {
-    try {
-      const { error } = await supabase
-        .from("payout_requests")
-        .update({
-          status: action,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq("id", requestId);
-
-      if (error) throw error;
-
-      toast({
-        title: action === "approved" ? t.admin.payoutApproved : t.admin.payoutRejected,
-        description: t.admin.payoutUpdated,
-      });
-
-      fetchPayoutRequests();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : t.admin.errorUpdating;
-      toast({
-        title: t.common.error,
-        description: message,
-        variant: "destructive",
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -304,20 +228,12 @@ const Admin = () => {
               <p className="text-sm text-muted-foreground">Gerencie a plataforma e monitore a receita</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Link to="/admin/creators" className="w-full">
-              <Button variant="outline" size="sm" className="w-full">
-                <UserCheck className="h-4 w-4 mr-2" />
-                <span className="truncate">{t.admin.manageCreators}</span>
-              </Button>
-            </Link>
-            <Link to="/admin/pix-withdrawals" className="w-full">
-              <Button variant="outline" size="sm" className="w-full">
-                <Banknote className="h-4 w-4 mr-2" />
-                <span className="truncate">Saques PIX</span>
-              </Button>
-            </Link>
-          </div>
+          <Link to="/admin/creators">
+            <Button variant="outline" size="sm">
+              <UserCheck className="h-4 w-4 mr-2" />
+              <span className="truncate">{t.admin.manageCreators}</span>
+            </Button>
+          </Link>
         </div>
 
         {/* Quick Stats */}
@@ -457,88 +373,6 @@ const Admin = () => {
           </CardContent>
         </Card>
 
-        {/* Payout Requests */}
-        <Card>
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2">
-              <Banknote className="h-5 w-5 text-primary" />
-              {t.admin.payoutRequests}
-            </CardTitle>
-            <CardDescription>{t.admin.payoutRequestsDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0">
-            {payoutRequests.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Banknote className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>{t.admin.noPendingPayouts}</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t.admin.creator}</TableHead>
-                      <TableHead>{t.admin.amount}</TableHead>
-                      <TableHead className="hidden sm:table-cell">{t.admin.bankAccount}</TableHead>
-                      <TableHead>{t.admin.status}</TableHead>
-                      <TableHead className="hidden sm:table-cell">{t.admin.date}</TableHead>
-                      <TableHead>{t.admin.actions}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payoutRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell className="font-medium">
-                          {request.profiles?.username || request.creator_id.slice(0, 8)}
-                        </TableCell>
-                        <TableCell className="font-bold text-primary">
-                          {formatBRL(request.amount)}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          {request.creator_bank_accounts?.bank_name || 'N/A'}<br />
-                          <span className="text-xs text-muted-foreground">
-                            {request.creator_bank_accounts?.account_number || 'N/A'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            request.status === 'pending' ? 'secondary' :
-                            request.status === 'approved' ? 'default' :
-                            'destructive'
-                          }>
-                            {request.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-muted-foreground">
-                          {new Date(request.created_at).toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell>
-                          {request.status === 'pending' && (
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handlePayoutAction(request.id, 'approved')}
-                              >
-                                {t.admin.approve}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handlePayoutAction(request.id, 'rejected')}
-                              >
-                                {t.admin.reject}
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </main>
     </div>
   );
