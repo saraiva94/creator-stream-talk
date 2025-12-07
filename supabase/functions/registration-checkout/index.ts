@@ -135,6 +135,13 @@ serve(async (req) => {
     const externalReference = crypto.randomUUID();
     const webhookUrl = `${supabaseUrl}/functions/v1/mercadopago-webhook`;
 
+    // Get origin from headers - check multiple sources for better compatibility
+    const origin = req.headers.get('origin') 
+      || req.headers.get('referer')?.replace(/\/$/, '').split('/').slice(0, 3).join('/') 
+      || 'https://streamstar.vercel.app';
+
+    console.log('[registration] Detected origin:', origin);
+
     const preference = {
       items: [
         {
@@ -160,9 +167,9 @@ serve(async (req) => {
         payment_id: externalReference,
       },
       back_urls: {
-        success: `${req.headers.get('origin') || 'https://streamstar.vercel.app'}/dashboard`,
-        failure: `${req.headers.get('origin') || 'https://streamstar.vercel.app'}/subscribe`,
-        pending: `${req.headers.get('origin') || 'https://streamstar.vercel.app'}/subscribe`,
+        success: `${origin}/dashboard`,
+        failure: `${origin}/subscribe`,
+        pending: `${origin}/subscribe`,
       },
       auto_return: 'approved',
       external_reference: externalReference,
@@ -187,10 +194,21 @@ serve(async (req) => {
     }
 
     const mpData = await mpResponse.json();
-    console.log('[registration] MP preference created:', mpData.id);
+    console.log('[registration] MP preference created:', { 
+      id: mpData.id, 
+      init_point: mpData.init_point,
+      sandbox_init_point: mpData.sandbox_init_point,
+    });
+
+    // Validate init_point before returning
+    const initPoint = mpData.init_point || mpData.sandbox_init_point;
+    if (!initPoint || !initPoint.startsWith('https://')) {
+      console.error('[registration] Invalid init_point received:', initPoint);
+      throw new Error('Invalid payment URL received from Mercado Pago');
+    }
 
     return new Response(JSON.stringify({
-      init_point: mpData.init_point,
+      init_point: initPoint,
       preferenceId: mpData.id,
       paymentId: externalReference,
       amount: REGISTRATION_PRICE,

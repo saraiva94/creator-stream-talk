@@ -98,7 +98,8 @@ export const UserCreditsWalletPanel = () => {
         credits: selectedPackage.credits,
       });
       
-      window.location.assign(preference.init_point);
+      // Use window.location.href for better Safari/iOS compatibility
+      window.location.href = preference.init_point;
     } catch (err) {
       logger.payment.error('Erro no checkout', { 
         credits: selectedPackage.credits 
