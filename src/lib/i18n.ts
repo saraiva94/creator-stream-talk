@@ -116,6 +116,7 @@ export const translations = {
       delete: "Delete",
       confirm: "Confirm",
       installApp: "Install App",
+      loginRequired: "Please login to continue",
     },
     sidebar: {
       followedChannels: "Followed Channels",
@@ -202,6 +203,11 @@ export const translations = {
       noInfo: "This user hasn't added any profile information yet.",
       follower: "follower",
       followers: "followers",
+      follow: "Follow",
+      unfollow: "Unfollow",
+      followed: "Following!",
+      unfollowed: "Unfollowed",
+      watchLive: "Watch Live",
     },
     credits: {
       title: "Credits Wallet",
@@ -454,6 +460,7 @@ export const translations = {
       delete: "Eliminar",
       confirm: "Confirmar",
       installApp: "Instalar App",
+      loginRequired: "Por favor inicia sesión para continuar",
     },
     sidebar: {
       followedChannels: "Canales Seguidos",
@@ -540,6 +547,11 @@ export const translations = {
       noInfo: "Este usuario aún no ha añadido información a su perfil.",
       follower: "seguidor",
       followers: "seguidores",
+      follow: "Seguir",
+      unfollow: "Dejar de seguir",
+      followed: "¡Siguiendo!",
+      unfollowed: "Dejaste de seguir",
+      watchLive: "Ver en vivo",
     },
     credits: {
       title: "Cartera de Créditos",
@@ -792,6 +804,7 @@ export const translations = {
       delete: "Excluir",
       confirm: "Confirmar",
       installApp: "Instalar App",
+      loginRequired: "Faça login para continuar",
     },
     sidebar: {
       followedChannels: "Canais Seguidos",
@@ -878,6 +891,11 @@ export const translations = {
       noInfo: "Este usuário ainda não adicionou informações ao perfil.",
       follower: "seguidor",
       followers: "seguidores",
+      follow: "Seguir",
+      unfollow: "Deixar de seguir",
+      followed: "Seguindo!",
+      unfollowed: "Deixou de seguir",
+      watchLive: "Assistir ao vivo",
     },
     credits: {
       title: "Carteira de Créditos",

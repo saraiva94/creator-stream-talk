@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Instagram, Youtube, Facebook, Globe, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { User, Instagram, Youtube, Facebook, Globe, Users, UserPlus, UserMinus, Radio } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import { toast } from "sonner";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 // TikTok icon SVG component
@@ -41,6 +44,9 @@ const PublicProfile = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profileData, setProfileData] = useState<PublicProfileData | null>(null);
   const [followerCount, setFollowerCount] = useState<number>(0);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isLive, setIsLive] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -76,7 +82,7 @@ const PublicProfile = () => {
       
       setProfileData(data as PublicProfileData);
       
-      // Fetch follower count (subscriptions where this user is the creator)
+      // Fetch follower count
       const { count } = await supabase
         .from("subscriptions")
         .select("*", { count: "exact", head: true })
@@ -84,11 +90,94 @@ const PublicProfile = () => {
         .eq("status", "active");
       
       setFollowerCount(count || 0);
+
+      // Check if this user is a creator and if they're live
+      const { data: creatorData } = await supabase
+        .from("creator_profiles")
+        .select("is_streaming")
+        .eq("id", data.id)
+        .single();
+      
+      if (creatorData) {
+        setIsLive(creatorData.is_streaming || false);
+      }
+
       setLoading(false);
     };
 
     fetchProfile();
   }, [username]);
+
+  // Check if current user is following this profile
+  useEffect(() => {
+    const checkFollowing = async () => {
+      if (!user || !profileData) return;
+      
+      // Don't allow following yourself
+      if (user.id === profileData.id) return;
+
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("creator_id", profileData.id)
+        .eq("status", "active")
+        .single();
+      
+      setIsFollowing(!!data);
+    };
+
+    checkFollowing();
+  }, [user, profileData]);
+
+  const handleFollow = async () => {
+    if (!user) {
+      toast.error(t.common?.loginRequired || "Faça login para seguir");
+      return;
+    }
+
+    if (!profileData) return;
+
+    setFollowLoading(true);
+
+    try {
+      if (isFollowing) {
+        // Unfollow - update status to cancelled
+        const { error } = await supabase
+          .from("subscriptions")
+          .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+          .eq("user_id", user.id)
+          .eq("creator_id", profileData.id)
+          .eq("status", "active");
+
+        if (error) throw error;
+        
+        setIsFollowing(false);
+        setFollowerCount(prev => Math.max(0, prev - 1));
+        toast.success(t.profile?.unfollowed || "Deixou de seguir");
+      } else {
+        // Follow - insert new subscription
+        const { error } = await supabase
+          .from("subscriptions")
+          .insert({
+            user_id: user.id,
+            creator_id: profileData.id,
+            status: "active"
+          });
+
+        if (error) throw error;
+        
+        setIsFollowing(true);
+        setFollowerCount(prev => prev + 1);
+        toast.success(t.profile?.followed || "Seguindo!");
+      }
+    } catch (error) {
+      console.error("Follow error:", error);
+      toast.error(t.common?.error || "Erro ao processar");
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const socialLinks = profileData ? [
     { 
@@ -174,6 +263,8 @@ const PublicProfile = () => {
     );
   }
 
+  const isOwnProfile = user?.id === profileData?.id;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} />
@@ -182,22 +273,72 @@ const PublicProfile = () => {
         <Card className="border-border shadow-card">
           <CardHeader className="p-4 sm:p-6 text-center">
             <div className="flex flex-col items-center gap-4">
-              <Avatar className="w-24 h-24 sm:w-32 sm:h-32 border-2 border-primary">
-                <AvatarImage src={profileData?.avatar_url || undefined} alt={profileData?.username} />
-                <AvatarFallback className="bg-muted">
-                  <User className="w-12 h-12 text-muted-foreground" />
-                </AvatarFallback>
-              </Avatar>
+              {/* Avatar with live indicator */}
+              <div className="relative">
+                <Avatar className={`w-24 h-24 sm:w-32 sm:h-32 border-2 ${isLive ? 'border-destructive' : 'border-primary'}`}>
+                  <AvatarImage src={profileData?.avatar_url || undefined} alt={profileData?.username} />
+                  <AvatarFallback className="bg-muted">
+                    <User className="w-12 h-12 text-muted-foreground" />
+                  </AvatarFallback>
+                </Avatar>
+                {/* Live badge */}
+                {isLive && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 animate-pulse"
+                  >
+                    <Radio className="h-3 w-3" />
+                    <span className="text-xs font-bold">LIVE</span>
+                  </Badge>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <CardTitle className="text-2xl sm:text-3xl">
                   {profileData?.username}
                 </CardTitle>
+                
                 {/* Follower count */}
                 <div className="flex items-center justify-center gap-2 text-muted-foreground">
                   <Users className="h-4 w-4" />
                   <span className="text-sm">
                     {followerCount} {followerCount === 1 ? (t.profile?.follower || "seguidor") : (t.profile?.followers || "seguidores")}
                   </span>
+                </div>
+
+                {/* Follow button and Live link */}
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  {!isOwnProfile && (
+                    <Button
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                      variant={isFollowing ? "outline" : "default"}
+                      size="sm"
+                      className="gap-2"
+                    >
+                      {isFollowing ? (
+                        <>
+                          <UserMinus className="h-4 w-4" />
+                          {t.profile?.unfollow || "Deixar de seguir"}
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4" />
+                          {t.profile?.follow || "Seguir"}
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  
+                  {/* Watch Live button when streaming */}
+                  {isLive && (
+                    <Button asChild variant="destructive" size="sm" className="gap-2">
+                      <Link to={`/live/${profileData?.id}`}>
+                        <Radio className="h-4 w-4" />
+                        {t.profile?.watchLive || "Assistir ao vivo"}
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
