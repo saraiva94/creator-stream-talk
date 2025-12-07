@@ -13,6 +13,7 @@ interface AppLayoutProps {
 export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUserAndCheckStatus = async () => {
@@ -22,12 +23,13 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("status")
+          .select("status, blocked_reason")
           .eq("id", user.id)
           .maybeSingle();
 
         if (profile?.status === "banned") {
           setIsBlocked(true);
+          setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
           await supabase.auth.signOut();
         }
       }
@@ -40,18 +42,21 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("status")
+          .select("status, blocked_reason")
           .eq("id", session.user.id)
           .maybeSingle();
 
         if (profile?.status === "banned") {
           setIsBlocked(true);
+          setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
           await supabase.auth.signOut();
         } else {
           setIsBlocked(false);
+          setBlockedReason(null);
         }
       } else {
         setIsBlocked(false);
+        setBlockedReason(null);
       }
     });
 
@@ -60,7 +65,7 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
 
   // Show blocked overlay if user is banned
   if (isBlocked) {
-    return <BlockedUserOverlay />;
+    return <BlockedUserOverlay reason={blockedReason} />;
   }
 
   return (
