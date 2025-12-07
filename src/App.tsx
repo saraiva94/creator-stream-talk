@@ -23,6 +23,7 @@ import LiveManagement from "./pages/LiveManagement";
 import LiveViewer from "./pages/LiveViewer";
 import CreatorRoom from "./pages/CreatorRoom";
 import NotFound from "./pages/NotFound";
+import AccessDenied from "./pages/AccessDenied";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import CreatorLives from "./pages/CreatorLives";
 import CreatorHistory from "./pages/CreatorHistory";
@@ -64,7 +65,7 @@ const App = () => (
                 <Route path="/u/:username" element={<PublicProfile />} />
                 <Route path="/live/:liveId" element={<LiveViewer />} />
                 <Route path="/room/:creatorId" element={<CreatorRoom />} />
-
+                <Route path="/access-denied" element={<AccessDenied />} />
                 {/* Protected routes - require authentication */}
                 <Route path="/profile" element={
                   <ProtectedRoute>

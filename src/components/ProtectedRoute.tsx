@@ -11,7 +11,7 @@ const RETURN_TO_KEY = "auth_return_to";
 
 export const saveReturnTo = (path: string) => {
   // Don't save auth-related paths
-  const excludedPaths = ["/auth", "/subscribe", "/reset-password", "/update-password", "/invite"];
+  const excludedPaths = ["/auth", "/subscribe", "/reset-password", "/update-password", "/invite", "/access-denied"];
   if (!excludedPaths.some(excluded => path.startsWith(excluded))) {
     sessionStorage.setItem(RETURN_TO_KEY, path);
   }
@@ -44,9 +44,9 @@ export const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRout
     return <Navigate to="/auth" replace />;
   }
 
-  // Requires admin but user is not admin
+  // Requires admin but user is not admin - redirect to access denied page
   if (requireAdmin && !isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/access-denied" replace />;
   }
 
   return <>{children}</>;
