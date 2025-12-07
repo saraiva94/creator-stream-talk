@@ -39,13 +39,21 @@ const Auth = () => {
   const { t } = useLanguage();
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    // Check for existing session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/");
+        navigate("/", { replace: true });
       }
-    };
-    checkSession();
+    });
+
+    // Listen for auth state changes - redirect when logged in
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        navigate("/", { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -112,8 +120,7 @@ const Auth = () => {
         title: "Login realizado",
         description: "Bem-vindo de volta.",
       });
-
-      navigate("/");
+      // Navigation is handled by onAuthStateChange listener
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         const message = error.status === 404 ? "Usuário não encontrado" : error.message;
