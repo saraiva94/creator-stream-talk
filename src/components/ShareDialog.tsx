@@ -52,13 +52,38 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
   };
 
   const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isAndroid = () => /Android/i.test(navigator.userAgent);
+  const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const openAppWithFallback = (appScheme: string, fallbackUrl: string) => {
+    if (isMobile()) {
+      const start = Date.now();
+      window.location.href = appScheme;
+      
+      // If app doesn't open within 1.5s, open fallback
+      setTimeout(() => {
+        if (Date.now() - start < 2000) {
+          window.open(fallbackUrl, "_blank");
+        }
+      }, 1500);
+    } else {
+      window.open(fallbackUrl, "_blank");
+    }
+  };
 
   const shareToWhatsApp = async () => {
     await copyToClipboard();
     const text = encodeURIComponent(title ? `${title}: ${link}` : link);
     
-    // WhatsApp universal link works on both mobile and desktop
-    window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
+    if (isMobile()) {
+      // Use whatsapp:// scheme for mobile apps
+      openAppWithFallback(
+        `whatsapp://send?text=${text}`,
+        `https://api.whatsapp.com/send?text=${text}`
+      );
+    } else {
+      window.open(`https://api.whatsapp.com/send?text=${text}`, "_blank");
+    }
   };
 
   const shareToMessenger = async () => {
@@ -66,11 +91,11 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
     const encodedLink = encodeURIComponent(link);
     
     if (isMobile()) {
-      // Try deep link first, fallback to web
-      window.location.href = `fb-messenger://share?link=${encodedLink}`;
-      setTimeout(() => {
-        window.open(`https://m.me/?link=${encodedLink}`, "_blank");
-      }, 500);
+      // Use fb-messenger:// scheme for mobile
+      openAppWithFallback(
+        `fb-messenger://share?link=${encodedLink}`,
+        `https://m.me/?link=${encodedLink}`
+      );
     } else {
       window.open(`https://www.facebook.com/dialog/send?link=${encodedLink}&app_id=966242223397117&redirect_uri=${encodeURIComponent(window.location.href)}`, "_blank");
     }
@@ -84,12 +109,10 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
       description: "Cole o link em sua bio ou vídeo do TikTok",
     });
     
-    // TikTok doesn't have a direct share API, so we open the app/site
     if (isMobile()) {
-      window.location.href = "snssdk1233://";
-      setTimeout(() => {
-        window.open("https://www.tiktok.com", "_blank");
-      }, 500);
+      // TikTok app schemes
+      const tiktokScheme = isAndroid() ? "snssdk1233://" : "tiktok://";
+      openAppWithFallback(tiktokScheme, "https://www.tiktok.com");
     } else {
       window.open("https://www.tiktok.com", "_blank");
     }
@@ -103,12 +126,9 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
       description: "Cole o link em sua bio ou story do Instagram",
     });
     
-    // Instagram doesn't have a direct share API for links
     if (isMobile()) {
-      window.location.href = "instagram://";
-      setTimeout(() => {
-        window.open("https://www.instagram.com", "_blank");
-      }, 500);
+      // Instagram app scheme
+      openAppWithFallback("instagram://app", "https://www.instagram.com");
     } else {
       window.open("https://www.instagram.com", "_blank");
     }
@@ -117,7 +137,16 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
   const shareToTwitter = async () => {
     await copyToClipboard();
     const text = encodeURIComponent(title ? `${title}: ${link}` : link);
-    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank");
+    
+    if (isMobile()) {
+      // Twitter/X app scheme
+      openAppWithFallback(
+        `twitter://post?message=${text}`,
+        `https://twitter.com/intent/tweet?text=${text}`
+      );
+    } else {
+      window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank");
+    }
   };
 
   return (
