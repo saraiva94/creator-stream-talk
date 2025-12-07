@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Instagram, Youtube, Facebook, Globe, Users, UserPlus, UserCheck, Radio } from "lucide-react";
+import { User, Instagram, Youtube, Facebook, Globe, Users, UserPlus, UserCheck, Radio, MessageCircle } from "lucide-react";
 import { FollowSettingsMenu } from "@/components/FollowSettingsMenu";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "sonner";
@@ -303,7 +303,7 @@ const PublicProfile = () => {
                   </span>
                 </div>
 
-                {/* Follow button and Live link */}
+                {/* Follow button, Chat button, and Live link */}
                 <div className="flex items-center justify-center gap-2 pt-2">
                   {!isOwnProfile && user && (
                     <>
@@ -325,6 +325,25 @@ const PublicProfile = () => {
                             {t.userProfile?.follow || t.profile?.follow || "Seguir"}
                           </>
                         )}
+                      </Button>
+                      
+                      {/* Chat button */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="rounded-full h-9 w-9"
+                        onClick={() => {
+                          // Dispatch custom event to open global chat with this user
+                          window.dispatchEvent(new CustomEvent('openChat', {
+                            detail: {
+                              id: profileData?.id,
+                              name: profileData?.username,
+                              avatar: profileData?.avatar_url
+                            }
+                          }));
+                        }}
+                      >
+                        <MessageCircle className="h-4 w-4" />
                       </Button>
                       
                       {/* Settings gear menu */}

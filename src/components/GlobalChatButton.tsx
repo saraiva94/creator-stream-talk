@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { MessageCircle, X, Minimize2 } from "lucide-react";
+import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,19 @@ interface Conversation {
   unreadCount: number;
 }
 
+interface Friend {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
+interface Message {
+  id: string;
+  content: string;
+  sender_id: string;
+  created_at: string;
+}
+
 interface GlobalChatButtonProps {
   user: User | null;
 }
@@ -28,15 +42,35 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [unreadTotal, setUnreadTotal] = useState(0);
+  const [activeTab, setActiveTab] = useState<"conversas" | "amigos" | "chat">("conversas");
+  const [activeChat, setActiveChat] = useState<{ id: string; name: string; avatar: string | null } | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
   const { t } = useLanguage();
+
+  // Listen for openChat events from profile pages
+  useEffect(() => {
+    const handleOpenChat = (event: CustomEvent<{ id: string; name: string; avatar: string | null }>) => {
+      setIsOpen(true);
+      setIsMinimized(false);
+      setActiveChat({ id: event.detail.id, name: event.detail.name, avatar: event.detail.avatar });
+      setActiveTab("chat");
+    };
+
+    window.addEventListener("openChat", handleOpenChat as EventListener);
+    return () => {
+      window.removeEventListener("openChat", handleOpenChat as EventListener);
+    };
+  }, []);
 
   // Fetch conversations
   useEffect(() => {
     if (!user) return;
 
     const fetchConversations = async () => {
-      // Get all messages where user is sender or receiver
       const { data: messages } = await supabase
         .from("direct_messages")
         .select("*")
@@ -45,7 +79,6 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
 
       if (!messages) return;
 
-      // Group by conversation partner
       const conversationMap = new Map<string, {
         recipientId: string;
         lastMessage: string;
@@ -71,7 +104,6 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
         }
       });
 
-      // Fetch profile info for each partner
       const partnerIds = Array.from(conversationMap.keys());
       if (partnerIds.length === 0) {
         setConversations([]);
@@ -105,7 +137,6 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
         });
       });
 
-      // Sort by last message
       convList.sort((a, b) => 
         new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
       );
@@ -116,7 +147,6 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
 
     fetchConversations();
 
-    // Subscribe to new messages
     const channel = supabase
       .channel("global-chat-messages")
       .on(
@@ -139,6 +169,111 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  // Fetch friends (people user follows)
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchFriends = async () => {
+      const { data: follows } = await supabase
+        .from("user_follows")
+        .select("following_id")
+        .eq("follower_id", user.id);
+
+      if (!follows || follows.length === 0) {
+        setFriends([]);
+        return;
+      }
+
+      const followingIds = follows.map(f => f.following_id);
+
+      const { data: profiles } = await supabase
+        .from("public_profiles")
+        .select("id, username, avatar_url")
+        .in("id", followingIds);
+
+      setFriends(profiles?.map(p => ({
+        id: p.id!,
+        username: p.username!,
+        avatar_url: p.avatar_url
+      })) || []);
+    };
+
+    fetchFriends();
+  }, [user]);
+
+  // Fetch messages when chat is active
+  useEffect(() => {
+    if (!user || !activeChat) return;
+
+    const fetchMessages = async () => {
+      const { data } = await supabase
+        .from("direct_messages")
+        .select("id, content, sender_id, created_at")
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${activeChat.id}),and(sender_id.eq.${activeChat.id},receiver_id.eq.${user.id})`)
+        .order("created_at", { ascending: true });
+
+      setMessages(data || []);
+
+      // Mark messages as read
+      await supabase
+        .from("direct_messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("sender_id", activeChat.id)
+        .eq("receiver_id", user.id)
+        .is("read_at", null);
+    };
+
+    fetchMessages();
+
+    const channel = supabase
+      .channel(`chat-${activeChat.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "direct_messages",
+        },
+        (payload) => {
+          const msg = payload.new as Message & { sender_id: string; receiver_id: string };
+          if (
+            (msg.sender_id === user.id && msg.receiver_id === activeChat.id) ||
+            (msg.sender_id === activeChat.id && msg.receiver_id === user.id)
+          ) {
+            setMessages(prev => [...prev, { id: msg.id, content: msg.content, sender_id: msg.sender_id, created_at: msg.created_at }]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeChat]);
+
+  const openChat = (id: string, name: string, avatar: string | null) => {
+    setActiveChat({ id, name, avatar });
+    setActiveTab("chat");
+  };
+
+  const handleSendMessage = async () => {
+    if (!user || !activeChat || !newMessage.trim() || sendingMessage) return;
+
+    setSendingMessage(true);
+    try {
+      await supabase.from("direct_messages").insert({
+        sender_id: user.id,
+        receiver_id: activeChat.id,
+        content: newMessage.trim(),
+      });
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   if (!user) return null;
 
@@ -168,7 +303,7 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
         )}
       >
         <MessageCircle className="h-5 w-5 text-foreground" />
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-sm font-medium text-foreground hidden sm:inline">
           {t.chat?.messages || "Mensagens"}
         </span>
         {unreadTotal > 0 && (
@@ -176,7 +311,6 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
             {unreadTotal > 9 ? "9+" : unreadTotal}
           </span>
         )}
-        {/* User avatars preview */}
         {conversations.length > 0 && (
           <div className="flex -space-x-2 ml-1">
             {conversations.slice(0, 2).map((conv) => (
@@ -193,11 +327,30 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
 
       {/* Chat Window */}
       {isOpen && !isMinimized && (
-        <Card className="fixed bottom-20 right-6 w-80 sm:w-96 max-h-[500px] z-50 shadow-2xl border-border overflow-hidden">
-          <CardHeader className="py-3 px-4 border-b border-border flex flex-row items-center justify-between">
-            <CardTitle className="text-base font-semibold">
-              {t.chat?.messages || "Mensagens"}
-            </CardTitle>
+        <Card className="fixed bottom-20 right-6 w-80 sm:w-96 max-h-[500px] z-50 shadow-2xl border-border overflow-hidden flex flex-col">
+          <CardHeader className="py-3 px-4 border-b border-border flex flex-row items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              {activeTab === "chat" && activeChat && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    setActiveTab("conversas");
+                    setActiveChat(null);
+                  }}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <CardTitle className="text-base font-semibold">
+                {activeTab === "chat" && activeChat 
+                  ? activeChat.name 
+                  : activeTab === "amigos" 
+                    ? (t.chat?.friends || "Amigos")
+                    : (t.chat?.conversations || "Conversas")}
+              </CardTitle>
+            </div>
             <div className="flex gap-1">
               <Button
                 size="icon"
@@ -218,53 +371,171 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
             </div>
           </CardHeader>
 
-          <CardContent className="p-0">
-            {conversations.length === 0 ? (
-              <div className="p-6 text-center text-muted-foreground">
-                <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">Nenhuma conversa</p>
-                <p className="text-xs mt-1">
-                  Acesse o perfil de um usuário para iniciar
-                </p>
-              </div>
-            ) : (
-              <ScrollArea className="h-[350px]">
-                {conversations.map((conv) => (
-                  <button
-                    key={conv.id}
-                    className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
-                    onClick={() => {
-                      // Navigate to user's profile or open chat
-                      window.location.href = `/u/${conv.recipientName}`;
-                    }}
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={conv.recipientAvatar || undefined} />
-                      <AvatarFallback>
-                        {conv.recipientName.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm truncate">
-                          {conv.recipientName}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(conv.lastMessageAt)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conv.lastMessage}
-                      </p>
+          {/* Tab Navigation - Only show when not in chat view */}
+          {activeTab !== "chat" && (
+            <div className="flex border-b border-border shrink-0">
+              <button
+                onClick={() => setActiveTab("conversas")}
+                className={cn(
+                  "flex-1 py-2 text-sm font-medium transition-colors",
+                  activeTab === "conversas" 
+                    ? "text-primary border-b-2 border-primary" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.chat?.conversations || "Conversas"}
+              </button>
+              <button
+                onClick={() => setActiveTab("amigos")}
+                className={cn(
+                  "flex-1 py-2 text-sm font-medium transition-colors",
+                  activeTab === "amigos" 
+                    ? "text-primary border-b-2 border-primary" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.chat?.friends || "Amigos"}
+              </button>
+            </div>
+          )}
+
+          <CardContent className="p-0 flex-1 overflow-hidden flex flex-col">
+            {/* Conversas Tab */}
+            {activeTab === "conversas" && (
+              <>
+                {conversations.length === 0 ? (
+                  <div className="p-6 text-center text-muted-foreground">
+                    <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">{t.chat?.noConversations || "Nenhuma conversa"}</p>
+                    <p className="text-xs mt-1">
+                      {t.chat?.startConversation || "Acesse o perfil de um usuário para iniciar"}
+                    </p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[350px]">
+                    {conversations.map((conv) => (
+                      <button
+                        key={conv.id}
+                        className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
+                        onClick={() => openChat(conv.recipientId, conv.recipientName, conv.recipientAvatar)}
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={conv.recipientAvatar || undefined} />
+                          <AvatarFallback>
+                            {conv.recipientName.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm truncate">
+                              {conv.recipientName}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTime(conv.lastMessageAt)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {conv.lastMessage}
+                          </p>
+                        </div>
+                        {conv.unreadCount > 0 && (
+                          <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {conv.unreadCount}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </ScrollArea>
+                )}
+              </>
+            )}
+
+            {/* Amigos Tab */}
+            {activeTab === "amigos" && (
+              <>
+                {friends.length === 0 ? (
+                  <div className="p-6 text-center text-muted-foreground">
+                    <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">{t.chat?.noFriends || "Nenhum amigo"}</p>
+                    <p className="text-xs mt-1">
+                      {t.chat?.followToAdd || "Siga usuários para adicioná-los à sua lista"}
+                    </p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-[350px]">
+                    {friends.map((friend) => (
+                      <button
+                        key={friend.id}
+                        className="w-full p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
+                        onClick={() => openChat(friend.id, friend.username, friend.avatar_url)}
+                      >
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={friend.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {friend.username.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-medium text-sm truncate">
+                            {friend.username}
+                          </span>
+                        </div>
+                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    ))}
+                  </ScrollArea>
+                )}
+              </>
+            )}
+
+            {/* Chat View */}
+            {activeTab === "chat" && activeChat && (
+              <div className="flex flex-col h-[400px]">
+                <ScrollArea className="flex-1 p-3">
+                  {messages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                      {t.chat?.startChat || "Inicie uma conversa"}
                     </div>
-                    {conv.unreadCount > 0 && (
-                      <span className="bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </ScrollArea>
+                  ) : (
+                    <div className="space-y-2">
+                      {messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={cn(
+                            "max-w-[80%] p-2 rounded-lg text-sm",
+                            msg.sender_id === user.id
+                              ? "ml-auto bg-primary text-primary-foreground"
+                              : "bg-muted"
+                          )}
+                        >
+                          {msg.content}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+                <div className="p-3 border-t border-border flex gap-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
+                    className="flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim() || sendingMessage}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
