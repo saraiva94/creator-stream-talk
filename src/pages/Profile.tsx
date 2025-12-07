@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -292,9 +292,7 @@ const Profile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar user={user} />
-
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl space-y-4 sm:space-y-6">
         <div className="flex items-center justify-between mb-6 sm:mb-8">
           <div className="flex items-center gap-3">
@@ -597,7 +595,7 @@ const Profile = () => {
           onCropComplete={handleCroppedImage}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
 

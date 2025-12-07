@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
 import { NativeVideoPreview } from "@/components/NativeVideoPreview";
 import { StreamToggle } from "@/components/StreamToggle";
@@ -338,79 +338,77 @@ const LiveManagement = () => {
   // Show overlay if user is not a creator or not approved
   if (creatorStatus === "not_creator" || creatorStatus === "pending_approval") {
     return (
-      <div className="min-h-screen bg-background relative">
-        <Navbar user={user} />
-        
-        {/* Blurred background content placeholder */}
-        <div className="container mx-auto px-4 py-6 blur-sm pointer-events-none opacity-30">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <Card className="border-border h-[400px] bg-muted/20" />
-              <Card className="border-border h-[200px] bg-muted/20" />
-            </div>
-            <div className="lg:col-span-1">
-              <Card className="border-border h-[500px] bg-muted/20" />
+      <AppLayout showSidebar={false}>
+        <div className="relative">
+          {/* Blurred background content placeholder */}
+          <div className="container mx-auto px-4 py-6 blur-sm pointer-events-none opacity-30">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="border-border h-[400px] bg-muted/20" />
+                <Card className="border-border h-[200px] bg-muted/20" />
+              </div>
+              <div className="lg:col-span-1">
+                <Card className="border-border h-[500px] bg-muted/20" />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50">
-          <Card className="max-w-md mx-4 border-primary/20 shadow-2xl">
-            <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
-              {/* REC indicator */}
-              <div className="flex items-center justify-center gap-3">
-                <span 
-                  className="w-4 h-4 bg-destructive rounded-full"
-                  style={{
-                    animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
-                  }}
-                />
-                <div className="flex items-center gap-2 text-destructive font-bold text-lg">
-                  <Video className="h-6 w-6" />
-                  <span>REC</span>
+          {/* Overlay */}
+          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50">
+            <Card className="max-w-md mx-4 border-primary/20 shadow-2xl">
+              <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
+                {/* REC indicator */}
+                <div className="flex items-center justify-center gap-3">
+                  <span 
+                    className="w-4 h-4 bg-destructive rounded-full"
+                    style={{
+                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+                    }}
+                  />
+                  <div className="flex items-center gap-2 text-destructive font-bold text-lg">
+                    <Video className="h-6 w-6" />
+                    <span>REC</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Message */}
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-foreground">
-                  {creatorStatus === "not_creator" 
-                    ? "Você ainda não é um criador"
-                    : "Aguardando aprovação"
-                  }
-                </h2>
-                <p className="text-muted-foreground">
+                {/* Message */}
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold text-foreground">
+                    {creatorStatus === "not_creator" 
+                      ? "Você ainda não é um criador"
+                      : "Aguardando aprovação"
+                    }
+                  </h2>
+                  <p className="text-muted-foreground">
+                    {creatorStatus === "not_creator"
+                      ? "Para transmitir ao vivo, você precisa solicitar uma conta de criador."
+                      : "Sua solicitação está sendo analisada. Você será notificado quando for aprovado."
+                    }
+                  </p>
+                </div>
+
+                {/* CTA Button */}
+                <Button 
+                  onClick={() => navigate("/profile")}
+                  className="w-full gap-2"
+                  size="lg"
+                >
+                  <UserPlus className="h-5 w-5" />
                   {creatorStatus === "not_creator"
-                    ? "Para transmitir ao vivo, você precisa solicitar uma conta de criador."
-                    : "Sua solicitação está sendo analisada. Você será notificado quando for aprovado."
+                    ? "Solicitar conta de criador"
+                    : "Ir para o perfil"
                   }
-                </p>
-              </div>
-
-              {/* CTA Button */}
-              <Button 
-                onClick={() => navigate("/profile")}
-                className="w-full gap-2"
-                size="lg"
-              >
-                <UserPlus className="h-5 w-5" />
-                {creatorStatus === "not_creator"
-                  ? "Solicitar conta de criador"
-                  : "Ir para o perfil"
-                }
-              </Button>
-            </CardContent>
-          </Card>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar user={user} />
-
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-6">
         {/* Header with toggle and stats */}
         <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
@@ -529,7 +527,7 @@ const LiveManagement = () => {
           </div>
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 
