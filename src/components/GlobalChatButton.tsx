@@ -42,6 +42,7 @@ interface GlobalChatButtonProps {
 export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
@@ -52,6 +53,12 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const { t } = useLanguage();
+
+  // Animate button entrance on mount
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Track user presence
   useEffect(() => {
@@ -345,8 +352,12 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
         }}
         className={cn(
           "fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full",
-          "bg-card border border-border shadow-xl hover:bg-muted transition-all",
-          "hover:scale-105 active:scale-95"
+          "bg-card border border-border shadow-xl hover:bg-muted",
+          "hover:scale-105 active:scale-95",
+          "transition-all duration-500 ease-out",
+          isVisible 
+            ? "opacity-100 translate-y-0" 
+            : "opacity-0 translate-y-8"
         )}
       >
         <MessageCircle className="h-5 w-5 text-foreground" />
@@ -354,7 +365,7 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
           {t.chat?.messages || "Mensagens"}
         </span>
         {unreadTotal > 0 && (
-          <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
             {unreadTotal > 9 ? "9+" : unreadTotal}
           </span>
         )}
