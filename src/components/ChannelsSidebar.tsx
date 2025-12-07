@@ -9,6 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 interface Channel {
   id: string;
   display_name: string;
+  username: string;
   avatar_url: string | null;
   viewer_count: number;
   is_streaming: boolean;
@@ -59,21 +60,22 @@ export const ChannelsSidebar = () => {
         .order("viewer_count", { ascending: false })
         .limit(50);
 
-      // Fetch avatars separately to avoid ambiguous relationship
+      // Fetch avatars and usernames separately to avoid ambiguous relationship
       if (liveData && liveData.length > 0) {
         const ids = liveData.map((c: any) => c.id);
         const { data: profilesData } = await supabase
           .from("profiles")
-          .select("id, avatar_url")
+          .select("id, avatar_url, username")
           .in("id", ids);
         
-        const avatarMap = new Map(profilesData?.map((p: any) => [p.id, p.avatar_url]) || []);
+        const profileMap = new Map(profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []);
         
         setLiveChannels(
           liveData.map((c: any) => ({
             id: c.id,
             display_name: c.display_name,
-            avatar_url: avatarMap.get(c.id) || null,
+            username: profileMap.get(c.id)?.username || c.display_name,
+            avatar_url: profileMap.get(c.id)?.avatar_url || null,
             viewer_count: c.viewer_count || 0,
             is_streaming: c.is_streaming || false,
             tags: c.tags || [],
@@ -107,13 +109,14 @@ export const ChannelsSidebar = () => {
             if (creator) {
               const { data: profile } = await supabase
                 .from("profiles")
-                .select("avatar_url")
+                .select("avatar_url, username")
                 .eq("id", creator.id)
                 .single();
 
               followed.push({
                 id: creator.id,
                 display_name: creator.display_name,
+                username: profile?.username || creator.display_name,
                 avatar_url: profile?.avatar_url || null,
                 viewer_count: creator.viewer_count || 0,
                 is_streaming: creator.is_streaming || false,
@@ -158,12 +161,14 @@ export const ChannelsSidebar = () => {
   };
 
   const ChannelItem = ({ channel, showName }: { channel: Channel; showName: boolean }) => (
-    <Link
-      to={`/room/${channel.id}`}
-      className={`flex items-center gap-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors group ${showName ? 'px-2' : 'px-1 justify-center'}`}
-    >
-      <div className="relative flex-shrink-0">
-        <Avatar className="h-8 w-8">
+    <div className={`flex items-center gap-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors group ${showName ? 'px-2' : 'px-1 justify-center'}`}>
+      {/* Avatar links to profile */}
+      <Link
+        to={`/u/${channel.username}`}
+        className="relative flex-shrink-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all">
           <AvatarImage src={channel.avatar_url || undefined} />
           <AvatarFallback className="bg-primary/20 text-primary text-xs">
             {channel.display_name.slice(0, 2).toUpperCase()}
@@ -172,16 +177,23 @@ export const ChannelsSidebar = () => {
         {channel.is_streaming && (
           <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-background" />
         )}
-      </div>
+      </Link>
       {showName && (
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium truncate">{channel.display_name}</span>
+            {/* Name links to profile, but clicking row goes to room */}
+            <Link 
+              to={`/u/${channel.username}`}
+              className="text-sm font-medium truncate hover:text-primary transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {channel.display_name}
+            </Link>
             {channel.is_streaming ? (
-              <span className="text-xs text-red-500 flex items-center gap-1">
+              <Link to={`/room/${channel.id}`} className="text-xs text-red-500 flex items-center gap-1 hover:underline">
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                 {formatViewerCount(channel.viewer_count)}
-              </span>
+              </Link>
             ) : (
               <span className="text-xs text-muted-foreground">Offline</span>
             )}
@@ -193,7 +205,7 @@ export const ChannelsSidebar = () => {
           )}
         </div>
       )}
-    </Link>
+    </div>
   );
 
   // Placeholder slot for empty state

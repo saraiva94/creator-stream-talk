@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Instagram, Youtube, Facebook, Globe } from "lucide-react";
+import { User, Instagram, Youtube, Facebook, Globe, Users } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
@@ -37,10 +37,10 @@ type PublicProfileData = {
 
 const PublicProfile = () => {
   const { username } = useParams<{ username: string }>();
-  const navigate = useNavigate();
   const { t } = useLanguage();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profileData, setProfileData] = useState<PublicProfileData | null>(null);
+  const [followerCount, setFollowerCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -70,9 +70,20 @@ const PublicProfile = () => {
 
       if (error || !data) {
         setNotFound(true);
-      } else {
-        setProfileData(data as PublicProfileData);
+        setLoading(false);
+        return;
       }
+      
+      setProfileData(data as PublicProfileData);
+      
+      // Fetch follower count (subscriptions where this user is the creator)
+      const { count } = await supabase
+        .from("subscriptions")
+        .select("*", { count: "exact", head: true })
+        .eq("creator_id", data.id)
+        .eq("status", "active");
+      
+      setFollowerCount(count || 0);
       setLoading(false);
     };
 
@@ -177,9 +188,18 @@ const PublicProfile = () => {
                   <User className="w-12 h-12 text-muted-foreground" />
                 </AvatarFallback>
               </Avatar>
-              <CardTitle className="text-2xl sm:text-3xl">
-                {profileData?.username}
-              </CardTitle>
+              <div className="space-y-2">
+                <CardTitle className="text-2xl sm:text-3xl">
+                  {profileData?.username}
+                </CardTitle>
+                {/* Follower count */}
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  <span className="text-sm">
+                    {followerCount} {followerCount === 1 ? (t.profile?.follower || "seguidor") : (t.profile?.followers || "seguidores")}
+                  </span>
+                </div>
+              </div>
             </div>
           </CardHeader>
           

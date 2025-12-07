@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LiveLifecycleStatus, LiveSummary } from "@/lib/api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
   const { t } = useLanguage();
   const [creatorInfo, setCreatorInfo] = useState<{
     display_name: string;
+    username: string;
     avatar_url: string | null;
   } | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -40,6 +41,7 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
 
       setCreatorInfo({
         display_name: creatorProfile?.display_name || profile?.username || live.creator_username || "Criador",
+        username: profile?.username || live.creator_username || "user",
         avatar_url: profile?.avatar_url || null,
       });
     };
@@ -152,9 +154,12 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
           {live.description && (
             <p className="text-sm text-muted-foreground line-clamp-2">{live.description}</p>
           )}
-          <p className="text-xs text-muted-foreground">
+          <Link 
+            to={`/u/${creatorInfo?.username || 'user'}`}
+            className="text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
             {creatorInfo?.display_name || "Carregando..."}
-          </p>
+          </Link>
         </div>
 
         <Button onClick={handleEnter} className="w-full" disabled={live.status === "ended"}>
