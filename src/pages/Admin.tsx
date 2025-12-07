@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp, Search, Ban, CheckCircle, XCircle } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import type { User } from "@supabase/supabase-js";
 
 type AdminStats = {
@@ -34,6 +36,7 @@ type UserProfile = {
   username: string;
   avatar_url: string | null;
   created_at: string;
+  status: string | null;
 };
 
 type CreatorProfile = {
@@ -60,6 +63,9 @@ const Admin = () => {
   const [creatorsList, setCreatorsList] = useState<CreatorProfile[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingCreators, setLoadingCreators] = useState(false);
+  const [usersSearch, setUsersSearch] = useState("");
+  const [creatorsSearch, setCreatorsSearch] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -90,9 +96,9 @@ const Admin = () => {
     try {
       const { data } = await supabase
         .from("profiles")
-        .select("id, username, avatar_url, created_at")
+        .select("id, username, avatar_url, created_at, status")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       setUsersList((data as UserProfile[]) || []);
       setShowUsersList(true);
     } catch (error) {
@@ -113,7 +119,7 @@ const Admin = () => {
         .from("creator_profiles")
         .select("id, display_name, is_streaming, approved_for_live")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       
       // Fetch avatars from profiles
       const creatorsWithAvatars = await Promise.all(
@@ -122,7 +128,7 @@ const Admin = () => {
             .from("profiles")
             .select("avatar_url")
             .eq("id", creator.id)
-            .single();
+            .maybeSingle();
           return { ...creator, profiles: profile };
         })
       );
@@ -133,6 +139,84 @@ const Admin = () => {
       console.error("Error fetching creators:", error);
     } finally {
       setLoadingCreators(false);
+    }
+  };
+
+  // Filtered lists
+  const filteredUsers = useMemo(() => {
+    if (!usersSearch.trim()) return usersList;
+    const search = usersSearch.toLowerCase();
+    return usersList.filter((u) => u.username?.toLowerCase().includes(search));
+  }, [usersList, usersSearch]);
+
+  const filteredCreators = useMemo(() => {
+    if (!creatorsSearch.trim()) return creatorsList;
+    const search = creatorsSearch.toLowerCase();
+    return creatorsList.filter((c) => c.display_name?.toLowerCase().includes(search));
+  }, [creatorsList, creatorsSearch]);
+
+  // User management actions
+  const handleBanUser = async (userId: string, currentStatus: string | null) => {
+    const newStatus = currentStatus === "banned" ? "active" : "banned";
+    setActionLoading(userId);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ status: newStatus })
+        .eq("id", userId);
+      
+      if (error) throw error;
+      
+      setUsersList((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u))
+      );
+      
+      toast({
+        title: newStatus === "banned" ? "Usuário banido" : "Usuário reativado",
+        description: newStatus === "banned" ? "O usuário foi banido da plataforma." : "O usuário foi reativado.",
+      });
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o status do usuário.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Creator management actions
+  const handleApproveCreator = async (creatorId: string, approve: boolean) => {
+    setActionLoading(creatorId);
+    try {
+      const { error } = await supabase
+        .from("creator_profiles")
+        .update({ approved_for_live: approve })
+        .eq("id", creatorId);
+      
+      if (error) throw error;
+      
+      setCreatorsList((prev) =>
+        prev.map((c) => (c.id === creatorId ? { ...c, approved_for_live: approve } : c))
+      );
+      
+      toast({
+        title: approve ? "Criador aprovado" : "Aprovação revogada",
+        description: approve 
+          ? "O criador agora pode fazer transmissões ao vivo." 
+          : "O criador não pode mais fazer transmissões.",
+      });
+    } catch (error) {
+      console.error("Error updating creator approval:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar a aprovação do criador.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -385,28 +469,68 @@ const Admin = () => {
         {showUsersList && usersList.length > 0 && (
           <Card className="mb-6 sm:mb-8 border-primary/20">
             <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5 text-primary" />
-                Lista de Usuários ({usersList.length})
+              <CardTitle className="flex items-center justify-between text-lg">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Lista de Usuários ({filteredUsers.length})
+                </div>
               </CardTitle>
+              <div className="relative mt-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar usuário..."
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
-              <ScrollArea className="h-[300px]">
+              <ScrollArea className="h-[350px]">
                 <div className="space-y-2">
-                  {usersList.map((profile) => (
-                    <div key={profile.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                      <Avatar className="h-8 w-8">
+                  {filteredUsers.map((profile) => (
+                    <div key={profile.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
+                      <Avatar className="h-10 w-10">
                         <AvatarImage src={profile.avatar_url || undefined} />
                         <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{profile.username}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{profile.username}</p>
+                          {profile.status === "banned" && (
+                            <Badge variant="destructive" className="text-xs">Banido</Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {new Date(profile.created_at).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
+                      <Button
+                        size="sm"
+                        variant={profile.status === "banned" ? "outline" : "destructive"}
+                        onClick={() => handleBanUser(profile.id, profile.status)}
+                        disabled={actionLoading === profile.id}
+                        className="flex-shrink-0"
+                      >
+                        {actionLoading === profile.id ? (
+                          <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : profile.status === "banned" ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            <span className="hidden sm:inline">Reativar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Ban className="h-4 w-4 mr-1" />
+                            <span className="hidden sm:inline">Banir</span>
+                          </>
+                        )}
+                      </Button>
                     </div>
                   ))}
+                  {filteredUsers.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">Nenhum usuário encontrado</p>
+                  )}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -417,38 +541,87 @@ const Admin = () => {
         {showCreatorsList && creatorsList.length > 0 && (
           <Card className="mb-6 sm:mb-8 border-blue-500/20">
             <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Video className="h-5 w-5 text-blue-500" />
-                Lista de Criadores ({creatorsList.length})
+              <CardTitle className="flex items-center justify-between text-lg">
+                <div className="flex items-center gap-2">
+                  <Video className="h-5 w-5 text-blue-500" />
+                  Lista de Criadores ({filteredCreators.length})
+                </div>
               </CardTitle>
+              <div className="relative mt-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar criador..."
+                  value={creatorsSearch}
+                  onChange={(e) => setCreatorsSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
-              <ScrollArea className="h-[300px]">
+              <ScrollArea className="h-[350px]">
                 <div className="space-y-2">
-                  {creatorsList.map((creator) => (
-                    <div key={creator.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50">
-                      <Avatar className="h-8 w-8">
+                  {filteredCreators.map((creator) => (
+                    <div key={creator.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
+                      <Avatar className="h-10 w-10">
                         <AvatarImage src={creator.profiles?.avatar_url || undefined} />
                         <AvatarFallback>{creator.display_name?.[0]?.toUpperCase() || "C"}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{creator.display_name}</p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium truncate">{creator.display_name}</p>
                           {creator.is_streaming && (
-                            <span className="flex items-center gap-1 text-xs text-green-500">
-                              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                            <Badge className="bg-green-500/20 text-green-500 text-xs">
+                              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse mr-1" />
                               Online
-                            </span>
+                            </Badge>
                           )}
                           {creator.approved_for_live ? (
-                            <span className="text-xs text-primary">Aprovado</span>
+                            <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">Aprovado</Badge>
                           ) : (
-                            <span className="text-xs text-yellow-500">Pendente</span>
+                            <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">Pendente</Badge>
                           )}
                         </div>
                       </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        {creator.approved_for_live ? (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleApproveCreator(creator.id, false)}
+                            disabled={actionLoading === creator.id}
+                          >
+                            {actionLoading === creator.id ? (
+                              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Revogar</span>
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleApproveCreator(creator.id, true)}
+                            disabled={actionLoading === creator.id}
+                          >
+                            {actionLoading === creator.id ? (
+                              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Aprovar</span>
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
+                  {filteredCreators.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">Nenhum criador encontrado</p>
+                  )}
                 </div>
               </ScrollArea>
             </CardContent>
