@@ -14,7 +14,7 @@ import { InstallPWAButton } from "./InstallPWAButton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface NavbarProps {
-  user?: SupabaseUser | null;
+  user?: SupabaseUser | null | undefined;
 }
 
 const Navbar = ({ user }: NavbarProps) => {
