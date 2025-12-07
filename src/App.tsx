@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/hooks/useLanguage";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthRedirectHandler } from "@/components/AuthRedirectHandler";
 import { PWAInstallNotification } from "@/components/PWAInstallNotification";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
@@ -42,42 +43,44 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
       <TooltipProvider>
-        <InactivityWrapper>
-          <Toaster />
-          <Sonner />
-          <PWAInstallNotification />
-          <BrowserRouter>
-            <AuthRedirectHandler />
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/invite/:inviteCode" element={<InviteSignup />} />
-              <Route path="/invite" element={<InviteSignup />} />
-              <Route path="/live-management" element={<LiveManagement />} />
-              <Route path="/live/:liveId" element={<LiveViewer />} />
-              <Route path="/room/:creatorId" element={<CreatorRoom />} />
-              <Route path="/subscribe" element={<Subscribe />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/update-password" element={<UpdatePassword />} />
-              <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/admin/creators" element={<AdminCreators />} />
-              <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
-              <Route path="/admin/pix-withdrawals" element={<AdminPixWithdrawals />} />
-              <Route path="/affiliate" element={<Affiliate />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/u/:username" element={<PublicProfile />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/creator/dashboard" element={<CreatorDashboard />} />
-              <Route path="/creator/lives" element={<CreatorLives />} />
-              <Route path="/creator/history" element={<CreatorHistory />} />
-              <Route path="/creator/settings" element={<CreatorSettings />} />
-              <Route path="/creator/payouts" element={<CreatorPayouts />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </InactivityWrapper>
+        <BrowserRouter>
+          <AuthProvider>
+            <InactivityWrapper>
+              <Toaster />
+              <Sonner />
+              <PWAInstallNotification />
+              <AuthRedirectHandler />
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/invite/:inviteCode" element={<InviteSignup />} />
+                <Route path="/invite" element={<InviteSignup />} />
+                <Route path="/live-management" element={<LiveManagement />} />
+                <Route path="/live/:liveId" element={<LiveViewer />} />
+                <Route path="/room/:creatorId" element={<CreatorRoom />} />
+                <Route path="/subscribe" element={<Subscribe />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/update-password" element={<UpdatePassword />} />
+                <Route path="/auth/reset-password" element={<ResetPassword />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/admin/creators" element={<AdminCreators />} />
+                <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
+                <Route path="/admin/pix-withdrawals" element={<AdminPixWithdrawals />} />
+                <Route path="/affiliate" element={<Affiliate />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/u/:username" element={<PublicProfile />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/creator/dashboard" element={<CreatorDashboard />} />
+                <Route path="/creator/lives" element={<CreatorLives />} />
+                <Route path="/creator/history" element={<CreatorHistory />} />
+                <Route path="/creator/settings" element={<CreatorSettings />} />
+                <Route path="/creator/payouts" element={<CreatorPayouts />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </InactivityWrapper>
+          </AuthProvider>
+        </BrowserRouter>
       </TooltipProvider>
     </LanguageProvider>
   </QueryClientProvider>
