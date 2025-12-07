@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { User, Camera, Instagram, Twitter } from "lucide-react";
+import { User, Camera, Instagram, Youtube, Facebook, Globe } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import UserCreditsWalletPanel from "@/components/user/wallet/UserCreditsWalletPanel";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -21,13 +21,15 @@ import { InstructionsDialog } from "@/components/InstructionsDialog";
 
 // TikTok icon SVG component
 const TikTokIcon = ({ className }: { className?: string }) => (
-  <svg 
-    className={className} 
-    viewBox="0 0 24 24" 
-    fill="currentColor"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+  </svg>
+);
+
+// Kwai icon SVG component
+const KwaiIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-3l6-5-6-5v10z"/>
   </svg>
 );
 
@@ -36,15 +38,21 @@ type ProfileFormState = {
   bio: string;
   gender: string;
   avatar_url: string;
+  youtube_handle: string;
   instagram_handle: string;
-  twitter_handle: string;
   tiktok_handle: string;
+  facebook_handle: string;
+  kwai_handle: string;
+  website: string;
 };
 
 type SelectedSocials = {
+  youtube: boolean;
   instagram: boolean;
-  twitter: boolean;
   tiktok: boolean;
+  facebook: boolean;
+  kwai: boolean;
+  website: boolean;
 };
 
 const Profile = () => {
@@ -58,14 +66,20 @@ const Profile = () => {
     bio: "",
     gender: "",
     avatar_url: "",
+    youtube_handle: "",
     instagram_handle: "",
-    twitter_handle: "",
     tiktok_handle: "",
+    facebook_handle: "",
+    kwai_handle: "",
+    website: "",
   });
   const [selectedSocials, setSelectedSocials] = useState<SelectedSocials>({
+    youtube: false,
     instagram: false,
-    twitter: false,
     tiktok: false,
+    facebook: false,
+    kwai: false,
+    website: false,
   });
   const [uploading, setUploading] = useState(false);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
@@ -107,24 +121,33 @@ const Profile = () => {
           referralCode: profileData.referral_code,
         });
         
+        const youtubeHandle = (profileData as { youtube_handle?: string | null }).youtube_handle || "";
         const instagramHandle = (profileData as { instagram_handle?: string | null }).instagram_handle || "";
-        const twitterHandle = (profileData as { twitter_handle?: string | null }).twitter_handle || "";
         const tiktokHandle = (profileData as { tiktok_handle?: string | null }).tiktok_handle || "";
+        const facebookHandle = (profileData as { facebook_handle?: string | null }).facebook_handle || "";
+        const kwaiHandle = (profileData as { kwai_handle?: string | null }).kwai_handle || "";
+        const websiteValue = (profileData as { website?: string | null }).website || "";
         
         setProfile({
           username: profileData.username || "",
           bio: profileData.bio || "",
           gender: profileData.gender || "",
           avatar_url: profileData.avatar_url || "",
+          youtube_handle: youtubeHandle,
           instagram_handle: instagramHandle,
-          twitter_handle: twitterHandle,
           tiktok_handle: tiktokHandle,
+          facebook_handle: facebookHandle,
+          kwai_handle: kwaiHandle,
+          website: websiteValue,
         });
         
         setSelectedSocials({
+          youtube: !!youtubeHandle,
           instagram: !!instagramHandle,
-          twitter: !!twitterHandle,
           tiktok: !!tiktokHandle,
+          facebook: !!facebookHandle,
+          kwai: !!kwaiHandle,
+          website: !!websiteValue,
         });
       }
 
@@ -226,9 +249,12 @@ const Profile = () => {
           bio: profile.bio.trim() || null,
           gender: profile.gender || null,
           avatar_url: profile.avatar_url.trim() || null,
+          youtube_handle: selectedSocials.youtube ? profile.youtube_handle.trim() || null : null,
           instagram_handle: selectedSocials.instagram ? profile.instagram_handle.trim() || null : null,
-          twitter_handle: selectedSocials.twitter ? profile.twitter_handle.trim() || null : null,
           tiktok_handle: selectedSocials.tiktok ? profile.tiktok_handle.trim() || null : null,
+          facebook_handle: selectedSocials.facebook ? profile.facebook_handle.trim() || null : null,
+          kwai_handle: selectedSocials.kwai ? profile.kwai_handle.trim() || null : null,
+          website: selectedSocials.website ? profile.website.trim() || null : null,
         } as Record<string, unknown>)
         .eq("id", user!.id);
 
@@ -343,6 +369,35 @@ const Profile = () => {
             <div className="space-y-4">
               <Label>{t.profile.socialMedia || "Redes Sociais"}</Label>
               
+              {/* YouTube */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="youtube-check"
+                    checked={selectedSocials.youtube}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, youtube: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="youtube-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <Youtube className="h-4 w-4 text-red-500" />
+                    YouTube
+                  </label>
+                </div>
+                {selectedSocials.youtube && (
+                  <Input
+                    id="youtube"
+                    value={profile.youtube_handle}
+                    onChange={(e) => setProfile({ ...profile, youtube_handle: e.target.value })}
+                    placeholder="@seu_canal"
+                    className="ml-6"
+                  />
+                )}
+              </div>
+
               {/* Instagram */}
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
@@ -366,35 +421,6 @@ const Profile = () => {
                     id="instagram"
                     value={profile.instagram_handle}
                     onChange={(e) => setProfile({ ...profile, instagram_handle: e.target.value })}
-                    placeholder="@seu_usuario"
-                    className="ml-6"
-                  />
-                )}
-              </div>
-
-              {/* Twitter/X */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="twitter-check"
-                    checked={selectedSocials.twitter}
-                    onCheckedChange={(checked) => 
-                      setSelectedSocials({ ...selectedSocials, twitter: !!checked })
-                    }
-                  />
-                  <label 
-                    htmlFor="twitter-check" 
-                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
-                  >
-                    <Twitter className="h-4 w-4 text-sky-500" />
-                    Twitter / X
-                  </label>
-                </div>
-                {selectedSocials.twitter && (
-                  <Input
-                    id="twitter"
-                    value={profile.twitter_handle}
-                    onChange={(e) => setProfile({ ...profile, twitter_handle: e.target.value })}
                     placeholder="@seu_usuario"
                     className="ml-6"
                   />
@@ -425,6 +451,93 @@ const Profile = () => {
                     value={profile.tiktok_handle}
                     onChange={(e) => setProfile({ ...profile, tiktok_handle: e.target.value })}
                     placeholder="@seu_usuario"
+                    className="ml-6"
+                  />
+                )}
+              </div>
+
+              {/* Facebook */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="facebook-check"
+                    checked={selectedSocials.facebook}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, facebook: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="facebook-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <Facebook className="h-4 w-4 text-blue-600" />
+                    Facebook
+                  </label>
+                </div>
+                {selectedSocials.facebook && (
+                  <Input
+                    id="facebook"
+                    value={profile.facebook_handle}
+                    onChange={(e) => setProfile({ ...profile, facebook_handle: e.target.value })}
+                    placeholder="seu.perfil"
+                    className="ml-6"
+                  />
+                )}
+              </div>
+
+              {/* Kwai */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="kwai-check"
+                    checked={selectedSocials.kwai}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, kwai: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="kwai-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <KwaiIcon className="h-4 w-4 text-orange-500" />
+                    Kwai
+                  </label>
+                </div>
+                {selectedSocials.kwai && (
+                  <Input
+                    id="kwai"
+                    value={profile.kwai_handle}
+                    onChange={(e) => setProfile({ ...profile, kwai_handle: e.target.value })}
+                    placeholder="@seu_usuario"
+                    className="ml-6"
+                  />
+                )}
+              </div>
+
+              {/* Site Pessoal */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="website-check"
+                    checked={selectedSocials.website}
+                    onCheckedChange={(checked) => 
+                      setSelectedSocials({ ...selectedSocials, website: !!checked })
+                    }
+                  />
+                  <label 
+                    htmlFor="website-check" 
+                    className="flex items-center gap-2 text-sm font-medium cursor-pointer"
+                  >
+                    <Globe className="h-4 w-4 text-primary" />
+                    Site Pessoal
+                  </label>
+                </div>
+                {selectedSocials.website && (
+                  <Input
+                    id="website"
+                    value={profile.website}
+                    onChange={(e) => setProfile({ ...profile, website: e.target.value })}
+                    placeholder="https://seusite.com"
                     className="ml-6"
                   />
                 )}
