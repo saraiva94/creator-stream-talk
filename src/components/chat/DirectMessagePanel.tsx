@@ -100,24 +100,11 @@ export const DirectMessagePanel = ({
     });
   };
 
-  // Initialize notification sound
+  // Initialize notification sound with Web Audio API
   useEffect(() => {
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAgAj8markup4sGoAAABLpJ1AAwBRJk+kAQBRJk+kAQBRJk+k');
-    // Use a simple sine wave tone generated via Web Audio API
-    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    gainNode.gain.value = 0;
-    oscillator.start();
-    
-    audioRef.current = { oscillator, gainNode, audioContext } as unknown as HTMLAudioElement;
-    
+    // We'll use Web Audio API directly instead of an Audio element
     return () => {
-      audioContext.close();
+      // Cleanup if needed
     };
   }, []);
 
