@@ -1,11 +1,11 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, Shield, Home, DollarSign, Menu, X } from "lucide-react";
+import { LogOut, User, Shield, Home, DollarSign, Menu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { LanguageSelector } from "./LanguageSelector";
 import { useLanguage } from "@/hooks/useLanguage";
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { StreamStarLogo } from "./StreamStarLogo";
 import { TransmitButton } from "./TransmitButton";
@@ -15,57 +15,15 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface NavbarProps {
   user?: SupabaseUser | null | undefined;
+  isAdmin?: boolean;
 }
 
-const Navbar = ({ user }: NavbarProps) => {
+const Navbar = ({ user, isAdmin = false }: NavbarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { t } = useLanguage();
-  const [isAdmin, setIsAdmin] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const checkAdminStatus = useCallback(async () => {
-    if (!user) return;
-
-    const rolesFromMeta = (() => {
-      const metaRoles = (user.app_metadata?.roles ?? user.user_metadata?.roles) as
-        | string[]
-        | string
-        | null
-        | undefined;
-      const primaryRole =
-        (user.app_metadata?.app_role as string | undefined) ||
-        (user.user_metadata?.app_role as string | undefined) ||
-        (user.app_metadata?.role as string | undefined) ||
-        (user.user_metadata?.role as string | undefined);
-
-      const normalized = new Set<string>();
-      if (Array.isArray(metaRoles)) {
-        metaRoles.forEach((r) => normalized.add(String(r).toLowerCase()));
-      } else if (typeof metaRoles === "string") {
-        normalized.add(metaRoles.toLowerCase());
-      }
-      if (primaryRole) {
-        normalized.add(String(primaryRole).toLowerCase());
-      }
-      return normalized;
-    })();
-
-    if (rolesFromMeta.has("admin")) {
-      setIsAdmin(true);
-      return;
-    }
-
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-    setIsAdmin(data?.some((r) => r.role === "admin") || false);
-  }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      checkAdminStatus();
-    }
-  }, [user, checkAdminStatus]);
 
   const handleLogout = async () => {
     setMobileMenuOpen(false);
