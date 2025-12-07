@@ -1,12 +1,17 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import ViewerAccessGate from "@/components/ViewerAccessGate";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Share2 } from "lucide-react";
 import { api, LiveInfoResponse, LiveLifecycleStatus } from "@/lib/api";
+import ShareLiveDialog from "@/components/ShareLiveDialog";
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 const statusLabel = (status: LiveLifecycleStatus | null | undefined) => {
   switch (status) {
@@ -90,6 +95,16 @@ const LiveInfoHeader: React.FC<{ info: LiveInfoResponse | null; loading: boolean
 
 const LiveViewer: React.FC = () => {
   const { liveId } = useParams<{ liveId: string }>();
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const {
     data: liveInfo,
@@ -106,10 +121,27 @@ const LiveViewer: React.FC = () => {
 
   const offline = liveInfo && liveInfo.status && !["live", "waiting_for_host"].includes(liveInfo.status);
 
+  const liveUrl = typeof window !== 'undefined' ? `${window.location.origin}/live/${liveId}` : '';
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
+        {/* Share Button */}
+        {liveId && liveInfo && (
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShareDialogOpen(true)}
+              className="gap-2"
+            >
+              <Share2 className="h-4 w-4" />
+              Compartilhar
+            </Button>
+          </div>
+        )}
+
         <LiveInfoHeader info={liveInfo ?? null} loading={isLoading} />
 
         {isError && (
@@ -128,6 +160,18 @@ const LiveViewer: React.FC = () => {
           <ViewerAccessGate liveId={liveId} />
         )}
       </main>
+
+      {/* Share Dialog */}
+      {liveId && liveInfo && (
+        <ShareLiveDialog
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+          liveUrl={liveUrl}
+          liveId={liveId}
+          creatorName={liveInfo.creatorName || "Creator"}
+          user={user}
+        />
+      )}
     </div>
   );
 };

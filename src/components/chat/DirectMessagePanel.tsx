@@ -63,6 +63,49 @@ export const DirectMessagePanel = ({
   const [loading, setLoading] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize notification sound
+  useEffect(() => {
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleAgAj8markup4sGoAAABLpJ1AAwBRJk+kAQBRJk+kAQBRJk+k');
+    // Use a simple sine wave tone generated via Web Audio API
+    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gainNode.gain.value = 0;
+    oscillator.start();
+    
+    audioRef.current = { oscillator, gainNode, audioContext } as unknown as HTMLAudioElement;
+    
+    return () => {
+      audioContext.close();
+    };
+  }, []);
+
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+      console.log('Audio notification not available');
+    }
+  };
 
   // Fetch conversations
   useEffect(() => {
@@ -93,6 +136,8 @@ export const DirectMessagePanel = ({
         },
         (payload) => {
           const newMsg = payload.new as Message;
+          // Play notification sound
+          playNotificationSound();
           // Update messages if in active conversation
           if (selectedConversation && 
               (newMsg.sender_id === selectedConversation.id || newMsg.receiver_id === selectedConversation.id)) {
