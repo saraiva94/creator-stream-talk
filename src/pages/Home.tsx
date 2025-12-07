@@ -42,19 +42,8 @@ const Home = () => {
 
   const fetchLives = async () => {
     try {
-      // Direct Supabase query for reliability - avoids backend dependency
-      const { data, error } = await supabase
-        .from('lives')
-        .select('id, creator_id, title, description, price, status, is_active, room_name, creator_percent, affiliate_percent, platform_percent, created_at, ended_at, thumbnail_url')
-        .in('status', ['scheduled', 'waiting_for_host', 'live', 'inactive', 'ending'])
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error("Error fetching lives:", error);
-        setLives([]);
-      } else {
-        setLives((data ?? []) as LiveSummary[]);
-      }
+      const response = await api.lives.getPublic();
+      setLives(response.lives ?? []);
     } catch (err: unknown) {
       console.error("Error fetching lives:", err);
       setLives([]);
