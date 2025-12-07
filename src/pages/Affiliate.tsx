@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet } from "lucide-react";
+import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
+import ShareDialog from "@/components/ShareDialog";
 
 
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
@@ -47,6 +48,7 @@ const Affiliate = () => {
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   
 
   const refreshBalance = async () => {
@@ -377,10 +379,21 @@ const Affiliate = () => {
             </div>
             <div className="flex flex-col gap-2">
               <Input value={referralLink} readOnly className="text-xs sm:text-sm" />
-              <Button type="button" variant="outline" onClick={handleCopyLink} className="w-full sm:w-auto">
-                <Copy className="h-4 w-4 mr-2" />
-                Copiar link
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button type="button" variant="outline" onClick={handleCopyLink} className="w-full sm:w-auto">
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar link
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="default" 
+                  onClick={() => code.trim() ? setShowShareDialog(true) : toast({ title: "Defina o código primeiro", variant: "destructive" })}
+                  className="w-full sm:w-auto gap-2"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Compartilhar link
+                </Button>
+              </div>
             </div>
             <div className="animate-pulse">
               <p 
@@ -471,6 +484,13 @@ const Affiliate = () => {
         userId={user?.id ?? ""}
         availableBalanceCents={availableBalanceCents}
         onSuccess={refreshBalance}
+      />
+
+      <ShareDialog
+        isOpen={showShareDialog}
+        onClose={() => setShowShareDialog(false)}
+        link={referralLink}
+        title="Cadastre-se no Stream Star"
       />
     </div>
   );
