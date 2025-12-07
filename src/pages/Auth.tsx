@@ -11,7 +11,6 @@ import { Eye, EyeOff } from "lucide-react";
 import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { useLanguage } from "@/hooks/useLanguage";
 import { AuthApiError } from "@supabase/supabase-js";
-import { ApiError, api } from "@/lib/api";
 
 type ErrorWithMessage = {
   message?: string;
@@ -61,42 +60,34 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      let emailToUse = loginInput;
+      let emailToUse = loginInput.trim();
       
-      // If input doesn't look like email, try to resolve username
+      // If input doesn't look like email, try to find email from profiles table
       if (!loginInput.includes("@")) {
-        try {
-          const resolved = await api.auth.resolveUsername(loginInput);
-          emailToUse = resolved.email;
-        } catch {
-          // Fallback: query profiles table directly for username
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("id")
-            .ilike("username", loginInput)
-            .maybeSingle();
-          
-          if (profileError || !profileData) {
-            toast({
-              title: "Usuário não encontrado",
-              description: "Verifique o nome de usuário e tente novamente.",
-              variant: "destructive",
-            });
-            setLoading(false);
-            return;
-          }
-          
-          // Get email from auth.users via admin or use profile id for lookup
-          // Since we can't access auth.users, we need to check if email exists
-          // For now, show error asking user to use email
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("id")
+          .ilike("username", loginInput.trim())
+          .maybeSingle();
+        
+        if (!profileData) {
           toast({
-            title: "Use seu email",
+            title: "Usuário não encontrado",
             description: "Por favor, faça login usando seu endereço de email.",
             variant: "destructive",
           });
           setLoading(false);
           return;
         }
+        
+        // Since we can't get email from profiles directly, ask user to use email
+        toast({
+          title: "Use seu email",
+          description: "Por favor, faça login usando seu endereço de email ao invés do nome de usuário.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
 
       const { error } = await supabase.auth.signInWithPassword({
@@ -115,16 +106,6 @@ const Auth = () => {
 
       navigate("/");
     } catch (error: unknown) {
-      if (error instanceof ApiError) {
-        const message = error.status === 404 ? "Usuário não encontrado" : error.message;
-        toast({
-          title: "Erro no login",
-          description: message,
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
       if (error instanceof AuthApiError) {
         if (
           error.code === "email_not_confirmed" ||
