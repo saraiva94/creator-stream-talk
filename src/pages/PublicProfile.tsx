@@ -1,0 +1,233 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import Navbar from "@/components/Navbar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { User, Instagram, Youtube, Facebook, Globe } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+
+// TikTok icon SVG component
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+  </svg>
+);
+
+// Kwai icon SVG component
+const KwaiIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-3l6-5-6-5v10z"/>
+  </svg>
+);
+
+type PublicProfileData = {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  bio: string | null;
+  youtube_handle: string | null;
+  instagram_handle: string | null;
+  tiktok_handle: string | null;
+  facebook_handle: string | null;
+  kwai_handle: string | null;
+  website: string | null;
+};
+
+const PublicProfile = () => {
+  const { username } = useParams<{ username: string }>();
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [profileData, setProfileData] = useState<PublicProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUser(session.user);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!username) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("public_profiles")
+        .select("id, username, avatar_url, bio, youtube_handle, instagram_handle, tiktok_handle, facebook_handle, kwai_handle, website")
+        .eq("username", username)
+        .single();
+
+      if (error || !data) {
+        setNotFound(true);
+      } else {
+        setProfileData(data as PublicProfileData);
+      }
+      setLoading(false);
+    };
+
+    fetchProfile();
+  }, [username]);
+
+  const socialLinks = profileData ? [
+    { 
+      key: 'youtube', 
+      value: profileData.youtube_handle, 
+      icon: Youtube, 
+      color: 'text-red-500',
+      label: 'YouTube',
+      url: profileData.youtube_handle?.startsWith('http') 
+        ? profileData.youtube_handle 
+        : `https://youtube.com/${profileData.youtube_handle?.replace('@', '')}`
+    },
+    { 
+      key: 'instagram', 
+      value: profileData.instagram_handle, 
+      icon: Instagram, 
+      color: 'text-pink-500',
+      label: 'Instagram',
+      url: `https://instagram.com/${profileData.instagram_handle?.replace('@', '')}`
+    },
+    { 
+      key: 'tiktok', 
+      value: profileData.tiktok_handle, 
+      icon: TikTokIcon, 
+      color: 'text-foreground',
+      label: 'TikTok',
+      url: `https://tiktok.com/${profileData.tiktok_handle?.replace('@', '')}`
+    },
+    { 
+      key: 'facebook', 
+      value: profileData.facebook_handle, 
+      icon: Facebook, 
+      color: 'text-blue-600',
+      label: 'Facebook',
+      url: `https://facebook.com/${profileData.facebook_handle}`
+    },
+    { 
+      key: 'kwai', 
+      value: profileData.kwai_handle, 
+      icon: KwaiIcon, 
+      color: 'text-orange-500',
+      label: 'Kwai',
+      url: `https://kwai.com/${profileData.kwai_handle?.replace('@', '')}`
+    },
+    { 
+      key: 'website', 
+      value: profileData.website, 
+      icon: Globe, 
+      color: 'text-primary',
+      label: 'Site',
+      url: profileData.website?.startsWith('http') ? profileData.website : `https://${profileData.website}`
+    },
+  ].filter(link => link.value) : [];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">
+          {t.common.loading}
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar user={user} />
+        <main className="container mx-auto px-4 py-8 max-w-2xl">
+          <Card className="border-border">
+            <CardContent className="p-8 text-center">
+              <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h2 className="text-xl font-semibold mb-2">
+                {t.profile?.notFound || "Perfil não encontrado"}
+              </h2>
+              <p className="text-muted-foreground">
+                {t.profile?.notFoundDesc || "O usuário que você procura não existe."}
+              </p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar user={user} />
+
+      <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
+        <Card className="border-border shadow-card">
+          <CardHeader className="p-4 sm:p-6 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <Avatar className="w-24 h-24 sm:w-32 sm:h-32 border-2 border-primary">
+                <AvatarImage src={profileData?.avatar_url || undefined} alt={profileData?.username} />
+                <AvatarFallback className="bg-muted">
+                  <User className="w-12 h-12 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <CardTitle className="text-2xl sm:text-3xl">
+                {profileData?.username}
+              </CardTitle>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-6">
+            {/* Bio */}
+            {profileData?.bio && (
+              <div className="text-center">
+                <p className="text-muted-foreground">{profileData.bio}</p>
+              </div>
+            )}
+
+            {/* Social Links */}
+            {socialLinks.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-muted-foreground text-center">
+                  {t.profile?.socialMedia || "Redes Sociais"}
+                </h3>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {socialLinks.map((link) => {
+                    const IconComponent = link.icon;
+                    return (
+                      <a
+                        key={link.key}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+                      >
+                        <IconComponent className={`h-5 w-5 ${link.color}`} />
+                        <span className="text-sm font-medium">{link.label}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!profileData?.bio && socialLinks.length === 0 && (
+              <p className="text-center text-muted-foreground">
+                {t.profile?.noInfo || "Este usuário ainda não adicionou informações ao perfil."}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+};
+
+export default PublicProfile;
