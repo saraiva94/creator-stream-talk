@@ -455,6 +455,39 @@ export type Database = {
         }
         Relationships: []
       }
+      direct_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          message_type: string
+          metadata: Json | null
+          read_at: string | null
+          receiver_id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          read_at?: string | null
+          receiver_id: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          read_at?: string | null
+          receiver_id?: string
+          sender_id?: string
+        }
+        Relationships: []
+      }
       email_queue: {
         Row: {
           created_at: string | null
@@ -812,6 +845,7 @@ export type Database = {
           avatar_url: string | null
           balance: number | null
           bio: string | null
+          blocked_reason: string | null
           created_at: string
           facebook_handle: string | null
           gender: string | null
@@ -840,6 +874,7 @@ export type Database = {
           avatar_url?: string | null
           balance?: number | null
           bio?: string | null
+          blocked_reason?: string | null
           created_at?: string
           facebook_handle?: string | null
           gender?: string | null
@@ -868,6 +903,7 @@ export type Database = {
           avatar_url?: string | null
           balance?: number | null
           bio?: string | null
+          blocked_reason?: string | null
           created_at?: string
           facebook_handle?: string | null
           gender?: string | null
