@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2, Smile, Check, CheckCheck } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2, Smile, Check, CheckCheck, Trash2, Image, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import type { User } from "@supabase/supabase-js";
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -27,6 +29,7 @@ type MessageMetadata = {
   live_id?: string;
   creator_name?: string;
   thumbnail_url?: string;
+  image_url?: string;
 };
 
 type Message = {
@@ -38,6 +41,7 @@ type Message = {
   metadata: MessageMetadata | null;
   created_at: string;
   read_at: string | null;
+  deleted?: boolean;
 };
 
 interface DirectMessagePanelProps {
@@ -68,11 +72,13 @@ export const DirectMessagePanel = ({
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize notification sound
   useEffect(() => {
@@ -393,6 +399,94 @@ export const DirectMessagePanel = ({
     setLoading(false);
   };
 
+  const deleteMessage = async (messageId: string) => {
+    const { error } = await supabase
+      .from('direct_messages')
+      .update({ content: '[Mensagem apagada]', message_type: 'deleted' })
+      .eq('id', messageId)
+      .eq('sender_id', user?.id);
+
+    if (!error) {
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: '[Mensagem apagada]', message_type: 'deleted', deleted: true }
+          : msg
+      ));
+      toast.success('Mensagem apagada');
+    } else {
+      toast.error('Erro ao apagar mensagem');
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !selectedConversation) return;
+
+    // Validate file
+    if (!file.type.startsWith('image/')) {
+      toast.error('Apenas imagens são permitidas');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Imagem muito grande (máximo 5MB)');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      // Upload to storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(`dm-images/${fileName}`, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(`dm-images/${fileName}`);
+
+      // Send message with image
+      const { error } = await supabase
+        .from('direct_messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: selectedConversation.id,
+          content: '📷 Imagem',
+          message_type: 'image',
+          metadata: { image_url: urlData.publicUrl }
+        });
+
+      if (!error) {
+        const newMsg: Message = {
+          id: crypto.randomUUID(),
+          sender_id: user.id,
+          receiver_id: selectedConversation.id,
+          content: '📷 Imagem',
+          message_type: 'image',
+          metadata: { image_url: urlData.publicUrl },
+          created_at: new Date().toISOString(),
+          read_at: null
+        };
+        setMessages(prev => [...prev, newMsg]);
+        toast.success('Imagem enviada');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Erro ao enviar imagem');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const searchUsers = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -608,19 +702,55 @@ export const DirectMessagePanel = ({
                 <div
                   key={msg.id}
                   className={cn(
-                    "flex",
+                    "flex group",
                     msg.sender_id === user.id ? "justify-end" : "justify-start"
                   )}
                 >
+                  {/* Delete menu for own messages */}
+                  {msg.sender_id === user.id && msg.message_type !== 'deleted' && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity self-center mr-1"
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => deleteMessage(msg.id)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Apagar mensagem
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  
                   <div
                     className={cn(
                       "max-w-[75%] rounded-2xl px-4 py-2",
                       msg.sender_id === user.id
                         ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted rounded-bl-sm"
+                        : "bg-muted rounded-bl-sm",
+                      msg.message_type === 'deleted' && "opacity-60 italic"
                     )}
                   >
-                    {msg.message_type === 'live_share' && msg.metadata ? (
+                    {msg.message_type === 'deleted' ? (
+                      <p className="text-sm italic">{msg.content}</p>
+                    ) : msg.message_type === 'image' && msg.metadata?.image_url ? (
+                      <div>
+                        <img 
+                          src={msg.metadata.image_url} 
+                          alt="Imagem" 
+                          className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => window.open(msg.metadata?.image_url, '_blank')}
+                        />
+                      </div>
+                    ) : msg.message_type === 'live_share' && msg.metadata ? (
                       <a 
                         href={`/live/${msg.metadata.live_id}`}
                         className="block"
@@ -644,7 +774,7 @@ export const DirectMessagePanel = ({
                       )}>
                         {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      {msg.sender_id === user.id && (
+                      {msg.sender_id === user.id && msg.message_type !== 'deleted' && (
                         msg.read_at ? (
                           <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/90" />
                         ) : (
@@ -709,6 +839,30 @@ export const DirectMessagePanel = ({
                   />
                 </PopoverContent>
               </Popover>
+              
+              {/* Image upload button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="icon" 
+                className="h-9 w-9 shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <Image className="h-5 w-5 text-muted-foreground" />
+                )}
+              </Button>
+              
               <Input
                 ref={inputRef}
                 placeholder="Digite uma mensagem..."
@@ -718,9 +872,9 @@ export const DirectMessagePanel = ({
                   handleTyping();
                 }}
                 className="flex-1"
-                disabled={loading}
+                disabled={loading || uploadingImage}
               />
-              <Button type="submit" size="icon" disabled={loading || !newMessage.trim()}>
+              <Button type="submit" size="icon" disabled={loading || uploadingImage || !newMessage.trim()}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </form>
