@@ -200,6 +200,8 @@ export const translations = {
       notFound: "Profile not found",
       notFoundDesc: "The user you're looking for doesn't exist.",
       noInfo: "This user hasn't added any profile information yet.",
+      follower: "follower",
+      followers: "followers",
     },
     credits: {
       title: "Credits Wallet",
@@ -536,6 +538,8 @@ export const translations = {
       notFound: "Perfil no encontrado",
       notFoundDesc: "El usuario que buscas no existe.",
       noInfo: "Este usuario aún no ha añadido información a su perfil.",
+      follower: "seguidor",
+      followers: "seguidores",
     },
     credits: {
       title: "Cartera de Créditos",
@@ -872,6 +876,8 @@ export const translations = {
       notFound: "Perfil não encontrado",
       notFoundDesc: "O usuário que você procura não existe.",
       noInfo: "Este usuário ainda não adicionou informações ao perfil.",
+      follower: "seguidor",
+      followers: "seguidores",
     },
     credits: {
       title: "Carteira de Créditos",
