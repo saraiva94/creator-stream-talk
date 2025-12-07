@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
@@ -8,31 +8,35 @@ import { Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { api, ApiError, LiveSummary } from "@/lib/api";
+import { api, LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { User, Session } from "@supabase/supabase-js";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
-    };
-    checkAuth();
-
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+      setUser(session?.user ?? null);
     });
+
+    // THEN check for existing session (only once)
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      });
+    }
 
     return () => subscription.unsubscribe();
   }, []);
@@ -75,9 +79,9 @@ const Home = () => {
           </div>
         </div>
 
-        {loading ? (
+        {loading || user === undefined ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading lives...</p>
+            <p className="text-muted-foreground">Loading...</p>
           </div>
         ) : (
           <>
