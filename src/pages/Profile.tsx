@@ -393,7 +393,7 @@ const Profile = () => {
                     value={profile.youtube_handle}
                     onChange={(e) => setProfile({ ...profile, youtube_handle: e.target.value })}
                     placeholder="@seu_canal"
-                    className="ml-6"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
               </div>
@@ -422,7 +422,7 @@ const Profile = () => {
                     value={profile.instagram_handle}
                     onChange={(e) => setProfile({ ...profile, instagram_handle: e.target.value })}
                     placeholder="@seu_usuario"
-                    className="ml-6"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
               </div>
@@ -451,7 +451,7 @@ const Profile = () => {
                     value={profile.tiktok_handle}
                     onChange={(e) => setProfile({ ...profile, tiktok_handle: e.target.value })}
                     placeholder="@seu_usuario"
-                    className="ml-6"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
               </div>
@@ -480,7 +480,7 @@ const Profile = () => {
                     value={profile.facebook_handle}
                     onChange={(e) => setProfile({ ...profile, facebook_handle: e.target.value })}
                     placeholder="seu.perfil"
-                    className="ml-6"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
               </div>
@@ -509,7 +509,7 @@ const Profile = () => {
                     value={profile.kwai_handle}
                     onChange={(e) => setProfile({ ...profile, kwai_handle: e.target.value })}
                     placeholder="@seu_usuario"
-                    className="ml-6"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
               </div>
@@ -538,7 +538,7 @@ const Profile = () => {
                     value={profile.website}
                     onChange={(e) => setProfile({ ...profile, website: e.target.value })}
                     placeholder="https://seusite.com"
-                    className="ml-6"
+                    className="ml-4 sm:ml-6 w-[calc(100%-1rem)] sm:w-[calc(100%-1.5rem)]"
                   />
                 )}
               </div>
