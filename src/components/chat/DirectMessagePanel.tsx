@@ -4,11 +4,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MessageCircle, X, Maximize2, Minimize2, Send, ArrowLeft, Search, Radio, Loader2, Smile, Check, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@supabase/supabase-js";
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
 
 type Conversation = {
   id: string;
@@ -64,10 +67,12 @@ export const DirectMessagePanel = ({
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Initialize notification sound
   useEffect(() => {
@@ -629,12 +634,24 @@ export const DirectMessagePanel = ({
                     ) : (
                       <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                     )}
-                    <span className={cn(
-                      "text-[10px] mt-1 block",
-                      msg.sender_id === user.id ? "text-primary-foreground/70" : "text-muted-foreground"
+                    <div className={cn(
+                      "flex items-center gap-1 mt-1",
+                      msg.sender_id === user.id ? "justify-end" : "justify-start"
                     )}>
-                      {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                      <span className={cn(
+                        "text-[10px]",
+                        msg.sender_id === user.id ? "text-primary-foreground/70" : "text-muted-foreground"
+                      )}>
+                        {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {msg.sender_id === user.id && (
+                        msg.read_at ? (
+                          <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/90" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5 text-primary-foreground/50" />
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -660,9 +677,40 @@ export const DirectMessagePanel = ({
           <div className="p-3 border-t border-border/50">
             <form 
               onSubmit={(e) => { e.preventDefault(); sendMessage(); }}
-              className="flex gap-2"
+              className="flex gap-2 items-center"
             >
+              <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+                <PopoverTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-9 w-9 shrink-0"
+                  >
+                    <Smile className="h-5 w-5 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  side="top" 
+                  align="start" 
+                  className="w-auto p-0 border-0 bg-transparent shadow-none"
+                >
+                  <Picker 
+                    data={data} 
+                    onEmojiSelect={(emoji: { native: string }) => {
+                      setNewMessage(prev => prev + emoji.native);
+                      setShowEmojiPicker(false);
+                      inputRef.current?.focus();
+                    }}
+                    theme="dark"
+                    locale="pt"
+                    previewPosition="none"
+                    skinTonePosition="none"
+                  />
+                </PopoverContent>
+              </Popover>
               <Input
+                ref={inputRef}
                 placeholder="Digite uma mensagem..."
                 value={newMessage}
                 onChange={(e) => {
