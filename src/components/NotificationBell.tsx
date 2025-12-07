@@ -57,20 +57,25 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
   const checkNotifications = useCallback(async () => {
     if (!user) return;
 
-    // Get live creators
+    // Get live creators - first query creator_profiles
     const { data: liveCreators } = await supabase
       .from("creator_profiles")
-      .select(`
-        id,
-        display_name,
-        viewer_count,
-        is_streaming,
-        profiles:id (avatar_url)
-      `)
+      .select("id, display_name, viewer_count, is_streaming")
       .eq("is_streaming", true)
       .order("viewer_count", { ascending: false });
 
-    if (!liveCreators) return;
+    if (!liveCreators || liveCreators.length === 0) return;
+
+    // Fetch avatars separately to avoid ambiguous relationship error
+    const creatorIds = liveCreators.map((c) => c.id);
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, avatar_url")
+      .in("id", creatorIds);
+
+    const avatarMap = new Map(
+      profilesData?.map((p) => [p.id, p.avatar_url]) || []
+    );
 
     const newNotifications: Notification[] = [];
 
@@ -82,13 +87,12 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
         );
         
         if (!existingNotif) {
-          const profiles = creator.profiles as { avatar_url: string | null } | null;
           newNotifications.push({
             id: `followed_${creator.id}_${Date.now()}`,
             type: "followed_live",
             creatorId: creator.id,
             displayName: creator.display_name,
-            avatarUrl: profiles?.avatar_url || null,
+            avatarUrl: avatarMap.get(creator.id) || null,
             viewerCount: creator.viewer_count || 0,
             read: false,
             createdAt: new Date().toISOString(),
@@ -107,13 +111,12 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
         );
         
         if (!existingNotif) {
-          const profiles = creator.profiles as { avatar_url: string | null } | null;
           newNotifications.push({
             id: `trending_${creator.id}_${Date.now()}`,
             type: "trending",
             creatorId: creator.id,
             displayName: creator.display_name,
-            avatarUrl: profiles?.avatar_url || null,
+            avatarUrl: avatarMap.get(creator.id) || null,
             viewerCount: creator.viewer_count || 0,
             read: false,
             createdAt: new Date().toISOString(),

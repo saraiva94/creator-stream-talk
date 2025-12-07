@@ -214,7 +214,8 @@ const Subscribe = () => {
         logger.payment.info('Redirecionando para Mercado Pago', { 
           initPoint: response.init_point,
         });
-        window.location.assign(response.init_point);
+        // Use window.location.href for better Safari/iOS compatibility
+        window.location.href = response.init_point;
         return;
       }
 
