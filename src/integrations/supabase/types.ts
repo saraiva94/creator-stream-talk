@@ -694,22 +694,31 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          duration: number | null
+          file_url: string | null
           id: string
           room_id: string
+          type: string
           user_id: string
         }
         Insert: {
           content: string
           created_at?: string
+          duration?: number | null
+          file_url?: string | null
           id?: string
           room_id: string
+          type?: string
           user_id: string
         }
         Update: {
           content?: string
           created_at?: string
+          duration?: number | null
+          file_url?: string | null
           id?: string
           room_id?: string
+          type?: string
           user_id?: string
         }
         Relationships: [
@@ -1278,6 +1287,51 @@ export type Database = {
           status?: string
           type?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_blocks: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+        }
+        Relationships: []
+      }
+      user_follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+          id?: string
         }
         Relationships: []
       }

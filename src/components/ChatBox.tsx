@@ -3,14 +3,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Coins } from "lucide-react";
+import { Send, Coins, ImagePlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import SuperChatDialog from "./SuperChatDialog";
 import SuperChatDisplay from "./SuperChatDisplay";
+import { ChatMessage } from "./chat/ChatMessage";
+import { AudioRecorder } from "./chat/AudioRecorder";
+import { TypingIndicator } from "./chat/TypingIndicator";
 
 interface Message {
   id: string;
   content: string;
+  type: "text" | "image" | "audio";
+  file_url: string | null;
+  duration: number | null;
   user_id: string;
   created_at: string;
   profiles: {
@@ -35,37 +42,101 @@ interface ChatBoxProps {
   disabled?: boolean;
 }
 
-type SupabaseMessageRow = {
+interface TypingUser {
   id: string;
-  content: string;
-  user_id: string;
-  created_at: string;
-  profiles?: {
-    username?: string | null;
-  } | null;
-};
-
-type SupabaseSuperChatRow = {
-  id: string;
-  message: string;
-  tier: string;
-  duration_seconds: number;
-  expires_at: string;
-  status: string;
-  user_id: string;
-  profiles?: {
-    username?: string | null;
-  } | null;
-};
+  username: string;
+}
 
 const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled = false }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showSuperChat, setShowSuperChat] = useState(false);
   const [activeSuperchats, setActiveSuperchats] = useState<ActiveSuperchat[]>([]);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [currentUsername, setCurrentUsername] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const { toast } = useToast();
+  const { t } = useLanguage();
+
+  // Fetch current user's username
+  useEffect(() => {
+    const fetchUsername = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", currentUserId)
+        .single();
+      if (data) setCurrentUsername(data.username);
+    };
+    fetchUsername();
+  }, [currentUserId]);
+
+  // Setup presence channel for typing indicator
+  useEffect(() => {
+    if (!currentUsername || disabled) return;
+
+    const channel = supabase.channel(`typing:${roomId}`, {
+      config: { presence: { key: currentUserId } }
+    });
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        const users: TypingUser[] = [];
+        
+        Object.entries(state).forEach(([key, presences]) => {
+          if (key !== currentUserId && Array.isArray(presences)) {
+            presences.forEach((presence) => {
+              const p = presence as unknown as { isTyping?: boolean; username?: string };
+              if (p.isTyping && p.username) {
+                users.push({ id: key, username: p.username });
+              }
+            });
+          }
+        });
+        
+        setTypingUsers(users);
+      })
+      .subscribe();
+
+    presenceChannelRef.current = channel;
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [roomId, currentUserId, currentUsername, disabled]);
+
+  // Handle typing broadcast
+  const broadcastTyping = useCallback((isTyping: boolean) => {
+    if (!presenceChannelRef.current || !currentUsername) return;
+    
+    presenceChannelRef.current.track({
+      isTyping,
+      username: currentUsername
+    });
+  }, [currentUsername]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    
+    // Broadcast typing
+    broadcastTyping(true);
+    
+    // Clear previous timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    
+    // Set timeout to stop typing indicator
+    typingTimeoutRef.current = setTimeout(() => {
+      broadcastTyping(false);
+    }, 2000);
+  };
 
   // Fetch active superchats
   useEffect(() => {
@@ -82,7 +153,6 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
         return;
       }
 
-      // Fetch usernames separately
       const userIds = [...new Set((data || []).map(d => d.user_id))];
       const { data: profiles } = await supabase
         .from("profiles")
@@ -105,7 +175,6 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
 
     fetchActiveSuperchats();
 
-    // Subscribe to superchat changes
     const superchatChannel = supabase
       .channel(`superchats-display:${roomId}`)
       .on(
@@ -127,12 +196,19 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
     };
   }, [roomId]);
 
+  // Fetch messages
   useEffect(() => {
     const fetchMessages = async () => {
       const { data, error } = await supabase
         .from("messages")
         .select(`
-          *,
+          id,
+          content,
+          type,
+          file_url,
+          duration,
+          user_id,
+          created_at,
           profiles (username)
         `)
         .eq("room_id", roomId)
@@ -143,7 +219,18 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
         return;
       }
 
-      setMessages(data || []);
+      const formattedMessages: Message[] = (data || []).map(m => ({
+        id: m.id,
+        content: m.content,
+        type: (m.type || "text") as "text" | "image" | "audio",
+        file_url: m.file_url,
+        duration: m.duration,
+        user_id: m.user_id,
+        created_at: m.created_at,
+        profiles: { username: m.profiles?.username || "Usuário" }
+      }));
+
+      setMessages(formattedMessages);
     };
 
     fetchMessages();
@@ -158,17 +245,33 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
           table: "messages",
           filter: `room_id=eq.${roomId}`,
         },
-        async (payload: { new: SupabaseMessageRow }) => {
+        async (payload) => {
+          const newMsg = payload.new as {
+            id: string;
+            content: string;
+            type?: string;
+            file_url?: string;
+            duration?: number;
+            user_id: string;
+            created_at: string;
+          };
+          
           const { data: profileData } = await supabase
             .from("profiles")
             .select("username")
-            .eq("id", payload.new.user_id)
+            .eq("id", newMsg.user_id)
             .single();
 
           setMessages((prev) => [
             ...prev,
             {
-              ...payload.new,
+              id: newMsg.id,
+              content: newMsg.content,
+              type: (newMsg.type || "text") as "text" | "image" | "audio",
+              file_url: newMsg.file_url || null,
+              duration: newMsg.duration || null,
+              user_id: newMsg.user_id,
+              created_at: newMsg.created_at,
               profiles: { username: profileData?.username || "Usuário" },
             },
           ]);
@@ -181,35 +284,146 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
     };
   }, [roomId]);
 
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
+  // Upload file to storage
+  const uploadFile = async (file: Blob, type: "image" | "audio"): Promise<{ url: string } | null> => {
+    const extension = type === "image" ? "jpg" : "webm";
+    const filename = `${currentUserId}/${Date.now()}.${extension}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from("chat-media")
+      .upload(filename, file, {
+        contentType: type === "image" ? "image/jpeg" : "audio/webm"
+      });
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("chat-media")
+      .getPublicUrl(filename);
+
+    return { url: urlData.publicUrl };
+  };
+
+  // Send text message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     setLoading(true);
+    broadcastTyping(false);
+    
     try {
       const { error } = await supabase.from("messages").insert({
         room_id: roomId,
         user_id: currentUserId,
         content: newMessage.trim(),
+        type: "text",
       });
 
       if (error) throw error;
       setNewMessage("");
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erro ao enviar mensagem";
+      const message = error instanceof Error ? error.message : t.chat?.sendError || "Erro ao enviar mensagem";
       toast({
-        title: "Erro ao enviar mensagem",
+        title: t.chat?.sendError || "Erro ao enviar mensagem",
         description: message,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle image selection
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: t.chat?.invalidFileType || "Tipo de arquivo inválido",
+        description: "Apenas imagens são permitidas",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: t.chat?.fileTooLarge || "Arquivo muito grande",
+        description: "Máximo 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
+      const result = await uploadFile(file, "image");
+      if (!result) throw new Error("Upload failed");
+
+      const { error } = await supabase.from("messages").insert({
+        room_id: roomId,
+        user_id: currentUserId,
+        content: "📷 Imagem",
+        type: "image",
+        file_url: result.url,
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Image upload error:", error);
+      toast({
+        title: t.chat?.sendError || "Erro ao enviar",
+        description: "Não foi possível enviar a imagem",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Handle audio recording complete
+  const handleAudioComplete = async (blob: Blob, duration: number) => {
+    setUploading(true);
+    
+    try {
+      const result = await uploadFile(blob, "audio");
+      if (!result) throw new Error("Upload failed");
+
+      const { error } = await supabase.from("messages").insert({
+        room_id: roomId,
+        user_id: currentUserId,
+        content: "🎤 Áudio",
+        type: "audio",
+        file_url: result.url,
+        duration: duration,
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("Audio upload error:", error);
+      toast({
+        title: t.chat?.sendError || "Erro ao enviar",
+        description: "Não foi possível enviar o áudio",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -225,13 +439,13 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
   return (
     <div className="flex flex-col h-full bg-card border-l border-border">
       <div className="p-4 border-b border-border">
-        <h3 className="font-semibold">Chat ao vivo</h3>
+        <h3 className="font-semibold">{t.chat?.liveChat || "Chat ao vivo"}</h3>
         <p className="text-xs text-muted-foreground">
-          {messages.length} mensagens
+          {messages.length} {t.chat?.messages || "mensagens"}
         </p>
       </div>
 
-      {/* Active SuperChats - Pinned at bottom of video area */}
+      {/* Active SuperChats */}
       {activeSuperchats.length > 0 && (
         <div className="p-2 border-b border-border space-y-2 bg-background/50">
           {activeSuperchats.map((superchat) => (
@@ -247,42 +461,40 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-3">
           {messages.map((message) => (
-            <div key={message.id} className="space-y-1">
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={`text-sm font-semibold ${
-                    message.user_id === currentUserId
-                      ? "text-primary"
-                      : "text-foreground"
-                  }`}
-                >
-                  {message.profiles.username}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(message.created_at).toLocaleTimeString("pt-BR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              <p className="text-sm text-foreground">{message.content}</p>
-            </div>
+            <ChatMessage 
+              key={message.id} 
+              message={message} 
+              currentUserId={currentUserId}
+            />
           ))}
         </div>
       </ScrollArea>
+
+      {/* Typing indicator */}
+      <TypingIndicator usernames={typingUsers.map(u => u.username)} />
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageSelect}
+      />
 
       <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
         {disabled ? (
           <div className="text-center py-4 space-y-2">
             <p className="text-sm text-muted-foreground">
-              Chat bloqueado
+              {t.chat?.chatBlocked || "Chat bloqueado"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Compre créditos para participar do chat
+              {t.chat?.buyCreditsToChat || "Compre créditos para participar do chat"}
             </p>
           </div>
         ) : (
           <div className="flex gap-2">
+            {/* SuperChat button (non-creators only) */}
             {!isCreator && (
               <Button
                 type="button"
@@ -294,14 +506,47 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
                 <Coins className="h-4 w-4" />
               </Button>
             )}
+
+            {/* Image attach button */}
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              title={t.chat?.attachImage || "Anexar imagem"}
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus className="h-4 w-4" />
+              )}
+            </Button>
+
+            {/* Audio recorder */}
+            <AudioRecorder 
+              onRecordingComplete={handleAudioComplete}
+              disabled={uploading}
+              maxDuration={60}
+            />
+
+            {/* Text input */}
             <Input
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Digite sua mensagem..."
-              disabled={loading}
+              onChange={handleInputChange}
+              placeholder={t.chat?.typeMessage || "Digite sua mensagem..."}
+              disabled={loading || uploading}
               maxLength={500}
+              className="flex-1"
             />
-            <Button type="submit" size="icon" disabled={loading || !newMessage.trim()}>
+
+            {/* Send button */}
+            <Button 
+              type="submit" 
+              size="icon" 
+              disabled={loading || uploading || !newMessage.trim()}
+              title={t.chat?.sendMessage || "Enviar mensagem"}
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>
