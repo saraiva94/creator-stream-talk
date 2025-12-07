@@ -370,11 +370,11 @@ export const UserSearchAutocomplete = ({
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             {recentSearches.map((recent, index) => (
-              <div
+              <button
                 key={recent.id}
                 onClick={() => handleSelectRecent(recent)}
                 className={cn(
-                  "w-full flex items-center gap-3 p-3 text-left transition-colors group cursor-pointer",
+                  "w-full flex items-center gap-3 p-3 text-left transition-colors group",
                   selectedIndex === index
                     ? "bg-primary/20"
                     : "hover:bg-muted/50"
@@ -400,7 +400,7 @@ export const UserSearchAutocomplete = ({
                 >
                   <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                 </button>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -411,11 +411,11 @@ export const UserSearchAutocomplete = ({
         <div className="absolute z-50 w-full mt-2 bg-card/95 backdrop-blur-md border border-primary/20 rounded-lg shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           <div className="max-h-[400px] overflow-y-auto">
             {results.map((user, index) => (
-              <div
+              <button
                 key={user.id}
                 onClick={() => handleSelectUser(user)}
                 className={cn(
-                  "w-full flex items-center gap-3 p-3 text-left transition-colors cursor-pointer",
+                  "w-full flex items-center gap-3 p-3 text-left transition-colors",
                   selectedIndex === index
                     ? "bg-primary/20"
                     : "hover:bg-muted/50"
@@ -454,7 +454,7 @@ export const UserSearchAutocomplete = ({
                 </div>
 
                 <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              </div>
+              </button>
             ))}
           </div>
           
