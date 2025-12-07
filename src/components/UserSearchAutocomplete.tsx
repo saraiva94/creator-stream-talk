@@ -281,8 +281,8 @@ export const UserSearchAutocomplete = ({
     if (onSelectUser) {
       onSelectUser(user);
     } else {
-      // Default: navigate to user's profile
-      navigate(`/profile/${user.username}`);
+      // Default: navigate to user's public profile
+      navigate(`/u/${user.username}`);
     }
     setQuery("");
     setIsOpen(false);

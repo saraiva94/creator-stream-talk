@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Instagram, Youtube, Facebook, Globe, Users, UserPlus, UserMinus, Radio } from "lucide-react";
+import { User, Instagram, Youtube, Facebook, Globe, Users, UserPlus, UserCheck, Radio } from "lucide-react";
+import { FollowSettingsMenu } from "@/components/FollowSettingsMenu";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "sonner";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -82,12 +83,11 @@ const PublicProfile = () => {
       
       setProfileData(data as PublicProfileData);
       
-      // Fetch follower count
+      // Fetch follower count from user_follows
       const { count } = await supabase
-        .from("subscriptions")
+        .from("user_follows")
         .select("*", { count: "exact", head: true })
-        .eq("creator_id", data.id)
-        .eq("status", "active");
+        .eq("following_id", data.id);
       
       setFollowerCount(count || 0);
 
@@ -117,12 +117,11 @@ const PublicProfile = () => {
       if (user.id === profileData.id) return;
 
       const { data } = await supabase
-        .from("subscriptions")
+        .from("user_follows")
         .select("id")
-        .eq("user_id", user.id)
-        .eq("creator_id", profileData.id)
-        .eq("status", "active")
-        .single();
+        .eq("follower_id", user.id)
+        .eq("following_id", profileData.id)
+        .maybeSingle();
       
       setIsFollowing(!!data);
     };
@@ -142,13 +141,12 @@ const PublicProfile = () => {
 
     try {
       if (isFollowing) {
-        // Unfollow - update status to cancelled
+        // Unfollow - delete from user_follows
         const { error } = await supabase
-          .from("subscriptions")
-          .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
-          .eq("user_id", user.id)
-          .eq("creator_id", profileData.id)
-          .eq("status", "active");
+          .from("user_follows")
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("following_id", profileData.id);
 
         if (error) throw error;
         
@@ -156,13 +154,12 @@ const PublicProfile = () => {
         setFollowerCount(prev => Math.max(0, prev - 1));
         toast.success(t.profile?.unfollowed || "Deixou de seguir");
       } else {
-        // Follow - insert new subscription
+        // Follow - insert into user_follows
         const { error } = await supabase
-          .from("subscriptions")
+          .from("user_follows")
           .insert({
-            user_id: user.id,
-            creator_id: profileData.id,
-            status: "active"
+            follower_id: user.id,
+            following_id: profileData.id,
           });
 
         if (error) throw error;
@@ -308,26 +305,42 @@ const PublicProfile = () => {
 
                 {/* Follow button and Live link */}
                 <div className="flex items-center justify-center gap-2 pt-2">
-                  {!isOwnProfile && (
-                    <Button
-                      onClick={handleFollow}
-                      disabled={followLoading}
-                      variant={isFollowing ? "outline" : "default"}
-                      size="sm"
-                      className="gap-2"
-                    >
-                      {isFollowing ? (
-                        <>
-                          <UserMinus className="h-4 w-4" />
-                          {t.profile?.unfollow || "Deixar de seguir"}
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="h-4 w-4" />
-                          {t.profile?.follow || "Seguir"}
-                        </>
-                      )}
-                    </Button>
+                  {!isOwnProfile && user && (
+                    <>
+                      <Button
+                        onClick={handleFollow}
+                        disabled={followLoading}
+                        variant={isFollowing ? "outline" : "default"}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        {isFollowing ? (
+                          <>
+                            <UserCheck className="h-4 w-4" />
+                            {t.userProfile?.following || "Seguindo"}
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="h-4 w-4" />
+                            {t.userProfile?.follow || t.profile?.follow || "Seguir"}
+                          </>
+                        )}
+                      </Button>
+                      
+                      {/* Settings gear menu */}
+                      <FollowSettingsMenu
+                        userId={profileData?.id || ""}
+                        currentUserId={user.id}
+                        isFollowing={isFollowing}
+                        onUnfollow={() => {
+                          setIsFollowing(false);
+                          setFollowerCount(prev => Math.max(0, prev - 1));
+                        }}
+                        onBlock={() => {
+                          toast.success(t.userProfile?.block || "Usuário bloqueado");
+                        }}
+                      />
+                    </>
                   )}
                   
                   {/* Watch Live button when streaming */}
