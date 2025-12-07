@@ -102,18 +102,27 @@ export const ChannelsSidebar = () => {
           .eq("user_id", currentUserId)
           .eq("status", "active");
 
-        if (followedData) {
-          const followed: FollowedChannel[] = [];
-          for (const sub of followedData) {
-            const creator = sub.creator_profiles as any;
-            if (creator) {
-              const { data: profile } = await supabase
-                .from("profiles")
-                .select("avatar_url, username")
-                .eq("id", creator.id)
-                .single();
+        if (followedData && followedData.length > 0) {
+          // Batch fetch all profiles at once instead of N+1 queries
+          const creatorIds = followedData
+            .map((sub) => (sub.creator_profiles as any)?.id)
+            .filter(Boolean);
+          
+          const { data: profilesData } = await supabase
+            .from("profiles")
+            .select("id, avatar_url, username")
+            .in("id", creatorIds);
+          
+          const profileMap = new Map(
+            profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []
+          );
 
-              followed.push({
+          const followed: FollowedChannel[] = followedData
+            .map((sub) => {
+              const creator = sub.creator_profiles as any;
+              if (!creator) return null;
+              const profile = profileMap.get(creator.id);
+              return {
                 id: creator.id,
                 display_name: creator.display_name,
                 username: profile?.username || creator.display_name,
@@ -121,10 +130,11 @@ export const ChannelsSidebar = () => {
                 viewer_count: creator.viewer_count || 0,
                 is_streaming: creator.is_streaming || false,
                 is_followed: true,
-                tags: creator.tags || [],
-              });
-            }
-          }
+                tags: creator.tags,
+              } as FollowedChannel;
+            })
+            .filter((c): c is FollowedChannel => c !== null);
+
           // Sort: online first, then by viewer count
           followed.sort((a, b) => {
             if (a.is_streaming && !b.is_streaming) return -1;
@@ -132,6 +142,8 @@ export const ChannelsSidebar = () => {
             return b.viewer_count - a.viewer_count;
           });
           setFollowedChannels(followed);
+        } else {
+          setFollowedChannels([]);
         }
       }
     };
