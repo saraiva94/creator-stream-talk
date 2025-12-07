@@ -6,11 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp, Search, Ban, CheckCircle, XCircle } from "lucide-react";
+import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp, Search, Ban, CheckCircle, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { User } from "@supabase/supabase-js";
 
 type AdminStats = {
@@ -66,6 +67,19 @@ const Admin = () => {
   const [usersSearch, setUsersSearch] = useState("");
   const [creatorsSearch, setCreatorsSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Pagination states
+  const [usersPage, setUsersPage] = useState(1);
+  const [creatorsPage, setCreatorsPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+  
+  // Confirmation dialog states
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: "ban" | "unban" | "approve" | "revoke";
+    targetId: string;
+    targetName: string;
+  } | null>(null);
   
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -154,6 +168,60 @@ const Admin = () => {
     const search = creatorsSearch.toLowerCase();
     return creatorsList.filter((c) => c.display_name?.toLowerCase().includes(search));
   }, [creatorsList, creatorsSearch]);
+
+  // Paginated lists
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (usersPage - 1) * ITEMS_PER_PAGE;
+    return filteredUsers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredUsers, usersPage]);
+
+  const paginatedCreators = useMemo(() => {
+    const startIndex = (creatorsPage - 1) * ITEMS_PER_PAGE;
+    return filteredCreators.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredCreators, creatorsPage]);
+
+  const totalUsersPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+  const totalCreatorsPages = Math.ceil(filteredCreators.length / ITEMS_PER_PAGE);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setUsersPage(1);
+  }, [usersSearch]);
+
+  useEffect(() => {
+    setCreatorsPage(1);
+  }, [creatorsSearch]);
+
+  // Confirmation handlers
+  const openBanConfirmation = (userId: string, username: string, isBanned: boolean) => {
+    setConfirmDialog({
+      open: true,
+      type: isBanned ? "unban" : "ban",
+      targetId: userId,
+      targetName: username,
+    });
+  };
+
+  const openCreatorConfirmation = (creatorId: string, displayName: string, isApproved: boolean) => {
+    setConfirmDialog({
+      open: true,
+      type: isApproved ? "revoke" : "approve",
+      targetId: creatorId,
+      targetName: displayName,
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmDialog) return;
+    
+    if (confirmDialog.type === "ban" || confirmDialog.type === "unban") {
+      await handleBanUser(confirmDialog.targetId, confirmDialog.type === "unban" ? "banned" : "active");
+    } else {
+      await handleApproveCreator(confirmDialog.targetId, confirmDialog.type === "approve");
+    }
+    
+    setConfirmDialog(null);
+  };
 
   // User management actions
   const handleBanUser = async (userId: string, currentStatus: string | null) => {
@@ -486,53 +554,77 @@ const Admin = () => {
               </div>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
-              <ScrollArea className="h-[350px]">
-                <div className="space-y-2">
-                  {filteredUsers.map((profile) => (
-                    <div key={profile.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={profile.avatar_url || undefined} />
-                        <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium truncate">{profile.username}</p>
-                          {profile.status === "banned" && (
-                            <Badge variant="destructive" className="text-xs">Banido</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(profile.created_at).toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={profile.status === "banned" ? "outline" : "destructive"}
-                        onClick={() => handleBanUser(profile.id, profile.status)}
-                        disabled={actionLoading === profile.id}
-                        className="flex-shrink-0"
-                      >
-                        {actionLoading === profile.id ? (
-                          <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        ) : profile.status === "banned" ? (
-                          <>
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Reativar</span>
-                          </>
-                        ) : (
-                          <>
-                            <Ban className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Banir</span>
-                          </>
+              <div className="space-y-2">
+                {paginatedUsers.map((profile) => (
+                  <div key={profile.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={profile.avatar_url || undefined} />
+                      <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{profile.username}</p>
+                        {profile.status === "banned" && (
+                          <Badge variant="destructive" className="text-xs">Banido</Badge>
                         )}
-                      </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(profile.created_at).toLocaleDateString("pt-BR")}
+                      </p>
                     </div>
-                  ))}
-                  {filteredUsers.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">Nenhum usuário encontrado</p>
-                  )}
+                    <Button
+                      size="sm"
+                      variant={profile.status === "banned" ? "outline" : "destructive"}
+                      onClick={() => openBanConfirmation(profile.id, profile.username, profile.status === "banned")}
+                      disabled={actionLoading === profile.id}
+                      className="flex-shrink-0"
+                    >
+                      {actionLoading === profile.id ? (
+                        <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : profile.status === "banned" ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          <span className="hidden sm:inline">Reativar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="h-4 w-4 mr-1" />
+                          <span className="hidden sm:inline">Banir</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+                {paginatedUsers.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">Nenhum usuário encontrado</p>
+                )}
+              </div>
+              {/* Pagination */}
+              {totalUsersPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    Página {usersPage} de {totalUsersPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+                      disabled={usersPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUsersPage((p) => Math.min(totalUsersPages, p + 1))}
+                      disabled={usersPage === totalUsersPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </ScrollArea>
+              )}
             </CardContent>
           </Card>
         )}
@@ -558,75 +650,136 @@ const Admin = () => {
               </div>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
-              <ScrollArea className="h-[350px]">
-                <div className="space-y-2">
-                  {filteredCreators.map((creator) => (
-                    <div key={creator.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={creator.profiles?.avatar_url || undefined} />
-                        <AvatarFallback>{creator.display_name?.[0]?.toUpperCase() || "C"}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium truncate">{creator.display_name}</p>
-                          {creator.is_streaming && (
-                            <Badge className="bg-green-500/20 text-green-500 text-xs">
-                              <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse mr-1" />
-                              Online
-                            </Badge>
-                          )}
-                          {creator.approved_for_live ? (
-                            <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">Aprovado</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">Pendente</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2 flex-shrink-0">
+              <div className="space-y-2">
+                {paginatedCreators.map((creator) => (
+                  <div key={creator.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={creator.profiles?.avatar_url || undefined} />
+                      <AvatarFallback>{creator.display_name?.[0]?.toUpperCase() || "C"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium truncate">{creator.display_name}</p>
+                        {creator.is_streaming && (
+                          <Badge className="bg-green-500/20 text-green-500 text-xs">
+                            <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse mr-1" />
+                            Online
+                          </Badge>
+                        )}
                         {creator.approved_for_live ? (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleApproveCreator(creator.id, false)}
-                            disabled={actionLoading === creator.id}
-                          >
-                            {actionLoading === creator.id ? (
-                              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <>
-                                <XCircle className="h-4 w-4 mr-1" />
-                                <span className="hidden sm:inline">Revogar</span>
-                              </>
-                            )}
-                          </Button>
+                          <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">Aprovado</Badge>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="default"
-                            onClick={() => handleApproveCreator(creator.id, true)}
-                            disabled={actionLoading === creator.id}
-                          >
-                            {actionLoading === creator.id ? (
-                              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <>
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                <span className="hidden sm:inline">Aprovar</span>
-                              </>
-                            )}
-                          </Button>
+                          <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">Pendente</Badge>
                         )}
                       </div>
                     </div>
-                  ))}
-                  {filteredCreators.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">Nenhum criador encontrado</p>
-                  )}
+                    <div className="flex gap-2 flex-shrink-0">
+                      {creator.approved_for_live ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => openCreatorConfirmation(creator.id, creator.display_name, true)}
+                          disabled={actionLoading === creator.id}
+                        >
+                          {actionLoading === creator.id ? (
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <XCircle className="h-4 w-4 mr-1" />
+                              <span className="hidden sm:inline">Revogar</span>
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => openCreatorConfirmation(creator.id, creator.display_name, false)}
+                          disabled={actionLoading === creator.id}
+                        >
+                          {actionLoading === creator.id ? (
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              <span className="hidden sm:inline">Aprovar</span>
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {paginatedCreators.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">Nenhum criador encontrado</p>
+                )}
+              </div>
+              {/* Pagination */}
+              {totalCreatorsPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    Página {creatorsPage} de {totalCreatorsPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCreatorsPage((p) => Math.max(1, p - 1))}
+                      disabled={creatorsPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCreatorsPage((p) => Math.min(totalCreatorsPages, p + 1))}
+                      disabled={creatorsPage === totalCreatorsPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </ScrollArea>
+              )}
             </CardContent>
           </Card>
         )}
+
+        {/* Confirmation Dialog */}
+        <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {confirmDialog?.type === "ban" && "Banir usuário"}
+                {confirmDialog?.type === "unban" && "Reativar usuário"}
+                {confirmDialog?.type === "approve" && "Aprovar criador"}
+                {confirmDialog?.type === "revoke" && "Revogar aprovação"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmDialog?.type === "ban" && (
+                  <>Tem certeza que deseja banir <strong>{confirmDialog.targetName}</strong>? O usuário não poderá mais acessar a plataforma.</>
+                )}
+                {confirmDialog?.type === "unban" && (
+                  <>Tem certeza que deseja reativar <strong>{confirmDialog?.targetName}</strong>? O usuário terá acesso à plataforma novamente.</>
+                )}
+                {confirmDialog?.type === "approve" && (
+                  <>Tem certeza que deseja aprovar <strong>{confirmDialog?.targetName}</strong>? O criador poderá fazer transmissões ao vivo.</>
+                )}
+                {confirmDialog?.type === "revoke" && (
+                  <>Tem certeza que deseja revogar a aprovação de <strong>{confirmDialog?.targetName}</strong>? O criador não poderá mais fazer transmissões.</>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmAction}
+                className={confirmDialog?.type === "ban" || confirmDialog?.type === "revoke" ? "bg-destructive hover:bg-destructive/90" : ""}
+              >
+                Confirmar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Revenue Dashboard */}
         <Card className="mb-6 sm:mb-8">
