@@ -295,8 +295,23 @@ const Subscribe = () => {
               />
               {errors.age && <p className="text-sm text-destructive">{errors.age}</p>}
 
+              {/* Mobile/Tablet: Referral first, then Password, then Confirm Password */}
               <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+                {/* Referral Code - First on mobile, order-1 on desktop */}
+                <div className="space-y-2 order-first md:order-2">
+                  <Label htmlFor="referral">{t.subscribe.referralCode} *</Label>
+                  <Input
+                    id="referral"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value)}
+                    placeholder={t.subscribe.referralCodePlaceholder}
+                    disabled={loading}
+                  />
+                  {errors.referral ? <p className="text-sm text-destructive">{errors.referral}</p> : null}
+                </div>
+                
+                {/* Password - Second on mobile */}
+                <div className="space-y-2 order-2 md:order-1">
                   <Label htmlFor="password">{t.subscribe.password} *</Label>
                   <div className="relative">
                     <Input
@@ -304,7 +319,7 @@ const Subscribe = () => {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={t.subscribe.passwordPlaceholder}
+                      placeholder="Digite sua senha"
                       disabled={loading}
                       className="pr-10"
                     />
@@ -318,18 +333,9 @@ const Subscribe = () => {
                     </button>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="referral">{t.subscribe.referralCode} *</Label>
-                  <Input
-                    id="referral"
-                    value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value)}
-                    placeholder={t.subscribe.referralCodePlaceholder}
-                    disabled={loading}
-                  />
-                  {errors.referral ? <p className="text-sm text-destructive">{errors.referral}</p> : null}
-                </div>
-                <div className="space-y-2">
+                
+                {/* Confirm Password - Third on mobile */}
+                <div className="space-y-2 order-3">
                   <Label htmlFor="confirm-password">{t.subscribe.confirmPassword} *</Label>
                   <div className="relative">
                     <Input
@@ -337,7 +343,7 @@ const Subscribe = () => {
                       type={showConfirmPassword ? "text" : "password"}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder={t.subscribe.confirmPasswordPlaceholder}
+                      placeholder="Confirme sua senha"
                       disabled={loading}
                       className="pr-10"
                     />
