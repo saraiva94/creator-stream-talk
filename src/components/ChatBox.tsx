@@ -11,6 +11,7 @@ import SuperChatDisplay from "./SuperChatDisplay";
 import { ChatMessage } from "./chat/ChatMessage";
 import { AudioRecorder } from "./chat/AudioRecorder";
 import { TypingIndicator } from "./chat/TypingIndicator";
+import { EmojiPicker } from "./chat/EmojiPicker";
 
 interface Message {
   id: string;
@@ -436,6 +437,10 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
       .eq("id", id);
   }, []);
 
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage((prev) => prev + emoji);
+  };
+
   return (
     <div className="flex flex-col h-full bg-card border-l border-border">
       <div className="p-4 border-b border-border">
@@ -445,19 +450,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
         </p>
       </div>
 
-      {/* Active SuperChats */}
-      {activeSuperchats.length > 0 && (
-        <div className="p-2 border-b border-border space-y-2 bg-background/50">
-          {activeSuperchats.map((superchat) => (
-            <SuperChatDisplay
-              key={superchat.id}
-              superchat={superchat}
-              onExpire={handleSuperchatExpire}
-            />
-          ))}
-        </div>
-      )}
-
+      {/* Messages area with flex-1 to take available space */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-3">
           {messages.map((message) => (
@@ -469,6 +462,19 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
           ))}
         </div>
       </ScrollArea>
+
+      {/* Active SuperChats - Fixed at bottom of chat area, above input */}
+      {activeSuperchats.length > 0 && (
+        <div className="p-2 border-t border-border space-y-2 bg-background/80 backdrop-blur-sm sticky bottom-0">
+          {activeSuperchats.map((superchat) => (
+            <SuperChatDisplay
+              key={superchat.id}
+              superchat={superchat}
+              onExpire={handleSuperchatExpire}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Typing indicator */}
       <TypingIndicator usernames={typingUsers.map(u => u.username)} />
@@ -522,6 +528,12 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
                 <ImagePlus className="h-4 w-4" />
               )}
             </Button>
+
+            {/* Emoji picker */}
+            <EmojiPicker 
+              onEmojiSelect={handleEmojiSelect}
+              disabled={uploading}
+            />
 
             {/* Audio recorder */}
             <AudioRecorder 

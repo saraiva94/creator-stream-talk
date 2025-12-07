@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import Navbar from "./Navbar";
 import { ChannelsSidebar } from "./ChannelsSidebar";
 import { BlockedUserOverlay } from "./BlockedUserOverlay";
+import { GlobalChatButton } from "./GlobalChatButton";
 import { useAuth } from "@/hooks/useAuth";
 
 interface AppLayoutProps {
@@ -33,6 +34,9 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
       <main className={`${showSidebar ? "ml-14 lg:ml-60" : ""} transition-all duration-300`}>
         {children}
       </main>
+      
+      {/* Global Chat Button - Bottom Right Corner */}
+      <GlobalChatButton user={user} />
     </div>
   );
 };

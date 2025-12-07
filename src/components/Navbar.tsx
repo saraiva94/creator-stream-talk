@@ -46,69 +46,92 @@ const Navbar = ({ user, isAdmin = false }: NavbarProps) => {
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   // Mobile menu content - order: Transmitir, Início, Perfil, Finanças, Sair, Admin (last for admins)
-  const MobileMenuContent = () => (
-    <div className="flex flex-col gap-2 pt-4">
-      {user ? (
-        <>
-          {/* Transmitir first */}
-          <TransmitButton user={user ?? null} />
-          {/* Início second */}
-          <Link to="/" onClick={closeMobileMenu}>
-            <Button variant="ghost" className="w-full justify-start">
+  const MobileMenuContent = () => {
+    const handleNavigation = (path: string) => {
+      closeMobileMenu();
+      // Use navigate instead of Link to ensure proper SPA navigation
+      navigate(path);
+    };
+
+    return (
+      <div className="flex flex-col gap-2 pt-4">
+        {user ? (
+          <>
+            {/* Transmitir first */}
+            <TransmitButton user={user ?? null} />
+            {/* Início second */}
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation("/")}
+            >
               <Home className="h-4 w-4 mr-2" />
               {t.nav.home}
             </Button>
-          </Link>
-          <Link to="/profile" onClick={closeMobileMenu}>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation("/profile")}
+            >
               <User className="h-4 w-4 mr-2" />
               {t.nav.profile}
             </Button>
-          </Link>
-          <Link to="/affiliate" onClick={closeMobileMenu}>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation("/affiliate")}
+            >
               <DollarSign className="h-4 w-4 mr-2" />
               {t.nav.finances}
             </Button>
-          </Link>
-          {/* Sair before Admin */}
-          <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            {t.nav.logout}
-          </Button>
-          {/* Admin at the very end, only for admins */}
-          {isAdmin && (
-            <Link to="/admin" onClick={closeMobileMenu}>
-              <Button variant="ghost" className="w-full justify-start">
+            {/* Sair before Admin */}
+            <Button variant="ghost" className="w-full justify-start text-destructive" onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              {t.nav.logout}
+            </Button>
+            {/* Admin at the very end, only for admins */}
+            {isAdmin && (
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start"
+                onClick={() => handleNavigation("/admin")}
+              >
                 <Shield className="h-4 w-4 mr-2" />
                 {t.nav.admin}
               </Button>
-            </Link>
-          )}
-        </>
-      ) : (
-        <div className="flex flex-col gap-2 pt-2">
-          <Link to="/" onClick={closeMobileMenu}>
-            <Button variant="ghost" className="w-full justify-start">
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col gap-2 pt-2">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => handleNavigation("/")}
+            >
               <Home className="h-4 w-4 mr-2" />
               {t.nav.home}
             </Button>
-          </Link>
-          <div className="py-2">
-            <LanguageSelector />
-          </div>
-          <Link to="/auth" onClick={closeMobileMenu}>
-            <Button variant="outline" className="w-full">
+            <div className="py-2">
+              <LanguageSelector />
+            </div>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => handleNavigation("/auth")}
+            >
               {t.nav.login}
             </Button>
-          </Link>
-          <Link to="/subscribe" onClick={closeMobileMenu}>
-            <Button className="w-full">{t.subscribe.subscribeNow}</Button>
-          </Link>
-        </div>
-      )}
-    </div>
-  );
+            <Button 
+              className="w-full"
+              onClick={() => handleNavigation("/subscribe")}
+            >
+              {t.subscribe.subscribeNow}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
