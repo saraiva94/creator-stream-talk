@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
 import UserSearchAutocomplete from "@/components/UserSearchAutocomplete";
-import PublicProfileDialog from "@/components/PublicProfileDialog";
 import { Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +16,6 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [showLoginDialog, setShowLoginDialog] = useState(false);
-  const [showProfileDialog, setShowProfileDialog] = useState(false);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -56,8 +53,7 @@ const Home = () => {
   const offlineLives = lives.filter((live) => live.status === "ended");
 
   const handleUserSelect = (selectedUser: { id: string; username: string }) => {
-    setSelectedProfileId(selectedUser.id);
-    setShowProfileDialog(true);
+    navigate(`/profile/${selectedUser.username}`);
   };
 
   return (
@@ -181,13 +177,6 @@ const Home = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Public Profile Dialog */}
-      <PublicProfileDialog
-        open={showProfileDialog}
-        onOpenChange={setShowProfileDialog}
-        userId={selectedProfileId}
-      />
       </div>
     </AppLayout>
   );
