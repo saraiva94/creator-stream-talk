@@ -553,8 +553,8 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Main content - Video and controls */}
-      <div className="lg:col-span-2 space-y-4">
+      {/* Main content - Video and controls (always first on mobile/tablet) */}
+      <div className="lg:col-span-2 space-y-4 order-1 lg:order-none">
         <Card>
         <CardHeader>
           <CardTitle>{liveInfo?.title ?? "Live session"}</CardTitle>
@@ -704,10 +704,10 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
         )}
       </div>
 
-      {/* Sidebar - Chat */}
-      <div className="lg:col-span-1">
+      {/* Chat - Below video on mobile/tablet, right side on desktop */}
+      <div className="lg:col-span-1 order-2 lg:order-none">
         {roomId && currentUserId && creatorId ? (
-          <div className="h-[600px] sticky top-24">
+          <div className="h-[400px] lg:h-[600px] lg:sticky lg:top-24">
             <ChatBox
               roomId={roomId}
               currentUserId={currentUserId}
