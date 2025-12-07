@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthRedirectHandler } from "@/components/AuthRedirectHandler";
 import { PWAInstallNotification } from "@/components/PWAInstallNotification";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Subscribe from "./pages/Subscribe";
@@ -51,31 +52,89 @@ const App = () => (
               <PWAInstallNotification />
               <AuthRedirectHandler />
               <Routes>
+                {/* Public routes */}
                 <Route path="/" element={<Home />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/invite/:inviteCode" element={<InviteSignup />} />
-                <Route path="/invite" element={<InviteSignup />} />
-                <Route path="/live-management" element={<LiveManagement />} />
-                <Route path="/live/:liveId" element={<LiveViewer />} />
-                <Route path="/room/:creatorId" element={<CreatorRoom />} />
                 <Route path="/subscribe" element={<Subscribe />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/update-password" element={<UpdatePassword />} />
                 <Route path="/auth/reset-password" element={<ResetPassword />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/admin/creators" element={<AdminCreators />} />
-                <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
-                <Route path="/admin/pix-withdrawals" element={<AdminPixWithdrawals />} />
-                <Route path="/affiliate" element={<Affiliate />} />
-                <Route path="/profile" element={<Profile />} />
+                <Route path="/invite/:inviteCode" element={<InviteSignup />} />
+                <Route path="/invite" element={<InviteSignup />} />
                 <Route path="/u/:username" element={<PublicProfile />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/creator/dashboard" element={<CreatorDashboard />} />
-                <Route path="/creator/lives" element={<CreatorLives />} />
-                <Route path="/creator/history" element={<CreatorHistory />} />
-                <Route path="/creator/settings" element={<CreatorSettings />} />
-                <Route path="/creator/payouts" element={<CreatorPayouts />} />
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="/live/:liveId" element={<LiveViewer />} />
+                <Route path="/room/:creatorId" element={<CreatorRoom />} />
+
+                {/* Protected routes - require authentication */}
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } />
+                <Route path="/affiliate" element={
+                  <ProtectedRoute>
+                    <Affiliate />
+                  </ProtectedRoute>
+                } />
+                <Route path="/live-management" element={
+                  <ProtectedRoute>
+                    <LiveManagement />
+                  </ProtectedRoute>
+                } />
+                <Route path="/dashboard" element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/creator/dashboard" element={
+                  <ProtectedRoute>
+                    <CreatorDashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/creator/lives" element={
+                  <ProtectedRoute>
+                    <CreatorLives />
+                  </ProtectedRoute>
+                } />
+                <Route path="/creator/history" element={
+                  <ProtectedRoute>
+                    <CreatorHistory />
+                  </ProtectedRoute>
+                } />
+                <Route path="/creator/settings" element={
+                  <ProtectedRoute>
+                    <CreatorSettings />
+                  </ProtectedRoute>
+                } />
+                <Route path="/creator/payouts" element={
+                  <ProtectedRoute>
+                    <CreatorPayouts />
+                  </ProtectedRoute>
+                } />
+
+                {/* Admin routes - require authentication + admin role */}
+                <Route path="/admin" element={
+                  <ProtectedRoute requireAdmin>
+                    <Admin />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/creators" element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminCreators />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/withdrawals" element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminWithdrawals />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admin/pix-withdrawals" element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminPixWithdrawals />
+                  </ProtectedRoute>
+                } />
+
+                {/* Catch-all route */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </InactivityWrapper>

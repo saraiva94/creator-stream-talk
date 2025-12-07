@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
-import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { useLanguage } from "@/hooks/useLanguage";
 import { AuthApiError } from "@supabase/supabase-js";
 import { ApiError, api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { getReturnTo, clearReturnTo } from "@/components/ProtectedRoute";
 
 type ErrorWithMessage = {
   message?: string;
@@ -37,16 +38,16 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
+  const { user, isLoading: authLoading } = useAuth();
 
+  // Redirect if already logged in
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/");
-      }
-    };
-    checkSession();
-  }, [navigate]);
+    if (!authLoading && user) {
+      const returnTo = getReturnTo();
+      clearReturnTo();
+      navigate(returnTo || "/", { replace: true });
+    }
+  }, [user, authLoading, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,9 +87,6 @@ const Auth = () => {
             return;
           }
           
-          // Get email from auth.users via admin or use profile id for lookup
-          // Since we can't access auth.users, we need to check if email exists
-          // For now, show error asking user to use email
           toast({
             title: "Use seu email",
             description: "Por favor, faça login usando seu endereço de email.",
@@ -113,7 +111,7 @@ const Auth = () => {
         description: "Bem-vindo de volta.",
       });
 
-      navigate("/");
+      // Redirect will be handled by useEffect when user state updates
     } catch (error: unknown) {
       if (error instanceof ApiError) {
         const message = error.status === 404 ? "Usuário não encontrado" : error.message;
@@ -161,6 +159,15 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const renderLoginForm = () => (
     <form onSubmit={handleSignIn} className="space-y-4 mt-4">
