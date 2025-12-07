@@ -158,53 +158,8 @@ serve(async (req) => {
       const directId = metadata.direct_id;
       const rootId = metadata.root_id;
       const email = metadata.email;
-      const fullName = metadata.full_name;
-      const encodedPassword = metadata.encoded_password;
 
-      console.log('[webhook] Processing registration payment:', { email, directId, rootId });
-
-      // User must be created NOW (after payment confirmed)
-      let newUserId: string | null = null;
-
-      if (encodedPassword && email) {
-        // Decode password
-        const password = atob(encodedPassword);
-        
-        // Check if user already exists (in case of retry)
-        const { data: existingUsers } = await supabase.auth.admin.listUsers();
-        const existingUser = existingUsers?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-
-        if (existingUser) {
-          console.log('[webhook] User already exists:', existingUser.id);
-          newUserId = existingUser.id;
-        } else {
-          // Create the user now that payment is confirmed
-          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            user_metadata: {
-              full_name: fullName,
-              referrer_id: directId,
-            },
-          });
-
-          if (authError) {
-            console.error('[webhook] Error creating user:', authError);
-            throw new Error(`Failed to create user: ${authError.message}`);
-          }
-
-          newUserId = authData.user.id;
-          console.log('[webhook] User created after payment:', newUserId);
-        }
-      } else if (userId) {
-        // Legacy: user was created before payment (old flow)
-        newUserId = userId;
-      }
-
-      if (!newUserId) {
-        throw new Error('No user ID available for registration');
-      }
+      console.log('[webhook] Processing registration:', { userId, directId, rootId });
 
       // Activate user profile
       await supabase
@@ -212,11 +167,8 @@ serve(async (req) => {
         .update({ 
           is_subscribed: true,
           referred_by: directId,
-          username: fullName || email?.split('@')[0] || 'User',
         })
-        .eq('id', newUserId);
-
-      console.log('[webhook] Profile activated:', newUserId);
+        .eq('id', userId);
 
       // Process affiliate commissions
       if (directId) {
@@ -225,7 +177,7 @@ serve(async (req) => {
           .from('profiles')
           .select('balance')
           .eq('id', directId)
-          .maybeSingle();
+          .single();
 
         if (directProfile) {
           await supabase
@@ -242,7 +194,7 @@ serve(async (req) => {
             .from('profiles')
             .select('balance')
             .eq('id', rootId)
-            .maybeSingle();
+            .single();
 
           if (rootProfile) {
             await supabase
@@ -257,7 +209,7 @@ serve(async (req) => {
         // Record affiliate log
         await supabase.from('referrals').insert({
           referrer_id: directId,
-          referred_id: newUserId,
+          referred_id: userId,
           referral_code: metadata.referral_code || 'DIRECT',
           commission_earned: DIRECT_COMMISSION,
           status: 'completed',
@@ -266,31 +218,23 @@ serve(async (req) => {
 
       // Record transaction
       await supabase.from('transactions').insert({
-        user_id: newUserId,
+        user_id: userId,
         type: 'registration',
         amount,
         status: 'completed',
         payment_method: payment.payment_method_id,
         external_id: externalRef,
-        metadata: { event_type: eventType, direct_id: directId, root_id: rootId, email },
-      });
-
-      // Notify user that registration is complete
-      await supabase.from('notifications').insert({
-        user_id: newUserId,
-        title: 'Bem-vindo ao StreamStar!',
-        message: 'Seu pagamento foi confirmado e sua conta está ativa. Aproveite a plataforma!',
-        type: 'registration_complete',
+        metadata: { event_type: eventType, direct_id: directId, root_id: rootId },
       });
 
       // Notify admins about new registration
       await notifyAdmins(
         'Novo cadastro pago',
-        `Novo usuário ${email} registrado por R$ ${amount.toFixed(2)}`,
+        `Novo usuário registrado por R$ ${amount.toFixed(2)}`,
         'registration'
       );
 
-      console.log('[webhook] Registration completed:', newUserId);
+      console.log('[webhook] Registration completed:', userId);
 
     } else if (eventType === 'LIVE_ACCESS') {
       const liveId = metadata.live_id;

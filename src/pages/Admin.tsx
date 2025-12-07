@@ -80,7 +80,6 @@ const Admin = () => {
     targetId: string;
     targetName: string;
   } | null>(null);
-  const [banReason, setBanReason] = useState("");
   
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -195,7 +194,6 @@ const Admin = () => {
 
   // Confirmation handlers
   const openBanConfirmation = (userId: string, username: string, isBanned: boolean) => {
-    setBanReason("");
     setConfirmDialog({
       open: true,
       type: isBanned ? "unban" : "ban",
@@ -217,31 +215,22 @@ const Admin = () => {
     if (!confirmDialog) return;
     
     if (confirmDialog.type === "ban" || confirmDialog.type === "unban") {
-      await handleBanUser(confirmDialog.targetId, confirmDialog.type === "unban" ? "banned" : "active", banReason);
+      await handleBanUser(confirmDialog.targetId, confirmDialog.type === "unban" ? "banned" : "active");
     } else {
       await handleApproveCreator(confirmDialog.targetId, confirmDialog.type === "approve");
     }
     
-    setBanReason("");
     setConfirmDialog(null);
   };
 
   // User management actions
-  const handleBanUser = async (userId: string, currentStatus: string | null, reason?: string) => {
+  const handleBanUser = async (userId: string, currentStatus: string | null) => {
     const newStatus = currentStatus === "banned" ? "active" : "banned";
     setActionLoading(userId);
     try {
-      const updateData: { status: string; blocked_reason?: string | null } = { status: newStatus };
-      
-      if (newStatus === "banned" && reason) {
-        updateData.blocked_reason = reason;
-      } else if (newStatus === "active") {
-        updateData.blocked_reason = null;
-      }
-      
       const { error } = await supabase
         .from("profiles")
-        .update(updateData)
+        .update({ status: newStatus })
         .eq("id", userId);
       
       if (error) throw error;
@@ -756,7 +745,7 @@ const Admin = () => {
         )}
 
         {/* Confirmation Dialog */}
-        <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => { if (!open) { setBanReason(""); setConfirmDialog(null); } }}>
+        <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => !open && setConfirmDialog(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
@@ -765,32 +754,19 @@ const Admin = () => {
                 {confirmDialog?.type === "approve" && "Aprovar criador"}
                 {confirmDialog?.type === "revoke" && "Revogar aprovação"}
               </AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="space-y-4">
-                  {confirmDialog?.type === "ban" && (
-                    <>
-                      <p>Tem certeza que deseja banir <strong>{confirmDialog.targetName}</strong>? O usuário não poderá mais acessar a plataforma.</p>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Motivo do bloqueio (opcional)</label>
-                        <Input
-                          placeholder="Ex: Violação dos termos de uso..."
-                          value={banReason}
-                          onChange={(e) => setBanReason(e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                    </>
-                  )}
-                  {confirmDialog?.type === "unban" && (
-                    <p>Tem certeza que deseja reativar <strong>{confirmDialog?.targetName}</strong>? O usuário terá acesso à plataforma novamente.</p>
-                  )}
-                  {confirmDialog?.type === "approve" && (
-                    <p>Tem certeza que deseja aprovar <strong>{confirmDialog?.targetName}</strong>? O criador poderá fazer transmissões ao vivo.</p>
-                  )}
-                  {confirmDialog?.type === "revoke" && (
-                    <p>Tem certeza que deseja revogar a aprovação de <strong>{confirmDialog?.targetName}</strong>? O criador não poderá mais fazer transmissões.</p>
-                  )}
-                </div>
+              <AlertDialogDescription>
+                {confirmDialog?.type === "ban" && (
+                  <>Tem certeza que deseja banir <strong>{confirmDialog.targetName}</strong>? O usuário não poderá mais acessar a plataforma.</>
+                )}
+                {confirmDialog?.type === "unban" && (
+                  <>Tem certeza que deseja reativar <strong>{confirmDialog?.targetName}</strong>? O usuário terá acesso à plataforma novamente.</>
+                )}
+                {confirmDialog?.type === "approve" && (
+                  <>Tem certeza que deseja aprovar <strong>{confirmDialog?.targetName}</strong>? O criador poderá fazer transmissões ao vivo.</>
+                )}
+                {confirmDialog?.type === "revoke" && (
+                  <>Tem certeza que deseja revogar a aprovação de <strong>{confirmDialog?.targetName}</strong>? O criador não poderá mais fazer transmissões.</>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -812,7 +812,6 @@ export type Database = {
           avatar_url: string | null
           balance: number | null
           bio: string | null
-          blocked_reason: string | null
           created_at: string
           facebook_handle: string | null
           gender: string | null
@@ -841,7 +840,6 @@ export type Database = {
           avatar_url?: string | null
           balance?: number | null
           bio?: string | null
-          blocked_reason?: string | null
           created_at?: string
           facebook_handle?: string | null
           gender?: string | null
@@ -870,7 +868,6 @@ export type Database = {
           avatar_url?: string | null
           balance?: number | null
           bio?: string | null
-          blocked_reason?: string | null
           created_at?: string
           facebook_handle?: string | null
           gender?: string | null
