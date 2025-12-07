@@ -86,8 +86,19 @@ export const ShareDialog = ({ open, onOpenChange, url, title = "Compartilhar" }:
       window.innerWidth < 1024;
   };
 
-  const handleShare = (option: ShareOption) => {
+  const handleShare = async (option: ShareOption) => {
     const mobile = isMobileOrTablet();
+    
+    // Always copy link to clipboard first
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "Link copiado!",
+        description: `Cole o link na sua postagem do ${option.name}`,
+      });
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
     
     if (option.name === "WhatsApp") {
       const shareUrl = mobile && option.mobileScheme 
@@ -95,21 +106,13 @@ export const ShareDialog = ({ open, onOpenChange, url, title = "Compartilhar" }:
         : option.getUrl(url, shareText);
       window.open(shareUrl, "_blank");
     } else if (option.name === "Instagram" || option.name === "TikTok" || option.name === "Kwai") {
-      // These apps don't support direct URL sharing, so we copy the link and open the app/site
-      navigator.clipboard.writeText(url).then(() => {
-        toast({
-          title: "Link copiado!",
-          description: `Cole o link na sua postagem do ${option.name}`,
-        });
-        
-        if (mobile && option.mobileScheme) {
-          // Try to open the app on mobile
-          window.location.href = option.mobileScheme;
-        } else {
-          // Open the website on desktop
-          window.open(option.getUrl(url, shareText), "_blank");
-        }
-      });
+      if (mobile && option.mobileScheme) {
+        // Try to open the app on mobile
+        window.location.href = option.mobileScheme;
+      } else {
+        // Open the website on desktop
+        window.open(option.getUrl(url, shareText), "_blank");
+      }
     }
   };
 
