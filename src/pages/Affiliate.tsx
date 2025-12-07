@@ -375,7 +375,10 @@ const Affiliate = () => {
                 Copiar link
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p 
+              className="text-xs animate-pulse" 
+              style={{ color: 'hsl(var(--primary))', textShadow: '0 0 8px hsl(var(--primary))' }}
+            >
               Use apenas letras, números, hífen ou underline. Compartilhe este código para que seus indicados recebam crédito
               e você ganhe comissão.
             </p>
