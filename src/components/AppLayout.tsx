@@ -1,7 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import { ChannelsSidebar } from "./ChannelsSidebar";
-import { BlockedUserOverlay } from "./BlockedUserOverlay";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -12,61 +11,20 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserAndCheckStatus = async () => {
+    const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("status, blocked_reason")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profile?.status === "banned") {
-          setIsBlocked(true);
-          setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
-          await supabase.auth.signOut();
-        }
-      }
     };
-    fetchUserAndCheckStatus();
+    fetchUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("status, blocked_reason")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (profile?.status === "banned") {
-          setIsBlocked(true);
-          setBlockedReason((profile as { blocked_reason?: string | null }).blocked_reason ?? null);
-          await supabase.auth.signOut();
-        } else {
-          setIsBlocked(false);
-          setBlockedReason(null);
-        }
-      } else {
-        setIsBlocked(false);
-        setBlockedReason(null);
-      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
-
-  // Show blocked overlay if user is banned
-  if (isBlocked) {
-    return <BlockedUserOverlay reason={blockedReason} />;
-  }
 
   return (
     <div className="min-h-screen bg-background">
