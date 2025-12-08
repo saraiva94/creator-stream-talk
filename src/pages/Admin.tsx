@@ -82,6 +82,10 @@ const Admin = () => {
   } | null>(null);
   const [banReason, setBanReason] = useState("");
   
+  // Pending payment processing
+  const [pendingPaymentId, setPendingPaymentId] = useState("");
+  const [processingPayment, setProcessingPayment] = useState(false);
+  
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalCreators: 0,
@@ -299,6 +303,62 @@ const Admin = () => {
     }
   };
 
+  // Process pending payment manually
+  const handleProcessPendingPayment = async () => {
+    if (!pendingPaymentId.trim()) {
+      toast({
+        title: "Erro",
+        description: "Insira o ID do pagamento",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProcessingPayment(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("process-pending-payment", {
+        body: { paymentId: pendingPaymentId.trim() },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to process payment");
+      }
+
+      const result = response.data;
+      
+      if (result.duplicate) {
+        toast({
+          title: "Pagamento já processado",
+          description: "Este pagamento já foi processado anteriormente.",
+        });
+      } else if (result.error) {
+        throw new Error(result.error);
+      } else {
+        toast({
+          title: "Pagamento processado!",
+          description: `Tipo: ${result.processed}, Valor: R$ ${result.amount?.toFixed(2)}`,
+        });
+        // Refresh stats
+        fetchStats();
+        fetchRevenueBreakdown();
+      }
+
+      setPendingPaymentId("");
+    } catch (error) {
+      console.error("Error processing payment:", error);
+      toast({
+        title: "Erro ao processar pagamento",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
   useEffect(() => {
     checkAdminAccess();
   }, []);
@@ -469,13 +529,54 @@ const Admin = () => {
               <p className="text-sm text-muted-foreground">{t.admin.subtitle}</p>
             </div>
           </div>
-          <Link to="/admin/creators">
-            <Button variant="outline" size="sm">
-              <UserCheck className="h-4 w-4 mr-2" />
-              <span className="truncate">{t.admin.manageCreators}</span>
-            </Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/admin/creators">
+              <Button variant="outline" size="sm">
+                <UserCheck className="h-4 w-4 mr-2" />
+                <span className="truncate">{t.admin.manageCreators}</span>
+              </Button>
+            </Link>
+            <Link to="/admin/pix-withdrawals">
+              <Button variant="outline" size="sm">
+                <Wallet className="h-4 w-4 mr-2" />
+                <span className="truncate">Saques PIX</span>
+              </Button>
+            </Link>
+          </div>
         </div>
+
+        {/* Process Pending Payment */}
+        <Card className="mb-6 sm:mb-8 border-yellow-500/30 bg-yellow-500/5">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CreditCard className="h-5 w-5 text-yellow-500" />
+              Processar Pagamento Pendente
+            </CardTitle>
+            <CardDescription>
+              Se um pagamento foi feito mas não apareceu no sistema, insira o ID da transação do Mercado Pago para processar manualmente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0">
+            <div className="flex gap-2">
+              <Input
+                placeholder="ID do pagamento (ex: 136354297753)"
+                value={pendingPaymentId}
+                onChange={(e) => setPendingPaymentId(e.target.value)}
+                className="flex-1"
+              />
+              <Button 
+                onClick={handleProcessPendingPayment}
+                disabled={processingPayment || !pendingPaymentId.trim()}
+              >
+                {processingPayment ? (
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  "Processar"
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
