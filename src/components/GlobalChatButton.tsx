@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send, Mic, Square, Loader2 } from "lucide-react";
+import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
 import { cn } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";
 import { EmojiPicker } from "./chat/EmojiPicker";
+import { RecordingWaveform } from "./chat/RecordingWaveform";
+import { DirectMessageAudioPlayer } from "./chat/DirectMessageAudioPlayer";
+import { toast } from "sonner";
 
 interface Conversation {
   id: string;
@@ -34,6 +36,8 @@ interface Message {
   content: string;
   sender_id: string;
   created_at: string;
+  message_type?: string;
+  metadata?: { file_url?: string; duration?: number } | null;
 }
 
 interface GlobalChatButtonProps {
@@ -53,9 +57,7 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const { t } = useLanguage();
 
   // Animate button entrance on mount
@@ -267,11 +269,14 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("direct_messages")
-        .select("id, content, sender_id, created_at")
+        .select("id, content, sender_id, created_at, message_type, metadata")
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${activeChat.id}),and(sender_id.eq.${activeChat.id},receiver_id.eq.${user.id})`)
         .order("created_at", { ascending: true });
 
-      setMessages(data || []);
+      setMessages(data?.map(m => ({
+        ...m,
+        metadata: m.metadata as Message['metadata']
+      })) || []);
 
       // Mark messages as read
       await supabase
@@ -294,12 +299,19 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
           table: "direct_messages",
         },
         (payload) => {
-          const msg = payload.new as Message & { sender_id: string; receiver_id: string };
+          const msg = payload.new as Message & { receiver_id: string };
           if (
             (msg.sender_id === user.id && msg.receiver_id === activeChat.id) ||
             (msg.sender_id === activeChat.id && msg.receiver_id === user.id)
           ) {
-            setMessages(prev => [...prev, { id: msg.id, content: msg.content, sender_id: msg.sender_id, created_at: msg.created_at }]);
+            setMessages(prev => [...prev, { 
+              id: msg.id, 
+              content: msg.content, 
+              sender_id: msg.sender_id, 
+              created_at: msg.created_at,
+              message_type: msg.message_type,
+              metadata: msg.metadata
+            }]);
           }
         }
       )
@@ -333,86 +345,60 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
     }
   };
 
-  // Audio recording handlers
-  const startRecording = useCallback(async () => {
+  // Handle audio recording completion
+  const handleAudioComplete = useCallback(async (blob: Blob, duration: number) => {
+    if (!user || !activeChat) return;
+    
+    setSendingMessage(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const filename = `${user.id}/${Date.now()}.webm`;
+      const { error: uploadError } = await supabase.storage
+        .from("chat-media")
+        .upload(filename, blob, { contentType: "audio/webm" });
+      
+      if (uploadError) throw uploadError;
+      
+      const { data: urlData } = supabase.storage
+        .from("chat-media")
+        .getPublicUrl(filename);
+      
+      await supabase.from("direct_messages").insert({
+        sender_id: user.id,
+        receiver_id: activeChat.id,
+        content: `🎤 Áudio (${duration}s)`,
+        message_type: "audio",
+        metadata: { file_url: urlData.publicUrl, duration }
       });
-      
-      const chunks: Blob[] = [];
-      const startTime = Date.now();
-      
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-      
-      recorder.onstop = async () => {
-        const duration = Math.floor((Date.now() - startTime) / 1000);
-        const blob = new Blob(chunks, { type: recorder.mimeType });
-        stream.getTracks().forEach(track => track.stop());
-        
-        // Upload and send audio
-        if (user && activeChat) {
-          setSendingMessage(true);
-          try {
-            const filename = `${user.id}/${Date.now()}.webm`;
-            const { error: uploadError } = await supabase.storage
-              .from("chat-media")
-              .upload(filename, blob, { contentType: "audio/webm" });
-            
-            if (uploadError) throw uploadError;
-            
-            const { data: urlData } = supabase.storage
-              .from("chat-media")
-              .getPublicUrl(filename);
-            
-            await supabase.from("direct_messages").insert({
-              sender_id: user.id,
-              receiver_id: activeChat.id,
-              content: `🎤 Áudio (${duration}s)`,
-              message_type: "audio",
-              metadata: { file_url: urlData.publicUrl, duration }
-            });
-          } catch (error) {
-            console.error("Audio upload error:", error);
-          } finally {
-            setSendingMessage(false);
-          }
-        }
-        
-        setRecordingDuration(0);
-      };
-      
-      recorder.start(100);
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-      
-      // Timer for duration display
-      const interval = setInterval(() => {
-        setRecordingDuration(Math.floor((Date.now() - startTime) / 1000));
-      }, 100);
-      
-      recorder.addEventListener("stop", () => clearInterval(interval));
-      
     } catch (error) {
-      console.error("Error accessing microphone:", error);
+      console.error("Audio upload error:", error);
+      toast.error(t.chat?.audioError || "Erro ao enviar áudio");
+    } finally {
+      setSendingMessage(false);
     }
-  }, [user, activeChat]);
+  }, [user, activeChat, t]);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorder && isRecording) {
-      mediaRecorder.stop();
-      setMediaRecorder(null);
-      setIsRecording(false);
+  // Delete message handler
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return;
+    
+    setDeletingMessageId(messageId);
+    try {
+      const { error } = await supabase
+        .from("direct_messages")
+        .delete()
+        .eq("id", messageId)
+        .eq("sender_id", user.id);
+      
+      if (error) throw error;
+      
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      toast.success(t.chat?.messageDeleted || "Mensagem excluída");
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      toast.error(t.chat?.deleteError || "Erro ao excluir mensagem");
+    } finally {
+      setDeletingMessageId(null);
     }
-  }, [mediaRecorder, isRecording]);
-
-  const formatRecordingTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (!user) return null;
@@ -672,88 +658,98 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {messages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={cn(
-                            "max-w-[80%] p-2 rounded-lg text-sm",
-                            msg.sender_id === user.id
-                              ? "ml-auto bg-primary text-primary-foreground"
-                              : "bg-muted"
-                          )}
-                        >
-                          {msg.content}
-                        </div>
-                      ))}
+                      {messages.map((msg) => {
+                        const isOwn = msg.sender_id === user.id;
+                        const isAudio = msg.message_type === "audio" && msg.metadata?.file_url;
+                        
+                        return (
+                          <div
+                            key={msg.id}
+                            className={cn(
+                              "group relative max-w-[85%] rounded-lg text-sm",
+                              isOwn ? "ml-auto" : ""
+                            )}
+                          >
+                            {/* Delete button - only for own messages */}
+                            {isOwn && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="absolute -left-8 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                disabled={deletingMessageId === msg.id}
+                                title={t.chat?.deleteMessage || "Excluir mensagem"}
+                              >
+                                {deletingMessageId === msg.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                )}
+                              </Button>
+                            )}
+                            
+                            {isAudio ? (
+                              <div className={cn(
+                                "p-1.5 rounded-lg",
+                                isOwn ? "bg-primary/10" : "bg-muted"
+                              )}>
+                                <DirectMessageAudioPlayer 
+                                  src={msg.metadata!.file_url!}
+                                  duration={msg.metadata?.duration}
+                                />
+                              </div>
+                            ) : (
+                              <div className={cn(
+                                "p-2 rounded-lg",
+                                isOwn
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted"
+                              )}>
+                                {msg.content}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </ScrollArea>
                 <div className="p-3 border-t border-border flex gap-2 items-center">
-                  {isRecording ? (
-                    <>
-                      {/* Recording indicator */}
-                      <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-destructive/10 rounded-md">
-                        <span className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
-                        <span className="text-xs font-mono text-destructive">
-                          {formatRecordingTime(recordingDuration)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {t.chat?.recording || "Gravando..."}
-                        </span>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        onClick={stopRecording}
-                        title={t.chat?.stopRecording || "Parar gravação"}
-                      >
-                        <Square className="h-4 w-4" />
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      {/* Emoji picker - left of input */}
-                      <EmojiPicker 
-                        onEmojiSelect={(emoji) => setNewMessage(prev => prev + emoji)}
-                        disabled={sendingMessage}
-                      />
-                      <Input
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
-                        className="flex-1"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                      />
-                      {/* Mic button */}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={startRecording}
-                        disabled={sendingMessage}
-                        title={t.chat?.recordAudio || "Gravar áudio"}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                      >
-                        {sendingMessage ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Mic className="h-4 w-4" />
-                        )}
-                      </Button>
-                      {/* Send button */}
-                      <Button
-                        size="icon"
-                        onClick={handleSendMessage}
-                        disabled={!newMessage.trim() || sendingMessage}
-                      >
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                  {/* Emoji picker - left of input */}
+                  <EmojiPicker 
+                    onEmojiSelect={(emoji) => setNewMessage(prev => prev + emoji)}
+                    disabled={sendingMessage}
+                  />
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
+                    className="flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+                  {/* Recording waveform or mic button */}
+                  <RecordingWaveform
+                    onRecordingComplete={handleAudioComplete}
+                    disabled={sendingMessage}
+                    compact
+                  />
+                  {/* Send button */}
+                  <Button
+                    size="icon"
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim() || sendingMessage}
+                  >
+                    {sendingMessage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
             )}

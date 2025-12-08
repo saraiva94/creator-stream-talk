@@ -584,6 +584,10 @@ export const translations = {
       noFriends: "No friends",
       followToAdd: "Follow users to add them to your list",
       startChat: "Start a conversation",
+      deleteMessage: "Delete message",
+      messageDeleted: "Message deleted",
+      deleteError: "Error deleting message",
+      audioError: "Error sending audio",
     },
     share: {
       title: "Share",
@@ -1215,6 +1219,10 @@ export const translations = {
       noFriends: "Sin amigos",
       followToAdd: "Sigue usuarios para agregarlos a tu lista",
       startChat: "Inicia una conversación",
+      deleteMessage: "Eliminar mensaje",
+      messageDeleted: "Mensaje eliminado",
+      deleteError: "Error al eliminar mensaje",
+      audioError: "Error al enviar audio",
     },
     share: {
       title: "Compartir",
@@ -1846,6 +1854,10 @@ export const translations = {
       noFriends: "Nenhum amigo",
       followToAdd: "Siga usuários para adicioná-los à sua lista",
       startChat: "Inicie uma conversa",
+      deleteMessage: "Excluir mensagem",
+      messageDeleted: "Mensagem excluída",
+      deleteError: "Erro ao excluir mensagem",
+      audioError: "Erro ao enviar áudio",
     },
     share: {
       title: "Compartilhar",
