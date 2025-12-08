@@ -111,6 +111,27 @@ export const InstructionsDialog = () => {
                   <li><strong>80%</strong> {t.profile.liveRevenueDesc2 || "of all revenue goes directly to you"}</li>
                   <li>{t.profile.liveRevenueDesc3 || "Earnings are automatically added to your creator wallet"}</li>
                 </ul>
+                
+                {/* Revenue Example */}
+                <div className="mt-4 p-4 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg border border-primary/30">
+                  <h5 className="font-semibold text-primary mb-3 flex items-center gap-2">
+                    💰 {t.profile.revenueExampleTitle || "Example: How much can you earn?"}
+                  </h5>
+                  <div className="text-sm space-y-2 text-muted-foreground">
+                    <p>{t.profile.revenueExampleIntro || "Let's say 100 people watch your live for 30 minutes:"}</p>
+                    <ul className="list-none space-y-1 mt-2">
+                      <li>👁️ 100 {t.profile.viewers || "viewers"} × 30 min = 3.000 min {t.profile.watched || "watched"}</li>
+                      <li>⏱️ 3.000 min × 6 {t.profile.creditsPerMin || "credits/min"} = 18.000 {t.profile.creditsConsumed || "credits consumed"}</li>
+                      <li>💵 18.000 {t.profile.credits || "credits"} = R$ 500,00 {t.profile.grossRevenue || "in gross revenue"}</li>
+                      <li className="text-lg font-bold text-primary mt-2">
+                        🎉 {t.profile.yourEarnings || "Your earnings"}: <span className="text-green-500">R$ 400,00</span> (80%)
+                      </li>
+                    </ul>
+                    <p className="text-xs mt-3 text-muted-foreground/80 italic">
+                      {t.profile.revenueExampleNote || "This money goes directly to your creator wallet and you can withdraw via PIX anytime!"}
+                    </p>
+                  </div>
+                </div>
               </section>
 
               <section className="space-y-3">

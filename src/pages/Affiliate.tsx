@@ -12,6 +12,7 @@ import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
 import ShareDialog from "@/components/ShareDialog";
 import { useLanguage } from "@/hooks/useLanguage";
+import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
 
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
@@ -284,10 +285,13 @@ const Affiliate = () => {
 
         <Card className="mb-6 sm:mb-8">
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              {t.affiliate.createReferralCode}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                {t.affiliate.createReferralCode}
+              </CardTitle>
+              <HowToMonetizeDialog />
+            </div>
             <div className="animate-pulse">
               <CardDescription className="text-xs sm:text-sm text-foreground" style={{ textShadow: '0 0 8px hsl(var(--foreground) / 0.5)' }}>
                 {t.affiliate.createCodeDesc}
@@ -316,7 +320,7 @@ const Affiliate = () => {
             </div>
             <div className="animate-pulse">
               <p className="text-xs sm:text-sm" style={{ color: 'hsl(var(--primary))', textShadow: '0 0 8px hsl(var(--primary))' }}>
-                {t.affiliate.formatHint}
+                {t.affiliate.formatHint} <span className="text-destructive" style={{ color: 'hsl(var(--destructive))', textShadow: '0 0 8px hsl(var(--destructive))' }}>{t.affiliate.noSpaces || "e não faça uso de espaços."}</span>
               </p>
             </div>
           </CardContent>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Clock, CreditCard } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 interface PreviewCountdownOverlayProps {
   remainingMs: number;
@@ -7,6 +8,7 @@ interface PreviewCountdownOverlayProps {
 }
 
 const PreviewCountdownOverlay: React.FC<PreviewCountdownOverlayProps> = ({ remainingMs, totalMs }) => {
+  const { t } = useLanguage();
   const secondsLeft = Math.ceil(remainingMs / 1000);
   const totalSeconds = Math.max(1, Math.ceil(totalMs / 1000));
   const progress = Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
@@ -31,7 +33,7 @@ const PreviewCountdownOverlay: React.FC<PreviewCountdownOverlayProps> = ({ remai
           <div className="flex items-center justify-center gap-2 text-primary mb-2">
             <Clock className="h-5 w-5 animate-pulse" />
             <span className="text-sm font-medium uppercase tracking-wider">
-              Prévia
+              {t.paywall?.preview || "Prévia"}
             </span>
           </div>
           
@@ -50,7 +52,7 @@ const PreviewCountdownOverlay: React.FC<PreviewCountdownOverlayProps> = ({ remai
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
             <CreditCard className="h-4 w-4" />
             <p className="text-center text-sm">
-              Compre créditos para continuar assistindo
+              {t.paywall?.needCredits || "Compre créditos para continuar assistindo"}
             </p>
           </div>
         </div>

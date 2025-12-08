@@ -104,10 +104,10 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
   const shareToTikTok = async () => {
     await copyToClipboard();
     
-    toast({
-      title: "Link copiado!",
-      description: "Cole o link em sua bio ou vídeo do TikTok",
-    });
+      toast({
+        title: t.share?.linkCopied || "Copiado!",
+        description: t.share?.tiktokDesc || "Cole o link em sua bio ou vídeo do TikTok",
+      });
     
     if (isMobile()) {
       // TikTok app schemes
@@ -121,10 +121,10 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
   const shareToInstagram = async () => {
     await copyToClipboard();
     
-    toast({
-      title: "Link copiado!",
-      description: "Cole o link em sua bio ou story do Instagram",
-    });
+      toast({
+        title: t.share?.linkCopied || "Copiado!",
+        description: t.share?.instagramDesc || "Cole o link em sua bio ou story do Instagram",
+      });
     
     if (isMobile()) {
       // Instagram app scheme
@@ -252,7 +252,7 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
           </div>
 
           <p className="text-xs text-muted-foreground text-center">
-            O link será copiado automaticamente ao compartilhar
+            {t.share?.autoCopy || "O link será copiado automaticamente ao compartilhar"}
           </p>
         </div>
       </DialogContent>
