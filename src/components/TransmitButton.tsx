@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/hooks/useLanguage";
 import type { User } from "@supabase/supabase-js";
 
 interface TransmitButtonProps {
@@ -8,6 +9,7 @@ interface TransmitButtonProps {
 }
 
 export const TransmitButton = ({ user }: TransmitButtonProps) => {
+  const { t } = useLanguage();
   const [isApprovedCreator, setIsApprovedCreator] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
 
@@ -73,7 +75,7 @@ export const TransmitButton = ({ user }: TransmitButtonProps) => {
             <span className="w-2.5 h-2.5 bg-green-500 rounded-full" />
             <span className="absolute w-2.5 h-2.5 bg-green-500 rounded-full animate-ping opacity-75" />
           </span>
-          <span className="text-sm font-medium text-green-500">Online</span>
+          <span className="text-sm font-medium text-green-500">{t.nav.online}</span>
         </>
       ) : (
         <>
@@ -82,7 +84,7 @@ export const TransmitButton = ({ user }: TransmitButtonProps) => {
             <span className="absolute w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
           </span>
           <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-            Transmitir
+            {t.nav.transmit}
           </span>
         </>
       )}
