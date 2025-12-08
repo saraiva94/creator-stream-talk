@@ -241,27 +241,28 @@ const Affiliate = () => {
           </div>
           
           {/* Action buttons - responsive grid */}
-          <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
-            <Button 
-              onClick={() => setShowWithdrawDialog(true)} 
-              className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4" 
-              disabled={availableBalanceCents <= 0}
-            >
-              <Banknote className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">{t.affiliate.withdrawViaPix}</span>
-            </Button>
-            <Button 
-              onClick={() => setShowInternationalDialog(true)} 
-              variant="outline" 
-              className="border-primary/50 text-xs sm:text-sm px-2 sm:px-4" 
-              disabled={availableBalanceCents <= 0}
-            >
-              <Globe className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate hidden sm:inline">{t.affiliate.bankTransfer || "Saque via transferência bancária"}</span>
-              <span className="truncate sm:hidden">{t.affiliate.bankTransferShort || "Transferência"}</span>
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <Button 
+                onClick={() => setShowWithdrawDialog(true)} 
+                className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4" 
+                disabled={availableBalanceCents <= 0}
+              >
+                <Banknote className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">{t.affiliate.withdrawViaPix}</span>
+              </Button>
+              <Button 
+                onClick={() => setShowInternationalDialog(true)} 
+                variant="outline" 
+                className="border-primary/50 text-xs sm:text-sm px-2 sm:px-4" 
+                disabled={availableBalanceCents <= 0}
+              >
+                <Globe className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">{t.affiliate.bankTransferShort || "Transferência"}</span>
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">PIX apenas para contas brasileiras</p>
           </div>
-          <p className="text-[10px] text-muted-foreground">PIX apenas para contas brasileiras</p>
         </div>
 
         {error && <div className="mb-6 text-destructive text-sm">{error}</div>}
@@ -306,17 +307,19 @@ const Affiliate = () => {
 
         <Card className="mb-6 sm:mb-8">
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                {t.affiliate.createReferralCode}
-              </CardTitle>
-              <HowToMonetizeDialog />
-            </div>
-            <div className="animate-pulse">
-              <CardDescription className="text-xs sm:text-sm text-foreground" style={{ textShadow: '0 0 8px hsl(var(--foreground) / 0.5)' }}>
-                {t.affiliate.createCodeDesc}
-              </CardDescription>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-row items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="truncate">{t.affiliate.createReferralCode}</span>
+                </CardTitle>
+                <HowToMonetizeDialog />
+              </div>
+              <div className="animate-pulse">
+                <CardDescription className="text-xs sm:text-sm text-foreground" style={{ textShadow: '0 0 8px hsl(var(--foreground) / 0.5)' }}>
+                  {t.affiliate.createCodeDesc}
+                </CardDescription>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3 sm:space-y-4 px-3 sm:px-6 pb-3 sm:pb-6">
