@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { User, Instagram, Youtube, Facebook, Globe, Users, UserPlus, UserCheck, Radio, MessageCircle } from "lucide-react";
 import { FollowSettingsMenu } from "@/components/FollowSettingsMenu";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 // TikTok icon SVG component
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -42,7 +42,7 @@ type PublicProfileData = {
 const PublicProfile = () => {
   const { username } = useParams<{ username: string }>();
   const { t } = useLanguage();
-  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const { user } = useAuth();
   const [profileData, setProfileData] = useState<PublicProfileData | null>(null);
   const [followerCount, setFollowerCount] = useState<number>(0);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -50,16 +50,6 @@ const PublicProfile = () => {
   const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setUser(session.user);
-      }
-    };
-    checkAuth();
-  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -231,18 +221,19 @@ const PublicProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">
-          {t.common.loading}
+      <AppLayout showSidebar={false}>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-muted-foreground">
+            {t.common.loading}
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (notFound) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar user={user} />
+      <AppLayout showSidebar={false}>
         <main className="container mx-auto px-4 py-8 max-w-2xl">
           <Card className="border-border">
             <CardContent className="p-8 text-center">
@@ -256,16 +247,14 @@ const PublicProfile = () => {
             </CardContent>
           </Card>
         </main>
-      </div>
+      </AppLayout>
     );
   }
 
   const isOwnProfile = user?.id === profileData?.id;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar user={user} />
-
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
         <Card className="border-border shadow-card">
           <CardHeader className="p-4 sm:p-6 text-center">
@@ -419,7 +408,7 @@ const PublicProfile = () => {
           </CardContent>
         </Card>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 
