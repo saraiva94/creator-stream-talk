@@ -11,6 +11,7 @@ import SuperChatDisplay from "@/components/SuperChatDisplay";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 import { Users, DollarSign, TrendingUp, Video, UserPlus } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
@@ -29,6 +30,7 @@ type CreatorStatus = "loading" | "not_creator" | "pending_approval" | "approved"
 const LiveManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [creatorStatus, setCreatorStatus] = useState<CreatorStatus>("loading");
   const [room, setRoom] = useState<RoomRecord | null>(null);
@@ -189,8 +191,8 @@ const LiveManagement = () => {
         setIsStreaming(true);
         logger.live.info("Stream started", { roomId: newRoom.id });
         toast({
-          title: "Transmissão iniciada!",
-          description: "Você está ao vivo agora",
+          title: t.liveManagement?.streamStarted || "Stream started!",
+          description: t.liveManagement?.youAreLiveNow || "You are live now",
         });
       } else {
         // End streaming
@@ -220,15 +222,15 @@ const LiveManagement = () => {
         setRoom(null);
         logger.live.info("Stream ended");
         toast({
-          title: "Transmissão encerrada",
-          description: "Você está offline agora",
+          title: t.liveManagement?.streamEnded || "Stream ended",
+          description: t.liveManagement?.youAreOfflineNow || "You are offline now",
         });
       }
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erro ao alterar transmissão";
+      const message = error instanceof Error ? error.message : (t.liveManagement?.toggleError || "Error changing stream");
       logger.live.error("Stream toggle error", { error: message });
       toast({
-        title: "Erro",
+        title: t.common?.error || "Error",
         description: message,
         variant: "destructive",
       });
@@ -330,7 +332,7 @@ const LiveManagement = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+        <div className="animate-pulse text-muted-foreground">{t.common?.loading || "Loading..."}</div>
       </div>
     );
   }
@@ -375,14 +377,14 @@ const LiveManagement = () => {
                 <div className="space-y-2">
                   <h2 className="text-xl font-semibold text-foreground">
                     {creatorStatus === "not_creator" 
-                      ? "Você ainda não é um criador"
-                      : "Aguardando aprovação"
+                      ? (t.liveManagement?.notCreator || "You're not a creator yet")
+                      : (t.liveManagement?.awaitingApproval || "Awaiting approval")
                     }
                   </h2>
                   <p className="text-muted-foreground">
                     {creatorStatus === "not_creator"
-                      ? "Para transmitir ao vivo, você precisa solicitar uma conta de criador."
-                      : "Sua solicitação está sendo analisada. Você será notificado quando for aprovado."
+                      ? (t.liveManagement?.notCreatorDesc || "To broadcast live, you need to request a creator account.")
+                      : (t.liveManagement?.awaitingApprovalDesc || "Your request is being reviewed. You will be notified when approved.")
                     }
                   </p>
                 </div>
@@ -395,8 +397,8 @@ const LiveManagement = () => {
                 >
                   <UserPlus className="h-5 w-5" />
                   {creatorStatus === "not_creator"
-                    ? "Solicitar conta de criador"
-                    : "Ir para o perfil"
+                    ? (t.liveManagement?.requestCreatorAccount || "Request creator account")
+                    : (t.liveManagement?.goToProfile || "Go to profile")
                   }
                 </Button>
               </CardContent>
@@ -424,7 +426,7 @@ const LiveManagement = () => {
                   <Users className="h-5 w-5 text-primary" />
                   <div>
                     <p className="text-2xl font-bold">{participants}</p>
-                    <p className="text-xs text-muted-foreground">Espectadores</p>
+                    <p className="text-xs text-muted-foreground">{t.liveManagement?.viewers || "Viewers"}</p>
                   </div>
                 </div>
               </CardContent>
@@ -436,7 +438,7 @@ const LiveManagement = () => {
                   <DollarSign className="h-5 w-5 text-green-500" />
                   <div>
                     <p className="text-2xl font-bold">R$ {revenue.total.toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">Receita Total</p>
+                    <p className="text-xs text-muted-foreground">{t.liveManagement?.totalRevenue || "Total Revenue"}</p>
                   </div>
                 </div>
               </CardContent>
@@ -488,7 +490,7 @@ const LiveManagement = () => {
             ) : (
               <Card className="border-border h-full flex items-center justify-center">
                 <p className="text-muted-foreground text-sm">
-                  Inicie a transmissão para ativar o chat
+                  {t.liveManagement?.startToActivateChat || "Start streaming to activate chat"}
                 </p>
               </Card>
             )}
@@ -584,7 +586,7 @@ const LiveManagement = () => {
             ) : (
               <Card className="border-border h-[500px] flex items-center justify-center">
                 <p className="text-muted-foreground">
-                  Inicie a transmissão para ativar o chat
+                  {t.liveManagement?.startToActivateChat || "Start streaming to activate chat"}
                 </p>
               </Card>
             )}

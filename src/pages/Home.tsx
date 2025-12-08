@@ -62,7 +62,7 @@ const Home = () => {
 
         {loading || authLoading ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading...</p>
+            <p className="text-muted-foreground">{t.common?.loading || "Loading..."}</p>
           </div>
         ) : (
           <>
@@ -122,10 +122,10 @@ const Home = () => {
                 {/* Friendly empty state message */}
                 <div className="text-center space-y-2">
                   <p className="text-xl text-foreground font-medium">
-                    Está meio vazio por aqui...
+                    {t.home?.emptyTitle || "It's a bit empty here..."}
                   </p>
                   <p className="text-muted-foreground">
-                    Seja o primeiro a entrar ao vivo!
+                    {t.home?.emptySubtitle || "Be the first to go live!"}
                   </p>
                 </div>
 
@@ -136,7 +136,7 @@ const Home = () => {
                     className="mt-4 gap-2"
                   >
                     <Video className="h-4 w-4" />
-                    Iniciar transmissão
+                    {t.home?.startStream || "Start streaming"}
                   </Button>
                 )}
               </div>
@@ -150,7 +150,7 @@ const Home = () => {
             <DialogHeader>
               <DialogTitle className="text-primary">{t.home?.loginToWatch || "Faça login para assistir"}</DialogTitle>
               <DialogDescription>
-                Create an account or sign in to watch live streams and interact with creators.
+                {t.home?.loginDesc || "Create an account or sign in to watch live streams and interact with creators."}
               </DialogDescription>
             </DialogHeader>
             <div className="flex gap-3 mt-4">
@@ -165,7 +165,7 @@ const Home = () => {
                 className="flex-1"
                 onClick={() => setShowLoginDialog(false)}
               >
-                Cancel
+                {t.common?.cancel || "Cancel"}
               </Button>
             </div>
           </DialogContent>
