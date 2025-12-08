@@ -135,15 +135,16 @@ export const HowToMonetizeDialog = () => {
         <Button 
           variant="outline" 
           size="sm" 
-          className="gap-1 sm:gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden px-2 sm:px-3 text-xs sm:text-sm flex-shrink-0"
+          className="gap-1.5 sm:gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden px-2 sm:px-3 text-xs sm:text-sm"
         >
-          <HelpCircle className="w-3 h-3 sm:w-4 sm:h-4 text-primary animate-pulse flex-shrink-0" />
-          <span className="text-primary font-medium truncate">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
+          <HelpCircle className="w-4 h-4 text-primary animate-pulse flex-shrink-0" />
+          <span className="text-primary font-medium hidden xs:inline">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
+          <span className="text-primary font-medium xs:hidden">?</span>
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           <span className="absolute inset-0 rounded-md animate-border-glow pointer-events-none" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-primary animate-bounce-slow" />
@@ -160,10 +161,10 @@ export const HowToMonetizeDialog = () => {
           </div>
           
           {/* Visual diagram with 3-zone layout */}
-          <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-3 border border-primary/20 relative overflow-hidden">
+          <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-2 sm:p-3 border border-primary/20 relative overflow-hidden">
             <Sparkles className="absolute top-2 right-2 w-4 h-4 text-primary/30 animate-pulse" />
             
-            <div className="relative" style={{ height: `${levels.length * rowHeight + 20}px` }}>
+            <div className="relative overflow-x-auto" style={{ height: `${levels.length * rowHeight + 20}px`, minWidth: '280px' }}>
               {/* SVG for connection lines - absolutely positioned */}
               <svg 
                 className="absolute inset-0 w-full h-full pointer-events-none"

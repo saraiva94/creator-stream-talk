@@ -237,17 +237,17 @@ export const InstructionsDialog = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-1.5 sm:gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden text-xs sm:text-sm px-2 sm:px-4">
-          <span className="text-primary font-medium hidden sm:inline">{t.profile.instructions || "Como funciona"}</span>
-          <span className="text-primary font-medium sm:hidden">?</span>
-          <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary animate-pulse" />
+        <Button variant="outline" className="gap-1.5 sm:gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden text-xs sm:text-sm px-2.5 sm:px-4">
+          <HelpCircle className="w-4 h-4 text-primary animate-pulse flex-shrink-0" />
+          <span className="text-primary font-medium hidden xs:inline">{t.profile.instructions || "Como funciona"}</span>
+          <span className="text-primary font-medium xs:hidden">?</span>
           {/* Animated glow effect */}
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           {/* Pulsing border glow */}
           <span className="absolute inset-0 rounded-md pointer-events-none" style={{ animation: 'border-glow 2s ease-in-out infinite' }} />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh]">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] mx-2 sm:mx-0">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-primary animate-bounce" />
