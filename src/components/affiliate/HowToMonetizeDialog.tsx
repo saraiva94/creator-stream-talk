@@ -4,7 +4,26 @@ import { Button } from "@/components/ui/button";
 import { HelpCircle, User, Users, DollarSign, ArrowRight, ArrowDown, Sparkles } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
-// Money particle component
+// Money/coin particle component for arrow animations
+const CoinParticle = ({ delay = 0, type = 'coin' }: { delay?: number; type?: 'coin' | 'dollar' }) => {
+  const randomX = Math.random() * 30 - 15;
+  const randomY = Math.random() * 20 - 10;
+  
+  return (
+    <span 
+      className="absolute text-xs font-bold opacity-0 pointer-events-none"
+      style={{
+        animation: `coin-scatter 0.6s ease-out ${delay}ms forwards`,
+        left: `${50 + randomX}%`,
+        top: `${50 + randomY}%`,
+      }}
+    >
+      {type === 'coin' ? '🪙' : '$'}
+    </span>
+  );
+};
+
+// Money particle component for badges
 const MoneyParticle = ({ delay = 0 }: { delay?: number }) => {
   const randomX = Math.random() * 40 - 20;
   const randomRotate = Math.random() * 360;
@@ -22,28 +41,66 @@ const MoneyParticle = ({ delay = 0 }: { delay?: number }) => {
   );
 };
 
-// Animated arrow with bounce effect
-const AnimatedArrowDown = ({ className = "", color = "text-muted-foreground" }: { className?: string; color?: string }) => (
-  <div className={`relative ${className}`}>
-    <ArrowDown 
-      className={`w-6 h-6 ${color} animate-bounce-custom`}
-    />
-  </div>
-);
+// Animated arrow with bounce effect and coin particles
+const AnimatedArrowDown = ({ className = "", color = "text-muted-foreground" }: { className?: string; color?: string }) => {
+  const [showCoins, setShowCoins] = useState(false);
+  const [key, setKey] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowCoins(true);
+      setKey(prev => prev + 1);
+      setTimeout(() => setShowCoins(false), 600);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-// Animated horizontal arrow
+  return (
+    <div className={`relative ${className}`}>
+      <ArrowDown 
+        className={`w-6 h-6 ${color} animate-bounce-custom`}
+      />
+      {/* Coin particles on bounce */}
+      {showCoins && (
+        <div key={key} className="absolute inset-0 pointer-events-none overflow-visible">
+          {[0, 1, 2].map((i) => (
+            <CoinParticle key={i} delay={i * 80} type={i % 2 === 0 ? 'coin' : 'dollar'} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Animated horizontal arrow with coin scatter
 const AnimatedArrowRight = ({ color = "text-green-500", onHit }: { color?: string; onHit?: () => void }) => {
+  const [showCoins, setShowCoins] = useState(false);
+  const [key, setKey] = useState(0);
+
   useEffect(() => {
     const interval = setInterval(() => {
       onHit?.();
+      setShowCoins(true);
+      setKey(prev => prev + 1);
+      setTimeout(() => setShowCoins(false), 600);
     }, 1500);
     return () => clearInterval(interval);
   }, [onHit]);
 
   return (
-    <ArrowRight 
-      className={`w-5 h-5 ${color} animate-arrow-hit`}
-    />
+    <div className="relative">
+      <ArrowRight 
+        className={`w-5 h-5 ${color} animate-arrow-hit`}
+      />
+      {/* Coin particles on hit */}
+      {showCoins && (
+        <div key={key} className="absolute -right-2 top-1/2 -translate-y-1/2 pointer-events-none overflow-visible">
+          {[0, 1, 2, 3].map((i) => (
+            <CoinParticle key={i} delay={i * 60} type={i % 2 === 0 ? 'coin' : 'dollar'} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -160,7 +217,7 @@ export const HowToMonetizeDialog = () => {
               
               {/* Friend's link brings */}
               <div className="text-xs text-muted-foreground mb-3 text-center">
-                {t.affiliate?.friendBrings || "O link do amigo traz"}
+                {t.affiliate?.friendBrings || "Que o amigo traz"}
               </div>
               
               {/* Level 3 - Indirect referral */}
@@ -219,6 +276,17 @@ export const HowToMonetizeDialog = () => {
             100% {
               opacity: 0;
               transform: translateY(-30px) scale(0.5);
+            }
+          }
+          
+          @keyframes coin-scatter {
+            0% {
+              opacity: 1;
+              transform: translate(0, 0) scale(1);
+            }
+            100% {
+              opacity: 0;
+              transform: translate(var(--scatter-x, 15px), var(--scatter-y, -20px)) scale(0.6);
             }
           }
           

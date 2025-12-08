@@ -197,18 +197,19 @@ const EarningsCalculator = () => {
           <div className="text-2xl font-bold text-primary">{minutes}</div>
           <div className="text-[10px] text-muted-foreground">minutos</div>
         </div>
-        <div className="bg-background/50 rounded-lg p-2">
+        <div className="bg-background/50 rounded-lg p-2 col-span-2">
           <div className="text-2xl font-bold text-yellow-500">{credits.toLocaleString()}</div>
-          <div className="text-[10px] text-muted-foreground">créditos</div>
-        </div>
-        <div className="bg-background/50 rounded-lg p-2 border-2 border-green-500">
-          <div className="text-2xl font-bold text-green-500">R${earnings}</div>
-          <div className="text-[10px] text-green-500 font-semibold">seus ganhos</div>
+          <div className="text-[10px] text-muted-foreground">créditos consumidos</div>
         </div>
       </div>
       
+      <div className="mt-3 bg-background/50 rounded-lg p-3 border-2 border-green-500">
+        <div className="text-2xl font-bold text-green-500 text-center">R${earnings},00</div>
+        <div className="text-[10px] text-green-500 font-semibold text-center">receita líquida para saque imediato</div>
+      </div>
+      
       <p className="text-[10px] text-center text-muted-foreground mt-3">
-        💰 Saque via PIX a qualquer momento!
+        💰 18.000 créditos = R$400,00 em receita líquida para saque imediato do criador
       </p>
     </div>
   );
