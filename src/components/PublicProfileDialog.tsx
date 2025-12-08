@@ -10,7 +10,8 @@ import {
   ExternalLink,
   Youtube,
   Instagram,
-  Globe
+  Globe,
+  MessageCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -303,6 +304,27 @@ export const PublicProfileDialog = ({
                         {t.userProfile?.follow || t.profile?.follow || "Seguir"}
                       </>
                     )}
+                  </Button>
+                  
+                  {/* Chat button */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full h-10 w-10"
+                    onClick={() => {
+                      onClose();
+                      // Dispatch custom event to open global chat with this user
+                      window.dispatchEvent(new CustomEvent('openChat', {
+                        detail: {
+                          id: profile.id,
+                          name: profile.username,
+                          avatar: profile.avatar_url
+                        }
+                      }));
+                    }}
+                    title={t.chat?.sendMessage || "Enviar mensagem"}
+                  >
+                    <MessageCircle className="h-4 w-4" />
                   </Button>
                   
                   {/* Settings gear menu */}
