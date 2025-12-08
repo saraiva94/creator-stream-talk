@@ -251,14 +251,14 @@ const Admin = () => {
       );
       
       toast({
-        title: newStatus === "banned" ? "Usuário banido" : "Usuário reativado",
-        description: newStatus === "banned" ? "O usuário foi banido da plataforma." : "O usuário foi reativado.",
+        title: newStatus === "banned" ? t.admin.userBanned : t.admin.userReactivated,
+        description: newStatus === "banned" ? t.admin.userBannedDesc : t.admin.userReactivatedDesc,
       });
     } catch (error) {
       console.error("Error updating user status:", error);
       toast({
-        title: "Erro",
-        description: "Não foi possível atualizar o status do usuário.",
+        title: t.admin.error,
+        description: t.admin.errorUpdatingStatus,
         variant: "destructive",
       });
     } finally {
@@ -282,16 +282,16 @@ const Admin = () => {
       );
       
       toast({
-        title: approve ? "Criador aprovado" : "Aprovação revogada",
+        title: approve ? t.admin.creatorApproved : t.admin.approvalRevoked,
         description: approve 
-          ? "O criador agora pode fazer transmissões ao vivo." 
-          : "O criador não pode mais fazer transmissões.",
+          ? t.admin.creatorApprovedDesc 
+          : t.admin.approvalRevokedDesc,
       });
     } catch (error) {
       console.error("Error updating creator approval:", error);
       toast({
-        title: "Erro",
-        description: "Não foi possível atualizar a aprovação do criador.",
+        title: t.admin.error,
+        description: t.admin.errorUpdatingApproval,
         variant: "destructive",
       });
     } finally {
@@ -466,7 +466,7 @@ const Admin = () => {
             <Shield className="h-8 w-8 text-primary" />
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-primary">{t.admin.title}</h1>
-              <p className="text-sm text-muted-foreground">Gerencie a plataforma e monitore a receita</p>
+              <p className="text-sm text-muted-foreground">{t.admin.subtitle}</p>
             </div>
           </div>
           <Link to="/admin/creators">
@@ -549,13 +549,13 @@ const Admin = () => {
               <CardTitle className="flex items-center justify-between text-lg">
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-primary" />
-                  Lista de Usuários ({filteredUsers.length})
+                  {t.admin.usersList} ({filteredUsers.length})
                 </div>
               </CardTitle>
               <div className="relative mt-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar usuário..."
+                  placeholder={t.admin.searchUser}
                   value={usersSearch}
                   onChange={(e) => setUsersSearch(e.target.value)}
                   className="pl-9"
@@ -574,7 +574,7 @@ const Admin = () => {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium truncate">{profile.username}</p>
                         {profile.status === "banned" && (
-                          <Badge variant="destructive" className="text-xs">Banido</Badge>
+                          <Badge variant="destructive" className="text-xs">{t.admin.banned}</Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -593,26 +593,26 @@ const Admin = () => {
                       ) : profile.status === "banned" ? (
                         <>
                           <CheckCircle className="h-4 w-4 mr-1" />
-                          <span className="hidden sm:inline">Reativar</span>
+                          <span className="hidden sm:inline">{t.admin.reactivate}</span>
                         </>
                       ) : (
                         <>
                           <Ban className="h-4 w-4 mr-1" />
-                          <span className="hidden sm:inline">Banir</span>
+                          <span className="hidden sm:inline">{t.admin.ban}</span>
                         </>
                       )}
                     </Button>
                   </div>
                 ))}
                 {paginatedUsers.length === 0 && (
-                  <p className="text-center text-muted-foreground py-4">Nenhum usuário encontrado</p>
+                  <p className="text-center text-muted-foreground py-4">{t.admin.noUserFound}</p>
                 )}
               </div>
               {/* Pagination */}
               {totalUsersPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                   <p className="text-sm text-muted-foreground">
-                    Página {usersPage} de {totalUsersPages}
+                    {t.admin.page} {usersPage} {t.admin.of} {totalUsersPages}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -645,13 +645,13 @@ const Admin = () => {
               <CardTitle className="flex items-center justify-between text-lg">
                 <div className="flex items-center gap-2">
                   <Video className="h-5 w-5 text-blue-500" />
-                  Lista de Criadores ({filteredCreators.length})
+                  {t.admin.creatorsList} ({filteredCreators.length})
                 </div>
               </CardTitle>
               <div className="relative mt-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar criador..."
+                  placeholder={t.admin.searchCreator}
                   value={creatorsSearch}
                   onChange={(e) => setCreatorsSearch(e.target.value)}
                   className="pl-9"
@@ -672,13 +672,13 @@ const Admin = () => {
                         {creator.is_streaming && (
                           <Badge className="bg-green-500/20 text-green-500 text-xs">
                             <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse mr-1" />
-                            Online
+                            {t.admin.live}
                           </Badge>
                         )}
                         {creator.approved_for_live ? (
-                          <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">Aprovado</Badge>
+                          <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">{t.admin.approved}</Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">Pendente</Badge>
+                          <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">{t.admin.pending}</Badge>
                         )}
                       </div>
                     </div>
@@ -695,7 +695,7 @@ const Admin = () => {
                           ) : (
                             <>
                               <XCircle className="h-4 w-4 mr-1" />
-                              <span className="hidden sm:inline">Revogar</span>
+                              <span className="hidden sm:inline">{t.admin.revoke}</span>
                             </>
                           )}
                         </Button>
@@ -711,7 +711,7 @@ const Admin = () => {
                           ) : (
                             <>
                               <CheckCircle className="h-4 w-4 mr-1" />
-                              <span className="hidden sm:inline">Aprovar</span>
+                              <span className="hidden sm:inline">{t.admin.approve}</span>
                             </>
                           )}
                         </Button>
@@ -720,14 +720,14 @@ const Admin = () => {
                   </div>
                 ))}
                 {paginatedCreators.length === 0 && (
-                  <p className="text-center text-muted-foreground py-4">Nenhum criador encontrado</p>
+                  <p className="text-center text-muted-foreground py-4">{t.admin.noCreatorFound}</p>
                 )}
               </div>
               {/* Pagination */}
               {totalCreatorsPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                   <p className="text-sm text-muted-foreground">
-                    Página {creatorsPage} de {totalCreatorsPages}
+                    {t.admin.page} {creatorsPage} {t.admin.of} {totalCreatorsPages}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -758,24 +758,24 @@ const Admin = () => {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {confirmDialog?.type === "ban" && "Banir usuário"}
-                {confirmDialog?.type === "unban" && "Reativar usuário"}
-                {confirmDialog?.type === "approve" && "Aprovar criador"}
-                {confirmDialog?.type === "revoke" && "Revogar aprovação"}
+                {confirmDialog?.type === "ban" && t.admin.confirmBan}
+                {confirmDialog?.type === "unban" && t.admin.confirmUnban}
+                {confirmDialog?.type === "approve" && t.admin.confirmApprove}
+                {confirmDialog?.type === "revoke" && t.admin.confirmRevoke}
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-4">
                   {confirmDialog?.type === "ban" && (
-                    <p>Tem certeza que deseja banir <strong>{confirmDialog.targetName}</strong>? O usuário não poderá mais acessar a plataforma.</p>
+                    <p>{t.admin.confirmBanDesc} <strong>{confirmDialog.targetName}</strong>?</p>
                   )}
                   {confirmDialog?.type === "unban" && (
-                    <p>Tem certeza que deseja reativar <strong>{confirmDialog?.targetName}</strong>? O usuário terá acesso à plataforma novamente.</p>
+                    <p>{t.admin.confirmUnbanDesc} <strong>{confirmDialog?.targetName}</strong>?</p>
                   )}
                   {confirmDialog?.type === "approve" && (
-                    <p>Tem certeza que deseja aprovar <strong>{confirmDialog?.targetName}</strong>? O criador poderá fazer transmissões ao vivo.</p>
+                    <p>{t.admin.confirmApproveDesc} <strong>{confirmDialog?.targetName}</strong>?</p>
                   )}
                   {confirmDialog?.type === "revoke" && (
-                    <p>Tem certeza que deseja revogar a aprovação de <strong>{confirmDialog?.targetName}</strong>? O criador não poderá mais fazer transmissões.</p>
+                    <p>{t.admin.confirmRevokeDesc} <strong>{confirmDialog?.targetName}</strong>?</p>
                   )}
                   {confirmDialog?.type === "ban" && (
                     <div className="pt-2">
@@ -794,12 +794,12 @@ const Admin = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmAction}
                 className={confirmDialog?.type === "ban" || confirmDialog?.type === "revoke" ? "bg-destructive hover:bg-destructive/90" : ""}
               >
-                Confirmar
+                {t.common.confirm}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -810,9 +810,9 @@ const Admin = () => {
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
               <Wallet className="h-5 w-5 text-primary" />
-              Dashboard de Receita da Plataforma
+              {t.admin.revenueBreakdown}
             </CardTitle>
-            <CardDescription>Visão detalhada das finanças da plataforma</CardDescription>
+            <CardDescription>{t.admin.revenueBreakdownDesc}</CardDescription>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0 space-y-6">
             {/* Summary Cards */}
@@ -822,7 +822,7 @@ const Admin = () => {
                   <div className="flex items-center gap-3">
                     <Wallet className="h-8 w-8 text-primary flex-shrink-0" />
                     <div>
-                      <p className="text-sm text-muted-foreground">Receita Total da Plataforma</p>
+                      <p className="text-sm text-muted-foreground">{t.admin.totalPlatformIncome}</p>
                       <p className="text-2xl sm:text-3xl font-bold text-primary">{formatBRL(totalPlatformIncome)}</p>
                     </div>
                   </div>
@@ -834,7 +834,7 @@ const Admin = () => {
                   <div className="flex items-center gap-3">
                     <ArrowDownCircle className="h-8 w-8 text-green-500 flex-shrink-0" />
                     <div>
-                      <p className="text-sm text-muted-foreground">Total de Saques</p>
+                      <p className="text-sm text-muted-foreground">{t.admin.totalWithdrawals}</p>
                       <p className="text-2xl sm:text-3xl font-bold text-green-500">{formatBRL(revenue.totalWithdrawals)}</p>
                     </div>
                   </div>
@@ -844,15 +844,15 @@ const Admin = () => {
 
             {/* Income Breakdown - 3 Cards */}
             <div>
-              <h4 className="font-semibold mb-3 text-sm sm:text-base">Entradas por Tipo</h4>
+              <h4 className="font-semibold mb-3 text-sm sm:text-base">{t.revenue.entriesByType}</h4>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
                 <Card style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3 mb-2">
                       <CreditCard className="h-5 w-5 text-blue-500" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Créditos</p>
-                        <p className="text-xs text-muted-foreground/70">Bruto: {formatBRL(revenue.creditsIncome)}</p>
+                        <p className="text-sm text-muted-foreground">{t.revenue.credits}</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.creditsIncome)}</p>
                       </div>
                     </div>
                     <p className="font-bold text-2xl text-blue-500">+{formatBRL(revenue.platformCredits)}</p>
@@ -864,8 +864,8 @@ const Admin = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <MessageSquare className="h-5 w-5 text-yellow-500" />
                       <div>
-                        <p className="text-sm text-muted-foreground">SuperChats</p>
-                        <p className="text-xs text-muted-foreground/70">Bruto: {formatBRL(revenue.superchatIncome)}</p>
+                        <p className="text-sm text-muted-foreground">{t.revenue.superchats}</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.superchatIncome)}</p>
                       </div>
                     </div>
                     <p className="font-bold text-2xl text-yellow-500">+{formatBRL(revenue.platformSuperchat)}</p>
@@ -877,8 +877,8 @@ const Admin = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <UserPlus className="h-5 w-5 text-green-500" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Cadastros</p>
-                        <p className="text-xs text-muted-foreground/70">Bruto: {formatBRL(revenue.registrationIncome)}</p>
+                        <p className="text-sm text-muted-foreground">{t.revenue.registrations}</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.registrationIncome)}</p>
                       </div>
                     </div>
                     <p className="font-bold text-2xl text-green-500">+{formatBRL(revenue.platformRegistration)}</p>
@@ -890,7 +890,7 @@ const Admin = () => {
             {/* Platform Balance */}
             <div className="pt-4 border-t border-border">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-lg font-semibold">Saldo Líquido da Plataforma</span>
+                <span className="text-lg font-semibold">{t.admin.netPlatformBalance}</span>
                 <span className={`text-2xl sm:text-3xl font-bold ${revenue.platformBalance >= 0 ? "text-primary" : "text-destructive"}`}>
                   {formatBRL(revenue.platformBalance)}
                 </span>
