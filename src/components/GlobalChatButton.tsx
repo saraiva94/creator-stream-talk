@@ -771,7 +771,8 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                     value={newMessage}
                     onChange={handleTextareaChange}
                     placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
-                    className="flex-1 min-h-[36px] max-h-[100px] resize-none py-2"
+                    className="flex-1 min-h-[36px] max-h-[100px] resize-none py-2 scrollbar-none overflow-y-auto"
+                    style={{ scrollbarWidth: 'none' }}
                     rows={1}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {

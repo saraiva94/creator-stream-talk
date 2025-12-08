@@ -116,7 +116,7 @@ export const DirectChatMessage = ({
   return (
     <div
       className={cn(
-        "group relative max-w-[85%] rounded-lg text-sm",
+        "group relative rounded-lg text-sm w-fit max-w-[85%]",
         isOwn ? "ml-auto" : ""
       )}
     >
@@ -133,21 +133,27 @@ export const DirectChatMessage = ({
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="left" className="w-36">
-              {!isAudio && (
-                <DropdownMenuItem onClick={() => setIsEditing(true)}>
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  {t.chat?.edit || "Editar"}
-                </DropdownMenuItem>
-              )}
+            <DropdownMenuContent 
+              align="end" 
+              side="left" 
+              className="min-w-0 p-1.5 bg-card border border-border shadow-lg"
+            >
               <Popover open={showReactionPicker} onOpenChange={setShowReactionPicker}>
                 <PopoverTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                  <DropdownMenuItem 
+                    onSelect={(e) => e.preventDefault()}
+                    className="px-2 py-1.5"
+                  >
                     <Smile className="h-4 w-4 mr-2" />
                     {t.chat?.react || "Reagir"}
                   </DropdownMenuItem>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 border-0" side="left" align="start">
+                <PopoverContent 
+                  className="w-auto p-0 border-0 z-50" 
+                  side="left" 
+                  align="start"
+                  onInteractOutside={() => setShowReactionPicker(false)}
+                >
                   <Picker
                     data={data}
                     onEmojiSelect={(emoji: { native: string }) => handleReaction(emoji.native)}
@@ -159,9 +165,18 @@ export const DirectChatMessage = ({
                   />
                 </PopoverContent>
               </Popover>
+              {!isAudio && (
+                <DropdownMenuItem 
+                  onClick={() => setIsEditing(true)}
+                  className="px-2 py-1.5"
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  {t.chat?.edit || "Editar"}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem 
                 onClick={() => setShowConfirmDelete(true)}
-                className="text-destructive focus:text-destructive"
+                className="text-destructive focus:text-destructive px-2 py-1.5"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 {t.chat?.delete || "Excluir"}
@@ -184,7 +199,12 @@ export const DirectChatMessage = ({
                 <Smile className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border-0" side="right" align="start">
+            <PopoverContent 
+              className="w-auto p-0 border-0 z-50" 
+              side="right" 
+              align="start"
+              onInteractOutside={() => setShowReactionPicker(false)}
+            >
               <Picker
                 data={data}
                 onEmojiSelect={(emoji: { native: string }) => handleReaction(emoji.native)}
