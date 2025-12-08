@@ -161,52 +161,54 @@ serve(async (req) => {
 
       console.log('[webhook] Processing registration:', { userId, directId, rootId });
 
-      // Activate user profile
+      // Activate user profile - set status to active
       await supabase
         .from('profiles')
         .update({ 
+          status: 'active',
           is_subscribed: true,
           referred_by: directId,
+          referrer_direct: directId,
+          referrer_root: rootId,
         })
         .eq('id', userId);
 
+      console.log('[webhook] Profile activated:', { userId, status: 'active' });
+
       // Process affiliate commissions
       if (directId) {
-        // Direct (parent) commission - R$1.00
-        const { data: directProfile } = await supabase
-          .from('profiles')
-          .select('balance')
-          .eq('id', directId)
-          .single();
+        // Direct (parent) commission - R$1.00 - use affiliate_earnings (in cents)
+        const directAmountCents = Math.round(DIRECT_COMMISSION * 100);
+        
+        // Use RPC to safely increment affiliate earnings
+        const { error: directError } = await supabase.rpc('increment_affiliate_earnings', {
+          p_profile_id: directId,
+          p_amount_cents: directAmountCents,
+        });
 
-        if (directProfile) {
-          await supabase
-            .from('profiles')
-            .update({ balance: (directProfile.balance || 0) + DIRECT_COMMISSION })
-            .eq('id', directId);
-
-          console.log('[webhook] Direct commission paid:', { directId, amount: DIRECT_COMMISSION });
+        if (directError) {
+          console.error('[webhook] Failed to increment direct affiliate earnings:', directError);
+        } else {
+          console.log('[webhook] Direct commission paid to affiliate_earnings:', { directId, amountCents: directAmountCents });
         }
 
-        // Root (grandparent) commission - R$0.50
+        // Root (grandparent) commission - R$0.50 - use affiliate_earnings (in cents)
         if (rootId && rootId !== directId) {
-          const { data: rootProfile } = await supabase
-            .from('profiles')
-            .select('balance')
-            .eq('id', rootId)
-            .single();
+          const rootAmountCents = Math.round(ROOT_COMMISSION * 100);
+          
+          const { error: rootError } = await supabase.rpc('increment_affiliate_earnings', {
+            p_profile_id: rootId,
+            p_amount_cents: rootAmountCents,
+          });
 
-          if (rootProfile) {
-            await supabase
-              .from('profiles')
-              .update({ balance: (rootProfile.balance || 0) + ROOT_COMMISSION })
-              .eq('id', rootId);
-
-            console.log('[webhook] Root commission paid:', { rootId, amount: ROOT_COMMISSION });
+          if (rootError) {
+            console.error('[webhook] Failed to increment root affiliate earnings:', rootError);
+          } else {
+            console.log('[webhook] Root commission paid to affiliate_earnings:', { rootId, amountCents: rootAmountCents });
           }
         }
 
-        // Record affiliate log
+        // Record referral
         await supabase.from('referrals').insert({
           referrer_id: directId,
           referred_id: userId,
@@ -214,6 +216,24 @@ serve(async (req) => {
           commission_earned: DIRECT_COMMISSION,
           status: 'completed',
         });
+
+        // Record affiliate log for tracking
+        const logDirectAmountCents = Math.round(DIRECT_COMMISSION * 100);
+        const logRootAmountCents = (rootId && rootId !== directId) ? Math.round(ROOT_COMMISSION * 100) : 0;
+        const logPlatformAmountCents = Math.round(amount * 100) - logDirectAmountCents - logRootAmountCents;
+        
+        await supabase.from('affiliate_logs').insert({
+          new_user: userId,
+          direct_referrer: directId,
+          root_creator: (rootId && rootId !== directId) ? rootId : null,
+          amount_direct: logDirectAmountCents,
+          amount_root: logRootAmountCents,
+          amount_platform: logPlatformAmountCents,
+          event_type: 'REGISTRATION',
+          payment_id: externalRef,
+        });
+
+        console.log('[webhook] Affiliate log recorded:', { logDirectAmountCents, logRootAmountCents, logPlatformAmountCents });
       }
 
       // Record transaction
