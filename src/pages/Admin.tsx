@@ -86,6 +86,16 @@ const Admin = () => {
   const [pendingPaymentId, setPendingPaymentId] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
   
+  // Webhook test
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState<{
+    success: boolean;
+    accountInfo?: { id: number; email: string; nickname: string; first_name: string; last_name: string };
+    expectedWebhookUrl?: string;
+    instructions?: string[];
+    error?: string;
+  } | null>(null);
+  
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
     totalCreators: 0,
@@ -359,6 +369,46 @@ const Admin = () => {
     }
   };
 
+  // Test webhook connection
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("webhook-test");
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to test webhook");
+      }
+
+      setWebhookTestResult(response.data);
+      
+      if (response.data.success) {
+        toast({
+          title: "Conexão com Mercado Pago OK!",
+          description: `Conta: ${response.data.accountInfo?.email || response.data.accountInfo?.nickname}`,
+        });
+      } else {
+        toast({
+          title: "Erro na conexão",
+          description: response.data.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error testing webhook:", error);
+      toast({
+        title: "Erro ao testar webhook",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
   useEffect(() => {
     checkAdminAccess();
   }, []);
@@ -575,6 +625,66 @@ const Admin = () => {
                 )}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Webhook Test */}
+        <Card className="mb-6 sm:mb-8 border-blue-500/30 bg-blue-500/5">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Shield className="h-5 w-5 text-blue-500" />
+              Testar Webhook do Mercado Pago
+            </CardTitle>
+            <CardDescription>
+              Verifique se a conexão com o Mercado Pago está funcionando e se o webhook está configurado corretamente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+            <Button 
+              onClick={handleTestWebhook}
+              disabled={testingWebhook}
+              variant="outline"
+            >
+              {testingWebhook ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                  Testando...
+                </>
+              ) : (
+                "Testar Conexão"
+              )}
+            </Button>
+            
+            {webhookTestResult && (
+              <div className={`p-4 rounded-lg ${webhookTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                {webhookTestResult.success ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span className="font-medium text-green-500">Conexão OK!</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Conta: {webhookTestResult.accountInfo?.email || webhookTestResult.accountInfo?.nickname}
+                    </p>
+                    <p className="text-sm font-medium mb-2">URL do Webhook:</p>
+                    <code className="block p-2 bg-background/50 rounded text-xs break-all mb-3">
+                      {webhookTestResult.expectedWebhookUrl}
+                    </code>
+                    <p className="text-sm font-medium mb-1">Como configurar:</p>
+                    <ol className="text-xs text-muted-foreground space-y-1">
+                      {webhookTestResult.instructions?.map((instruction, i) => (
+                        <li key={i}>{instruction}</li>
+                      ))}
+                    </ol>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-5 w-5 text-red-500" />
+                    <span className="text-red-500">{webhookTestResult.error}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
