@@ -1,9 +1,218 @@
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Eye, Video, Coins, Users, Gift, DollarSign } from "lucide-react";
+import { HelpCircle, Eye, Video, Coins, Users, Gift, DollarSign, ArrowRight, Wallet, Sparkles } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+
+// Animated pie chart for revenue split
+const AnimatedPieChart = ({ creatorPercent = 80, platformPercent = 20 }: { creatorPercent?: number; platformPercent?: number }) => {
+  const [animate, setAnimate] = useState(false);
+  
+  useEffect(() => {
+    const timeout = setTimeout(() => setAnimate(true), 300);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const creatorDeg = (creatorPercent / 100) * 360;
+  
+  return (
+    <div className="relative w-24 h-24 mx-auto">
+      <div 
+        className="w-full h-full rounded-full transition-all duration-1000 ease-out"
+        style={{
+          background: animate 
+            ? `conic-gradient(#22c55e 0deg ${creatorDeg}deg, hsl(var(--primary)) ${creatorDeg}deg 360deg)`
+            : `conic-gradient(transparent 0deg 360deg)`,
+          boxShadow: animate ? '0 0 20px rgba(34, 197, 94, 0.3)' : 'none',
+        }}
+      />
+      <div className="absolute inset-2 bg-background rounded-full flex items-center justify-center">
+        <span className="text-xs font-bold text-green-500">{creatorPercent}%</span>
+      </div>
+      {/* Legend */}
+      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 text-xs whitespace-nowrap">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 bg-green-500 rounded-full" />
+          Você
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 bg-primary rounded-full" />
+          Plataforma
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// Money flow animation
+const MoneyFlowAnimation = () => {
+  const [step, setStep] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStep(prev => (prev + 1) % 4);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex items-center justify-center gap-2 py-4">
+      {/* Viewer */}
+      <div className={`flex flex-col items-center transition-all duration-300 ${step >= 0 ? 'opacity-100 scale-100' : 'opacity-50 scale-95'}`}>
+        <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center border-2 border-blue-500">
+          <Eye className="w-5 h-5 text-blue-500" />
+        </div>
+        <span className="text-[10px] mt-1 text-muted-foreground">Espectador</span>
+      </div>
+      
+      {/* Arrow 1 */}
+      <div className={`flex items-center transition-all duration-300 ${step >= 1 ? 'opacity-100' : 'opacity-30'}`}>
+        <div className="flex items-center gap-0.5">
+          <Coins className={`w-4 h-4 text-yellow-500 ${step === 1 ? 'animate-bounce' : ''}`} />
+          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+        </div>
+      </div>
+      
+      {/* Platform */}
+      <div className={`flex flex-col items-center transition-all duration-300 ${step >= 2 ? 'opacity-100 scale-100' : 'opacity-50 scale-95'}`}>
+        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center border-2 border-primary relative">
+          <Video className="w-5 h-5 text-primary" />
+          {step === 2 && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center animate-ping">
+              <span className="text-[8px] font-bold text-black">$</span>
+            </div>
+          )}
+        </div>
+        <span className="text-[10px] mt-1 text-muted-foreground">Plataforma</span>
+      </div>
+      
+      {/* Arrow 2 with split */}
+      <div className={`flex flex-col items-center gap-1 transition-all duration-300 ${step >= 3 ? 'opacity-100' : 'opacity-30'}`}>
+        <div className="flex items-center">
+          <ArrowRight className="w-4 h-4 text-green-500" />
+          <span className="text-[10px] font-bold text-green-500">80%</span>
+        </div>
+      </div>
+      
+      {/* Creator */}
+      <div className={`flex flex-col items-center transition-all duration-300 ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-50 scale-95'}`}>
+        <div className={`w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center border-2 border-green-500 ${step === 3 ? 'animate-pulse' : ''}`}>
+          <Wallet className="w-5 h-5 text-green-500" />
+        </div>
+        <span className="text-[10px] mt-1 text-green-500 font-semibold">Você</span>
+      </div>
+    </div>
+  );
+};
+
+// SuperChat visual explanation
+const SuperChatVisual = () => {
+  const [activeTier, setActiveTier] = useState(0);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveTier(prev => (prev + 1) % 3);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const tiers = [
+    { color: 'bg-blue-500', border: 'border-blue-500', amount: 'R$3', time: '60s', you: 'R$2,40' },
+    { color: 'bg-yellow-500', border: 'border-yellow-500', amount: 'R$5', time: '120s', you: 'R$4,00' },
+    { color: 'bg-red-500', border: 'border-red-500', amount: 'R$8', time: '180s', you: 'R$6,40' },
+  ];
+
+  return (
+    <div className="flex justify-center gap-3 py-3">
+      {tiers.map((tier, i) => (
+        <div
+          key={i}
+          className={`flex flex-col items-center p-2 rounded-lg transition-all duration-500 ${
+            activeTier === i ? `${tier.color}/20 border-2 ${tier.border} scale-110` : 'bg-muted/30 border border-transparent scale-100'
+          }`}
+        >
+          <div className={`w-8 h-8 ${tier.color} rounded-full flex items-center justify-center mb-1 ${activeTier === i ? 'animate-pulse' : ''}`}>
+            <Gift className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-xs font-bold">{tier.amount}</span>
+          <span className="text-[10px] text-muted-foreground">{tier.time}</span>
+          {activeTier === i && (
+            <div className="mt-1 flex items-center gap-1 text-green-500 animate-fade-in">
+              <ArrowRight className="w-3 h-3" />
+              <span className="text-xs font-bold">{tier.you}</span>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Earnings calculator visual
+const EarningsCalculator = () => {
+  const [viewers, setViewers] = useState(0);
+  const [minutes, setMinutes] = useState(0);
+  const [credits, setCredits] = useState(0);
+  const [earnings, setEarnings] = useState(0);
+
+  useEffect(() => {
+    // Animate counting up
+    const duration = 2000;
+    const steps = 50;
+    const interval = duration / steps;
+    
+    let step = 0;
+    const timer = setInterval(() => {
+      step++;
+      const progress = step / steps;
+      
+      setViewers(Math.round(100 * progress));
+      setMinutes(Math.round(30 * progress));
+      setCredits(Math.round(18000 * progress));
+      setEarnings(Math.round(400 * progress));
+      
+      if (step >= steps) {
+        clearInterval(timer);
+      }
+    }, interval);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="bg-gradient-to-br from-green-500/10 to-primary/10 rounded-lg p-4 border border-green-500/30">
+      <div className="text-center mb-3">
+        <Sparkles className="w-5 h-5 text-yellow-500 mx-auto mb-1 animate-pulse" />
+        <span className="text-xs text-muted-foreground">Exemplo de ganhos</span>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3 text-center">
+        <div className="bg-background/50 rounded-lg p-2">
+          <div className="text-2xl font-bold text-blue-500">{viewers}</div>
+          <div className="text-[10px] text-muted-foreground">espectadores</div>
+        </div>
+        <div className="bg-background/50 rounded-lg p-2">
+          <div className="text-2xl font-bold text-primary">{minutes}</div>
+          <div className="text-[10px] text-muted-foreground">minutos</div>
+        </div>
+        <div className="bg-background/50 rounded-lg p-2">
+          <div className="text-2xl font-bold text-yellow-500">{credits.toLocaleString()}</div>
+          <div className="text-[10px] text-muted-foreground">créditos</div>
+        </div>
+        <div className="bg-background/50 rounded-lg p-2 border-2 border-green-500">
+          <div className="text-2xl font-bold text-green-500">R${earnings}</div>
+          <div className="text-[10px] text-green-500 font-semibold">seus ganhos</div>
+        </div>
+      </div>
+      
+      <p className="text-[10px] text-center text-muted-foreground mt-3">
+        💰 Saque via PIX a qualquer momento!
+      </p>
+    </div>
+  );
+};
 
 export const InstructionsDialog = () => {
   const { t } = useLanguage();
@@ -11,15 +220,17 @@ export const InstructionsDialog = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <HelpCircle className="w-4 h-4" />
-          {t.profile.instructions || "How it works"}
+        <Button variant="outline" className="gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden">
+          <HelpCircle className="w-4 h-4 text-primary animate-pulse" />
+          <span className="text-primary font-medium">{t.profile.instructions || "How it works"}</span>
+          {/* Animated glow effect */}
+          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            <HelpCircle className="w-5 h-5 text-primary" />
+            <HelpCircle className="w-5 h-5 text-primary animate-bounce" />
             {t.profile.howItWorks || "How Stream Star Works"}
           </DialogTitle>
         </DialogHeader>
@@ -50,7 +261,7 @@ export const InstructionsDialog = () => {
 
               <section className="space-y-3">
                 <h4 className="font-semibold flex items-center gap-2">
-                  <Coins className="w-4 h-4 text-secondary" />
+                  <Coins className="w-4 h-4 text-yellow-500" />
                   {t.profile.creditsTitle || "Credits System"}
                 </h4>
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
@@ -81,8 +292,8 @@ export const InstructionsDialog = () => {
                   {t.profile.affiliateViewerDesc || "Even as a viewer, you can earn money! Share your referral link with friends:"}
                 </p>
                 <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-                  <li><strong>R$1.00</strong> {t.profile.affiliateDirectDesc || "for each friend who signs up using your link"}</li>
-                  <li><strong>R$0.50</strong> {t.profile.affiliateIndirectDesc || "for each person your friends refer (second level)"}</li>
+                  <li><strong className="text-green-500">R$1,00</strong> {t.profile.affiliateDirectDesc || "for each friend who signs up using your link"}</li>
+                  <li><strong className="text-yellow-500">R$0,50</strong> {t.profile.affiliateIndirectDesc || "for each person your friends refer (second level)"}</li>
                 </ul>
                 <p className="text-sm text-primary">
                   {t.profile.affiliateAccess || "Access your referral link in the Affiliate section!"}
@@ -101,49 +312,39 @@ export const InstructionsDialog = () => {
                 </p>
               </section>
 
-              <section className="space-y-3">
-                <h4 className="font-semibold flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-success" />
-                  {t.profile.liveRevenueTitle || "Live Stream Revenue"}
+              {/* Visual revenue flow */}
+              <section className="space-y-4 bg-gradient-to-br from-primary/5 to-green-500/5 p-4 rounded-xl border border-primary/20">
+                <h4 className="font-semibold flex items-center gap-2 text-center justify-center">
+                  <DollarSign className="w-4 h-4 text-green-500 animate-bounce" />
+                  Como você ganha com lives
                 </h4>
-                <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-                  <li>{t.profile.liveRevenueDesc1 || "Viewers consume credits while watching your streams"}</li>
-                  <li><strong>80%</strong> {t.profile.liveRevenueDesc2 || "of all revenue goes directly to you"}</li>
-                  <li>{t.profile.liveRevenueDesc3 || "Earnings are automatically added to your creator wallet"}</li>
-                </ul>
                 
-                {/* Revenue Example */}
-                <div className="mt-4 p-4 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg border border-primary/30">
-                  <h5 className="font-semibold text-primary mb-3 flex items-center gap-2">
-                    💰 {t.profile.revenueExampleTitle || "Example: How much can you earn?"}
-                  </h5>
-                  <div className="text-sm space-y-2 text-muted-foreground">
-                    <p>{t.profile.revenueExampleIntro || "Let's say 100 people watch your live for 30 minutes:"}</p>
-                    <ul className="list-none space-y-1 mt-2">
-                      <li>👁️ 100 {t.profile.viewers || "viewers"} × 30 min = 3.000 min {t.profile.watched || "watched"}</li>
-                      <li>⏱️ 3.000 min × 6 {t.profile.creditsPerMin || "credits/min"} = 18.000 {t.profile.creditsConsumed || "credits consumed"}</li>
-                      <li>💵 18.000 {t.profile.credits || "credits"} = R$ 500,00 {t.profile.grossRevenue || "in gross revenue"}</li>
-                      <li className="text-lg font-bold text-primary mt-2">
-                        🎉 {t.profile.yourEarnings || "Your earnings"}: <span className="text-green-500">R$ 400,00</span> (80%)
-                      </li>
-                    </ul>
-                    <p className="text-xs mt-3 text-muted-foreground/80 italic">
-                      {t.profile.revenueExampleNote || "This money goes directly to your creator wallet and you can withdraw via PIX anytime!"}
-                    </p>
-                  </div>
+                {/* Money flow animation */}
+                <MoneyFlowAnimation />
+                
+                {/* Pie chart */}
+                <div className="pt-4 pb-8">
+                  <AnimatedPieChart creatorPercent={80} platformPercent={20} />
                 </div>
+                
+                <p className="text-xs text-center text-muted-foreground">
+                  Espectadores usam créditos → Você recebe automaticamente na sua carteira
+                </p>
               </section>
 
+              {/* Earnings calculator */}
+              <EarningsCalculator />
+
+              {/* SuperChat visual */}
               <section className="space-y-3">
                 <h4 className="font-semibold flex items-center gap-2">
-                  <Gift className="w-4 h-4 text-accent" />
-                  {t.profile.superchatRevenueTitle || "SuperChat Revenue"}
+                  <Gift className="w-4 h-4 text-accent animate-pulse" />
+                  SuperChats - Mensagens Destacadas
                 </h4>
-                <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-                  <li>{t.profile.superchatRevenueDesc1 || "Receive highlighted messages from viewers during streams"}</li>
-                  <li><strong>80%</strong> {t.profile.superchatRevenueDesc2 || "of each SuperChat goes to you"}</li>
-                  <li>{t.profile.superchatRevenueDesc3 || "SuperChats appear pinned and highlighted in your chat"}</li>
-                </ul>
+                <p className="text-sm text-muted-foreground">
+                  Espectadores enviam mensagens especiais e você ganha 80% de cada uma:
+                </p>
+                <SuperChatVisual />
               </section>
 
               <section className="space-y-3 bg-card p-4 rounded-lg border border-primary/20">
@@ -151,27 +352,46 @@ export const InstructionsDialog = () => {
                   <Users className="w-4 h-4 text-primary" />
                   {t.profile.affiliateCreatorTitle || "Referral Commissions"}
                 </h4>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   {t.profile.affiliateCreatorDesc || "Build your community and earn extra:"}
                 </p>
-                <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-                  <li><strong>R$1.00</strong> {t.profile.affiliateCreatorDirect || "for each new user who signs up with your link"}</li>
-                  <li><strong>R$0.50</strong> {t.profile.affiliateCreatorIndirect || "for users referred by your referrals (2nd level)"}</li>
-                </ul>
+                <div className="flex justify-center gap-4 py-2">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center border-2 border-green-500 mx-auto mb-1">
+                      <span className="font-bold text-green-500">R$1</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">direto</span>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center border-2 border-yellow-500 mx-auto mb-1">
+                      <span className="font-bold text-yellow-500">R$0,50</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">indireto</span>
+                  </div>
+                </div>
               </section>
 
               <section className="space-y-3">
-                <h4 className="font-semibold">{t.profile.withdrawalsTitle || "Withdrawals"}</h4>
-                <ul className="list-disc pl-6 space-y-2 text-muted-foreground">
-                  <li>{t.profile.withdrawalsDesc1 || "Request withdrawals from your creator wallet anytime"}</li>
-                  <li>{t.profile.withdrawalsDesc2 || "Minimum withdrawal: R$10.00"}</li>
-                  <li>{t.profile.withdrawalsDesc3 || "Payments processed via PIX (instant and free)"}</li>
-                </ul>
+                <h4 className="font-semibold flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-green-500" />
+                  {t.profile.withdrawalsTitle || "Withdrawals"}
+                </h4>
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <div className="px-3 py-2 bg-green-500/20 rounded-lg border border-green-500 text-center">
+                    <div className="text-lg font-bold text-green-500">PIX</div>
+                    <div className="text-[10px] text-muted-foreground">Instantâneo</div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                  <div className="px-3 py-2 bg-muted rounded-lg text-center">
+                    <div className="text-lg">💸</div>
+                    <div className="text-[10px] text-muted-foreground">Sua conta</div>
+                  </div>
+                </div>
               </section>
 
               <section className="space-y-3">
                 <h4 className="font-semibold">{t.profile.goLiveTitle || "How to Go Live"}</h4>
-                <ol className="list-decimal pl-6 space-y-2 text-muted-foreground">
+                <ol className="list-decimal pl-6 space-y-2 text-muted-foreground text-sm">
                   <li>{t.profile.goLiveStep1 || "Request creator activation on your profile"}</li>
                   <li>{t.profile.goLiveStep2 || "Wait for admin approval"}</li>
                   <li>{t.profile.goLiveStep3 || "Click 'Transmit' in the navbar"}</li>
