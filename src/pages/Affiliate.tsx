@@ -308,9 +308,9 @@ const Affiliate = () => {
         <Card className="mb-6 sm:mb-8">
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
             <div className="flex flex-col gap-2">
-              <div className="flex flex-row items-center justify-between gap-2">
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+              <div className="flex flex-row items-start sm:items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-lg min-w-0">
+                  <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                   <span className="truncate">{t.affiliate.createReferralCode}</span>
                 </CardTitle>
                 <HowToMonetizeDialog />

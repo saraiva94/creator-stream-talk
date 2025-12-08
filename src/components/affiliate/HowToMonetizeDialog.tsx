@@ -135,10 +135,10 @@ export const HowToMonetizeDialog = () => {
         <Button 
           variant="outline" 
           size="sm" 
-          className="gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden"
+          className="gap-1 sm:gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden px-2 sm:px-3 text-xs sm:text-sm flex-shrink-0"
         >
-          <span className="text-primary font-medium">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
-          <HelpCircle className="w-4 h-4 text-primary animate-pulse" />
+          <HelpCircle className="w-3 h-3 sm:w-4 sm:h-4 text-primary animate-pulse flex-shrink-0" />
+          <span className="text-primary font-medium truncate">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           <span className="absolute inset-0 rounded-md animate-border-glow pointer-events-none" />
         </Button>
