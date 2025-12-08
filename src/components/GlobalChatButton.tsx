@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send, Mic, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -52,6 +52,9 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const { t } = useLanguage();
 
   // Animate button entrance on mount
@@ -329,6 +332,88 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
     }
   };
 
+  // Audio recording handlers
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      });
+      
+      const chunks: Blob[] = [];
+      const startTime = Date.now();
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      
+      recorder.onstop = async () => {
+        const duration = Math.floor((Date.now() - startTime) / 1000);
+        const blob = new Blob(chunks, { type: recorder.mimeType });
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Upload and send audio
+        if (user && activeChat) {
+          setSendingMessage(true);
+          try {
+            const filename = `${user.id}/${Date.now()}.webm`;
+            const { error: uploadError } = await supabase.storage
+              .from("chat-media")
+              .upload(filename, blob, { contentType: "audio/webm" });
+            
+            if (uploadError) throw uploadError;
+            
+            const { data: urlData } = supabase.storage
+              .from("chat-media")
+              .getPublicUrl(filename);
+            
+            await supabase.from("direct_messages").insert({
+              sender_id: user.id,
+              receiver_id: activeChat.id,
+              content: `🎤 Áudio (${duration}s)`,
+              message_type: "audio",
+              metadata: { file_url: urlData.publicUrl, duration }
+            });
+          } catch (error) {
+            console.error("Audio upload error:", error);
+          } finally {
+            setSendingMessage(false);
+          }
+        }
+        
+        setRecordingDuration(0);
+      };
+      
+      recorder.start(100);
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      
+      // Timer for duration display
+      const interval = setInterval(() => {
+        setRecordingDuration(Math.floor((Date.now() - startTime) / 1000));
+      }, 100);
+      
+      recorder.addEventListener("stop", () => clearInterval(interval));
+      
+    } catch (error) {
+      console.error("Error accessing microphone:", error);
+    }
+  }, [user, activeChat]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setMediaRecorder(null);
+      setIsRecording(false);
+    }
+  }, [mediaRecorder, isRecording]);
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   if (!user) return null;
 
   const formatTime = (dateStr: string) => {
@@ -602,26 +687,67 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                     </div>
                   )}
                 </ScrollArea>
-                <div className="p-3 border-t border-border flex gap-2">
-                  <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
-                    className="flex-1"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  />
-                  <Button
-                    size="icon"
-                    onClick={handleSendMessage}
-                    disabled={!newMessage.trim() || sendingMessage}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
+                <div className="p-3 border-t border-border flex gap-2 items-center">
+                  {isRecording ? (
+                    <>
+                      {/* Recording indicator */}
+                      <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-destructive/10 rounded-md">
+                        <span className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
+                        <span className="text-xs font-mono text-destructive">
+                          {formatRecordingTime(recordingDuration)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t.chat?.recording || "Gravando..."}
+                        </span>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={stopRecording}
+                        title={t.chat?.stopRecording || "Parar gravação"}
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
+                        className="flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                      />
+                      {/* Mic button */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={startRecording}
+                        disabled={sendingMessage}
+                        title={t.chat?.recordAudio || "Gravar áudio"}
+                        className="shrink-0 text-muted-foreground hover:text-foreground"
+                      >
+                        {sendingMessage ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
+                        )}
+                      </Button>
+                      {/* Send button */}
+                      <Button
+                        size="icon"
+                        onClick={handleSendMessage}
+                        disabled={!newMessage.trim() || sendingMessage}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
