@@ -499,17 +499,18 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             </p>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {/* SuperChat button (non-creators only) */}
             {!isCreator && (
               <Button
                 type="button"
                 size="icon"
-                variant="outline"
+                variant="ghost"
                 onClick={() => setShowSuperChat(true)}
                 title="Enviar SuperChat"
+                className="shrink-0 text-muted-foreground hover:text-yellow-500"
               >
-                <Coins className="h-4 w-4" />
+                <Coins className="h-5 w-5" />
               </Button>
             )}
 
@@ -517,29 +518,23 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             <Button
               type="button"
               size="icon"
-              variant="outline"
+              variant="ghost"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               title={t.chat?.attachImage || "Anexar imagem"}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
             >
               {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                <ImagePlus className="h-4 w-4" />
+                <ImagePlus className="h-5 w-5" />
               )}
             </Button>
 
-            {/* Emoji picker */}
+            {/* Emoji picker - left of input */}
             <EmojiPicker 
               onEmojiSelect={handleEmojiSelect}
               disabled={uploading}
-            />
-
-            {/* Audio recorder */}
-            <AudioRecorder 
-              onRecordingComplete={handleAudioComplete}
-              disabled={uploading}
-              maxDuration={60}
             />
 
             {/* Text input */}
@@ -549,7 +544,14 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
               placeholder={t.chat?.typeMessage || "Digite sua mensagem..."}
               disabled={loading || uploading}
               maxLength={500}
-              className="flex-1"
+              className="flex-1 border-primary/50 focus-visible:ring-primary"
+            />
+
+            {/* Audio recorder - between input and send */}
+            <AudioRecorder 
+              onRecordingComplete={handleAudioComplete}
+              disabled={uploading}
+              maxDuration={60}
             />
 
             {/* Send button */}
@@ -558,6 +560,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
               size="icon" 
               disabled={loading || uploading || !newMessage.trim()}
               title={t.chat?.sendMessage || "Enviar mensagem"}
+              className="shrink-0"
             >
               <Send className="h-4 w-4" />
             </Button>
