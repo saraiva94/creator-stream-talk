@@ -106,21 +106,27 @@ const EarningsBox = ({
 export const HowToMonetizeDialog = () => {
   const { t } = useLanguage();
 
-  // Layout constants
-  const rowHeight = 52;
-  const centerX = 150;
-  const badgeWidth = 40;
+  // Layout: 3 horizontal zones
+  // Zone 1 (left): 0-90px - left side connections
+  // Zone 2 (center): 90-210px - badges
+  // Zone 3 (right): 210-300px - right side connections
   
-  // Y position for each level
-  const getY = (level: number) => 24 + level * rowHeight;
+  const svgWidth = 300;
+  const rowHeight = 48;
+  const leftZoneEnd = 85;
+  const centerX = 150;
+  const rightZoneStart = 215;
+  
+  // Y position for each level (centered in row)
+  const getY = (level: number) => 20 + level * rowHeight;
 
-  // Levels config: 5 levels + VOCÊ
+  // Levels config: 5 levels
   const levels = [
-    { level: 0, color: "primary", isYou: true, direct: "1º", indirect: "2º" },
-    { level: 1, color: "green", direct: "2º", indirect: "3º" },
-    { level: 2, color: "yellow", direct: "3º", indirect: "4º" },
-    { level: 3, color: "orange", direct: "4º", indirect: "5º" },
-    { level: 4, color: "pink", direct: "5º", indirect: "6º" },
+    { level: 0, color: "primary", isYou: true },
+    { level: 1, color: "green" },
+    { level: 2, color: "yellow" },
+    { level: 3, color: "orange" },
+    { level: 4, color: "pink" },
   ];
 
   return (
@@ -153,158 +159,159 @@ export const HowToMonetizeDialog = () => {
             </p>
           </div>
           
-          {/* Visual diagram with animated connections */}
-          <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-4 border border-primary/20 relative overflow-hidden">
+          {/* Visual diagram with 3-zone layout */}
+          <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-3 border border-primary/20 relative overflow-hidden">
             <Sparkles className="absolute top-2 right-2 w-4 h-4 text-primary/30 animate-pulse" />
             
-            {/* SVG for connection lines */}
-            <svg 
-              className="absolute inset-0 w-full h-full pointer-events-none" 
-              style={{ zIndex: 1 }}
-            >
-              <defs>
-                <marker id="arrowGreen" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
-                  <path d="M0,0 L5,2.5 L0,5 Z" fill="#22c55e" />
-                </marker>
-                <marker id="arrowYellow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
-                  <path d="M0,0 L5,2.5 L0,5 Z" fill="#eab308" />
-                </marker>
-              </defs>
-              
-              {/* Direct connections (green) - R$1 - alternating sides */}
-              {[1, 2, 3, 4].map((level) => {
-                const fromY = getY(level) + 14;
-                const toY = getY(level - 1) + 14;
-                const isRight = level % 2 === 1;
+            <div className="relative" style={{ height: `${levels.length * rowHeight + 20}px` }}>
+              {/* SVG for connection lines - absolutely positioned */}
+              <svg 
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox={`0 0 ${svgWidth} ${levels.length * rowHeight + 20}`}
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <defs>
+                  <marker id="arrowGreen" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#22c55e" />
+                  </marker>
+                  <marker id="arrowYellow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#eab308" />
+                  </marker>
+                </defs>
                 
-                // Linhas mais contidas
-                const offsetX = 55;
-                const curveOffset = 25;
-                const startX = centerX + (isRight ? badgeWidth : -badgeWidth);
-                const endX = centerX + (isRight ? badgeWidth : -badgeWidth);
-                const controlX = centerX + (isRight ? offsetX + curveOffset : -(offsetX + curveOffset));
-                const labelX = centerX + (isRight ? offsetX + 10 : -(offsetX + 10));
-                
-                return (
-                  <g key={`direct-${level}`}>
-                    <path
-                      d={`M ${startX} ${fromY} 
-                          C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY}`}
-                      fill="none"
-                      stroke="#22c55e"
-                      strokeWidth="2"
-                      strokeDasharray="5 3"
-                      markerEnd="url(#arrowGreen)"
-                      className="animate-dash"
-                      opacity="0.85"
-                    />
-                    {/* Flowing coin */}
-                    <circle r="4" fill="#22c55e" opacity="0.9">
-                      <animateMotion
-                        dur="1.2s"
-                        repeatCount="indefinite"
-                        begin={`${level * 0.2}s`}
-                        path={`M ${startX} ${fromY} 
-                              C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY}`}
+                {/* Direct connections (green) - R$1 - alternating LEFT/RIGHT zones */}
+                {[1, 2, 3, 4].map((level) => {
+                  const fromY = getY(level) + 12;
+                  const toY = getY(level - 1) + 12;
+                  const isRight = level % 2 === 1;
+                  
+                  // Completely contained in side zones
+                  const startX = isRight ? rightZoneStart : leftZoneEnd;
+                  const endX = isRight ? rightZoneStart : leftZoneEnd;
+                  const peakX = isRight ? rightZoneStart + 35 : leftZoneEnd - 35;
+                  const labelX = isRight ? rightZoneStart + 25 : leftZoneEnd - 25;
+                  
+                  return (
+                    <g key={`direct-${level}`}>
+                      <path
+                        d={`M ${startX} ${fromY} 
+                            Q ${peakX} ${(fromY + toY) / 2} ${endX} ${toY}`}
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="2"
+                        strokeDasharray="5 3"
+                        markerEnd="url(#arrowGreen)"
+                        className="animate-dash"
+                        opacity="0.85"
                       />
-                    </circle>
-                    {/* Amount label */}
-                    <rect 
-                      x={isRight ? labelX - 2 : labelX - 26}
-                      y={(fromY + toY) / 2 - 7}
-                      width="28"
-                      height="13"
-                      rx="3"
-                      fill="#22c55e"
-                      opacity="0.9"
-                    />
-                    <text
-                      x={isRight ? labelX + 12 : labelX - 12}
-                      y={(fromY + toY) / 2 + 3}
-                      fontSize="8"
-                      fill="white"
-                      fontWeight="bold"
-                      textAnchor="middle"
-                    >
-                      R$1
-                    </text>
-                  </g>
-                );
-              })}
-              
-              {/* Indirect connections (yellow) - R$0,50 - opposite side to direct */}
-              {[2, 3, 4].map((level) => {
-                const fromY = getY(level) + 14;
-                const toY = getY(level - 2) + 14;
-                const isRight = level % 2 === 0;
-                
-                // Linhas indiretas mais afastadas
-                const offsetX = 80;
-                const curveOffset = 35;
-                const startX = centerX + (isRight ? badgeWidth + 5 : -(badgeWidth + 5));
-                const endX = centerX + (isRight ? badgeWidth + 5 : -(badgeWidth + 5));
-                const controlX = centerX + (isRight ? offsetX + curveOffset : -(offsetX + curveOffset));
-                const labelX = centerX + (isRight ? offsetX + 20 : -(offsetX + 20));
-                
-                return (
-                  <g key={`indirect-${level}`}>
-                    <path
-                      d={`M ${startX} ${fromY - 2} 
-                          C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY + 2}`}
-                      fill="none"
-                      stroke="#eab308"
-                      strokeWidth="1.5"
-                      strokeDasharray="4 3"
-                      markerEnd="url(#arrowYellow)"
-                      className="animate-dash-slow"
-                      opacity="0.75"
-                    />
-                    {/* Flowing coin */}
-                    <circle r="3" fill="#eab308" opacity="0.85">
-                      <animateMotion
-                        dur="1.6s"
-                        repeatCount="indefinite"
-                        begin={`${level * 0.3 + 0.3}s`}
-                        path={`M ${startX} ${fromY - 2} 
-                              C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY + 2}`}
+                      {/* Flowing coin */}
+                      <circle r="4" fill="#22c55e" opacity="0.9">
+                        <animateMotion
+                          dur="1.2s"
+                          repeatCount="indefinite"
+                          begin={`${level * 0.2}s`}
+                          path={`M ${startX} ${fromY} Q ${peakX} ${(fromY + toY) / 2} ${endX} ${toY}`}
+                        />
+                      </circle>
+                      {/* Amount label */}
+                      <rect 
+                        x={labelX - 12}
+                        y={(fromY + toY) / 2 - 7}
+                        width="24"
+                        height="13"
+                        rx="3"
+                        fill="#22c55e"
+                        opacity="0.9"
                       />
-                    </circle>
-                    {/* Amount label */}
-                    <rect 
-                      x={isRight ? labelX - 5 : labelX - 30}
-                      y={(fromY + toY) / 2 - 7}
-                      width="35"
-                      height="13"
-                      rx="3"
-                      fill="#eab308"
-                      opacity="0.9"
-                    />
-                    <text
-                      x={isRight ? labelX + 12 : labelX - 12}
-                      y={(fromY + toY) / 2 + 3}
-                      fontSize="7"
-                      fill="white"
-                      fontWeight="bold"
-                      textAnchor="middle"
-                    >
-                      R$0,50
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            
-            {/* Level badges - centered */}
-            <div className="flex flex-col items-center relative z-10" style={{ gap: `${rowHeight - 32}px` }}>
-              {levels.map((lvl, idx) => (
-                <div key={idx} className="flex items-center justify-center" style={{ height: '32px' }}>
-                  <LevelBadge level={lvl.level} color={lvl.color} isYou={lvl.isYou} />
-                </div>
-              ))}
+                      <text
+                        x={labelX}
+                        y={(fromY + toY) / 2 + 3}
+                        fontSize="8"
+                        fill="white"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                      >
+                        R$1
+                      </text>
+                    </g>
+                  );
+                })}
+                
+                {/* Indirect connections (yellow) - R$0,50 - OPPOSITE zone to direct */}
+                {[2, 3, 4].map((level) => {
+                  const fromY = getY(level) + 12;
+                  const toY = getY(level - 2) + 12;
+                  const isRight = level % 2 === 0;
+                  
+                  // Opposite zone, further out
+                  const startX = isRight ? rightZoneStart + 5 : leftZoneEnd - 5;
+                  const endX = isRight ? rightZoneStart + 5 : leftZoneEnd - 5;
+                  const peakX = isRight ? rightZoneStart + 55 : leftZoneEnd - 55;
+                  const labelX = isRight ? rightZoneStart + 42 : leftZoneEnd - 42;
+                  
+                  return (
+                    <g key={`indirect-${level}`}>
+                      <path
+                        d={`M ${startX} ${fromY} 
+                            Q ${peakX} ${(fromY + toY) / 2} ${endX} ${toY}`}
+                        fill="none"
+                        stroke="#eab308"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 3"
+                        markerEnd="url(#arrowYellow)"
+                        className="animate-dash-slow"
+                        opacity="0.75"
+                      />
+                      {/* Flowing coin */}
+                      <circle r="3" fill="#eab308" opacity="0.85">
+                        <animateMotion
+                          dur="1.6s"
+                          repeatCount="indefinite"
+                          begin={`${level * 0.3 + 0.3}s`}
+                          path={`M ${startX} ${fromY} Q ${peakX} ${(fromY + toY) / 2} ${endX} ${toY}`}
+                        />
+                      </circle>
+                      {/* Amount label */}
+                      <rect 
+                        x={labelX - 15}
+                        y={(fromY + toY) / 2 - 7}
+                        width="30"
+                        height="13"
+                        rx="3"
+                        fill="#eab308"
+                        opacity="0.9"
+                      />
+                      <text
+                        x={labelX}
+                        y={(fromY + toY) / 2 + 3}
+                        fontSize="7"
+                        fill="white"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                      >
+                        R$0,50
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+              
+              {/* Level badges - centered in middle zone */}
+              <div className="absolute inset-0 flex flex-col items-center justify-start pt-2" style={{ zIndex: 10 }}>
+                {levels.map((lvl, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center justify-center"
+                    style={{ height: `${rowHeight}px` }}
+                  >
+                    <LevelBadge level={lvl.level} color={lvl.color} isYou={lvl.isYou} />
+                  </div>
+                ))}
+              </div>
             </div>
             
             {/* Continue indicator */}
-            <div className="mt-4 pt-3 border-t border-dashed border-primary/30 text-center relative z-10">
+            <div className="mt-2 pt-3 border-t border-dashed border-primary/30 text-center relative z-10">
               <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-2">
                 <AnimatedMoney size="small" />
                 <span className="font-medium">E continua infinitamente...</span>
