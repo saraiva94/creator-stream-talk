@@ -314,9 +314,16 @@ export const InstructionsDialog = () => {
                   <li><strong className="text-green-500">R$1,00</strong> {t.profile.affiliateDirectDesc || "for each friend who signs up using your link"}</li>
                   <li><strong className="text-yellow-500">R$0,50</strong> {t.profile.affiliateIndirectDesc || "for each person your friends refer (second level)"}</li>
                 </ul>
-                <p className="text-sm text-primary">
-                  {t.profile.affiliateAccess || "Access your referral link in the Affiliate section!"}
-                </p>
+                <a 
+                  href="/affiliate" 
+                  className="text-sm text-primary font-medium block animate-pulse-text cursor-pointer hover:underline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.location.href = '/affiliate';
+                  }}
+                >
+                  {t.profile.affiliateAccess || "Acesse seu link de indicação na seção Afiliados!"}
+                </a>
               </section>
             </TabsContent>
 
@@ -432,6 +439,13 @@ export const InstructionsDialog = () => {
         @keyframes border-glow {
           0%, 100% { box-shadow: inset 0 0 3px hsl(var(--primary) / 0.3); }
           50% { box-shadow: inset 0 0 8px hsl(var(--primary) / 0.5); }
+        }
+        @keyframes pulse-text {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+        .animate-pulse-text {
+          animation: pulse-text 2s ease-in-out infinite;
         }
       `}</style>
     </Dialog>
