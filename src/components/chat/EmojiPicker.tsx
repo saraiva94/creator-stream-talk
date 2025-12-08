@@ -24,11 +24,12 @@ export const EmojiPicker = ({ onEmojiSelect, disabled = false }: EmojiPickerProp
         <Button
           type="button"
           size="icon"
-          variant="outline"
+          variant="ghost"
           disabled={disabled}
           title="Emojis"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
         >
-          <Smile className="h-4 w-4" />
+          <Smile className="h-5 w-5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent 
