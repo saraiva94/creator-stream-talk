@@ -1521,6 +1521,7 @@ export type Database = {
           is_subscribed: boolean | null
           kwai_handle: string | null
           tiktok_handle: string | null
+          twitter_handle: string | null
           username: string | null
           website: string | null
           youtube_handle: string | null
@@ -1535,6 +1536,7 @@ export type Database = {
           is_subscribed?: boolean | null
           kwai_handle?: string | null
           tiktok_handle?: string | null
+          twitter_handle?: string | null
           username?: string | null
           website?: string | null
           youtube_handle?: string | null
@@ -1549,6 +1551,7 @@ export type Database = {
           is_subscribed?: boolean | null
           kwai_handle?: string | null
           tiktok_handle?: string | null
+          twitter_handle?: string | null
           username?: string | null
           website?: string | null
           youtube_handle?: string | null
