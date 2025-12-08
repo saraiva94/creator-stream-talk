@@ -338,25 +338,6 @@ export const InstructionsDialog = () => {
                 </p>
               </section>
 
-              {/* Visual revenue flow */}
-              <section className="space-y-4 bg-gradient-to-br from-primary/5 to-green-500/5 p-4 rounded-xl border border-primary/20">
-                <h4 className="font-semibold flex items-center gap-2 text-center justify-center">
-                  <DollarSign className="w-4 h-4 text-green-500 animate-bounce" />
-                  Como você ganha com lives
-                </h4>
-                
-                {/* Money flow animation */}
-                <MoneyFlowAnimation />
-                
-                {/* Pie chart */}
-                <div className="pt-4 pb-8">
-                  <AnimatedPieChart creatorPercent={80} platformPercent={20} />
-                </div>
-                
-                <p className="text-xs text-center text-muted-foreground">
-                  Espectadores usam créditos → Você recebe automaticamente na sua carteira
-                </p>
-              </section>
 
               {/* Earnings calculator */}
               <EarningsCalculator />
