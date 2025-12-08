@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { logger } from "@/lib/logger";
 import { useLanguage } from "@/hooks/useLanguage";
 
 type CreatorProfileRow = {
@@ -57,7 +56,7 @@ const CreatorActivationCard = () => {
 
   const handleActivate = async () => {
     if (!user) {
-      toast({ title: t.creator.loginError, description: t.creator.loginErrorDesc, variant: "destructive" });
+      toast({ title: t.creator.loginFirst, description: t.creator.loginDesc, variant: "destructive" });
       return;
     }
     if (!displayName.trim()) {
@@ -79,8 +78,8 @@ const CreatorActivationCard = () => {
         const notifications = admins.map((admin) => ({
           user_id: admin.user_id,
           type: "creator_activation_request",
-          title: t.creator.newRequest,
-          message: `${displayName.trim()} ${t.creator.requestedLive}`,
+          title: t.creator.requestSentTitle,
+          message: `${displayName.trim()}`,
         }));
         await supabase.from("notifications").insert(notifications);
       }
@@ -88,8 +87,8 @@ const CreatorActivationCard = () => {
       setIsCreator(true);
       toast({ title: t.creator.requestSent, description: t.creator.awaitApproval });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : t.creator.error;
-      toast({ title: t.creator.error, description: message, variant: "destructive" });
+      const message = error instanceof Error ? error.message : t.creator.errorCreating;
+      toast({ title: t.creator.errorCreating, description: message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -111,12 +110,12 @@ const CreatorActivationCard = () => {
       <Card className="border-border shadow-card">
         <CardHeader>
           <CardTitle>{isApproved ? t.creator.profileActive : t.creator.requestSentTitle}</CardTitle>
-          <CardDescription>{isApproved ? t.creator.approvedLive : t.creator.requestSentDesc}</CardDescription>
+          <CardDescription>{isApproved ? t.creator.approvedDesc : t.creator.waitingApproval}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">{t.creator.displayName}: <span className="font-semibold text-foreground">{displayName || t.creator.notDefined}</span></p>
           {tags && <p className="text-sm text-muted-foreground">{t.creator.tags}: <span className="font-semibold text-foreground">{tags}</span></p>}
-          {isApproved ? <p className="text-sm text-green-500">✅ {t.creator.approved}</p> : <p className="text-sm text-warning">⏳ {t.creator.pending}</p>}
+          {isApproved ? <p className="text-sm text-green-500">✅ {t.creator.approvedLive}</p> : <p className="text-sm text-warning">⏳ {t.creator.waitingAdmin}</p>}
         </CardContent>
       </Card>
     );
@@ -142,7 +141,7 @@ const CreatorActivationCard = () => {
           <Input id="creator-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t.creator.tagsPlaceholder} />
         </div>
         <Button onClick={handleActivate} className="w-full" disabled={submitting}>
-          {submitting ? t.creator.creating : t.creator.activateButton}
+          {submitting ? t.creator.creating : t.creator.activate}
         </Button>
       </CardContent>
     </Card>
