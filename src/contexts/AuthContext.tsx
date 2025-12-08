@@ -15,6 +15,7 @@ interface AuthContextType {
   session: Session | null | undefined;
   isLoading: boolean;
   isAdmin: boolean;
+  isAdminLoading: boolean;
   isBlocked: boolean;
   blockedReason: string | null;
   refreshSession: () => Promise<void>;
@@ -31,6 +32,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdminLoading, setIsAdminLoading] = useState(true);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const initializedRef = useRef(false);
@@ -38,39 +40,45 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const { toast } = useToast();
 
   const checkAdminStatus = useCallback(async (currentUser: User) => {
-    // Check from metadata first
-    const rolesFromMeta = (() => {
-      const metaRoles = (currentUser.app_metadata?.roles ?? currentUser.user_metadata?.roles) as
-        | string[]
-        | string
-        | null
-        | undefined;
-      const primaryRole =
-        (currentUser.app_metadata?.app_role as string | undefined) ||
-        (currentUser.user_metadata?.app_role as string | undefined) ||
-        (currentUser.app_metadata?.role as string | undefined) ||
-        (currentUser.user_metadata?.role as string | undefined);
+    setIsAdminLoading(true);
+    try {
+      // Check from metadata first
+      const rolesFromMeta = (() => {
+        const metaRoles = (currentUser.app_metadata?.roles ?? currentUser.user_metadata?.roles) as
+          | string[]
+          | string
+          | null
+          | undefined;
+        const primaryRole =
+          (currentUser.app_metadata?.app_role as string | undefined) ||
+          (currentUser.user_metadata?.app_role as string | undefined) ||
+          (currentUser.app_metadata?.role as string | undefined) ||
+          (currentUser.user_metadata?.role as string | undefined);
 
-      const normalized = new Set<string>();
-      if (Array.isArray(metaRoles)) {
-        metaRoles.forEach((r) => normalized.add(String(r).toLowerCase()));
-      } else if (typeof metaRoles === "string") {
-        normalized.add(metaRoles.toLowerCase());
-      }
-      if (primaryRole) {
-        normalized.add(String(primaryRole).toLowerCase());
-      }
-      return normalized;
-    })();
+        const normalized = new Set<string>();
+        if (Array.isArray(metaRoles)) {
+          metaRoles.forEach((r) => normalized.add(String(r).toLowerCase()));
+        } else if (typeof metaRoles === "string") {
+          normalized.add(metaRoles.toLowerCase());
+        }
+        if (primaryRole) {
+          normalized.add(String(primaryRole).toLowerCase());
+        }
+        return normalized;
+      })();
 
-    if (rolesFromMeta.has("admin")) {
-      setIsAdmin(true);
-      return;
+      if (rolesFromMeta.has("admin")) {
+        setIsAdmin(true);
+        setIsAdminLoading(false);
+        return;
+      }
+
+      // Fallback to database check
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", currentUser.id);
+      setIsAdmin(data?.some((r) => r.role === "admin") || false);
+    } finally {
+      setIsAdminLoading(false);
     }
-
-    // Fallback to database check
-    const { data } = await supabase.from("user_roles").select("role").eq("user_id", currentUser.id);
-    setIsAdmin(data?.some((r) => r.role === "admin") || false);
   }, []);
 
   const checkBlockedStatus = useCallback(async (currentUser: User) => {
@@ -246,6 +254,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     session,
     isLoading,
     isAdmin,
+    isAdminLoading,
     isBlocked,
     blockedReason,
     refreshSession,
