@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { logger } from "@/lib/logger";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type CreatorProfileRow = {
   display_name: string | null;
@@ -19,6 +20,7 @@ type CreatorProfileRow = {
 
 const CreatorActivationCard = () => {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -30,166 +32,64 @@ const CreatorActivationCard = () => {
 
   useEffect(() => {
     const loadCreatorStatus = async () => {
-      logger.creator.info('Carregando status de criador');
-      
       const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        logger.creator.debug('Sem sessão ativa, não é possível carregar status');
-        setLoading(false);
-        return;
-      }
-
-      logger.creator.debug('Sessão encontrada', { userId: session.user.id });
+      if (!session) { setLoading(false); return; }
       setUser(session.user);
 
-      const { data: creatorData, error } = await supabase
+      const { data: creatorData } = await supabase
         .from("creator_profiles")
         .select("display_name, bio, tags, approved_for_live")
         .eq("id", session.user.id)
         .maybeSingle();
 
-      if (error) {
-        logger.creator.error('Erro ao buscar perfil de criador', { userId: session.user.id }, error);
-      }
-
       if (creatorData) {
         const row = creatorData as CreatorProfileRow;
-        logger.creator.info('Perfil de criador encontrado', {
-          userId: session.user.id,
-          displayName: row.display_name,
-          approved: row.approved_for_live,
-          hasBio: !!row.bio,
-          tagsCount: row.tags?.length ?? 0,
-        });
-        
         setIsCreator(true);
         setIsApproved(row.approved_for_live ?? false);
         setDisplayName(row.display_name ?? "");
         setBio(row.bio ?? "");
         setTags(row.tags?.join(", ") ?? "");
-      } else {
-        logger.creator.debug('Usuário ainda não tem perfil de criador', { userId: session.user.id });
       }
-
       setLoading(false);
     };
-
     loadCreatorStatus();
   }, []);
 
   const handleActivate = async () => {
     if (!user) {
-      logger.creator.warn('Tentativa de ativar sem usuário logado');
-      toast({
-        title: "Faça login",
-        description: "Entre na sua conta para ativar o perfil de criador.",
-        variant: "destructive",
-      });
+      toast({ title: t.creator.loginError, description: t.creator.loginErrorDesc, variant: "destructive" });
       return;
     }
-
     if (!displayName.trim()) {
-      logger.creator.warn('Validação falhou: Nome de exibição vazio');
-      toast({
-        title: "Campo obrigatório",
-        description: "Digite um nome de exibição.",
-        variant: "destructive",
-      });
+      toast({ title: t.creator.requiredField, description: t.creator.displayNameRequired, variant: "destructive" });
       return;
     }
-
-    logger.creator.info('Iniciando ativação de perfil de criador', {
-      userId: user.id,
-      displayName: displayName.trim(),
-      hasBio: !!bio.trim(),
-      tags: tags,
-    });
 
     setSubmitting(true);
     try {
-      const formattedTags = tags
-        ? tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-        : [];
-
-      logger.creator.debug('Tags formatadas', { tags: formattedTags });
-
-      const upsertPayload = {
-        id: user.id,
-        display_name: displayName.trim(),
-        bio: bio.trim() || null,
-        tags: formattedTags,
-        approved_for_live: false,
-      };
-
-      logger.creator.info('Executando upsert no creator_profiles', { payload: upsertPayload });
-
-      const { error, data } = await supabase.from("creator_profiles").upsert(
-        upsertPayload,
-        { onConflict: "id" },
+      const formattedTags = tags ? tags.split(",").map((tag) => tag.trim()).filter(Boolean) : [];
+      const { error } = await supabase.from("creator_profiles").upsert(
+        { id: user.id, display_name: displayName.trim(), bio: bio.trim() || null, tags: formattedTags, approved_for_live: false },
+        { onConflict: "id" }
       ).select();
+      if (error) throw error;
 
-      if (error) {
-        logger.creator.error('Erro no upsert do creator_profiles', { 
-          userId: user.id,
-          errorCode: error.code,
-          errorMessage: error.message,
-        }, error);
-        throw error;
-      }
-
-      logger.creator.info('Perfil de criador criado/atualizado com sucesso', { data });
-
-      // Notificar admins
-      logger.creator.debug('Buscando administradores para notificação');
-      const { data: admins, error: adminsError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-
-      if (adminsError) {
-        logger.creator.warn('Erro ao buscar admins', {}, adminsError);
-      }
-
+      const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
       if (admins && admins.length > 0) {
-        logger.creator.info('Admins encontrados, enviando notificações', { adminCount: admins.length });
-        
         const notifications = admins.map((admin) => ({
           user_id: admin.user_id,
           type: "creator_activation_request",
-          title: "Nova solicitação de criador",
-          message: `O usuário ${displayName.trim()} solicitou aprovação para fazer lives.`,
+          title: t.creator.newRequest,
+          message: `${displayName.trim()} ${t.creator.requestedLive}`,
         }));
-
-        const { error: notifError } = await supabase.from("notifications").insert(notifications);
-        
-        if (notifError) {
-          logger.creator.warn('Erro ao criar notificações', {}, notifError);
-        } else {
-          logger.creator.info('Notificações enviadas com sucesso', { count: notifications.length });
-        }
-      } else {
-        logger.creator.warn('Nenhum admin encontrado para notificar');
+        await supabase.from("notifications").insert(notifications);
       }
 
       setIsCreator(true);
-      logger.creator.info('Ativação de criador concluída com sucesso');
-      
-      toast({
-        title: "Solicitação enviada!",
-        description: "Aguarde a aprovação de um administrador para iniciar suas lives.",
-      });
+      toast({ title: t.creator.requestSent, description: t.creator.awaitApproval });
     } catch (error: unknown) {
-      logger.creator.error('Erro fatal na ativação de criador', { userId: user.id }, error as Error);
-      const message = error instanceof Error ? error.message : "Erro ao criar perfil";
-      toast({
-        title: "Erro ao criar perfil",
-        description: message,
-        variant: "destructive",
-      });
+      const message = error instanceof Error ? error.message : t.creator.error;
+      toast({ title: t.creator.error, description: message, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -200,7 +100,7 @@ const CreatorActivationCard = () => {
       <Card className="border-border shadow-card">
         <CardContent className="py-10 flex items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          Carregando...
+          {t.creator.loading}
         </CardContent>
       </Card>
     );
@@ -210,33 +110,13 @@ const CreatorActivationCard = () => {
     return (
       <Card className="border-border shadow-card">
         <CardHeader>
-          <CardTitle>
-            {isApproved ? "Perfil de Criador Ativo" : "Solicitação de criador enviada"}
-          </CardTitle>
-          <CardDescription>
-            {isApproved 
-              ? "Você está aprovado para fazer lives!" 
-              : "Sua solicitação foi enviada para aprovação."}
-          </CardDescription>
+          <CardTitle>{isApproved ? t.creator.profileActive : t.creator.requestSentTitle}</CardTitle>
+          <CardDescription>{isApproved ? t.creator.approvedLive : t.creator.requestSentDesc}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Nome de exibição: <span className="font-semibold text-foreground">{displayName || "Não definido"}</span>
-          </p>
-          {tags && (
-            <p className="text-sm text-muted-foreground">
-              Tags: <span className="font-semibold text-foreground">{tags}</span>
-            </p>
-          )}
-          {isApproved ? (
-            <p className="text-sm text-green-500">
-              ✅ Aprovado! Acesse o Dashboard para iniciar suas lives.
-            </p>
-          ) : (
-            <p className="text-sm text-warning">
-              ⏳ Aguardando aprovação de um administrador para iniciar lives.
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">{t.creator.displayName}: <span className="font-semibold text-foreground">{displayName || t.creator.notDefined}</span></p>
+          {tags && <p className="text-sm text-muted-foreground">{t.creator.tags}: <span className="font-semibold text-foreground">{tags}</span></p>}
+          {isApproved ? <p className="text-sm text-green-500">✅ {t.creator.approved}</p> : <p className="text-sm text-warning">⏳ {t.creator.pending}</p>}
         </CardContent>
       </Card>
     );
@@ -245,43 +125,24 @@ const CreatorActivationCard = () => {
   return (
     <Card className="border-border shadow-card">
       <CardHeader>
-        <CardTitle>Ativar perfil de criador</CardTitle>
-        <CardDescription>Defina seu nome de exibição e ative o perfil para poder iniciar transmissões ao vivo.</CardDescription>
+        <CardTitle>{t.creator.activateProfile}</CardTitle>
+        <CardDescription>{t.creator.activateDesc}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="creator-display-name">Nome de Exibição *</Label>
-          <Input
-            id="creator-display-name"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Seu nome como criador"
-          />
+          <Label htmlFor="creator-display-name">{t.creator.displayName} *</Label>
+          <Input id="creator-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t.creator.displayNamePlaceholder} />
         </div>
-
         <div className="space-y-2">
-          <Label htmlFor="creator-bio">Bio</Label>
-          <Textarea
-            id="creator-bio"
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            placeholder="Conte sobre você..."
-            rows={3}
-          />
+          <Label htmlFor="creator-bio">{t.creator.bio}</Label>
+          <Textarea id="creator-bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder={t.creator.bioPlaceholder} rows={3} />
         </div>
-
         <div className="space-y-2">
-          <Label htmlFor="creator-tags">Tags (separadas por vírgula)</Label>
-          <Input
-            id="creator-tags"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="Música, Jogos, Tecnologia"
-          />
+          <Label htmlFor="creator-tags">{t.creator.tags}</Label>
+          <Input id="creator-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder={t.creator.tagsPlaceholder} />
         </div>
-
         <Button onClick={handleActivate} className="w-full" disabled={submitting}>
-          {submitting ? "Criando..." : "Ativar Perfil de Criador"}
+          {submitting ? t.creator.creating : t.creator.activateButton}
         </Button>
       </CardContent>
     </Card>
