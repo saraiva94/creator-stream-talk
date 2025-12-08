@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
 import { cn } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";
+import { EmojiPicker } from "./chat/EmojiPicker";
 
 interface Conversation {
   id: string;
@@ -711,6 +712,11 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                     </>
                   ) : (
                     <>
+                      {/* Emoji picker - left of input */}
+                      <EmojiPicker 
+                        onEmojiSelect={(emoji) => setNewMessage(prev => prev + emoji)}
+                        disabled={sendingMessage}
+                      />
                       <Input
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
