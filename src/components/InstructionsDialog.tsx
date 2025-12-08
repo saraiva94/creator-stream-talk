@@ -107,21 +107,25 @@ const MoneyFlowAnimation = () => {
   );
 };
 
-// SuperChat visual explanation
+// SuperChat visual explanation - showing NET values only
 const SuperChatVisual = () => {
   const [activeTier, setActiveTier] = useState(0);
+  const [showCoins, setShowCoins] = useState(false);
   
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveTier(prev => (prev + 1) % 3);
+      setShowCoins(true);
+      setTimeout(() => setShowCoins(false), 800);
     }, 2000);
     return () => clearInterval(interval);
   }, []);
 
+  // NET values only (80% of gross)
   const tiers = [
-    { color: 'bg-blue-500', border: 'border-blue-500', amount: 'R$3', time: '60s', you: 'R$2,40' },
-    { color: 'bg-yellow-500', border: 'border-yellow-500', amount: 'R$5', time: '120s', you: 'R$4,00' },
-    { color: 'bg-red-500', border: 'border-red-500', amount: 'R$8', time: '180s', you: 'R$6,40' },
+    { color: 'bg-blue-500', border: 'border-blue-500', netAmount: 'R$2,40', time: '60s' },
+    { color: 'bg-yellow-500', border: 'border-yellow-500', netAmount: 'R$4,00', time: '120s' },
+    { color: 'bg-red-500', border: 'border-red-500', netAmount: 'R$6,40', time: '180s' },
   ];
 
   return (
@@ -129,19 +133,31 @@ const SuperChatVisual = () => {
       {tiers.map((tier, i) => (
         <div
           key={i}
-          className={`flex flex-col items-center p-2 rounded-lg transition-all duration-500 ${
+          className={`flex flex-col items-center p-2 rounded-lg transition-all duration-500 relative ${
             activeTier === i ? `${tier.color}/20 border-2 ${tier.border} scale-110` : 'bg-muted/30 border border-transparent scale-100'
           }`}
         >
           <div className={`w-8 h-8 ${tier.color} rounded-full flex items-center justify-center mb-1 ${activeTier === i ? 'animate-pulse' : ''}`}>
             <Gift className="w-4 h-4 text-white" />
           </div>
-          <span className="text-xs font-bold">{tier.amount}</span>
           <span className="text-[10px] text-muted-foreground">{tier.time}</span>
-          {activeTier === i && (
-            <div className="mt-1 flex items-center gap-1 text-green-500 animate-fade-in">
-              <ArrowRight className="w-3 h-3" />
-              <span className="text-xs font-bold">{tier.you}</span>
+          <div className={`mt-1 flex items-center gap-1 ${activeTier === i ? 'text-green-500' : 'text-muted-foreground'} transition-colors`}>
+            <Coins className={`w-3 h-3 ${activeTier === i ? 'animate-bounce' : ''}`} />
+            <span className="text-xs font-bold">{tier.netAmount}</span>
+          </div>
+          {activeTier === i && showCoins && (
+            <div className="absolute inset-0 pointer-events-none overflow-visible flex items-center justify-center">
+              {[0, 1, 2].map((j) => (
+                <span 
+                  key={j}
+                  className="absolute text-xs opacity-0"
+                  style={{
+                    animation: `coin-burst 0.8s ease-out ${j * 100}ms forwards`,
+                  }}
+                >
+                  🪙
+                </span>
+              ))}
             </div>
           )}
         </div>
@@ -222,10 +238,12 @@ export const InstructionsDialog = () => {
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" className="gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden">
+          <span className="text-primary font-medium">{t.profile.instructions || "Como funciona"}</span>
           <HelpCircle className="w-4 h-4 text-primary animate-pulse" />
-          <span className="text-primary font-medium">{t.profile.instructions || "How it works"}</span>
           {/* Animated glow effect */}
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          {/* Pulsing border glow */}
+          <span className="absolute inset-0 rounded-md pointer-events-none" style={{ animation: 'border-glow 2s ease-in-out infinite' }} />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[85vh]">
@@ -404,6 +422,18 @@ export const InstructionsDialog = () => {
           </ScrollArea>
         </Tabs>
       </DialogContent>
+
+      {/* Custom CSS for animations */}
+      <style>{`
+        @keyframes coin-burst {
+          0% { opacity: 1; transform: translate(0, 0) scale(1); }
+          100% { opacity: 0; transform: translate(var(--tx, 10px), -20px) scale(0.5); }
+        }
+        @keyframes border-glow {
+          0%, 100% { box-shadow: inset 0 0 3px hsl(var(--primary) / 0.3); }
+          50% { box-shadow: inset 0 0 8px hsl(var(--primary) / 0.5); }
+        }
+      `}</style>
     </Dialog>
   );
 };
