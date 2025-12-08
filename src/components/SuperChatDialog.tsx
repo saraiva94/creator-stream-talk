@@ -23,9 +23,9 @@ interface SuperChatDialogProps {
 }
 
 export const SUPERCHAT_TIERS = [
-  { amount: 3, tier: "blue", color: "bg-blue-500", duration: 60, label: "1 minuto" },
-  { amount: 5, tier: "yellow", color: "bg-yellow-500", duration: 120, label: "2 minutos" },
-  { amount: 8, tier: "red", color: "bg-red-500", duration: 180, label: "3 minutos" },
+  { amount: 3, tier: "blue", color: "bg-blue-500", duration: 60, labelKey: "1min" },
+  { amount: 5, tier: "yellow", color: "bg-yellow-500", duration: 120, labelKey: "2min" },
+  { amount: 8, tier: "red", color: "bg-red-500", duration: 180, labelKey: "3min" },
 ] as const;
 
 const SuperChatDialog = ({
@@ -70,16 +70,16 @@ const SuperChatDialog = ({
       if (data?.init_point) {
         window.open(data.init_point, "_blank");
         toast({
-          title: "Redirecionando para pagamento",
-          description: "Complete o pagamento para enviar seu SuperChat",
+          title: t.superchat?.redirecting || "Redirecting to payment",
+          description: t.superchat?.completePayment || "Complete the payment to send your SuperChat",
         });
         onOpenChange(false);
         setMessage("");
       }
     } catch (error: unknown) {
-      const description = error instanceof Error ? error.message : "Não foi possível enviar o SuperChat";
+      const description = error instanceof Error ? error.message : (t.superchat?.sendError || "Could not send SuperChat");
       toast({
-        title: "Erro ao enviar SuperChat",
+        title: t.superchat?.errorTitle || "Error sending SuperChat",
         description,
         variant: "destructive",
       });
@@ -105,19 +105,26 @@ const SuperChatDialog = ({
           <div className="space-y-2">
             <Label>{t.superchat?.selectTier || "Select tier"}</Label>
             <div className="grid grid-cols-3 gap-2">
-              {SUPERCHAT_TIERS.map((tier) => (
-                <Button
-                  key={tier.tier}
-                  variant={selectedTier.tier === tier.tier ? "default" : "outline"}
-                  onClick={() => setSelectedTier(tier)}
-                  className={`flex flex-col h-auto py-3 ${
-                    selectedTier.tier === tier.tier ? tier.color : ""
-                  }`}
-                >
-                  <span className="text-lg font-bold">R$ {tier.amount}</span>
-                  <span className="text-xs opacity-80">{tier.label}</span>
-                </Button>
-              ))}
+              {SUPERCHAT_TIERS.map((tier) => {
+                const tierLabel = tier.labelKey === "1min" 
+                  ? (t.superchat?.tier1min || "1 minute")
+                  : tier.labelKey === "2min"
+                  ? (t.superchat?.tier2min || "2 minutes")
+                  : (t.superchat?.tier3min || "3 minutes");
+                return (
+                  <Button
+                    key={tier.tier}
+                    variant={selectedTier.tier === tier.tier ? "default" : "outline"}
+                    onClick={() => setSelectedTier(tier)}
+                    className={`flex flex-col h-auto py-3 ${
+                      selectedTier.tier === tier.tier ? tier.color : ""
+                    }`}
+                  >
+                    <span className="text-lg font-bold">R$ {tier.amount}</span>
+                    <span className="text-xs opacity-80">{tierLabel}</span>
+                  </Button>
+                );
+              })}
             </div>
           </div>
 
@@ -131,13 +138,13 @@ const SuperChatDialog = ({
               maxLength={200}
             />
             <p className="text-xs text-muted-foreground">
-              {message.length}/200 caracteres
+              {message.length}/200 {t.superchat?.characters || "characters"}
             </p>
           </div>
 
           <div className={`p-3 rounded-lg ${selectedTier.color} animate-pulse`}>
-            <p className="text-white text-sm font-medium">Prévia do SuperChat</p>
-            <p className="text-white text-xs mt-1">{message || "Sua mensagem aparecerá aqui..."}</p>
+            <p className="text-white text-sm font-medium">{t.superchat?.preview || "SuperChat Preview"}</p>
+            <p className="text-white text-xs mt-1">{message || (t.superchat?.previewPlaceholder || "Your message will appear here...")}</p>
           </div>
 
           <Button
