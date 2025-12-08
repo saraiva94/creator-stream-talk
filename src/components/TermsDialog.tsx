@@ -1,22 +1,25 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Info } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 export const TermsDialog = () => {
+  const { t } = useLanguage();
+
   return (
     <Dialog>
       <DialogTrigger asChild>
         <button
           type="button"
           className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted hover:bg-muted/80 transition-colors ml-1"
-          aria-label="Ver termos e condições"
+          aria-label={t.terms?.viewTerms || "Ver termos e condições"}
         >
           <Info className="w-3 h-3 text-muted-foreground" />
         </button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Termos e Condições de Uso</DialogTitle>
+          <DialogTitle className="text-xl font-bold">{t.terms?.title || "Termos e Condições de Uso"}</DialogTitle>
         </DialogHeader>
         <ScrollArea className="h-[60vh] pr-4">
           <div className="space-y-6 text-sm text-muted-foreground">
