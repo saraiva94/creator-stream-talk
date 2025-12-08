@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2 } from "lucide-react";
+import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2, Globe } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
+import InternationalWithdrawDialog from "@/components/InternationalWithdrawDialog";
 import ShareDialog from "@/components/ShareDialog";
 import { useLanguage } from "@/hooks/useLanguage";
 import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
@@ -50,6 +51,7 @@ const Affiliate = () => {
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [showInternationalDialog, setShowInternationalDialog] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
 
   const refreshBalance = async () => {
@@ -237,10 +239,19 @@ const Affiliate = () => {
             <Wallet className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             <h1 className="text-2xl sm:text-3xl font-bold">{t.nav.finances}</h1>
           </div>
-          <Button onClick={() => setShowWithdrawDialog(true)} className="bg-green-600 hover:bg-green-700 w-full sm:w-auto" disabled={availableBalanceCents <= 0}>
-            <Banknote className="h-4 w-4 mr-2" />
-            {t.affiliate.withdrawViaPix}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col gap-1">
+              <Button onClick={() => setShowWithdrawDialog(true)} className="bg-green-600 hover:bg-green-700 w-full sm:w-auto" disabled={availableBalanceCents <= 0}>
+                <Banknote className="h-4 w-4 mr-2" />
+                {t.affiliate.withdrawViaPix}
+              </Button>
+              <span className="text-[10px] text-muted-foreground text-center">Apenas para contas brasileiras</span>
+            </div>
+            <Button onClick={() => setShowInternationalDialog(true)} variant="outline" className="w-full sm:w-auto border-primary/50" disabled={availableBalanceCents <= 0}>
+              <Globe className="h-4 w-4 mr-2" />
+              Saque Internacional
+            </Button>
+          </div>
         </div>
 
         {error && <div className="mb-6 text-destructive text-sm">{error}</div>}
@@ -395,6 +406,7 @@ const Affiliate = () => {
       </main>
 
       <PixWithdrawDialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog} userId={user?.id ?? ""} availableBalanceCents={availableBalanceCents} onSuccess={refreshBalance} />
+      <InternationalWithdrawDialog open={showInternationalDialog} onOpenChange={setShowInternationalDialog} />
       <ShareDialog isOpen={showShareDialog} onClose={() => setShowShareDialog(false)} link={referralLink} title="Stream Star" />
     </AppLayout>
   );
