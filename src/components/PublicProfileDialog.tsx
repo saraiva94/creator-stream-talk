@@ -190,7 +190,7 @@ export const PublicProfileDialog = ({
       <DialogContent className="sm:max-w-md border-primary/20">
         <DialogHeader>
           <DialogTitle className="sr-only">
-            Ver Perfil
+            {t.userProfile?.viewFullProfile || "View Profile"}
           </DialogTitle>
         </DialogHeader>
 
@@ -223,7 +223,7 @@ export const PublicProfileDialog = ({
               {profile.is_creator && (
                 <Badge variant="secondary">
                   <Video className="h-3 w-3 mr-1" />
-                  Criador
+                  {t.profile?.creator || "Creator"}
                 </Badge>
               )}
               
@@ -234,7 +234,7 @@ export const PublicProfileDialog = ({
 
             {/* Bio */}
             <p className="text-sm text-muted-foreground max-w-sm">
-              {profile.bio || "Sem descrição"}
+              {profile.bio || (t.profile?.noBio || "No description")}
             </p>
 
             {/* Social Links */}
