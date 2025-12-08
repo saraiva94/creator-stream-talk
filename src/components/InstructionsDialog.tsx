@@ -237,9 +237,10 @@ export const InstructionsDialog = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden">
-          <span className="text-primary font-medium">{t.profile.instructions || "Como funciona"}</span>
-          <HelpCircle className="w-4 h-4 text-primary animate-pulse" />
+        <Button variant="outline" className="gap-1.5 sm:gap-2 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden text-xs sm:text-sm px-2 sm:px-4">
+          <span className="text-primary font-medium hidden sm:inline">{t.profile.instructions || "Como funciona"}</span>
+          <span className="text-primary font-medium sm:hidden">?</span>
+          <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary animate-pulse" />
           {/* Animated glow effect */}
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
           {/* Pulsing border glow */}
