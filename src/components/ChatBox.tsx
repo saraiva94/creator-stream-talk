@@ -499,8 +499,8 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             </p>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            {/* SuperChat button (non-creators only) */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* SuperChat button (non-creators only) - hidden on very small screens */}
             {!isCreator && (
               <Button
                 type="button"
@@ -508,13 +508,13 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
                 variant="ghost"
                 onClick={() => setShowSuperChat(true)}
                 title="Enviar SuperChat"
-                className="shrink-0 text-muted-foreground hover:text-yellow-500"
+                className="shrink-0 text-muted-foreground hover:text-yellow-500 h-8 w-8 sm:h-10 sm:w-10"
               >
-                <Coins className="h-5 w-5" />
+                <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             )}
 
-            {/* Image attach button */}
+            {/* Image attach button - hidden on mobile */}
             <Button
               type="button"
               size="icon"
@@ -522,20 +522,22 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               title={t.chat?.attachImage || "Anexar imagem"}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
+              className="shrink-0 text-muted-foreground hover:text-foreground hidden sm:flex h-8 w-8 sm:h-10 sm:w-10"
             >
               {uploading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
               ) : (
-                <ImagePlus className="h-5 w-5" />
+                <ImagePlus className="h-4 w-4 sm:h-5 sm:w-5" />
               )}
             </Button>
 
-            {/* Emoji picker - left of input */}
-            <EmojiPicker 
-              onEmojiSelect={handleEmojiSelect}
-              disabled={uploading}
-            />
+            {/* Emoji picker - hidden on mobile */}
+            <div className="hidden sm:block">
+              <EmojiPicker 
+                onEmojiSelect={handleEmojiSelect}
+                disabled={uploading}
+              />
+            </div>
 
             {/* Text input */}
             <Input
@@ -544,15 +546,17 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
               placeholder={t.chat?.typeMessage || "Digite sua mensagem..."}
               disabled={loading || uploading}
               maxLength={500}
-              className="flex-1 border-primary/50 focus-visible:ring-primary"
+              className="flex-1 border-primary/50 focus-visible:ring-primary h-8 sm:h-10 text-sm"
             />
 
-            {/* Audio recorder - between input and send */}
-            <AudioRecorder 
-              onRecordingComplete={handleAudioComplete}
-              disabled={uploading}
-              maxDuration={60}
-            />
+            {/* Audio recorder - always visible, especially important for mobile */}
+            <div className="shrink-0">
+              <AudioRecorder 
+                onRecordingComplete={handleAudioComplete}
+                disabled={uploading}
+                maxDuration={60}
+              />
+            </div>
 
             {/* Send button */}
             <Button 
@@ -560,9 +564,9 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
               size="icon" 
               disabled={loading || uploading || !newMessage.trim()}
               title={t.chat?.sendMessage || "Enviar mensagem"}
-              className="shrink-0"
+              className="shrink-0 h-8 w-8 sm:h-10 sm:w-10"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
           </div>
         )}

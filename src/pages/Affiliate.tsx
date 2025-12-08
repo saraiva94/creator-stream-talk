@@ -257,7 +257,8 @@ const Affiliate = () => {
               disabled={availableBalanceCents <= 0}
             >
               <Globe className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-              <span className="truncate">Internacional</span>
+              <span className="truncate hidden sm:inline">{t.affiliate.bankTransfer || "Saque via transferência bancária"}</span>
+              <span className="truncate sm:hidden">{t.affiliate.bankTransferShort || "Transferência"}</span>
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground">PIX apenas para contas brasileiras</p>
@@ -338,9 +339,9 @@ const Affiliate = () => {
                 </Button>
               </div>
             </div>
-            <div className="animate-pulse">
-              <p className="text-xs sm:text-sm" style={{ color: 'hsl(var(--primary))', textShadow: '0 0 8px hsl(var(--primary))' }}>
-                {t.affiliate.formatHint} <span className="text-destructive" style={{ color: 'hsl(var(--destructive))', textShadow: '0 0 8px hsl(var(--destructive))' }}>{t.affiliate.noSpaces || "e não faça uso de espaços."}</span>
+            <div className="animate-pulse block">
+              <p className="text-[10px] sm:text-xs md:text-sm leading-relaxed" style={{ color: 'hsl(var(--primary))', textShadow: '0 0 8px hsl(var(--primary))' }}>
+                {t.affiliate.formatHint} <span className="text-destructive block sm:inline mt-1 sm:mt-0" style={{ color: 'hsl(var(--destructive))', textShadow: '0 0 8px hsl(var(--destructive))' }}>{t.affiliate.noSpaces || "e não faça uso de espaços."}</span>
               </p>
             </div>
           </CardContent>
