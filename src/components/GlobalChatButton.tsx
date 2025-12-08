@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
-import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send, Loader2, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { MessageCircle, X, Minimize2, ArrowLeft, Users, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";
 import { EmojiPicker } from "./chat/EmojiPicker";
 import { RecordingWaveform } from "./chat/RecordingWaveform";
-import { DirectMessageAudioPlayer } from "./chat/DirectMessageAudioPlayer";
+import { DirectChatMessage } from "./chat/DirectChatMessage";
 import { toast } from "sonner";
 
 interface Conversation {
@@ -37,7 +37,7 @@ interface Message {
   sender_id: string;
   created_at: string;
   message_type?: string;
-  metadata?: { file_url?: string; duration?: number } | null;
+  metadata?: { file_url?: string; duration?: number; reactions?: Record<string, string[]> } | null;
 }
 
 interface GlobalChatButtonProps {
@@ -58,7 +58,18 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { t } = useLanguage();
+
+  // Auto-resize textarea
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    // Reset height to auto to properly calculate scroll height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
+    }
+  };
 
   // Animate button entrance on mount
   useEffect(() => {
@@ -401,6 +412,73 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
     }
   };
 
+  // Edit message handler
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from("direct_messages")
+        .update({ content: newContent })
+        .eq("id", messageId)
+        .eq("sender_id", user.id);
+      
+      if (error) throw error;
+      
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, content: newContent } : m
+      ));
+      toast.success(t.chat?.messageEdited || "Mensagem editada");
+    } catch (error) {
+      console.error("Error editing message:", error);
+      toast.error(t.chat?.editError || "Erro ao editar mensagem");
+    }
+  };
+
+  // React to message handler
+  const handleReactMessage = async (messageId: string, emoji: string) => {
+    if (!user) return;
+    
+    try {
+      const message = messages.find(m => m.id === messageId);
+      if (!message) return;
+      
+      const currentReactions = message.metadata?.reactions || {};
+      const userReactions = currentReactions[emoji] || [];
+      
+      let newReactions: Record<string, string[]>;
+      
+      if (userReactions.includes(user.id)) {
+        // Remove reaction
+        const filtered = userReactions.filter(id => id !== user.id);
+        if (filtered.length === 0) {
+          const { [emoji]: _, ...rest } = currentReactions;
+          newReactions = rest;
+        } else {
+          newReactions = { ...currentReactions, [emoji]: filtered };
+        }
+      } else {
+        // Add reaction
+        newReactions = { ...currentReactions, [emoji]: [...userReactions, user.id] };
+      }
+      
+      const newMetadata = { ...message.metadata, reactions: newReactions };
+      
+      const { error } = await supabase
+        .from("direct_messages")
+        .update({ metadata: newMetadata })
+        .eq("id", messageId);
+      
+      if (error) throw error;
+      
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, metadata: newMetadata } : m
+      ));
+    } catch (error) {
+      console.error("Error reacting to message:", error);
+    }
+  };
+
   if (!user) return null;
 
   const formatTime = (dateStr: string) => {
@@ -658,77 +736,51 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {messages.map((msg) => {
-                        const isOwn = msg.sender_id === user.id;
-                        const isAudio = msg.message_type === "audio" && msg.metadata?.file_url;
-                        
-                        return (
-                          <div
-                            key={msg.id}
-                            className={cn(
-                              "group relative max-w-[85%] rounded-lg text-sm",
-                              isOwn ? "ml-auto" : ""
-                            )}
-                          >
-                            {/* Delete button - only for own messages */}
-                            {isOwn && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="absolute -left-8 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => handleDeleteMessage(msg.id)}
-                                disabled={deletingMessageId === msg.id}
-                                title={t.chat?.deleteMessage || "Excluir mensagem"}
-                              >
-                                {deletingMessageId === msg.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3 w-3 text-destructive" />
-                                )}
-                              </Button>
-                            )}
-                            
-                            {isAudio ? (
-                              <div className={cn(
-                                "p-1.5 rounded-lg",
-                                isOwn ? "bg-primary/10" : "bg-muted"
-                              )}>
-                                <DirectMessageAudioPlayer 
-                                  src={msg.metadata!.file_url!}
-                                  duration={msg.metadata?.duration}
-                                />
-                              </div>
-                            ) : (
-                              <div className={cn(
-                                "p-2 rounded-lg",
-                                isOwn
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-muted"
-                              )}>
-                                {msg.content}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {messages.map((msg) => (
+                        <DirectChatMessage
+                          key={msg.id}
+                          message={msg}
+                          isOwn={msg.sender_id === user.id}
+                          currentUserId={user.id}
+                          onDelete={handleDeleteMessage}
+                          onEdit={handleEditMessage}
+                          onReact={handleReactMessage}
+                          isDeleting={deletingMessageId === msg.id}
+                        />
+                      ))}
                     </div>
                   )}
                 </ScrollArea>
-                <div className="p-3 border-t border-border flex gap-2 items-center">
+                <div className="p-3 border-t border-border flex gap-2 items-end">
                   {/* Emoji picker - left of input */}
                   <EmojiPicker 
-                    onEmojiSelect={(emoji) => setNewMessage(prev => prev + emoji)}
+                    onEmojiSelect={(emoji) => {
+                      setNewMessage(prev => prev + emoji);
+                      // Adjust textarea height after adding emoji
+                      setTimeout(() => {
+                        if (textareaRef.current) {
+                          textareaRef.current.style.height = "auto";
+                          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
+                        }
+                      }, 0);
+                    }}
                     disabled={sendingMessage}
                   />
-                  <Input
+                  <Textarea
+                    ref={textareaRef}
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleTextareaChange}
                     placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
-                    className="flex-1"
+                    className="flex-1 min-h-[36px] max-h-[100px] resize-none py-2"
+                    rows={1}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         handleSendMessage();
+                        // Reset textarea height after sending
+                        if (textareaRef.current) {
+                          textareaRef.current.style.height = "auto";
+                        }
                       }
                     }}
                   />
@@ -741,7 +793,12 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                   {/* Send button */}
                   <Button
                     size="icon"
-                    onClick={handleSendMessage}
+                    onClick={() => {
+                      handleSendMessage();
+                      if (textareaRef.current) {
+                        textareaRef.current.style.height = "auto";
+                      }
+                    }}
                     disabled={!newMessage.trim() || sendingMessage}
                   >
                     {sendingMessage ? (
