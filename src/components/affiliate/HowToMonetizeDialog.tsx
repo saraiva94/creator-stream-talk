@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HelpCircle, User, Users, DollarSign, Sparkles, Coins } from "lucide-react";
@@ -42,57 +42,6 @@ const AnimatedMoney = ({ className = "", size = "normal" }: { className?: string
   );
 };
 
-// Commission arrow connecting levels
-const CommissionArrow = ({ 
-  from, 
-  to, 
-  amount, 
-  color,
-  isSecondary = false
-}: { 
-  from: string; 
-  to: string; 
-  amount: string; 
-  color: string;
-  isSecondary?: boolean;
-}) => {
-  const [animate, setAnimate] = useState(false);
-  
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAnimate(true);
-      setTimeout(() => setAnimate(false), 800);
-    }, isSecondary ? 1500 : 1200);
-    return () => clearInterval(interval);
-  }, [isSecondary]);
-
-  return (
-    <div className={`flex items-center gap-1 ${isSecondary ? 'opacity-80' : ''}`}>
-      <span className="text-[8px] text-muted-foreground">{from}</span>
-      <div className="relative flex items-center">
-        <div className={`h-[2px] ${isSecondary ? 'w-4' : 'w-6'} ${color} rounded`} />
-        <div className={`absolute right-0 w-0 h-0 border-l-4 border-l-current border-y-2 border-y-transparent ${color.replace('bg-', 'text-')}`} />
-        {animate && (
-          <span 
-            className="absolute text-[8px] opacity-0"
-            style={{
-              animation: 'coin-slide 0.6s ease-out forwards',
-              left: '0',
-              top: '-8px',
-            }}
-          >
-            🪙
-          </span>
-        )}
-      </div>
-      <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${color} text-white`}>
-        {amount}
-      </span>
-      <span className="text-[8px] text-muted-foreground">→ {to}</span>
-    </div>
-  );
-};
-
 // Level badge component
 const LevelBadge = ({ 
   level, 
@@ -131,37 +80,132 @@ const LevelBadge = ({
   );
 };
 
+// Animated connection line with flowing coins
+const ConnectionLine = ({ 
+  type, 
+  color, 
+  delay = 0,
+  amount 
+}: { 
+  type: "direct" | "indirect";
+  color: string;
+  delay?: number;
+  amount: string;
+}) => {
+  const isDirect = type === "direct";
+  const lineColor = isDirect ? "#22c55e" : "#eab308"; // green-500 : yellow-500
+  
+  return (
+    <div className="relative" style={{ animationDelay: `${delay}ms` }}>
+      <svg 
+        width={isDirect ? "30" : "60"} 
+        height="24" 
+        className="overflow-visible"
+        style={{ transform: isDirect ? 'none' : 'translateX(-15px)' }}
+      >
+        {/* Line path */}
+        <path
+          d={isDirect 
+            ? "M 0 20 Q 15 10 30 0" 
+            : "M 0 20 Q 30 -5 60 -20"
+          }
+          fill="none"
+          stroke={lineColor}
+          strokeWidth="2"
+          strokeDasharray="4 2"
+          className="animate-dash"
+          opacity="0.6"
+        />
+        
+        {/* Flowing coin */}
+        <circle r="4" fill={lineColor} className="animate-flow-coin" style={{ animationDelay: `${delay}ms` }}>
+          <animateMotion
+            dur="1.5s"
+            repeatCount="indefinite"
+            path={isDirect 
+              ? "M 0 20 Q 15 10 30 0" 
+              : "M 0 20 Q 30 -5 60 -20"
+            }
+          />
+        </circle>
+        
+        {/* Coin emoji following path */}
+        <text fontSize="8" className="animate-flow-coin" style={{ animationDelay: `${delay + 200}ms` }}>
+          <animateMotion
+            dur="1.5s"
+            repeatCount="indefinite"
+            path={isDirect 
+              ? "M 0 20 Q 15 10 30 0" 
+              : "M 0 20 Q 30 -5 60 -20"
+            }
+          >
+          </animateMotion>
+          🪙
+        </text>
+      </svg>
+      
+      {/* Amount badge */}
+      <span 
+        className={`absolute text-[8px] font-bold px-1 py-0.5 rounded ${
+          isDirect ? 'bg-green-500' : 'bg-yellow-500'
+        } text-white animate-pulse-scale`}
+        style={{
+          top: isDirect ? '-2px' : '-14px',
+          right: isDirect ? '-8px' : '-20px',
+        }}
+      >
+        {amount}
+      </span>
+    </div>
+  );
+};
+
+// Visual level row with connections
+const LevelRow = ({
+  level,
+  color,
+  isYou = false,
+  showDirectLine = false,
+  showIndirectLine = false,
+  directAmount = "R$1",
+  indirectAmount = "R$0,50",
+  directTo = "",
+  indirectTo = "",
+}: {
+  level: number;
+  color: string;
+  isYou?: boolean;
+  showDirectLine?: boolean;
+  showIndirectLine?: boolean;
+  directAmount?: string;
+  indirectAmount?: string;
+  directTo?: string;
+  indirectTo?: string;
+}) => {
+  return (
+    <div className="flex items-center gap-2 relative">
+      <LevelBadge level={level} color={color} isYou={isYou} />
+      
+      <div className="flex flex-col gap-1">
+        {showDirectLine && (
+          <div className="flex items-center gap-1">
+            <ConnectionLine type="direct" color="green" amount={directAmount} delay={0} />
+            <span className="text-[8px] text-green-500 ml-6">→ {directTo}</span>
+          </div>
+        )}
+        {showIndirectLine && (
+          <div className="flex items-center gap-1">
+            <ConnectionLine type="indirect" color="yellow" amount={indirectAmount} delay={300} />
+            <span className="text-[8px] text-yellow-500 ml-10">→ {indirectTo}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const HowToMonetizeDialog = () => {
   const { t } = useLanguage();
-
-  // 6 levels with their colors
-  const levels = [
-    { level: 1, color: "green", name: "1º" },
-    { level: 2, color: "yellow", name: "2º" },
-    { level: 3, color: "orange", name: "3º" },
-    { level: 4, color: "pink", name: "4º" },
-    { level: 5, color: "cyan", name: "5º" },
-    { level: 6, color: "purple", name: "6º" },
-  ];
-
-  // Commission relationships: each person earns R$1 from direct (1 level) and R$0.50 from indirect (2 levels)
-  // VOCÊ earns from 1º (R$1) and 2º (R$0.50)
-  // 1º earns from 2º (R$1) and 3º (R$0.50)
-  // 2º earns from 3º (R$1) and 4º (R$0.50)
-  // etc...
-  const commissionRelationships = [
-    { from: "1º", to: "VOCÊ", amount: "R$1", color: "bg-green-500", isSecondary: false },
-    { from: "2º", to: "VOCÊ", amount: "R$0,50", color: "bg-yellow-500", isSecondary: true },
-    { from: "2º", to: "1º", amount: "R$1", color: "bg-green-500", isSecondary: false },
-    { from: "3º", to: "1º", amount: "R$0,50", color: "bg-yellow-500", isSecondary: true },
-    { from: "3º", to: "2º", amount: "R$1", color: "bg-green-500", isSecondary: false },
-    { from: "4º", to: "2º", amount: "R$0,50", color: "bg-yellow-500", isSecondary: true },
-    { from: "4º", to: "3º", amount: "R$1", color: "bg-green-500", isSecondary: false },
-    { from: "5º", to: "3º", amount: "R$0,50", color: "bg-yellow-500", isSecondary: true },
-    { from: "5º", to: "4º", amount: "R$1", color: "bg-green-500", isSecondary: false },
-    { from: "6º", to: "4º", amount: "R$0,50", color: "bg-yellow-500", isSecondary: true },
-    { from: "6º", to: "5º", amount: "R$1", color: "bg-green-500", isSecondary: false },
-  ];
 
   return (
     <Dialog>
@@ -190,127 +234,209 @@ export const HowToMonetizeDialog = () => {
             <p className="text-muted-foreground text-xs text-center">
               <strong className="text-primary">Lógica de 2 níveis:</strong> Você ganha <span className="text-green-500 font-bold">R$1</span> de quem você indica (direto) 
               e <span className="text-yellow-500 font-bold">R$0,50</span> de quem seu indicado indica (neto). 
-              <br />Cada pessoa na rede funciona da mesma forma, sempre ganhando de 2 níveis!
+              <br />Cada pessoa na rede funciona da mesma forma!
             </p>
           </div>
           
-          {/* Visual chain showing the 6 levels */}
-          <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-3 border border-primary/20 relative overflow-hidden">
+          {/* Visual diagram with animated connections */}
+          <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-4 border border-primary/20 relative overflow-hidden">
             <Sparkles className="absolute top-1 right-1 w-3 h-3 text-primary/30 animate-pulse" />
             
-            <div className="flex flex-col items-center space-y-2">
-              {/* VOCÊ at the top */}
-              <div className="flex items-center gap-2">
+            {/* SVG for long connection lines */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible" style={{ zIndex: 0 }}>
+              <defs>
+                <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#22c55e" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#22c55e" stopOpacity="0.3" />
+                </linearGradient>
+                <linearGradient id="yellowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#eab308" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#eab308" stopOpacity="0.3" />
+                </linearGradient>
+              </defs>
+              
+              {/* Direct connection lines (each level to the one above) */}
+              {[1, 2, 3, 4, 5, 6].map((level, idx) => (
+                <g key={`direct-${level}`}>
+                  <path
+                    d={`M 55 ${65 + idx * 58} Q 35 ${45 + idx * 58} 55 ${35 + idx * 58}`}
+                    fill="none"
+                    stroke="url(#greenGrad)"
+                    strokeWidth="2"
+                    strokeDasharray="4 2"
+                    className="animate-dash"
+                  />
+                  <circle r="3" fill="#22c55e">
+                    <animateMotion
+                      dur="1.2s"
+                      repeatCount="indefinite"
+                      begin={`${idx * 0.2}s`}
+                      path={`M 55 ${65 + idx * 58} Q 35 ${45 + idx * 58} 55 ${35 + idx * 58}`}
+                    />
+                  </circle>
+                </g>
+              ))}
+              
+              {/* Indirect connection lines (each level to two above) */}
+              {[2, 3, 4, 5, 6].map((level, idx) => (
+                <g key={`indirect-${level}`}>
+                  <path
+                    d={`M 55 ${123 + idx * 58} Q 20 ${75 + idx * 58} 55 ${35 + idx * 58}`}
+                    fill="none"
+                    stroke="url(#yellowGrad)"
+                    strokeWidth="2"
+                    strokeDasharray="3 3"
+                    className="animate-dash-slow"
+                  />
+                  <circle r="2.5" fill="#eab308">
+                    <animateMotion
+                      dur="1.8s"
+                      repeatCount="indefinite"
+                      begin={`${idx * 0.3 + 0.5}s`}
+                      path={`M 55 ${123 + idx * 58} Q 20 ${75 + idx * 58} 55 ${35 + idx * 58}`}
+                    />
+                  </circle>
+                </g>
+              ))}
+            </svg>
+            
+            <div className="flex flex-col items-center space-y-3 relative z-10">
+              {/* VOCÊ */}
+              <div className="flex items-center gap-3">
                 <LevelBadge level={0} color="primary" isYou />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 1º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 2º</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-[8px] text-muted-foreground">↓ indica ↓</div>
+              <div className="text-[8px] text-muted-foreground flex items-center gap-1">
+                <span className="w-4 h-0.5 bg-primary/30" />
+                indica
+                <span className="w-4 h-0.5 bg-primary/30" />
+              </div>
               
               {/* Level 1 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LevelBadge level={1} color="green" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 2º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 3º</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-[8px] text-muted-foreground">↓ indica ↓</div>
+              <div className="text-[8px] text-muted-foreground flex items-center gap-1">
+                <span className="w-4 h-0.5 bg-green-500/30" />
+                indica
+                <span className="w-4 h-0.5 bg-green-500/30" />
+              </div>
               
               {/* Level 2 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LevelBadge level={2} color="yellow" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 3º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 4º</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-[8px] text-muted-foreground">↓ indica ↓</div>
+              <div className="text-[8px] text-muted-foreground flex items-center gap-1">
+                <span className="w-4 h-0.5 bg-yellow-500/30" />
+                indica
+                <span className="w-4 h-0.5 bg-yellow-500/30" />
+              </div>
               
               {/* Level 3 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LevelBadge level={3} color="orange" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 4º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 5º</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-[8px] text-muted-foreground">↓ indica ↓</div>
+              <div className="text-[8px] text-muted-foreground flex items-center gap-1">
+                <span className="w-4 h-0.5 bg-orange-500/30" />
+                indica
+                <span className="w-4 h-0.5 bg-orange-500/30" />
+              </div>
               
               {/* Level 4 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LevelBadge level={4} color="pink" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 5º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 6º</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-[8px] text-muted-foreground">↓ indica ↓</div>
+              <div className="text-[8px] text-muted-foreground flex items-center gap-1">
+                <span className="w-4 h-0.5 bg-pink-500/30" />
+                indica
+                <span className="w-4 h-0.5 bg-pink-500/30" />
+              </div>
               
               {/* Level 5 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LevelBadge level={5} color="cyan" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 6º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 7º</span>
                   </div>
                 </div>
               </div>
               
-              <div className="text-[8px] text-muted-foreground">↓ indica ↓</div>
+              <div className="text-[8px] text-muted-foreground flex items-center gap-1">
+                <span className="w-4 h-0.5 bg-cyan-500/30" />
+                indica
+                <span className="w-4 h-0.5 bg-cyan-500/30" />
+              </div>
               
               {/* Level 6 */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LevelBadge level={6} color="purple" />
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-0.5 bg-background/80 rounded px-2 py-1">
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-green-500 font-bold">+R$1 do 7º</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <AnimatedMoney size="small" />
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                     <span className="text-[9px] text-yellow-500 font-bold">+R$0,50 do 8º</span>
                   </div>
                 </div>
@@ -327,37 +453,30 @@ export const HowToMonetizeDialog = () => {
             </div>
           </div>
           
-          {/* Commission flow visualization */}
+          {/* Legend */}
           <div className="bg-card p-3 rounded-lg border border-border">
             <h4 className="font-semibold text-xs flex items-center gap-2 mb-2">
               <Coins className="w-3 h-3 text-yellow-500" />
-              Fluxo de comissões (2 níveis por pessoa):
-            </h4>
-            <div className="grid grid-cols-1 gap-1 text-[9px]">
-              {commissionRelationships.map((rel, idx) => (
-                <CommissionArrow key={idx} {...rel} />
-              ))}
-            </div>
-          </div>
-          
-          {/* Summary box */}
-          <div className="bg-card p-3 rounded-lg border border-border">
-            <h4 className="font-semibold text-xs flex items-center gap-2 mb-2">
-              <Coins className="w-3 h-3 text-yellow-500" />
-              Resumo - Cada pessoa ganha:
+              Legenda das conexões:
             </h4>
             <div className="grid grid-cols-2 gap-2 text-[10px]">
               <div className="flex items-center gap-2 bg-green-500/10 rounded px-2 py-1.5 border border-green-500/30">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <div className="flex items-center gap-1">
+                  <span className="w-6 h-0.5 bg-green-500 rounded" style={{ borderStyle: 'dashed' }} />
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                </div>
                 <div>
-                  <strong className="text-green-500">Direto (1º nível):</strong>
+                  <strong className="text-green-500">Direto:</strong>
                   <span className="text-green-500 font-bold ml-1">R$1,00</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 bg-yellow-500/10 rounded px-2 py-1.5 border border-yellow-500/30">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                <div className="flex items-center gap-1">
+                  <span className="w-6 h-0.5 bg-yellow-500 rounded" style={{ borderStyle: 'dotted' }} />
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                </div>
                 <div>
-                  <strong className="text-yellow-500">Indireto (2º nível):</strong>
+                  <strong className="text-yellow-500">Indireto:</strong>
                   <span className="text-yellow-500 font-bold ml-1">R$0,50</span>
                 </div>
               </div>
@@ -396,13 +515,15 @@ export const HowToMonetizeDialog = () => {
             0% { opacity: 1; transform: translate(0, 0) scale(1); }
             100% { opacity: 0; transform: translate(var(--tx, 10px), var(--ty, -15px)) scale(0.4); }
           }
-          @keyframes coin-slide {
-            0% { opacity: 1; transform: translateX(0); }
-            100% { opacity: 0; transform: translateX(20px); }
-          }
           @keyframes coin-bounce {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             50% { transform: translateY(-3px) rotate(10deg); }
+          }
+          @keyframes dash {
+            to { stroke-dashoffset: -12; }
+          }
+          @keyframes dash-slow {
+            to { stroke-dashoffset: -18; }
           }
           @keyframes pulse-scale {
             0%, 100% { transform: scale(1); }
@@ -421,6 +542,8 @@ export const HowToMonetizeDialog = () => {
             50% { box-shadow: inset 0 0 8px hsl(var(--primary) / 0.5); }
           }
           .animate-coin-bounce { animation: coin-bounce 1s ease-in-out infinite; }
+          .animate-dash { animation: dash 0.8s linear infinite; }
+          .animate-dash-slow { animation: dash-slow 1.2s linear infinite; }
           .animate-pulse-scale { animation: pulse-scale 1.5s ease-in-out infinite; }
           .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
           .animate-bounce-slow { animation: bounce-slow 2s ease-in-out infinite; }
