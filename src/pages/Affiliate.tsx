@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
 import ShareDialog from "@/components/ShareDialog";
+import { useLanguage } from "@/hooks/useLanguage";
 
 
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
@@ -37,6 +38,7 @@ interface WithdrawalHistoryEntry {
 const Affiliate = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -164,7 +166,7 @@ const Affiliate = () => {
         setError(null);
       } catch (err) {
         console.error("[affiliate] load error", err);
-        setError("Não foi possível carregar seus dados de afiliado.");
+        setError(t.affiliate.loadError);
       } finally {
         setLoading(false);
       }
@@ -176,14 +178,14 @@ const Affiliate = () => {
   const handleSaveCode = async () => {
     const trimmed = code.trim().toUpperCase();
     if (!trimmed) {
-      toast({ title: "Código obrigatório", description: "Defina um código de indicação.", variant: "destructive" });
+      toast({ title: t.affiliate.codeRequired, description: t.affiliate.defineCode, variant: "destructive" });
       return;
     }
 
     if (!CODE_REGEX.test(trimmed)) {
       toast({
-        title: "Formato inválido",
-        description: "Use 4-32 caracteres, letras, números, hífen ou underscore.",
+        title: t.affiliate.invalidFormat,
+        description: t.affiliate.formatDescription,
         variant: "destructive",
       });
       return;
@@ -204,8 +206,8 @@ const Affiliate = () => {
       if (checkError) throw checkError;
 
       if (existing) {
-        setError("Este código já está em uso. Tente outro.");
-        toast({ title: "Código em uso", description: "Este código já está em uso. Tente outro.", variant: "destructive" });
+        setError(t.affiliate.codeInUse);
+        toast({ title: t.affiliate.codeInUseTitle, description: t.affiliate.codeInUse, variant: "destructive" });
         setSaving(false);
         return;
       }
@@ -219,11 +221,11 @@ const Affiliate = () => {
       if (updateError) throw updateError;
 
       setCode(trimmed);
-      toast({ title: "Código salvo", description: "Seu código de indicação foi atualizado." });
+      toast({ title: t.affiliate.codeSaved, description: t.affiliate.codeUpdated });
     } catch (err) {
       console.error("[affiliate] save code error", err);
-      setError("Não foi possível salvar o código agora.");
-      toast({ title: "Erro ao salvar código", description: "Não foi possível salvar o código agora.", variant: "destructive" });
+      setError(t.affiliate.saveError);
+      toast({ title: t.affiliate.saveErrorTitle, description: t.affiliate.saveError, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -233,8 +235,8 @@ const Affiliate = () => {
     const trimmed = code.trim();
     if (!trimmed) {
       toast({
-        title: "Defina o código primeiro",
-        description: "Salve um código de indicação antes de copiar o link.",
+        title: t.affiliate.defineCodeFirst,
+        description: t.affiliate.saveCodeBeforeCopy,
         variant: "destructive",
       });
       return;
@@ -245,7 +247,7 @@ const Affiliate = () => {
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(link);
-        toast({ title: "Link copiado!", description: "Link copiado para a área de transferência." });
+        toast({ title: t.affiliate.linkCopied, description: t.affiliate.linkCopiedDesc });
         return;
       }
 
@@ -256,7 +258,7 @@ const Affiliate = () => {
         temp.select();
         document.execCommand("copy");
         document.body.removeChild(temp);
-        toast({ title: "Link copiado!", description: "Link copiado para a área de transferência." });
+        toast({ title: t.affiliate.linkCopied, description: t.affiliate.linkCopiedDesc });
         return;
       }
 
@@ -264,7 +266,7 @@ const Affiliate = () => {
     } catch (err) {
       console.error("[affiliate] copy link error", err);
       toast({
-        title: "Copie manualmente",
+        title: t.affiliate.copyManually,
         description: link,
         variant: "default",
       });
@@ -274,7 +276,7 @@ const Affiliate = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Carregando...</div>
+        <div className="animate-pulse text-muted-foreground">{t.common.loading}</div>
       </div>
     );
   }
@@ -287,7 +289,7 @@ const Affiliate = () => {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
           <div className="flex items-center gap-2 sm:gap-3">
             <Wallet className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold">Finanças</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">{t.nav.finance}</h1>
           </div>
           <Button 
             onClick={() => setShowWithdrawDialog(true)}
@@ -295,7 +297,7 @@ const Affiliate = () => {
             disabled={availableBalanceCents <= 0}
           >
             <Banknote className="h-4 w-4 mr-2" />
-            Sacar via PIX
+            {t.affiliate.withdrawViaPix}
           </Button>
         </div>
 
@@ -305,7 +307,7 @@ const Affiliate = () => {
         <div className="grid gap-3 sm:gap-6 grid-cols-1 sm:grid-cols-3 mb-6 sm:mb-8">
           <Card>
             <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
-              <CardTitle className="text-xs sm:text-sm text-muted-foreground">Total de Indicações</CardTitle>
+              <CardTitle className="text-xs sm:text-sm text-muted-foreground">{t.affiliate.totalReferrals}</CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="flex items-center gap-2">
@@ -317,7 +319,7 @@ const Affiliate = () => {
 
           <Card>
             <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
-              <CardTitle className="text-xs sm:text-sm text-muted-foreground">Comissões Ganhas</CardTitle>
+              <CardTitle className="text-xs sm:text-sm text-muted-foreground">{t.affiliate.commissionsEarned}</CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="flex items-center gap-2">
@@ -329,7 +331,7 @@ const Affiliate = () => {
 
           <Card>
             <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-6 pt-3 sm:pt-6">
-              <CardTitle className="text-xs sm:text-sm text-muted-foreground">Saldo Disponível</CardTitle>
+              <CardTitle className="text-xs sm:text-sm text-muted-foreground">{t.affiliate.availableBalance}</CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
               <div className="flex items-center gap-2">
@@ -344,14 +346,14 @@ const Affiliate = () => {
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              Criar código de indicação
+              {t.affiliate.createCode}
             </CardTitle>
             <div className="animate-pulse">
               <CardDescription 
                 className="text-xs sm:text-sm text-foreground" 
                 style={{ textShadow: '0 0 8px hsl(var(--foreground) / 0.5)' }}
               >
-                Crie seu link personalizado e comece a ganhar já, cada cadastro conta e você pode sacar na hora!
+                {t.affiliate.createCodeDesc}
               </CardDescription>
             </div>
           </CardHeader>
@@ -360,17 +362,17 @@ const Affiliate = () => {
               <Input 
                 value={code} 
                 onChange={(e) => setCode(e.target.value.toUpperCase())} 
-                placeholder="SEU-CODIGO" 
+                placeholder={t.affiliate.yourCode}
                 className="uppercase text-sm"
               />
               <Button onClick={handleSaveCode} disabled={saving} className="w-full sm:w-auto">
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Salvando
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> {t.common.saving}
                   </>
                 ) : (
                   <>
-                    <Save className="h-4 w-4 mr-2" /> Salvar código
+                    <Save className="h-4 w-4 mr-2" /> {t.common.saveCode}
                   </>
                 )}
               </Button>
@@ -380,16 +382,16 @@ const Affiliate = () => {
               <div className="flex flex-col sm:flex-row gap-2">
                 <Button type="button" variant="outline" onClick={handleCopyLink} className="w-full sm:w-auto">
                   <Copy className="h-4 w-4 mr-2" />
-                  Copiar link
+                  {t.common.copyLink}
                 </Button>
                 <Button 
                   type="button" 
                   variant="default" 
-                  onClick={() => code.trim() ? setShowShareDialog(true) : toast({ title: "Defina o código primeiro", variant: "destructive" })}
+                  onClick={() => code.trim() ? setShowShareDialog(true) : toast({ title: t.affiliate.defineCodeFirst, variant: "destructive" })}
                   className="w-full sm:w-auto gap-2"
                 >
                   <Share2 className="h-4 w-4" />
-                  Compartilhar link
+                  {t.common.shareLink}
                 </Button>
               </div>
             </div>
@@ -398,8 +400,7 @@ const Affiliate = () => {
                 className="text-xs sm:text-sm" 
                 style={{ color: 'hsl(var(--primary))', textShadow: '0 0 8px hsl(var(--primary))' }}
               >
-                Use apenas letras, números, hífen ou underline. Compartilhe este código para que seus indicados recebam crédito
-                e você ganhe comissão.
+                {t.affiliate.codeRules}
               </p>
             </div>
           </CardContent>
@@ -407,28 +408,28 @@ const Affiliate = () => {
 
         <Card>
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-            <CardTitle className="text-base sm:text-lg">Histórico de Indicações</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Acompanhe suas indicações e comissões</CardDescription>
+            <CardTitle className="text-base sm:text-lg">{t.affiliate.referralHistory}</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">{t.affiliate.trackReferrals}</CardDescription>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {history.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-muted-foreground">
                 <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-50" />
-                <p className="text-sm sm:text-base">Você ainda não indicou ninguém</p>
-                <p className="text-xs sm:text-sm">Compartilhe seu código e comece a ganhar.</p>
+                <p className="text-sm sm:text-base">{t.affiliate.noReferrals}</p>
+                <p className="text-xs sm:text-sm">{t.affiliate.shareToEarn}</p>
               </div>
             ) : (
               <div className="space-y-2 sm:space-y-3">
                 {history.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm sm:text-base truncate">{entry.eventType === "REGISTRATION" ? "Novo cadastro" : entry.eventType}</p>
+                      <p className="font-semibold text-sm sm:text-base truncate">{entry.eventType === "REGISTRATION" ? t.affiliate.newRegistration : entry.eventType}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</p>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {entry.level === 1 ? "Direto" : entry.level === 2 ? "Avô" : ""}
+                        {entry.level === 1 ? t.affiliate.direct : entry.level === 2 ? t.affiliate.grandfather : ""}
                       </p>
                     </div>
                   </div>
@@ -443,29 +444,29 @@ const Affiliate = () => {
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Banknote className="h-4 w-4 sm:h-5 sm:w-5" />
-              Histórico de Saques PIX
+              {t.affiliate.withdrawalHistory}
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Acompanhe seus saques realizados</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">{t.affiliate.trackWithdrawals}</CardDescription>
           </CardHeader>
           <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {withdrawalHistory.length === 0 ? (
               <div className="text-center py-6 sm:py-8 text-muted-foreground">
                 <Banknote className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-2 sm:mb-3 opacity-50" />
-                <p className="text-sm sm:text-base">Nenhum saque realizado</p>
-                <p className="text-xs sm:text-sm">Seus saques PIX aparecerão aqui.</p>
+                <p className="text-sm sm:text-base">{t.affiliate.noWithdrawals}</p>
+                <p className="text-xs sm:text-sm">{t.affiliate.withdrawalsAppearHere}</p>
               </div>
             ) : (
               <div className="space-y-2 sm:space-y-3">
                 {withdrawalHistory.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm sm:text-base">Saque PIX</p>
+                      <p className="font-semibold text-sm sm:text-base">{t.affiliate.pixWithdrawal}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)} • {entry.pixKeyMasked}</p>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <p className="font-bold text-red-500 text-sm sm:text-base">-{formatBRL(entry.amountCents)}</p>
                       <p className={`text-xs ${entry.status === 'completed' ? 'text-green-500' : 'text-yellow-500'}`}>
-                        {entry.status === 'completed' ? 'Concluído' : 'Processando'}
+                        {entry.status === 'completed' ? t.affiliate.completed : t.affiliate.processing}
                       </p>
                     </div>
                   </div>
@@ -488,7 +489,7 @@ const Affiliate = () => {
         isOpen={showShareDialog}
         onClose={() => setShowShareDialog(false)}
         link={referralLink}
-        title="Cadastre-se no Stream Star"
+        title={t.affiliate.shareTitle}
       />
     </AppLayout>
   );
