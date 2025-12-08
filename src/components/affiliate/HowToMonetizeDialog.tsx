@@ -107,12 +107,12 @@ export const HowToMonetizeDialog = () => {
   const { t } = useLanguage();
 
   // Layout constants
-  const rowHeight = 56;
-  const centerX = 180;
-  const badgeRadius = 22;
+  const rowHeight = 52;
+  const centerX = 150;
+  const badgeWidth = 40;
   
   // Y position for each level
-  const getY = (level: number) => 28 + level * rowHeight;
+  const getY = (level: number) => 24 + level * rowHeight;
 
   // Levels config: 5 levels + VOCÊ
   const levels = [
@@ -121,7 +121,6 @@ export const HowToMonetizeDialog = () => {
     { level: 2, color: "yellow", direct: "3º", indirect: "4º" },
     { level: 3, color: "orange", direct: "4º", indirect: "5º" },
     { level: 4, color: "pink", direct: "5º", indirect: "6º" },
-    { level: 5, color: "cyan", direct: "6º", indirect: "7º" },
   ];
 
   return (
@@ -164,62 +163,65 @@ export const HowToMonetizeDialog = () => {
               style={{ zIndex: 1 }}
             >
               <defs>
-                <marker id="arrowGreen" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                  <path d="M0,0 L6,3 L0,6 Z" fill="#22c55e" />
+                <marker id="arrowGreen" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                  <path d="M0,0 L5,2.5 L0,5 Z" fill="#22c55e" />
                 </marker>
-                <marker id="arrowYellow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                  <path d="M0,0 L6,3 L0,6 Z" fill="#eab308" />
+                <marker id="arrowYellow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                  <path d="M0,0 L5,2.5 L0,5 Z" fill="#eab308" />
                 </marker>
               </defs>
               
-              {/* Direct connections (green) - alternating left/right */}
-              {[1, 2, 3, 4, 5].map((level) => {
-                const fromY = getY(level) + 16;
-                const toY = getY(level - 1) + 16;
+              {/* Direct connections (green) - R$1 - alternating sides */}
+              {[1, 2, 3, 4].map((level) => {
+                const fromY = getY(level) + 14;
+                const toY = getY(level - 1) + 14;
                 const isRight = level % 2 === 1;
-                const curveX = isRight ? centerX + 70 : centerX - 70;
-                const startX = isRight ? centerX + badgeRadius : centerX - badgeRadius;
-                const endX = isRight ? centerX + badgeRadius : centerX - badgeRadius;
+                
+                // Linhas mais contidas
+                const offsetX = 55;
+                const curveOffset = 25;
+                const startX = centerX + (isRight ? badgeWidth : -badgeWidth);
+                const endX = centerX + (isRight ? badgeWidth : -badgeWidth);
+                const controlX = centerX + (isRight ? offsetX + curveOffset : -(offsetX + curveOffset));
+                const labelX = centerX + (isRight ? offsetX + 10 : -(offsetX + 10));
                 
                 return (
                   <g key={`direct-${level}`}>
                     <path
                       d={`M ${startX} ${fromY} 
-                          Q ${curveX} ${(fromY + toY) / 2} 
-                          ${endX} ${toY}`}
+                          C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY}`}
                       fill="none"
                       stroke="#22c55e"
-                      strokeWidth="2.5"
-                      strokeDasharray="6 3"
+                      strokeWidth="2"
+                      strokeDasharray="5 3"
                       markerEnd="url(#arrowGreen)"
                       className="animate-dash"
                       opacity="0.85"
                     />
                     {/* Flowing coin */}
-                    <circle r="5" fill="#22c55e" opacity="0.95">
+                    <circle r="4" fill="#22c55e" opacity="0.9">
                       <animateMotion
-                        dur="1.3s"
+                        dur="1.2s"
                         repeatCount="indefinite"
                         begin={`${level * 0.2}s`}
                         path={`M ${startX} ${fromY} 
-                              Q ${curveX} ${(fromY + toY) / 2} 
-                              ${endX} ${toY}`}
+                              C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY}`}
                       />
                     </circle>
                     {/* Amount label */}
                     <rect 
-                      x={isRight ? curveX + 5 : curveX - 35}
-                      y={(fromY + toY) / 2 - 8}
-                      width="30"
-                      height="14"
-                      rx="4"
+                      x={isRight ? labelX - 2 : labelX - 26}
+                      y={(fromY + toY) / 2 - 7}
+                      width="28"
+                      height="13"
+                      rx="3"
                       fill="#22c55e"
                       opacity="0.9"
                     />
                     <text
-                      x={isRight ? curveX + 20 : curveX - 20}
+                      x={isRight ? labelX + 12 : labelX - 12}
                       y={(fromY + toY) / 2 + 3}
-                      fontSize="9"
+                      fontSize="8"
                       fill="white"
                       fontWeight="bold"
                       textAnchor="middle"
@@ -230,54 +232,57 @@ export const HowToMonetizeDialog = () => {
                 );
               })}
               
-              {/* Indirect connections (yellow) - alternating opposite to direct */}
-              {[2, 3, 4, 5].map((level) => {
-                const fromY = getY(level) + 16;
-                const toY = getY(level - 2) + 16;
+              {/* Indirect connections (yellow) - R$0,50 - opposite side to direct */}
+              {[2, 3, 4].map((level) => {
+                const fromY = getY(level) + 14;
+                const toY = getY(level - 2) + 14;
                 const isRight = level % 2 === 0;
-                const curveX = isRight ? centerX + 90 : centerX - 90;
-                const startX = isRight ? centerX + badgeRadius + 5 : centerX - badgeRadius - 5;
-                const endX = isRight ? centerX + badgeRadius + 5 : centerX - badgeRadius - 5;
+                
+                // Linhas indiretas mais afastadas
+                const offsetX = 80;
+                const curveOffset = 35;
+                const startX = centerX + (isRight ? badgeWidth + 5 : -(badgeWidth + 5));
+                const endX = centerX + (isRight ? badgeWidth + 5 : -(badgeWidth + 5));
+                const controlX = centerX + (isRight ? offsetX + curveOffset : -(offsetX + curveOffset));
+                const labelX = centerX + (isRight ? offsetX + 20 : -(offsetX + 20));
                 
                 return (
                   <g key={`indirect-${level}`}>
                     <path
-                      d={`M ${startX} ${fromY - 3} 
-                          Q ${curveX} ${(fromY + toY) / 2} 
-                          ${endX} ${toY + 3}`}
+                      d={`M ${startX} ${fromY - 2} 
+                          C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY + 2}`}
                       fill="none"
                       stroke="#eab308"
-                      strokeWidth="2"
-                      strokeDasharray="4 4"
+                      strokeWidth="1.5"
+                      strokeDasharray="4 3"
                       markerEnd="url(#arrowYellow)"
                       className="animate-dash-slow"
                       opacity="0.75"
                     />
                     {/* Flowing coin */}
-                    <circle r="4" fill="#eab308" opacity="0.9">
+                    <circle r="3" fill="#eab308" opacity="0.85">
                       <animateMotion
-                        dur="1.8s"
+                        dur="1.6s"
                         repeatCount="indefinite"
-                        begin={`${level * 0.25 + 0.4}s`}
-                        path={`M ${startX} ${fromY - 3} 
-                              Q ${curveX} ${(fromY + toY) / 2} 
-                              ${endX} ${toY + 3}`}
+                        begin={`${level * 0.3 + 0.3}s`}
+                        path={`M ${startX} ${fromY - 2} 
+                              C ${controlX} ${fromY}, ${controlX} ${toY}, ${endX} ${toY + 2}`}
                       />
                     </circle>
                     {/* Amount label */}
                     <rect 
-                      x={isRight ? curveX + 5 : curveX - 45}
-                      y={(fromY + toY) / 2 - 8}
-                      width="40"
-                      height="14"
-                      rx="4"
+                      x={isRight ? labelX - 5 : labelX - 30}
+                      y={(fromY + toY) / 2 - 7}
+                      width="35"
+                      height="13"
+                      rx="3"
                       fill="#eab308"
                       opacity="0.9"
                     />
                     <text
-                      x={isRight ? curveX + 25 : curveX - 25}
+                      x={isRight ? labelX + 12 : labelX - 12}
                       y={(fromY + toY) / 2 + 3}
-                      fontSize="8"
+                      fontSize="7"
                       fill="white"
                       fontWeight="bold"
                       textAnchor="middle"
