@@ -202,7 +202,12 @@ export const DirectChatMessage = ({
       {isOwn && showReactionPicker && (
         <div 
           ref={pickerRef}
-          className="absolute top-1/2 -translate-y-1/2 -left-[340px] z-50"
+          className="fixed z-[9999]"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)'
+          }}
         >
           <Picker
             data={data}
@@ -234,7 +239,12 @@ export const DirectChatMessage = ({
       {!isOwn && showReactionPicker && (
         <div 
           ref={pickerRef}
-          className="absolute top-1/2 -translate-y-1/2 -right-[340px] z-50"
+          className="fixed z-[9999]"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)'
+          }}
         >
           <Picker
             data={data}

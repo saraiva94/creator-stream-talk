@@ -58,10 +58,37 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
   const { t } = useLanguage();
 
-  // Auto-resize textarea
+  // Initialize notification audio
+  useEffect(() => {
+    notificationAudioRef.current = new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleShDqf/Mf0EvI2i92/GxXjEcO4jRvsZvRQ8lYqvb5bNvPRUxgL/Jt29HFCNcotDbxoBTIiZVluLGnGRAGR5KfNLNu4NaLBxCadPYv4xfNRhAe9HPu4lfNRc9c87OuIhdNxY5aszMtIZYNxYybMnIr4BUNxUuZsXEq3tQNxQrX8DArHdMNxMnWbq8qXNJOBIjUra3pmtGOREfS7KypWNDOhAaRq+toFw/OxAWP6uomVg8PRASNaejlFI5QA8OMKCfiUw2QQ0LKJqaeEYyRA0IIZWVbkEuRwwFGo+RZDwqSgsCEomMWjcmTQoCB4SHUQ==");
+    notificationAudioRef.current.volume = 0.5;
+  }, []);
+
+  // Broadcast typing indicator
+  const broadcastTyping = useCallback(() => {
+    if (!user || !activeChat) return;
+    
+    const channelName = `typing-${[user.id, activeChat.id].sort().join('-')}`;
+    const channel = supabase.channel(channelName);
+    
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        channel.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { user_id: user.id }
+        });
+      }
+    });
+  }, [user, activeChat]);
+
+  // Auto-resize textarea and broadcast typing
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value);
     // Reset height to auto to properly calculate scroll height
@@ -69,6 +96,8 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
     }
+    // Broadcast typing indicator
+    broadcastTyping();
   };
 
   // Animate button entrance on mount
@@ -323,15 +352,39 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
               message_type: msg.message_type,
               metadata: msg.metadata
             }]);
+            
+            // Play notification sound for incoming messages
+            if (msg.sender_id !== user.id && notificationAudioRef.current) {
+              notificationAudioRef.current.currentTime = 0;
+              notificationAudioRef.current.play().catch(() => {});
+            }
           }
         }
       )
       .subscribe();
 
+    // Typing indicator channel
+    const typingChannel = supabase.channel(`typing-${[user.id, activeChat.id].sort().join('-')}`);
+    
+    typingChannel
+      .on('broadcast', { event: 'typing' }, (payload) => {
+        if (payload.payload?.user_id === activeChat.id) {
+          setIsTyping(true);
+          // Clear previous timeout
+          if (typingTimeout) clearTimeout(typingTimeout);
+          // Set new timeout to hide typing indicator
+          const timeout = setTimeout(() => setIsTyping(false), 3000);
+          setTypingTimeout(timeout);
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(typingChannel);
+      if (typingTimeout) clearTimeout(typingTimeout);
     };
-  }, [user, activeChat]);
+  }, [user, activeChat, typingTimeout]);
 
   const openChat = (id: string, name: string, avatar: string | null) => {
     setActiveChat({ id, name, avatar });
@@ -748,6 +801,19 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                           isDeleting={deletingMessageId === msg.id}
                         />
                       ))}
+                      {/* Typing indicator */}
+                      {isTyping && (
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                          <span>
+                            {(t.chat?.isTyping || "{name} está digitando...").replace("{name}", activeChat.name)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </ScrollArea>
