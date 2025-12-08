@@ -7,15 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, LiveInfoResponse, LiveLifecycleStatus } from "@/lib/api";
+import { useLanguage } from "@/hooks/useLanguage";
 
-const statusLabel = (status: LiveLifecycleStatus | null | undefined) => {
+const getStatusLabel = (status: LiveLifecycleStatus | null | undefined, t: ReturnType<typeof useLanguage>["t"]) => {
   switch (status) {
     case "live":
-      return { label: "Live", variant: "destructive" as const };
+      return { label: t.liveViewer?.live || "Live", variant: "destructive" as const };
     case "waiting_for_host":
-      return { label: "Waiting for host", variant: "secondary" as const };
+      return { label: t.liveViewer?.waitingForHost || "Waiting for host", variant: "secondary" as const };
     default:
-      return { label: "Offline", variant: "outline" as const };
+      return { label: t.liveViewer?.offline || "Offline", variant: "outline" as const };
   }
 };
 
@@ -29,9 +30,10 @@ const formatPrice = (price?: number | null, currency?: string | null) => {
   return formatter.format(price);
 };
 
-const LiveInfoHeader: React.FC<{ info: LiveInfoResponse | null; loading: boolean }> = ({
+const LiveInfoHeader: React.FC<{ info: LiveInfoResponse | null; loading: boolean; t: ReturnType<typeof useLanguage>["t"] }> = ({
   info,
   loading,
+  t,
 }) => {
   if (loading) {
     return (
@@ -51,23 +53,23 @@ const LiveInfoHeader: React.FC<{ info: LiveInfoResponse | null; loading: boolean
     return (
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-xl">Live not found</CardTitle>
+          <CardTitle className="text-xl">{t.liveViewer?.notFound || "Live not found"}</CardTitle>
         </CardHeader>
-        <CardContent className="text-muted-foreground">This live could not be located.</CardContent>
+        <CardContent className="text-muted-foreground">{t.liveViewer?.notFoundDesc || "This live could not be located."}</CardContent>
       </Card>
     );
   }
 
-  const { label, variant } = statusLabel(info.status);
-  const priceLabel = info.requiresPayment ? formatPrice(info.price, info.currency) : "Free";
+  const { label, variant } = getStatusLabel(info.status, t);
+  const priceLabel = info.requiresPayment ? formatPrice(info.price, info.currency) : (t.liveViewer?.free || "Free");
 
   return (
     <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div className="space-y-1">
-          <CardTitle className="text-2xl font-semibold">{info.title || "Live session"}</CardTitle>
+          <CardTitle className="text-2xl font-semibold">{info.title || (t.liveViewer?.liveSession || "Live session")}</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {info.creatorName ? `Hosted by ${info.creatorName}` : "Creator live stream"}
+            {info.creatorName ? `${t.liveViewer?.hostedBy || "Hosted by"} ${info.creatorName}` : (t.liveViewer?.creatorStream || "Creator live stream")}
           </p>
         </div>
         <Badge variant={variant}>{label}</Badge>
@@ -76,12 +78,12 @@ const LiveInfoHeader: React.FC<{ info: LiveInfoResponse | null; loading: boolean
         {info.description && <p>{info.description}</p>}
         {info.price != null && (
           <div className="flex items-center gap-2 text-primary">
-            <span className="font-medium">Price:</span>
+            <span className="font-medium">{t.liveViewer?.price || "Price"}:</span>
             <span>{priceLabel}</span>
           </div>
         )}
         {info.roomName && (
-          <div className="text-xs uppercase text-muted-foreground">Room: {info.roomName}</div>
+          <div className="text-xs uppercase text-muted-foreground">{t.liveViewer?.room || "Room"}: {info.roomName}</div>
         )}
       </CardContent>
     </Card>
@@ -90,6 +92,7 @@ const LiveInfoHeader: React.FC<{ info: LiveInfoResponse | null; loading: boolean
 
 const LiveViewer: React.FC = () => {
   const { liveId } = useParams<{ liveId: string }>();
+  const { t } = useLanguage();
 
   const {
     data: liveInfo,
@@ -110,17 +113,17 @@ const LiveViewer: React.FC = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8">
-        <LiveInfoHeader info={liveInfo ?? null} loading={isLoading} />
+        <LiveInfoHeader info={liveInfo ?? null} loading={isLoading} t={t} />
 
         {isError && (
           <Card>
-            <CardContent className="py-6 text-destructive">Failed to load live information.</CardContent>
+            <CardContent className="py-6 text-destructive">{t.liveViewer?.loadError || "Failed to load live information."}</CardContent>
           </Card>
         )}
 
         {offline && (
           <Card className="mb-6">
-            <CardContent className="py-6">This live is not currently active.</CardContent>
+            <CardContent className="py-6">{t.liveViewer?.notActive || "This live is not currently active."}</CardContent>
           </Card>
         )}
 
