@@ -234,24 +234,33 @@ const Affiliate = () => {
   return (
     <AppLayout showSidebar={false}>
       <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-4xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
+        <div className="flex flex-col gap-4 mb-6 sm:mb-8">
           <div className="flex items-center gap-2 sm:gap-3">
             <Wallet className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             <h1 className="text-2xl sm:text-3xl font-bold">{t.nav.finances}</h1>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex flex-col gap-1">
-              <Button onClick={() => setShowWithdrawDialog(true)} className="bg-green-600 hover:bg-green-700 w-full sm:w-auto" disabled={availableBalanceCents <= 0}>
-                <Banknote className="h-4 w-4 mr-2" />
-                {t.affiliate.withdrawViaPix}
-              </Button>
-              <span className="text-[10px] text-muted-foreground text-center">Apenas para contas brasileiras</span>
-            </div>
-            <Button onClick={() => setShowInternationalDialog(true)} variant="outline" className="w-full sm:w-auto border-primary/50" disabled={availableBalanceCents <= 0}>
-              <Globe className="h-4 w-4 mr-2" />
-              Saque Internacional
+          
+          {/* Action buttons - responsive grid */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2">
+            <Button 
+              onClick={() => setShowWithdrawDialog(true)} 
+              className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4" 
+              disabled={availableBalanceCents <= 0}
+            >
+              <Banknote className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">{t.affiliate.withdrawViaPix}</span>
+            </Button>
+            <Button 
+              onClick={() => setShowInternationalDialog(true)} 
+              variant="outline" 
+              className="border-primary/50 text-xs sm:text-sm px-2 sm:px-4" 
+              disabled={availableBalanceCents <= 0}
+            >
+              <Globe className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Internacional</span>
             </Button>
           </div>
+          <p className="text-[10px] text-muted-foreground">PIX apenas para contas brasileiras</p>
         </div>
 
         {error && <div className="mb-6 text-destructive text-sm">{error}</div>}
@@ -296,7 +305,7 @@ const Affiliate = () => {
 
         <Card className="mb-6 sm:mb-8">
           <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 {t.affiliate.createReferralCode}
