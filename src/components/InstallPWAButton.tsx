@@ -87,7 +87,7 @@ export const InstallPWAButton = () => {
           <div className="space-y-4 pt-2">
             {isIOS ? (
               <div className="space-y-3">
-                <p className="font-medium">{t.pwa.safariTitle}:</p>
+                <p className="font-medium">{t.pwa.safariTitle}</p>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                   <li>{t.pwa.safariStep1}</li>
                   <li>{t.pwa.safariStep2}</li>
@@ -96,7 +96,7 @@ export const InstallPWAButton = () => {
               </div>
             ) : isAndroid ? (
               <div className="space-y-3">
-                <p className="font-medium">{t.pwa.androidTitle}:</p>
+                <p className="font-medium">{t.pwa.androidTitle}</p>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                   <li>{t.pwa.androidStep1}</li>
                   <li>{t.pwa.androidStep2}</li>
@@ -105,13 +105,13 @@ export const InstallPWAButton = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="font-medium">{t.pwa.desktopTitle}:</p>
+                <p className="font-medium">{t.pwa.browserTitle}</p>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                  <li>{t.pwa.desktopStep1}</li>
-                  <li>{t.pwa.desktopStep2}</li>
-                  <li>{t.pwa.desktopStep3}</li>
+                  <li>{t.pwa.browserStep1}</li>
+                  <li>{t.pwa.browserStep2}</li>
+                  <li>{t.pwa.browserStep3}</li>
                 </ol>
-                {!isMobile && <p className="text-xs text-muted-foreground mt-2">💡 {t.pwa.mobileHint}</p>}
+                {!isMobile && <p className="text-xs text-muted-foreground mt-2">💡 {t.pwa.browserTip}</p>}
               </div>
             )}
           </div>
