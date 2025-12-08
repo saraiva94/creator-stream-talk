@@ -52,7 +52,9 @@ export const DirectChatMessage = ({
   const [editContent, setEditContent] = useState(message.content);
   const [isSaving, setIsSaving] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const isAudio = message.message_type === "audio" && message.metadata?.file_url;
   const reactions = message.metadata?.reactions || {};
@@ -63,6 +65,25 @@ export const DirectChatMessage = ({
       editInputRef.current.selectionStart = editInputRef.current.value.length;
     }
   }, [isEditing]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (showReactionPicker && pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    };
+
+    if (showReactionPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [showReactionPicker]);
 
   const handleConfirmDelete = async () => {
     await onDelete(message.id);
@@ -84,6 +105,14 @@ export const DirectChatMessage = ({
   const handleReaction = async (emoji: string) => {
     await onReact(message.id, emoji);
     setShowReactionPicker(false);
+  };
+
+  const handleOpenReactionPicker = () => {
+    setShowDropdown(false);
+    // Small delay to allow dropdown to close before opening picker
+    setTimeout(() => {
+      setShowReactionPicker(true);
+    }, 100);
   };
 
   // Render reactions
@@ -123,7 +152,7 @@ export const DirectChatMessage = ({
       {/* Action menu - shows on hover for own messages */}
       {isOwn && !isEditing && !showConfirmDelete && (
         <div className="absolute top-1/2 -translate-y-1/2 -left-8 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <DropdownMenu>
+          <DropdownMenu open={showDropdown} onOpenChange={setShowDropdown}>
             <DropdownMenuTrigger asChild>
               <Button
                 size="icon"
@@ -138,33 +167,16 @@ export const DirectChatMessage = ({
               side="left" 
               className="min-w-0 p-1.5 bg-card border border-border shadow-lg"
             >
-              <Popover open={showReactionPicker} onOpenChange={setShowReactionPicker}>
-                <PopoverTrigger asChild>
-                  <DropdownMenuItem 
-                    onSelect={(e) => e.preventDefault()}
-                    className="px-2 py-1.5"
-                  >
-                    <Smile className="h-4 w-4 mr-2" />
-                    {t.chat?.react || "Reagir"}
-                  </DropdownMenuItem>
-                </PopoverTrigger>
-                <PopoverContent 
-                  className="w-auto p-0 border-0 z-50" 
-                  side="left" 
-                  align="start"
-                  onInteractOutside={() => setShowReactionPicker(false)}
-                >
-                  <Picker
-                    data={data}
-                    onEmojiSelect={(emoji: { native: string }) => handleReaction(emoji.native)}
-                    theme="dark"
-                    previewPosition="none"
-                    skinTonePosition="none"
-                    maxFrequentRows={1}
-                    perLine={8}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DropdownMenuItem 
+                onSelect={(e) => {
+                  e.preventDefault();
+                  handleOpenReactionPicker();
+                }}
+                className="px-2 py-1.5"
+              >
+                <Smile className="h-4 w-4 mr-2" />
+                {t.chat?.react || "Reagir"}
+              </DropdownMenuItem>
               {!isAudio && (
                 <DropdownMenuItem 
                   onClick={() => setIsEditing(true)}
@@ -186,36 +198,53 @@ export const DirectChatMessage = ({
         </div>
       )}
 
+      {/* Standalone emoji picker for own messages - separate from dropdown */}
+      {isOwn && showReactionPicker && (
+        <div 
+          ref={pickerRef}
+          className="absolute top-1/2 -translate-y-1/2 -left-[340px] z-50"
+        >
+          <Picker
+            data={data}
+            onEmojiSelect={(emoji: { native: string }) => handleReaction(emoji.native)}
+            theme="dark"
+            previewPosition="none"
+            skinTonePosition="none"
+            maxFrequentRows={1}
+            perLine={8}
+          />
+        </div>
+      )}
+
       {/* Reaction button for non-own messages */}
       {!isOwn && !isEditing && (
         <div className="absolute top-1/2 -translate-y-1/2 -right-8 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-          <Popover open={showReactionPicker} onOpenChange={setShowReactionPicker}>
-            <PopoverTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-6 w-6"
-              >
-                <Smile className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent 
-              className="w-auto p-0 border-0 z-50" 
-              side="right" 
-              align="start"
-              onInteractOutside={() => setShowReactionPicker(false)}
-            >
-              <Picker
-                data={data}
-                onEmojiSelect={(emoji: { native: string }) => handleReaction(emoji.native)}
-                theme="dark"
-                previewPosition="none"
-                skinTonePosition="none"
-                maxFrequentRows={1}
-                perLine={8}
-              />
-            </PopoverContent>
-          </Popover>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => setShowReactionPicker(!showReactionPicker)}
+          >
+            <Smile className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Standalone emoji picker for non-own messages */}
+      {!isOwn && showReactionPicker && (
+        <div 
+          ref={pickerRef}
+          className="absolute top-1/2 -translate-y-1/2 -right-[340px] z-50"
+        >
+          <Picker
+            data={data}
+            onEmojiSelect={(emoji: { native: string }) => handleReaction(emoji.native)}
+            theme="dark"
+            previewPosition="none"
+            skinTonePosition="none"
+            maxFrequentRows={1}
+            perLine={8}
+          />
         </div>
       )}
 

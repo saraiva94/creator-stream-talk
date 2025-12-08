@@ -26,7 +26,7 @@ export const clearReturnTo = () => {
 };
 
 export const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
-  const { user, isLoading, isAdmin } = useAuth();
+  const { user, isLoading, isAdmin, isAdminLoading } = useAuth();
   const location = useLocation();
 
   // Show loading while checking auth
@@ -42,6 +42,15 @@ export const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRout
   if (!user) {
     saveReturnTo(location.pathname + location.search);
     return <Navigate to="/auth" replace />;
+  }
+
+  // Wait for admin status to be checked before redirecting
+  if (requireAdmin && isAdminLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
   // Requires admin but user is not admin - redirect to access denied page
