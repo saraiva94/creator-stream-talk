@@ -156,7 +156,7 @@ export const HowToMonetizeDialog = () => {
           <div className="bg-primary/10 p-2 rounded-lg border border-primary/30">
             <p className="text-muted-foreground text-xs text-center">
               <strong className="text-primary">Lógica de 2 níveis:</strong> Ganhe <span className="text-green-500 font-bold">R$1</span> do direto 
-              e <span className="text-yellow-500 font-bold">R$0,50</span> do indireto (neto).
+              e <span className="text-yellow-500 font-bold">R$0,50</span> do indireto.
             </p>
           </div>
           
