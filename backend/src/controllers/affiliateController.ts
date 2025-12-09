@@ -48,15 +48,19 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     const affiliateEarningsCents = profileRow?.affiliate_earnings ?? 0;
     const availableBalanceCents = Math.round(((profileRow?.balance as number | null) ?? 0) * 100);
 
-    // Count referrals from registration_referrals table
-    const { count: referralCount, error: referralError } = await supabase
+    // Count referrals from multiple sources for robustness
+    const { count: regReferralCount } = await supabase
       .from('registration_referrals')
       .select('id', { count: 'exact', head: true })
       .eq('referrer_id', profileId);
 
-    if (referralError) {
-      throw new Error(`Failed to count referrals: ${referralError.message}`);
-    }
+    const { count: profileReferralCount } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('referrer_direct', profileId);
+
+    // Use the maximum count from either source
+    const referralCount = Math.max(regReferralCount ?? 0, profileReferralCount ?? 0);
 
     return respondSuccess(res, 200, {
       totalEarningsCents: Math.max(totalEarningsCents, affiliateEarningsCents),
