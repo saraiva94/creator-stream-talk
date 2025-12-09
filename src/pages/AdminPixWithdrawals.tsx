@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PixWithdrawalsTable from "@/components/admin/PixWithdrawalsTable";
 import PixWithdrawalFilters from "@/components/admin/PixWithdrawalFilters";
@@ -6,9 +6,10 @@ import PixWithdrawalActionModal from "@/components/admin/PixWithdrawalActionModa
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePixWithdrawals } from "@/hooks/usePixWithdrawals";
 import { Badge } from "@/components/ui/badge";
-import { Banknote, AlertCircle, ArrowLeft } from "lucide-react";
+import { Banknote, AlertCircle, ArrowLeft, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Navbar from "@/components/Navbar";
 import GlobalChatButton from "@/components/GlobalChatButton";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +19,7 @@ const AdminPixWithdrawals = () => {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
   const { t } = useLanguage();
+  const [searchQuery, setSearchQuery] = useState("");
   
   const {
     withdrawals,
@@ -45,6 +47,17 @@ const AdminPixWithdrawals = () => {
     },
     [setPage, totalPages]
   );
+
+  // Filter withdrawals by search query
+  const filteredWithdrawals = withdrawals.filter((withdrawal) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      withdrawal.user_profile?.username?.toLowerCase().includes(query) ||
+      withdrawal.user_id.toLowerCase().includes(query) ||
+      withdrawal.metadata?.pix_key?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,10 +100,23 @@ const AdminPixWithdrawals = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>{t.pixWithdrawals.cardTitle}</CardTitle>
-            <CardDescription>
-              {t.pixWithdrawals.cardDescription}
-            </CardDescription>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <CardTitle>{t.pixWithdrawals.cardTitle}</CardTitle>
+                <CardDescription>
+                  {t.pixWithdrawals.cardDescription}
+                </CardDescription>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t.home?.search || "Search..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             <PixWithdrawalFilters
@@ -100,7 +126,7 @@ const AdminPixWithdrawals = () => {
             />
 
             <PixWithdrawalsTable
-              withdrawals={withdrawals}
+              withdrawals={filteredWithdrawals}
               isLoading={isLoading}
               isFetching={isFetching}
               page={page}
