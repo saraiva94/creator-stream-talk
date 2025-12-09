@@ -372,7 +372,6 @@ const Affiliate = () => {
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
-                      <p className="text-xs text-muted-foreground">{entry.level === 1 ? t.affiliate.direct : entry.level === 2 ? t.affiliate.grandfather : ""}</p>
                     </div>
                   </div>
                 ))}
