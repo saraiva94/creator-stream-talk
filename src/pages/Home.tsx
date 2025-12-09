@@ -4,6 +4,8 @@ import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
 import UserSearchAutocomplete from "@/components/UserSearchAutocomplete";
 import PublicProfileDialog from "@/components/PublicProfileDialog";
+import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
+import { InstructionsDialog } from "@/components/InstructionsDialog";
 import { Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,11 +54,17 @@ const Home = () => {
     <AppLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 text-center">
-          <div className="max-w-lg mx-auto">
+          <div className="max-w-lg mx-auto space-y-4">
             <UserSearchAutocomplete 
               onSelectUser={handleUserSelect}
               placeholder={t.home?.search || "Buscar usuários..."}
             />
+            
+            {/* Action buttons */}
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <HowToMonetizeDialog />
+              <InstructionsDialog />
+            </div>
           </div>
         </div>
 
