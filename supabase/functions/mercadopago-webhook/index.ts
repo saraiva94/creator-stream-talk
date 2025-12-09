@@ -7,9 +7,13 @@ const corsHeaders = {
 };
 
 // Commission distribution for registration
+// Commission distribution for registration (in BRL)
 const DIRECT_COMMISSION = 1.00;  // Parent gets R$1.00
 const ROOT_COMMISSION = 0.50;   // Grandparent gets R$0.50
 const MAX_RETRIES = 3;
+
+// Webhook version for debugging
+const WEBHOOK_VERSION = '2.0.1';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -25,7 +29,7 @@ serve(async (req) => {
 
   try {
     payload = await req.json();
-    console.log('[webhook] Mercado Pago webhook received:', JSON.stringify(payload));
+    console.log(`[webhook v${WEBHOOK_VERSION}] Mercado Pago webhook received:`, JSON.stringify(payload));
 
     // Log the incoming webhook immediately
     const { data: logData } = await supabase

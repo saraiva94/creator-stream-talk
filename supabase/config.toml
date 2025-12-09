@@ -1,40 +1,40 @@
 project_id = "enacciilzvifhqpenhlz"
 
-[functions."monitor-lives"]
+[functions.monitor-lives]
 verify_jwt = false
 
-[functions."create-payment"]
+[functions.create-payment]
 verify_jwt = false
 
-[functions."mercadopago-webhook"]
+[functions.mercadopago-webhook]
 verify_jwt = false
 
-[functions."credits-balance"]
+[functions.credits-balance]
 verify_jwt = true
 
-[functions."registration-checkout"]
+[functions.registration-checkout]
 verify_jwt = false
 
-[functions."password-reset"]
+[functions.password-reset]
 verify_jwt = false
 
-[functions."create-superchat-payment"]
+[functions.create-superchat-payment]
 verify_jwt = false
 
-[functions."pix-withdraw"]
+[functions.pix-withdraw]
 verify_jwt = false
 
-[functions."process-pix-payout"]
+[functions.process-pix-payout]
 verify_jwt = true
 
-[functions."auth-email-hook"]
+[functions.auth-email-hook]
 verify_jwt = false
 
-[functions."process-pending-payment"]
+[functions.process-pending-payment]
 verify_jwt = true
 
-[functions."webhook-test"]
+[functions.webhook-test]
 verify_jwt = true
 
-[functions."backfill-platform-revenue"]
+[functions.backfill-platform-revenue]
 verify_jwt = true
