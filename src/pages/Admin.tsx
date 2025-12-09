@@ -677,6 +677,376 @@ const Admin = () => {
           </div>
         </div>
 
+        {/* Quick Stats - FIRST SECTION */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          {/* Total Users Card - Clickable */}
+          <Card 
+            className="bg-primary/5 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
+            onClick={fetchUsersList}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.totalUsers}</CardTitle>
+              <div className="flex items-center gap-1">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                {loadingUsers ? (
+                  <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  showUsersList ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              <div className="text-xl sm:text-3xl font-bold">{stats.totalUsers}</div>
+            </CardContent>
+          </Card>
+
+          {/* Total Creators Card - Clickable */}
+          <Card 
+            className="bg-blue-500/5 border-blue-500/20 cursor-pointer hover:bg-blue-500/10 transition-colors"
+            onClick={fetchCreatorsList}
+          >
+            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.totalCreators}</CardTitle>
+              <div className="flex items-center gap-1">
+                <Video className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+                {loadingCreators ? (
+                  <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  showCreatorsList ? <ChevronUp className="h-4 w-4 text-blue-500" /> : <ChevronDown className="h-4 w-4 text-blue-500" />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              <div className="text-xl sm:text-3xl font-bold">{stats.totalCreators}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-green-500/5 border-green-500/20">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.onlineNow}</CardTitle>
+              <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse" />
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              <div className="text-xl sm:text-3xl font-bold text-green-500">{stats.onlineCreators}</div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-yellow-500/5 border-yellow-500/20">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.platformRevenue}</CardTitle>
+              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
+            </CardHeader>
+            <CardContent className="p-3 sm:p-6 pt-0">
+              <div className="text-xl sm:text-3xl font-bold text-yellow-500">{formatBRL(totalPlatformIncome)}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Users List - Expandable (after clicking Total Users) */}
+        {showUsersList && usersList.length > 0 && (
+          <Card className="mb-6 sm:mb-8 border-primary/20">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center justify-between text-lg">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  {t.admin.usersList} ({filteredUsers.length})
+                </div>
+              </CardTitle>
+              <div className="relative mt-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t.admin.searchUser}
+                  value={usersSearch}
+                  onChange={(e) => setUsersSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="space-y-2">
+                {paginatedUsers.map((profile) => (
+                  <div key={profile.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={profile.avatar_url || undefined} />
+                      <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{profile.username}</p>
+                        {profile.status === "banned" && (
+                          <Badge variant="destructive" className="text-xs">{t.admin.banned}</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(profile.created_at).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={profile.status === "banned" ? "outline" : "destructive"}
+                      onClick={() => openBanConfirmation(profile.id, profile.username, profile.status === "banned")}
+                      disabled={actionLoading === profile.id}
+                      className="flex-shrink-0"
+                    >
+                      {actionLoading === profile.id ? (
+                        <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : profile.status === "banned" ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          <span className="hidden sm:inline">{t.admin.reactivate}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="h-4 w-4 mr-1" />
+                          <span className="hidden sm:inline">{t.admin.ban}</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+                {paginatedUsers.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">{t.admin.noUserFound}</p>
+                )}
+              </div>
+              {/* Pagination */}
+              {totalUsersPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    {t.admin.page} {usersPage} {t.admin.of} {totalUsersPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+                      disabled={usersPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUsersPage((p) => Math.min(totalUsersPages, p + 1))}
+                      disabled={usersPage === totalUsersPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Creators List - Expandable (after clicking Total Creators) */}
+        {showCreatorsList && creatorsList.length > 0 && (
+          <Card className="mb-6 sm:mb-8 border-blue-500/20">
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center justify-between text-lg">
+                <div className="flex items-center gap-2">
+                  <Video className="h-5 w-5 text-blue-500" />
+                  {t.admin.creatorsList} ({filteredCreators.length})
+                </div>
+              </CardTitle>
+              <div className="relative mt-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t.admin.searchCreator}
+                  value={creatorsSearch}
+                  onChange={(e) => setCreatorsSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 pt-0">
+              <div className="space-y-2">
+                {paginatedCreators.map((creator) => (
+                  <div key={creator.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={creator.profiles?.avatar_url || undefined} />
+                      <AvatarFallback>{creator.display_name?.[0]?.toUpperCase() || "C"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium truncate">{creator.display_name}</p>
+                        {creator.is_streaming && (
+                          <Badge className="bg-green-500/20 text-green-500 text-xs">
+                            <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse mr-1" />
+                            {t.admin.live}
+                          </Badge>
+                        )}
+                        {creator.approved_for_live ? (
+                          <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">{t.admin.approved}</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">{t.admin.pending}</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      {creator.approved_for_live ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => openCreatorConfirmation(creator.id, creator.display_name, true)}
+                          disabled={actionLoading === creator.id}
+                        >
+                          {actionLoading === creator.id ? (
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <XCircle className="h-4 w-4 mr-1" />
+                              <span className="hidden sm:inline">{t.admin.revoke}</span>
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => openCreatorConfirmation(creator.id, creator.display_name, false)}
+                          disabled={actionLoading === creator.id}
+                        >
+                          {actionLoading === creator.id ? (
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              <span className="hidden sm:inline">{t.admin.approve}</span>
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {paginatedCreators.length === 0 && (
+                  <p className="text-center text-muted-foreground py-4">{t.admin.noCreatorFound}</p>
+                )}
+              </div>
+              {/* Pagination */}
+              {totalCreatorsPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <p className="text-sm text-muted-foreground">
+                    {t.admin.page} {creatorsPage} {t.admin.of} {totalCreatorsPages}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCreatorsPage((p) => Math.max(1, p - 1))}
+                      disabled={creatorsPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setCreatorsPage((p) => Math.min(totalCreatorsPages, p + 1))}
+                      disabled={creatorsPage === totalCreatorsPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Revenue Dashboard - SECOND SECTION */}
+        <Card className="mb-6 sm:mb-8">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Wallet className="h-5 w-5 text-primary" />
+              {t.admin.revenueBreakdown}
+            </CardTitle>
+            <CardDescription>{t.admin.revenueBreakdownDesc}</CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-6">
+            {/* Summary Cards */}
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+              <Card className="bg-primary/10 border-primary/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Wallet className="h-8 w-8 text-primary flex-shrink-0" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">{t.admin.totalPlatformIncome}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-primary">{formatBRL(totalPlatformIncome)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-green-500/10 border-green-500/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <ArrowDownCircle className="h-8 w-8 text-green-500 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">{t.admin.totalWithdrawals}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-green-500">{formatBRL(revenue.totalWithdrawals)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Income Breakdown - 3 Cards */}
+            <div>
+              <h4 className="font-semibold mb-3 text-sm sm:text-base">{t.revenue.entriesByType}</h4>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+                <Card style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <CreditCard className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">{t.revenue.credits}</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.creditsIncome)}</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-2xl text-blue-500">+{formatBRL(revenue.platformCredits)}</p>
+                  </CardContent>
+                </Card>
+
+                <Card style={{ backgroundColor: 'rgba(234, 179, 8, 0.1)', borderColor: 'rgba(234, 179, 8, 0.3)' }}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <MessageSquare className="h-5 w-5 text-yellow-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">{t.revenue.superchats}</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.superchatIncome)}</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-2xl text-yellow-500">+{formatBRL(revenue.platformSuperchat)}</p>
+                  </CardContent>
+                </Card>
+
+                <Card style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <UserPlus className="h-5 w-5 text-green-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">{t.revenue.registrations}</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.registrationIncome)}</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-2xl text-green-500">+{formatBRL(revenue.platformRegistration)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Platform Balance */}
+            <div className="pt-4 border-t border-border">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-lg font-semibold">{t.admin.netPlatformBalance}</span>
+                <span className={`text-2xl sm:text-3xl font-bold ${revenue.platformBalance >= 0 ? "text-primary" : "text-destructive"}`}>
+                  {formatBRL(revenue.platformBalance)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Process Pending Payment */}
         <Card className="mb-6 sm:mb-8 border-yellow-500/30 bg-yellow-500/5">
           <CardHeader className="p-4 sm:p-6">
@@ -833,282 +1203,6 @@ const Admin = () => {
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
-          {/* Total Users Card - Clickable */}
-          <Card 
-            className="bg-primary/5 border-primary/20 cursor-pointer hover:bg-primary/10 transition-colors"
-            onClick={fetchUsersList}
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.totalUsers}</CardTitle>
-              <div className="flex items-center gap-1">
-                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                {loadingUsers ? (
-                  <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  showUsersList ? <ChevronUp className="h-4 w-4 text-primary" /> : <ChevronDown className="h-4 w-4 text-primary" />
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6 pt-0">
-              <div className="text-xl sm:text-3xl font-bold">{stats.totalUsers}</div>
-            </CardContent>
-          </Card>
-
-          {/* Total Creators Card - Clickable */}
-          <Card 
-            className="bg-blue-500/5 border-blue-500/20 cursor-pointer hover:bg-blue-500/10 transition-colors"
-            onClick={fetchCreatorsList}
-          >
-            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.totalCreators}</CardTitle>
-              <div className="flex items-center gap-1">
-                <Video className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-                {loadingCreators ? (
-                  <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  showCreatorsList ? <ChevronUp className="h-4 w-4 text-blue-500" /> : <ChevronDown className="h-4 w-4 text-blue-500" />
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6 pt-0">
-              <div className="text-xl sm:text-3xl font-bold">{stats.totalCreators}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-green-500/5 border-green-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.onlineNow}</CardTitle>
-              <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse" />
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6 pt-0">
-              <div className="text-xl sm:text-3xl font-bold text-green-500">{stats.onlineCreators}</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-yellow-500/5 border-yellow-500/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 p-3 sm:p-6">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{t.admin.platformRevenue}</CardTitle>
-              <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6 pt-0">
-              <div className="text-xl sm:text-3xl font-bold text-yellow-500">{formatBRL(totalPlatformIncome)}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Users List - Expandable */}
-        {showUsersList && usersList.length > 0 && (
-          <Card className="mb-6 sm:mb-8 border-primary/20">
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="flex items-center justify-between text-lg">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  {t.admin.usersList} ({filteredUsers.length})
-                </div>
-              </CardTitle>
-              <div className="relative mt-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t.admin.searchUser}
-                  value={usersSearch}
-                  onChange={(e) => setUsersSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="space-y-2">
-                {paginatedUsers.map((profile) => (
-                  <div key={profile.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={profile.avatar_url || undefined} />
-                      <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{profile.username}</p>
-                        {profile.status === "banned" && (
-                          <Badge variant="destructive" className="text-xs">{t.admin.banned}</Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(profile.created_at).toLocaleDateString("pt-BR")}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={profile.status === "banned" ? "outline" : "destructive"}
-                      onClick={() => openBanConfirmation(profile.id, profile.username, profile.status === "banned")}
-                      disabled={actionLoading === profile.id}
-                      className="flex-shrink-0"
-                    >
-                      {actionLoading === profile.id ? (
-                        <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : profile.status === "banned" ? (
-                        <>
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          <span className="hidden sm:inline">{t.admin.reactivate}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Ban className="h-4 w-4 mr-1" />
-                          <span className="hidden sm:inline">{t.admin.ban}</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ))}
-                {paginatedUsers.length === 0 && (
-                  <p className="text-center text-muted-foreground py-4">{t.admin.noUserFound}</p>
-                )}
-              </div>
-              {/* Pagination */}
-              {totalUsersPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                  <p className="text-sm text-muted-foreground">
-                    {t.admin.page} {usersPage} {t.admin.of} {totalUsersPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
-                      disabled={usersPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setUsersPage((p) => Math.min(totalUsersPages, p + 1))}
-                      disabled={usersPage === totalUsersPages}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Creators List - Expandable */}
-        {showCreatorsList && creatorsList.length > 0 && (
-          <Card className="mb-6 sm:mb-8 border-blue-500/20">
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="flex items-center justify-between text-lg">
-                <div className="flex items-center gap-2">
-                  <Video className="h-5 w-5 text-blue-500" />
-                  {t.admin.creatorsList} ({filteredCreators.length})
-                </div>
-              </CardTitle>
-              <div className="relative mt-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t.admin.searchCreator}
-                  value={creatorsSearch}
-                  onChange={(e) => setCreatorsSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="space-y-2">
-                {paginatedCreators.map((creator) => (
-                  <div key={creator.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={creator.profiles?.avatar_url || undefined} />
-                      <AvatarFallback>{creator.display_name?.[0]?.toUpperCase() || "C"}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium truncate">{creator.display_name}</p>
-                        {creator.is_streaming && (
-                          <Badge className="bg-green-500/20 text-green-500 text-xs">
-                            <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse mr-1" />
-                            {t.admin.live}
-                          </Badge>
-                        )}
-                        {creator.approved_for_live ? (
-                          <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">{t.admin.approved}</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs bg-yellow-500/20 text-yellow-500">{t.admin.pending}</Badge>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      {creator.approved_for_live ? (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => openCreatorConfirmation(creator.id, creator.display_name, true)}
-                          disabled={actionLoading === creator.id}
-                        >
-                          {actionLoading === creator.id ? (
-                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <>
-                              <XCircle className="h-4 w-4 mr-1" />
-                              <span className="hidden sm:inline">{t.admin.revoke}</span>
-                            </>
-                          )}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => openCreatorConfirmation(creator.id, creator.display_name, false)}
-                          disabled={actionLoading === creator.id}
-                        >
-                          {actionLoading === creator.id ? (
-                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <>
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              <span className="hidden sm:inline">{t.admin.approve}</span>
-                            </>
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {paginatedCreators.length === 0 && (
-                  <p className="text-center text-muted-foreground py-4">{t.admin.noCreatorFound}</p>
-                )}
-              </div>
-              {/* Pagination */}
-              {totalCreatorsPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                  <p className="text-sm text-muted-foreground">
-                    {t.admin.page} {creatorsPage} {t.admin.of} {totalCreatorsPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCreatorsPage((p) => Math.max(1, p - 1))}
-                      disabled={creatorsPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCreatorsPage((p) => Math.min(totalCreatorsPages, p + 1))}
-                      disabled={creatorsPage === totalCreatorsPages}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Confirmation Dialog */}
         <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setBanReason(""); } }}>
           <AlertDialogContent>
@@ -1160,100 +1254,6 @@ const Admin = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {/* Revenue Dashboard */}
-        <Card className="mb-6 sm:mb-8">
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-              <Wallet className="h-5 w-5 text-primary" />
-              {t.admin.revenueBreakdown}
-            </CardTitle>
-            <CardDescription>{t.admin.revenueBreakdownDesc}</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0 space-y-6">
-            {/* Summary Cards */}
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-              <Card className="bg-primary/10 border-primary/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Wallet className="h-8 w-8 text-primary flex-shrink-0" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">{t.admin.totalPlatformIncome}</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-primary">{formatBRL(totalPlatformIncome)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-green-500/10 border-green-500/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <ArrowDownCircle className="h-8 w-8 text-green-500 flex-shrink-0" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">{t.admin.totalWithdrawals}</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-green-500">{formatBRL(revenue.totalWithdrawals)}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Income Breakdown - 3 Cards */}
-            <div>
-              <h4 className="font-semibold mb-3 text-sm sm:text-base">{t.revenue.entriesByType}</h4>
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-                <Card style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3 mb-2">
-                      <CreditCard className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">{t.revenue.credits}</p>
-                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.creditsIncome)}</p>
-                      </div>
-                    </div>
-                    <p className="font-bold text-2xl text-blue-500">+{formatBRL(revenue.platformCredits)}</p>
-                  </CardContent>
-                </Card>
-
-                <Card style={{ backgroundColor: 'rgba(234, 179, 8, 0.1)', borderColor: 'rgba(234, 179, 8, 0.3)' }}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3 mb-2">
-                      <MessageSquare className="h-5 w-5 text-yellow-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">{t.revenue.superchats}</p>
-                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.superchatIncome)}</p>
-                      </div>
-                    </div>
-                    <p className="font-bold text-2xl text-yellow-500">+{formatBRL(revenue.platformSuperchat)}</p>
-                  </CardContent>
-                </Card>
-
-                <Card style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', borderColor: 'rgba(34, 197, 94, 0.3)' }}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3 mb-2">
-                      <UserPlus className="h-5 w-5 text-green-500" />
-                      <div>
-                        <p className="text-sm text-muted-foreground">{t.revenue.registrations}</p>
-                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.registrationIncome)}</p>
-                      </div>
-                    </div>
-                    <p className="font-bold text-2xl text-green-500">+{formatBRL(revenue.platformRegistration)}</p>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-
-            {/* Platform Balance */}
-            <div className="pt-4 border-t border-border">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="text-lg font-semibold">{t.admin.netPlatformBalance}</span>
-                <span className={`text-2xl sm:text-3xl font-bold ${revenue.platformBalance >= 0 ? "text-primary" : "text-destructive"}`}>
-                  {formatBRL(revenue.platformBalance)}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Webhook Logs Panel */}
         <WebhookLogsPanel />
