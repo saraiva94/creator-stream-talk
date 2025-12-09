@@ -604,13 +604,25 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               )}
-              <CardTitle className="text-base font-semibold">
-                {activeTab === "chat" && activeChat 
-                  ? activeChat.name 
-                  : activeTab === "amigos" 
+              {activeTab === "chat" && activeChat ? (
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={activeChat.avatar || undefined} />
+                    <AvatarFallback className="text-xs">
+                      {activeChat.name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <CardTitle className="text-base font-semibold">
+                    {activeChat.name}
+                  </CardTitle>
+                </div>
+              ) : (
+                <CardTitle className="text-base font-semibold">
+                  {activeTab === "amigos" 
                     ? (t.chat?.friends || "Amigos")
                     : (t.chat?.conversations || "Conversas")}
-              </CardTitle>
+                </CardTitle>
+              )}
             </div>
             <div className="flex gap-1">
               <Button
@@ -836,7 +848,6 @@ export const GlobalChatButton = ({ user }: GlobalChatButtonProps) => {
                     ref={textareaRef}
                     value={newMessage}
                     onChange={handleTextareaChange}
-                    placeholder={t.chat?.typeMessage || "Digite uma mensagem..."}
                     className="flex-1 min-h-[36px] max-h-[100px] resize-none py-2 scrollbar-none overflow-y-auto"
                     style={{ scrollbarWidth: 'none' }}
                     rows={1}
