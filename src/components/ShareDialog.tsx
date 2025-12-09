@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import { Copy, Check, MessageCircle, Instagram, Twitter } from "lucide-react";
+import { Copy, Check, MessageCircle, Instagram, Twitter, Share } from "lucide-react";
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -32,6 +32,8 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
   const { toast } = useToast();
   const { t } = useLanguage();
 
+  const supportsNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(link);
@@ -48,6 +50,23 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
         description: "Por favor, copie o link manualmente",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (!navigator.share) return;
+    
+    try {
+      await navigator.share({
+        title: title || "StreamStar",
+        text: title || "Cadastre-se na StreamStar",
+        url: link,
+      });
+    } catch (error) {
+      // User cancelled or share failed - ignore AbortError
+      if ((error as Error).name !== 'AbortError') {
+        console.error("Share failed:", error);
+      }
     }
   };
 
@@ -162,6 +181,18 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Native Share Button - Only shows on supported devices */}
+          {supportsNativeShare && (
+            <Button
+              onClick={handleNativeShare}
+              className="w-full gap-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
+              size="lg"
+            >
+              <Share className="h-5 w-5" />
+              {t.share?.nativeShare || "Compartilhar via Apps"}
+            </Button>
+          )}
+
           {/* Social Media Buttons - Row with 5 buttons */}
           <div className="grid grid-cols-5 gap-2 sm:gap-4">
             {/* WhatsApp */}
