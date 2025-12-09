@@ -5,6 +5,7 @@ import { respondSuccess } from '../lib/responses';
 import { supabase } from '../lib/supabaseClient';
 import {
   applyRegistrationContextToProfile,
+  applyRegistrationAffiliatePayout,
   recordPendingRegistrationReferral,
   RegistrationReferralContext,
   resolveReferralContext,
@@ -13,6 +14,23 @@ import {
 import { createCheckoutPreference } from '../services/mercadoPagoService';
 import { parseWithZod } from '../validation/utils';
 import { registrationCheckoutSchema } from '../validation/affiliateSchemas';
+
+// Helper function to calculate commission cents
+const calculateRegistrationCommissionCents = (
+  directId: string | null,
+  rootId: string | null,
+): {
+  directAmountCents: number;
+  rootAmountCents: number;
+  platformAmountCents: number;
+} => {
+  const directAmountCents = directId ? 100 : 0; // R$1.00
+  const effectiveRootId = rootId && rootId !== directId ? rootId : null;
+  const rootAmountCents = effectiveRootId ? 50 : 0; // R$0.50
+  const platformAmountCents = Math.max(0, 500 - directAmountCents - rootAmountCents);
+  return { directAmountCents, rootAmountCents, platformAmountCents };
+};
+
 
 type RegistrationProfileResult = {
   profileId: string;
@@ -105,12 +123,69 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
 
     await applyRegistrationContextToProfile(profile.profileId, effectiveContext);
 
+    // Record pending referral BEFORE creating payment preference
+    const paymentId = crypto.randomUUID();
+    await recordPendingRegistrationReferral(paymentId, profile.profileId, effectiveContext, {
+      isFree: Boolean(free),
+      email: profile.email,
+    });
+
     if (free) {
+      // For free registrations, immediately apply payouts and activate
+      const { directAmountCents, rootAmountCents, platformAmountCents } = calculateRegistrationCommissionCents(
+        effectiveContext.directId,
+        effectiveContext.rootId
+      );
+
+      await applyRegistrationAffiliatePayout({
+        newUserId: profile.profileId,
+        directId: effectiveContext.directId,
+        rootId: effectiveContext.rootId,
+        directAmountCents,
+        rootAmountCents,
+        platformAmountCents,
+        paymentId,
+      });
+
+      // Record platform revenue for free registration (still counts for tracking)
+      await supabase.from('platform_revenue').insert({
+        source_type: 'registration_free',
+        source_id: paymentId,
+        amount: platformAmountCents,
+        user_id: profile.profileId,
+        metadata: { 
+          direct_id: effectiveContext.directId, 
+          root_id: effectiveContext.rootId, 
+          gross_amount: 500,
+          is_free: true 
+        },
+      });
+
+      // Mark registration as completed
+      await supabase
+        .from('registration_referrals')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('payment_id', paymentId);
+
+      // Activate profile
+      await supabase
+        .from('profiles')
+        .update({ 
+          status: 'active', 
+          is_subscribed: true,
+        })
+        .eq('id', profile.profileId);
+
       const session = await maybeCreateSession(email, password);
       logger.info({
         event: 'registration.free_link.used',
         profileId: profile.profileId,
         isRootCreator: effectiveContext.isRootCreator,
+        directId: effectiveContext.directId,
+        rootId: effectiveContext.rootId,
+        directAmountCents,
+        rootAmountCents,
+        platformAmountCents,
       });
       return respondSuccess(res, 200, {
         status: 'ok',
@@ -120,11 +195,7 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
       });
     }
 
-    const paymentId = crypto.randomUUID();
-    await recordPendingRegistrationReferral(paymentId, profile.profileId, effectiveContext, {
-      isFree: false,
-      email: profile.email,
-    });
+    // paymentId já foi criado acima, apenas criar a preference de pagamento
 
     const preference = await createCheckoutPreference({
       purchaseType: 'registration',

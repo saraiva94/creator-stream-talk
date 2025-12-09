@@ -310,10 +310,44 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
     console.log('[webhook] Credits added:', { userId, credits });
 
   } else if (eventType === 'REGISTRATION') {
-    const directId = metadata.direct_id;
-    const rootId = metadata.root_id;
+    let directId = metadata.direct_id;
+    let rootId = metadata.root_id;
 
-    console.log('[webhook] Processing registration:', { userId, directId, rootId });
+    console.log('[webhook] Processing registration:', { userId, directId, rootId, externalRef });
+
+    // If directId/rootId not in metadata, try to fetch from registration_referrals
+    if (!directId && externalRef) {
+      const { data: pendingRef } = await supabase
+        .from('registration_referrals')
+        .select('referrer_id, referrer_parent_id, is_root_creator')
+        .eq('payment_id', externalRef)
+        .maybeSingle();
+
+      if (pendingRef) {
+        directId = pendingRef.referrer_id;
+        rootId = pendingRef.referrer_parent_id;
+        console.log('[webhook] Found pending registration referral:', { directId, rootId });
+      }
+    }
+
+    // Also try to fetch by user_id if still no directId
+    if (!directId && userId) {
+      const { data: pendingByUser } = await supabase
+        .from('registration_referrals')
+        .select('referrer_id, referrer_parent_id, payment_id')
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pendingByUser) {
+        directId = pendingByUser.referrer_id;
+        rootId = pendingByUser.referrer_parent_id;
+        console.log('[webhook] Found pending registration by user_id:', { directId, rootId });
+      }
+    }
+
 
     // Activate user profile
     await supabase
@@ -413,6 +447,15 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       external_id: externalRef,
       metadata: { event_type: eventType, direct_id: directId, root_id: rootId },
     });
+
+    // Mark registration_referrals as completed
+    await supabase
+      .from('registration_referrals')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('status', 'pending');
+
+    console.log('[webhook] Registration referral marked as completed');
 
     await notifyAdmins(
       'Novo cadastro pago',
