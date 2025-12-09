@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { type PixWithdrawalStatus } from "@/lib/pixWithdrawalsService";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type Props = {
   value: PixWithdrawalStatus | "all";
@@ -7,15 +8,17 @@ type Props = {
   onReset: () => void;
 };
 
-const filters: { label: string; value: PixWithdrawalStatus | "all" }[] = [
-  { label: "Pendentes", value: "pending" },
-  { label: "Aprovados", value: "approved" },
-  { label: "Rejeitados", value: "rejected" },
-  { label: "Concluídos", value: "completed" },
-  { label: "Todos", value: "all" },
-];
-
 const PixWithdrawalFilters = ({ value, onChange, onReset }: Props) => {
+  const { t } = useLanguage();
+
+  const filters: { label: string; value: PixWithdrawalStatus | "all" }[] = [
+    { label: t.pixWithdrawals.pending, value: "pending" },
+    { label: t.pixWithdrawals.approved, value: "approved" },
+    { label: t.pixWithdrawals.rejected, value: "rejected" },
+    { label: t.pixWithdrawals.completed, value: "completed" },
+    { label: t.pixWithdrawals.all, value: "all" },
+  ];
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {filters.map((filter) => (
@@ -29,7 +32,7 @@ const PixWithdrawalFilters = ({ value, onChange, onReset }: Props) => {
         </Button>
       ))}
       <Button size="sm" variant="ghost" onClick={onReset} className="ml-auto">
-        Resetar
+        {t.pixWithdrawals.reset}
       </Button>
     </div>
   );
