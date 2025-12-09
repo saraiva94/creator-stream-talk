@@ -568,19 +568,38 @@ const Admin = () => {
         .select("amount, status")
         .in("status", ["approved", "paid"]);
 
-      let creditsIncome = 0;
-      let superchatIncome = 0;
-      let registrationIncome = 0;
+      let creditsIncomeCents = 0;
+      let superchatIncomeCents = 0;
+      let registrationIncomeCents = 0;
 
+      // DEBUG: Log raw transaction data
+      console.log("[Admin Revenue Debug] Raw transactions:", transactions);
+
+      // transactions.amount is stored as centavos (500.00 = R$5.00)
       transactions?.forEach((tx) => {
-        const amount = Number(tx.amount) || 0;
+        const amountCents = Number(tx.amount) || 0;
         if (tx.type === "credits_purchase") {
-          creditsIncome += amount;
+          creditsIncomeCents += amountCents;
         } else if (tx.type === "superchat") {
-          superchatIncome += amount;
+          superchatIncomeCents += amountCents;
         } else if (tx.type === "registration") {
-          registrationIncome += amount;
+          registrationIncomeCents += amountCents;
         }
+      });
+
+      // Convert centavos to reais
+      const creditsIncome = creditsIncomeCents / 100;
+      const superchatIncome = superchatIncomeCents / 100;
+      const registrationIncome = registrationIncomeCents / 100;
+
+      // DEBUG: Log calculated values
+      console.log("[Admin Revenue Debug] Calculated values:", {
+        creditsIncomeCents,
+        superchatIncomeCents,
+        registrationIncomeCents,
+        creditsIncome,
+        superchatIncome,
+        registrationIncome,
       });
 
       const platformCredits = creditsIncome * 0.2;
@@ -590,6 +609,15 @@ const Admin = () => {
       const totalWithdrawals = withdrawals?.reduce((sum, w) => sum + Number(w.amount), 0) || 0;
       const totalIncome = platformCredits + platformSuperchat + platformRegistration;
       const platformBalance = totalIncome - totalWithdrawals;
+
+      console.log("[Admin Revenue Debug] Final revenue:", {
+        platformCredits,
+        platformSuperchat,
+        platformRegistration,
+        totalIncome,
+        totalWithdrawals,
+        platformBalance,
+      });
 
       setRevenue({
         creditsIncome,
