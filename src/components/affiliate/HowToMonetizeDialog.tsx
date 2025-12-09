@@ -46,11 +46,13 @@ const AnimatedMoney = ({ className = "", size = "normal" }: { className?: string
 const LevelBadge = ({ 
   level, 
   color,
-  isYou = false 
+  isYou = false,
+  youLabel = "YOU"
 }: { 
   level: number;
   color: string;
   isYou?: boolean;
+  youLabel?: string;
 }) => {
   const colorMap: Record<string, { border: string; bg: string; text: string }> = {
     primary: { border: "border-primary", bg: "bg-primary/20", text: "text-primary" },
@@ -73,7 +75,7 @@ const LevelBadge = ({
         <Users className={`w-4 h-4 ${classes.text}`} />
       )}
       <span className={`text-xs font-bold ${classes.text}`}>
-        {isYou ? "VOCÊ" : `${level}º`}
+        {isYou ? youLabel : `${level}º`}
       </span>
     </div>
   );
@@ -155,8 +157,8 @@ export const HowToMonetizeDialog = () => {
         <div className="space-y-3 py-2">
           <div className="bg-primary/10 p-2 rounded-lg border border-primary/30">
             <p className="text-muted-foreground text-xs text-center">
-              <strong className="text-primary">Lógica de 2 níveis:</strong> Ganhe <span className="text-green-500 font-bold">R$1</span> do direto 
-              e <span className="text-yellow-500 font-bold">R$0,50</span> do indireto.
+              <strong className="text-primary">{t.affiliate?.twoLevelLogic || "Lógica de 2 níveis:"}</strong> {t.affiliate?.earnFromDirect || "Ganhe"} <span className="text-green-500 font-bold">R$1</span> {t.affiliate?.fromDirect || "do direto"} 
+              {" "}{t.affiliate?.and || "e"} <span className="text-yellow-500 font-bold">R$0,50</span> {t.affiliate?.fromIndirect || "do indireto."}
             </p>
           </div>
           
@@ -305,7 +307,7 @@ export const HowToMonetizeDialog = () => {
                     className="flex items-center justify-center"
                     style={{ height: `${rowHeight}px` }}
                   >
-                    <LevelBadge level={lvl.level} color={lvl.color} isYou={lvl.isYou} />
+                    <LevelBadge level={lvl.level} color={lvl.color} isYou={lvl.isYou} youLabel={t.affiliate?.you || "VOCÊ"} />
                   </div>
                 ))}
               </div>
@@ -315,7 +317,7 @@ export const HowToMonetizeDialog = () => {
             <div className="mt-2 pt-3 border-t border-dashed border-primary/30 text-center relative z-10">
               <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-2">
                 <AnimatedMoney size="small" />
-                <span className="font-medium">E continua infinitamente...</span>
+                <span className="font-medium">{t.affiliate?.continuesInfinitely || "E continua infinitamente..."}</span>
                 <AnimatedMoney size="small" />
               </div>
             </div>
@@ -325,20 +327,20 @@ export const HowToMonetizeDialog = () => {
           <div className="bg-card p-3 rounded-lg border border-border">
             <h4 className="font-semibold text-xs flex items-center gap-2 mb-2">
               <Coins className="w-3 h-3 text-yellow-500" />
-              Cada pessoa ganha de 2 níveis:
+              {t.affiliate?.eachPersonEarns || "Cada pessoa ganha de 2 níveis:"}
             </h4>
             <div className="grid grid-cols-2 gap-2 text-[10px]">
               <div className="flex items-center gap-2 bg-green-500/10 rounded px-2 py-2 border border-green-500/30">
                 <div className="w-6 h-1.5 bg-green-500 rounded" />
                 <div>
-                  <strong className="text-green-500">Direto:</strong>
+                  <strong className="text-green-500">{t.affiliate?.directLabel || "Direto:"}</strong>
                   <span className="text-green-500 font-bold ml-1">R$1,00</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 bg-yellow-500/10 rounded px-2 py-2 border border-yellow-500/30">
                 <div className="w-6 h-1.5 bg-yellow-500 rounded" />
                 <div>
-                  <strong className="text-yellow-500">Indireto:</strong>
+                  <strong className="text-yellow-500">{t.affiliate?.indirectLabel || "Indireto:"}</strong>
                   <span className="text-yellow-500 font-bold ml-1">R$0,50</span>
                 </div>
               </div>
@@ -348,7 +350,7 @@ export const HowToMonetizeDialog = () => {
           {/* Example calculation */}
           <div className="bg-gradient-to-r from-green-500/10 to-yellow-500/10 p-3 rounded-lg border border-green-500/30">
             <div className="text-[11px] text-center space-y-1">
-              <div className="font-semibold text-muted-foreground">Se cada pessoa indicar 2 pessoas...</div>
+              <div className="font-semibold text-muted-foreground">{t.affiliate?.ifEachRefers || "Se cada pessoa indicar 2 pessoas..."}</div>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 <span className="text-green-500 font-bold">2 × R$1</span>
                 <span>+</span>
@@ -357,7 +359,7 @@ export const HowToMonetizeDialog = () => {
                 <span className="text-primary font-bold text-sm">R$4,00</span>
               </div>
               <div className="text-[9px] text-muted-foreground">
-                E a rede continua crescendo infinitamente!
+                {t.affiliate?.networkGrows || "E a rede continua crescendo infinitamente!"}
               </div>
             </div>
           </div>
@@ -365,7 +367,7 @@ export const HowToMonetizeDialog = () => {
           <div className="bg-primary/10 p-2 rounded-lg border border-primary/30 text-center">
             <p className="text-[11px] text-primary font-bold flex items-center justify-center gap-1">
               <Sparkles className="w-3 h-3 animate-pulse" />
-              Sistema de 2 níveis que se perpetua!
+              {t.affiliate?.perpetualSystem || "Sistema de 2 níveis que se perpetua!"}
               <Sparkles className="w-3 h-3 animate-pulse" />
             </p>
           </div>
