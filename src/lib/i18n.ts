@@ -609,6 +609,7 @@ export const translations = {
       tiktokDesc: "Paste the link in your TikTok bio or video",
       instagramDesc: "Paste the link in your Instagram bio or story",
       autoCopy: "The link will be copied automatically when sharing",
+      nativeShare: "Share via Apps",
     },
     terms: {
       viewTerms: "View terms and conditions",
@@ -1251,6 +1252,7 @@ export const translations = {
       tiktokDesc: "Pega el enlace en tu bio o video de TikTok",
       instagramDesc: "Pega el enlace en tu bio o story de Instagram",
       autoCopy: "El enlace se copiará automáticamente al compartir",
+      nativeShare: "Compartir via Apps",
     },
     terms: {
       viewTerms: "Ver términos y condiciones",
@@ -1893,6 +1895,7 @@ export const translations = {
       tiktokDesc: "Cole o link na sua bio ou vídeo do TikTok",
       instagramDesc: "Cole o link na sua bio ou story do Instagram",
       autoCopy: "O link será copiado automaticamente ao compartilhar",
+      nativeShare: "Compartilhar via Apps",
     },
     terms: {
       viewTerms: "Ver termos e condições",
