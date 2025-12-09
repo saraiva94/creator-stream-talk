@@ -181,19 +181,19 @@ export const HowToMonetizeDialog = () => {
                     <path d="M0,0 L5,2.5 L0,5 Z" fill="#eab308" />
                   </marker>
                   <marker id="arrowFlow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-                    <path d="M0,0 L6,3 L0,6 Z" fill="hsl(var(--primary))" />
+                    <path d="M0,0 L6,3 L0,6 Z" fill="white" />
                   </marker>
                 </defs>
                 
-                {/* Vertical flow arrows between levels: YOU→1º, 2º→3º, 3º→4º */}
+                {/* Vertical flow arrows between levels: YOU→1º, 1º→2º, 2º→3º, 3º→4º */}
                 {[
                   { from: 0, to: 1 },
+                  { from: 1, to: 2 },
                   { from: 2, to: 3 },
                   { from: 3, to: 4 },
                 ].map(({ from, to }, idx) => {
                   const fromY = getY(from) + 22;
                   const toY = getY(to) - 2;
-                  const midY = (fromY + toY) / 2;
                   
                   return (
                     <g key={`flow-${from}-${to}`}>
@@ -203,21 +203,21 @@ export const HowToMonetizeDialog = () => {
                         y1={fromY}
                         x2={centerX}
                         y2={toY}
-                        stroke="hsl(var(--primary))"
+                        stroke="white"
                         strokeWidth="2"
                         strokeDasharray="4 2"
                         markerEnd="url(#arrowFlow)"
-                        opacity="0.7"
+                        opacity="0.8"
                         className="animate-flow-arrow"
                       />
                       {/* Animated dot flowing down */}
-                      <circle r="3" fill="hsl(var(--primary))" opacity="0.9">
+                      <circle r="3" fill="white" opacity="0.9">
                         <animate
                           attributeName="cy"
                           values={`${fromY};${toY}`}
                           dur="1s"
                           repeatCount="indefinite"
-                          begin={`${idx * 0.3}s`}
+                          begin={`${idx * 0.25}s`}
                         />
                         <animate
                           attributeName="cx"
