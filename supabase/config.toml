@@ -22,7 +22,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.pix-withdraw]
-verify_jwt = false
+verify_jwt = true
 
 [functions.process-pix-payout]
 verify_jwt = true
@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.backfill-platform-revenue]
 verify_jwt = true
+
+[functions.pix-disbursement-webhook]
+verify_jwt = false

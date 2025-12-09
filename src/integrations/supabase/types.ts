@@ -831,8 +831,15 @@ export type Database = {
           bank_account_id: string | null
           created_at: string
           creator_id: string
+          failure_reason: string | null
           id: string
+          idempotency_key: string | null
           paid_at: string | null
+          pix_key: string | null
+          pix_key_type: string | null
+          psp_response: Json | null
+          psp_transaction_id: string | null
+          source_type: string | null
           status: string
         }
         Insert: {
@@ -843,8 +850,15 @@ export type Database = {
           bank_account_id?: string | null
           created_at?: string
           creator_id: string
+          failure_reason?: string | null
           id?: string
+          idempotency_key?: string | null
           paid_at?: string | null
+          pix_key?: string | null
+          pix_key_type?: string | null
+          psp_response?: Json | null
+          psp_transaction_id?: string | null
+          source_type?: string | null
           status?: string
         }
         Update: {
@@ -855,8 +869,15 @@ export type Database = {
           bank_account_id?: string | null
           created_at?: string
           creator_id?: string
+          failure_reason?: string | null
           id?: string
+          idempotency_key?: string | null
           paid_at?: string | null
+          pix_key?: string | null
+          pix_key_type?: string | null
+          psp_response?: Json | null
+          psp_transaction_id?: string | null
+          source_type?: string | null
           status?: string
         }
         Relationships: [
@@ -1383,6 +1404,48 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount_cents: number
+          balance_after_cents: number
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          reference_id: string | null
+          reference_type: string | null
+          type: string
+          wallet_id: string
+          wallet_type: string
+        }
+        Insert: {
+          amount_cents: number
+          balance_after_cents: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          type: string
+          wallet_id: string
+          wallet_type: string
+        }
+        Update: {
+          amount_cents?: number
+          balance_after_cents?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          type?: string
+          wallet_id?: string
+          wallet_type?: string
         }
         Relationships: []
       }
