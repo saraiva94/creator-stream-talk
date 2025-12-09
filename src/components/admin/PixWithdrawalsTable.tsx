@@ -8,18 +8,11 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type PixWithdrawalRecord, type ProcessAction } from "@/lib/pixWithdrawalsService";
-import { Check, X, Banknote, Copy } from "lucide-react";
+import { Check, X, Banknote, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type Props = {
   withdrawals: PixWithdrawalRecord[];
@@ -34,16 +27,10 @@ type Props = {
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value ?? 0);
 
-const formatDate = (value?: string | null) => {
+const formatDate = (value?: string | null, language?: string) => {
   if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR");
-};
-
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending: { label: "Pendente", variant: "secondary" },
-  approved: { label: "Aprovado", variant: "default" },
-  rejected: { label: "Rejeitado", variant: "destructive" },
-  completed: { label: "Concluído", variant: "outline" },
+  const locale = language === "en" ? "en-US" : language === "es" ? "es-ES" : "pt-BR";
+  return new Date(value).toLocaleString(locale);
 };
 
 const PixWithdrawalsTable = ({
@@ -56,12 +43,23 @@ const PixWithdrawalsTable = ({
   onAction,
 }: Props) => {
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const canGoPrev = page > 1;
   const canGoNext = page < totalPages;
 
+  const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    pending: { label: t.pixWithdrawals.statusPending, variant: "secondary" },
+    approved: { label: t.pixWithdrawals.statusApproved, variant: "default" },
+    rejected: { label: t.pixWithdrawals.statusRejected, variant: "destructive" },
+    completed: { label: t.pixWithdrawals.statusCompleted, variant: "outline" },
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copiado!", description: "Chave PIX copiada para a área de transferência" });
+    toast({ 
+      title: t.pixWithdrawals.copied, 
+      description: t.pixWithdrawals.copiedDescription 
+    });
   };
 
   return (
@@ -70,12 +68,12 @@ const PixWithdrawalsTable = ({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Usuário</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Chave PIX</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Solicitado em</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead>{t.pixWithdrawals.user}</TableHead>
+              <TableHead>{t.pixWithdrawals.amount}</TableHead>
+              <TableHead>{t.pixWithdrawals.pixKey}</TableHead>
+              <TableHead>{t.pixWithdrawals.status}</TableHead>
+              <TableHead>{t.pixWithdrawals.requestedAt}</TableHead>
+              <TableHead className="text-right">{t.pixWithdrawals.actions}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -92,7 +90,7 @@ const PixWithdrawalsTable = ({
             ) : withdrawals.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  Nenhum saque PIX encontrado
+                  {t.pixWithdrawals.noWithdrawals}
                 </TableCell>
               </TableRow>
             ) : (
@@ -135,7 +133,7 @@ const PixWithdrawalsTable = ({
                     <TableCell>
                       <Badge variant={status.variant}>{status.label}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm">{formatDate(withdrawal.created_at)}</TableCell>
+                    <TableCell className="text-sm">{formatDate(withdrawal.created_at, language)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         {withdrawal.status === "pending" && (
@@ -148,7 +146,7 @@ const PixWithdrawalsTable = ({
                               onClick={() => onAction(withdrawal.id, "approve")}
                             >
                               <Check className="h-3 w-3" />
-                              Aprovar
+                              {t.pixWithdrawals.approve}
                             </Button>
                             <Button
                               size="sm"
@@ -158,7 +156,7 @@ const PixWithdrawalsTable = ({
                               onClick={() => onAction(withdrawal.id, "reject")}
                             >
                               <X className="h-3 w-3" />
-                              Rejeitar
+                              {t.pixWithdrawals.reject}
                             </Button>
                           </>
                         )}
@@ -171,7 +169,7 @@ const PixWithdrawalsTable = ({
                             onClick={() => onAction(withdrawal.id, "complete")}
                           >
                             <Banknote className="h-3 w-3" />
-                            Marcar como Pago
+                            {t.pixWithdrawals.markAsPaid}
                           </Button>
                         )}
                         {(withdrawal.status === "rejected" || withdrawal.status === "completed") && (
@@ -187,37 +185,34 @@ const PixWithdrawalsTable = ({
         </Table>
       </div>
 
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              href="#"
-              aria-disabled={!canGoPrev}
-              onClick={(e) => {
-                e.preventDefault();
-                if (canGoPrev) onPageChange(page - 1);
-              }}
-              className={!canGoPrev ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-          <PaginationItem>
-            <PaginationLink isActive href="#">
-              Página {page} de {totalPages}
-            </PaginationLink>
-          </PaginationItem>
-          <PaginationItem>
-            <PaginationNext
-              href="#"
-              aria-disabled={!canGoNext}
-              onClick={(e) => {
-                e.preventDefault();
-                if (canGoNext) onPageChange(page + 1);
-              }}
-              className={!canGoNext ? "pointer-events-none opacity-50" : ""}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+      {/* Pagination at bottom of card */}
+      <div className="flex items-center justify-between pt-4 border-t">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canGoPrev}
+          onClick={() => onPageChange(page - 1)}
+          className="gap-1"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {t.pixWithdrawals.previous}
+        </Button>
+        
+        <span className="text-sm text-muted-foreground">
+          {t.pixWithdrawals.page} {page} {t.pixWithdrawals.of} {totalPages}
+        </span>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canGoNext}
+          onClick={() => onPageChange(page + 1)}
+          className="gap-1"
+        >
+          {t.pixWithdrawals.next}
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 };
