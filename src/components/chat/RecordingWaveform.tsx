@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, Square, Loader2 } from "lucide-react";
+import { Mic, Square, X, Send } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
 interface RecordingWaveformProps {
@@ -18,8 +18,11 @@ export const RecordingWaveform = ({
 }: RecordingWaveformProps) => {
   const { t } = useLanguage();
   const [isRecording, setIsRecording] = useState(false);
+  const [hasRecorded, setHasRecorded] = useState(false); // New state for "ready to send"
   const [duration, setDuration] = useState(0);
+  const [finalDuration, setFinalDuration] = useState(0);
   const [audioLevels, setAudioLevels] = useState<number[]>([]);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -153,7 +156,7 @@ export const RecordingWaveform = ({
       };
 
       mediaRecorder.onstop = () => {
-        const finalDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const recordDuration = Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000));
         const blob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType });
         
         // Stop all tracks
@@ -162,8 +165,10 @@ export const RecordingWaveform = ({
           streamRef.current = null;
         }
         
-        onRecordingComplete(blob, Math.min(finalDuration, maxDuration));
-        setDuration(0);
+        // Store blob and show send/cancel options instead of sending directly
+        setRecordedBlob(blob);
+        setFinalDuration(Math.min(recordDuration, maxDuration));
+        setHasRecorded(true);
       };
 
       mediaRecorder.start(100);
@@ -182,11 +187,67 @@ export const RecordingWaveform = ({
     }
   };
 
+  const handleSendAudio = () => {
+    if (recordedBlob) {
+      onRecordingComplete(recordedBlob, finalDuration);
+    }
+    resetState();
+  };
+
+  const handleCancelAudio = () => {
+    resetState();
+  };
+
+  const resetState = () => {
+    setRecordedBlob(null);
+    setHasRecorded(false);
+    setFinalDuration(0);
+    setDuration(0);
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Show recorded state with send/cancel options
+  if (hasRecorded && recordedBlob) {
+    return (
+      <div className="flex items-center gap-2 flex-1">
+        {/* Audio ready indicator */}
+        <div className="flex-1 flex items-center justify-center px-2 py-1 bg-primary/10 rounded-md">
+          <span className="text-xs text-primary font-medium">
+            🎤 {formatTime(finalDuration)}
+          </span>
+        </div>
+
+        {/* Cancel button */}
+        <Button 
+          type="button"
+          size="icon" 
+          variant="ghost"
+          onClick={handleCancelAudio}
+          title="Cancelar"
+          className="shrink-0 h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+
+        {/* Send button - user clicks the main send button or this one */}
+        <Button 
+          type="button"
+          size="icon" 
+          variant="default"
+          onClick={handleSendAudio}
+          title="Enviar áudio"
+          className="shrink-0 h-8 w-8"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
 
   if (isRecording) {
     return (
@@ -209,7 +270,7 @@ export const RecordingWaveform = ({
           </span>
         </div>
 
-        {/* Stop button */}
+        {/* Stop button - now just stops, doesn't send */}
         <Button 
           type="button"
           size="icon" 

@@ -10,8 +10,9 @@ interface DirectMessageAudioPlayerProps {
 export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPlayerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(duration || 0);
+  const [audioDuration, setAudioDuration] = useState(duration && duration > 0 ? duration : 0);
   const [waveformData, setWaveformData] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -40,7 +41,7 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
         
         // Normalize
         const maxVal = Math.max(...filteredData);
-        const normalized = filteredData.map(val => val / maxVal);
+        const normalized = maxVal > 0 ? filteredData.map(val => val / maxVal) : filteredData;
         setWaveformData(normalized);
         
         await audioContext.close();
@@ -68,7 +69,19 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
     };
 
     const handleLoadedMetadata = () => {
-      setAudioDuration(audio.duration);
+      // Only update if we get a valid duration (not Infinity or NaN)
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+        setAudioDuration(audio.duration);
+      }
+      setIsLoading(false);
+    };
+
+    const handleCanPlay = () => {
+      setIsLoading(false);
+      // Try again to get duration
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+        setAudioDuration(audio.duration);
+      }
     };
 
     const handleEnded = () => {
@@ -76,14 +89,22 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
       setCurrentTime(0);
     };
 
+    const handleError = () => {
+      setIsLoading(false);
+    };
+
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("canplay", handleCanPlay);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
     };
   }, []);
 
@@ -134,6 +155,10 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
   };
 
   const formatTime = (seconds: number) => {
+    // Handle invalid values
+    if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+      return "0:00";
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -142,13 +167,16 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     const audio = audioRef.current;
-    if (!canvas || !audio || !audioDuration) return;
+    if (!canvas || !audio || !audioDuration || audioDuration <= 0) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const progress = x / rect.width;
     audio.currentTime = progress * audioDuration;
   };
+
+  // Determine display duration - use prop duration as fallback
+  const displayDuration = audioDuration > 0 ? audioDuration : (duration && duration > 0 ? duration : 0);
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg min-w-[180px] max-w-[240px]">
@@ -160,6 +188,7 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
         variant="ghost" 
         className="h-7 w-7 shrink-0"
         onClick={togglePlay}
+        disabled={isLoading}
       >
         {isPlaying ? (
           <Pause className="h-3.5 w-3.5" />
@@ -177,7 +206,7 @@ export const DirectMessageAudioPlayer = ({ src, duration }: DirectMessageAudioPl
       />
 
       <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-        {formatTime(currentTime)}/{formatTime(audioDuration)}
+        {formatTime(currentTime)}/{formatTime(displayDuration)}
       </span>
     </div>
   );
