@@ -657,31 +657,31 @@ const Admin = () => {
             </Button>
             
             {webhookTestResult && (
-              <div className={`p-4 rounded-lg ${webhookTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+              <div className={`p-4 rounded-lg overflow-hidden ${webhookTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
                 {webhookTestResult.success ? (
                   <>
                     <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
                       <span className="font-medium text-green-500">Conexão OK!</span>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-2">
+                    <p className="text-sm text-muted-foreground mb-2 break-words">
                       Conta: {webhookTestResult.accountInfo?.email || webhookTestResult.accountInfo?.nickname}
                     </p>
                     <p className="text-sm font-medium mb-2">URL do Webhook:</p>
-                    <code className="block p-2 bg-background/50 rounded text-xs break-all mb-3">
+                    <code className="block p-2 bg-background/50 rounded text-xs break-all overflow-x-auto mb-3">
                       {webhookTestResult.expectedWebhookUrl}
                     </code>
                     <p className="text-sm font-medium mb-1">Como configurar:</p>
-                    <ol className="text-xs text-muted-foreground space-y-1">
+                    <ol className="text-xs text-muted-foreground space-y-1 overflow-hidden">
                       {webhookTestResult.instructions?.map((instruction, i) => (
-                        <li key={i}>{instruction}</li>
+                        <li key={i} className="break-words">{instruction}</li>
                       ))}
                     </ol>
                   </>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <XCircle className="h-5 w-5 text-red-500" />
-                    <span className="text-red-500">{webhookTestResult.error}</span>
+                    <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                    <span className="text-red-500 break-words">{webhookTestResult.error}</span>
                   </div>
                 )}
               </div>
