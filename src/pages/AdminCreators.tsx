@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
+import GlobalChatButton from "@/components/GlobalChatButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, ShieldCheck, ShieldOff, RefreshCw } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldOff, RefreshCw, ArrowLeft, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { User } from "@supabase/supabase-js";
@@ -30,6 +32,8 @@ const AdminCreators = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -46,8 +50,10 @@ const AdminCreators = () => {
         .select("role")
         .eq("user_id", session.user.id);
       
-      const isAdmin = roles?.some((r) => r.role === "admin") || false;
-      if (!isAdmin) {
+      const adminCheck = roles?.some((r) => r.role === "admin") || false;
+      setIsAdmin(adminCheck);
+      
+      if (!adminCheck) {
         toast({
           title: t.admin?.accessDenied || "Access denied",
           description: t.admin?.noPermission || "You don't have permission to access this page",
@@ -66,7 +72,6 @@ const AdminCreators = () => {
     setLoading(true);
     setError(null);
     try {
-      // Direct Supabase query for creator profiles
       const { data: creatorProfiles, error: cpError } = await supabase
         .from("creator_profiles")
         .select("id, display_name, approved_for_live, created_at")
@@ -74,7 +79,6 @@ const AdminCreators = () => {
 
       if (cpError) throw cpError;
 
-      // Get profile info for each creator
       const creatorIds = (creatorProfiles ?? []).map((cp) => cp.id);
       
       const { data: profiles, error: pError } = await supabase
@@ -84,12 +88,11 @@ const AdminCreators = () => {
 
       if (pError) throw pError;
 
-      // Get auth emails (using profiles for now since we can't access auth.users)
       const profileMap = new Map(profiles?.map((p) => [p.id, p]) ?? []);
 
       const mapped: CreatorRow[] = (creatorProfiles ?? []).map((cp) => ({
         id: cp.id,
-        email: null, // Can't access auth.users from client
+        email: null,
         username: profileMap.get(cp.id)?.username ?? null,
         display_name: cp.display_name,
         isApprovedForLive: cp.approved_for_live ?? false,
@@ -104,7 +107,6 @@ const AdminCreators = () => {
       setLoading(false);
     }
   };
-
 
   const toggleApproval = async (creatorId: string, nextValue: boolean) => {
     setUpdatingId(creatorId);
@@ -146,12 +148,33 @@ const AdminCreators = () => {
 
   const formatDate = (value: string) => new Date(value).toLocaleString("pt-BR");
 
+  // Filter creators by search query
+  const filteredCreators = creators.filter((creator) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      creator.username?.toLowerCase().includes(query) ||
+      creator.display_name?.toLowerCase().includes(query) ||
+      creator.id.toLowerCase().includes(query)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-background">
-      <Navbar user={user} />
+      <Navbar user={user} isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between">
+        {/* Back button */}
+        <Button 
+          variant="ghost" 
+          className="gap-2 mb-4" 
+          onClick={() => navigate("/admin")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          {t.pixWithdrawals?.back || "Back"}
+        </Button>
+
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <ShieldCheck className="h-5 w-5" />
@@ -176,7 +199,18 @@ const AdminCreators = () => {
 
         <Card className="border-border/60">
           <CardHeader>
-            <CardTitle>Lista de criadores ({creators.length})</CardTitle>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <CardTitle>Lista de criadores ({filteredCreators.length})</CardTitle>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t.home?.search || "Search..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {loading ? (
@@ -184,9 +218,9 @@ const AdminCreators = () => {
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t.common?.loading || "Loading..."}
               </div>
-            ) : creators.length === 0 ? (
+            ) : filteredCreators.length === 0 ? (
               <div className="text-sm text-muted-foreground py-4">
-                {t.adminCreators?.noCreators || "No creators found"}
+                {searchQuery ? (t.home?.noCreators || "No creators found") : (t.adminCreators?.noCreators || "No creators found")}
               </div>
             ) : (
               <Table>
@@ -200,7 +234,7 @@ const AdminCreators = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {creators.map((creator) => (
+                  {filteredCreators.map((creator) => (
                     <TableRow key={creator.id}>
                       <TableCell className="font-medium">{creator.display_name || "-"}</TableCell>
                       <TableCell>{creator.username || "-"}</TableCell>
@@ -240,6 +274,8 @@ const AdminCreators = () => {
           </CardContent>
         </Card>
       </main>
+
+      <GlobalChatButton user={user} />
     </div>
   );
 };
