@@ -133,10 +133,15 @@ serve(async (req) => {
 
       console.log('[process-pending] Profile activated:', userId);
 
+      // Calculate platform revenue (after affiliate commissions)
+      let platformAmountCents = Math.round(amount * 100);
+
       // Process affiliate commissions
       if (directId) {
         // Direct commission
         const directAmountCents = Math.round(DIRECT_COMMISSION * 100);
+        platformAmountCents -= directAmountCents;
+        
         const { error: directError } = await supabase.rpc('increment_affiliate_earnings', {
           p_profile_id: directId,
           p_amount_cents: directAmountCents,
@@ -151,6 +156,8 @@ serve(async (req) => {
         // Root commission
         if (rootId && rootId !== directId) {
           const rootAmountCents = Math.round(ROOT_COMMISSION * 100);
+          platformAmountCents -= rootAmountCents;
+          
           const { error: rootError } = await supabase.rpc('increment_affiliate_earnings', {
             p_profile_id: rootId,
             p_amount_cents: rootAmountCents,
@@ -175,7 +182,6 @@ serve(async (req) => {
         // Record affiliate log
         const logDirectAmountCents = Math.round(DIRECT_COMMISSION * 100);
         const logRootAmountCents = (rootId && rootId !== directId) ? Math.round(ROOT_COMMISSION * 100) : 0;
-        const logPlatformAmountCents = Math.round(amount * 100) - logDirectAmountCents - logRootAmountCents;
         
         await supabase.from('affiliate_logs').insert({
           new_user: userId,
@@ -183,7 +189,7 @@ serve(async (req) => {
           root_creator: (rootId && rootId !== directId) ? rootId : null,
           amount_direct: logDirectAmountCents,
           amount_root: logRootAmountCents,
-          amount_platform: logPlatformAmountCents,
+          amount_platform: platformAmountCents,
           event_type: 'REGISTRATION',
           payment_id: externalRef,
         });
@@ -191,12 +197,23 @@ serve(async (req) => {
         console.log('[process-pending] Affiliate log recorded');
       }
 
+      // Record platform revenue
+      await supabase.from('platform_revenue').insert({
+        source_type: 'registration',
+        source_id: externalRef,
+        amount: platformAmountCents,
+        user_id: userId,
+        metadata: { direct_id: directId, root_id: rootId, gross_amount: Math.round(amount * 100) },
+      });
+
+      console.log('[process-pending] Platform revenue recorded:', { amountCents: platformAmountCents });
+
       // Record transaction
       await supabase.from('transactions').insert({
         user_id: userId,
         type: 'registration',
         amount,
-        platform_amount: amount, // Full amount goes to platform for registration
+        platform_amount: platformAmountCents / 100,
         status: 'completed',
         payment_method: payment.payment_method_id,
         external_id: externalRef,
@@ -239,6 +256,18 @@ serve(async (req) => {
           .from('credits_wallet')
           .insert({ user_id: userId, balance_credits: credits });
       }
+
+      // Record platform revenue (100% for credits)
+      const platformAmountCents = Math.round(amount * 100);
+      await supabase.from('platform_revenue').insert({
+        source_type: 'credits_purchase',
+        source_id: externalRef,
+        amount: platformAmountCents,
+        user_id: userId,
+        metadata: { credits, gross_amount: platformAmountCents },
+      });
+
+      console.log('[process-pending] Platform revenue recorded for credits:', { amountCents: platformAmountCents });
 
       // Record transaction
       await supabase.from('transactions').insert({

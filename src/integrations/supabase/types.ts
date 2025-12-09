@@ -869,6 +869,36 @@ export type Database = {
           },
         ]
       }
+      platform_revenue: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          metadata: Json | null
+          source_id: string | null
+          source_type: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          source_id?: string | null
+          source_type: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          source_id?: string | null
+          source_type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           affiliate_earnings: number | null
