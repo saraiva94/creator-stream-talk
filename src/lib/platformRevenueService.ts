@@ -92,19 +92,19 @@ export const fetchPlatformRevenue = async (range: RevenueRange): Promise<Platfor
   // Calculate platform cut from platform_revenue table (in centavos, convert to reais)
   const platformCut = sumAmounts(platformRows.map((row) => (row.amount ?? 0) / 100));
 
-  // Calculate gross revenue from completed transactions or payments
+  // Calculate gross revenue from completed transactions (amounts stored in centavos, convert to reais)
   let grossRevenue = sumAmounts(
-    transactionsRows.filter((row) => isCompletedPayment(row.status)).map((row) => row.amount),
+    transactionsRows.filter((row) => isCompletedPayment(row.status)).map((row) => (row.amount ?? 0) / 100),
   );
   
-  // If no transactions, fallback to payments
+  // If no transactions, fallback to payments (also in centavos)
   if (grossRevenue === 0) {
     grossRevenue = sumAmounts(
-      paymentsRows.filter((row) => isCompletedPayment(row.status)).map((row) => row.amount),
+      paymentsRows.filter((row) => isCompletedPayment(row.status)).map((row) => (row.amount ?? 0) / 100),
     );
   }
 
-  // Calculate creator payouts from withdrawals
+  // Calculate creator payouts from withdrawals (in reais, no conversion needed)
   const creatorPayouts = sumAmounts(
     withdrawalsRows
       .filter((row) => isProcessedWithdrawal(row.status))
