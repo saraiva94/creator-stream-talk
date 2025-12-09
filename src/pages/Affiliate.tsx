@@ -98,12 +98,14 @@ const Affiliate = () => {
         setTotalEarningsCents(profile?.affiliate_earnings ?? 0);
         setAvailableBalanceCents(Math.round((profile?.balance ?? 0) * 100));
 
-        const { count: referralCount } = await supabase
-          .from("referrals")
-          .select("*", { count: "exact", head: true })
-          .eq("referrer_id", session.user.id);
-
-        setTotalReferrals(referralCount ?? 0);
+        // Count unique users from affiliate_logs where this user earned commission
+        const { data: affiliateLogs } = await supabase
+          .from("affiliate_logs")
+          .select("new_user")
+          .or(`direct_referrer.eq.${session.user.id},root_creator.eq.${session.user.id}`);
+        
+        const uniqueReferrals = new Set(affiliateLogs?.map(l => l.new_user).filter(Boolean) ?? []);
+        setTotalReferrals(uniqueReferrals.size);
 
         const { data: logs } = await supabase
           .from("affiliate_logs")
