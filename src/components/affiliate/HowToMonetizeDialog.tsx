@@ -180,7 +180,55 @@ export const HowToMonetizeDialog = () => {
                   <marker id="arrowYellow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
                     <path d="M0,0 L5,2.5 L0,5 Z" fill="#eab308" />
                   </marker>
+                  <marker id="arrowFlow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="hsl(var(--primary))" />
+                  </marker>
                 </defs>
+                
+                {/* Vertical flow arrows between levels: YOU→1º, 2º→3º, 3º→4º */}
+                {[
+                  { from: 0, to: 1 },
+                  { from: 2, to: 3 },
+                  { from: 3, to: 4 },
+                ].map(({ from, to }, idx) => {
+                  const fromY = getY(from) + 22;
+                  const toY = getY(to) - 2;
+                  const midY = (fromY + toY) / 2;
+                  
+                  return (
+                    <g key={`flow-${from}-${to}`}>
+                      {/* Arrow line */}
+                      <line
+                        x1={centerX}
+                        y1={fromY}
+                        x2={centerX}
+                        y2={toY}
+                        stroke="hsl(var(--primary))"
+                        strokeWidth="2"
+                        strokeDasharray="4 2"
+                        markerEnd="url(#arrowFlow)"
+                        opacity="0.7"
+                        className="animate-flow-arrow"
+                      />
+                      {/* Animated dot flowing down */}
+                      <circle r="3" fill="hsl(var(--primary))" opacity="0.9">
+                        <animate
+                          attributeName="cy"
+                          values={`${fromY};${toY}`}
+                          dur="1s"
+                          repeatCount="indefinite"
+                          begin={`${idx * 0.3}s`}
+                        />
+                        <animate
+                          attributeName="cx"
+                          values={`${centerX};${centerX}`}
+                          dur="1s"
+                          repeatCount="indefinite"
+                        />
+                      </circle>
+                    </g>
+                  );
+                })}
                 
                 {/* Direct connections (green) - R$1 - alternating LEFT/RIGHT zones */}
                 {[1, 2, 3, 4].map((level) => {
@@ -400,12 +448,17 @@ export const HowToMonetizeDialog = () => {
             0%, 100% { box-shadow: inset 0 0 3px hsl(var(--primary) / 0.3); }
             50% { box-shadow: inset 0 0 8px hsl(var(--primary) / 0.5); }
           }
+          @keyframes flow-arrow {
+            0% { stroke-dashoffset: 12; }
+            100% { stroke-dashoffset: 0; }
+          }
           .animate-coin-bounce { animation: coin-bounce 1s ease-in-out infinite; }
           .animate-dash { animation: dash 1s linear infinite; }
           .animate-dash-slow { animation: dash-slow 1.5s linear infinite; }
           .animate-glow-pulse { animation: glow-pulse 2s ease-in-out infinite; }
           .animate-bounce-slow { animation: bounce-slow 2s ease-in-out infinite; }
           .animate-border-glow { animation: border-glow 2s ease-in-out infinite; }
+          .animate-flow-arrow { animation: flow-arrow 0.8s linear infinite; }
         `}</style>
       </DialogContent>
     </Dialog>
