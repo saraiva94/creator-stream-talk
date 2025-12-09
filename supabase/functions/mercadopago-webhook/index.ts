@@ -277,11 +277,24 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
         .insert({ user_id: userId, balance_credits: credits });
     }
 
+    // Record platform revenue (100% for credits since no affiliate split)
+    const platformAmountCents = Math.round(amount * 100);
+    await supabase.from('platform_revenue').insert({
+      source_type: 'credits_purchase',
+      source_id: externalRef,
+      amount: platformAmountCents,
+      user_id: userId,
+      metadata: { credits, gross_amount: platformAmountCents },
+    });
+
+    console.log('[webhook] Platform revenue recorded for credits:', { amountCents: platformAmountCents });
+
     // Record transaction
     await supabase.from('transactions').insert({
       user_id: userId,
       type: 'credits_purchase',
       amount,
+      platform_amount: amount,
       status: 'completed',
       payment_method: payment.payment_method_id,
       external_id: externalRef,
@@ -316,9 +329,13 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
 
     console.log('[webhook] Profile activated:', { userId, status: 'active' });
 
+    // Calculate platform revenue (after affiliate commissions)
+    let platformAmountCents = Math.round(amount * 100);
+    
     // Process affiliate commissions
     if (directId) {
       const directAmountCents = Math.round(DIRECT_COMMISSION * 100);
+      platformAmountCents -= directAmountCents;
       
       const { error: directError } = await supabase.rpc('increment_affiliate_earnings', {
         p_profile_id: directId,
@@ -333,6 +350,7 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
 
       if (rootId && rootId !== directId) {
         const rootAmountCents = Math.round(ROOT_COMMISSION * 100);
+        platformAmountCents -= rootAmountCents;
         
         const { error: rootError } = await supabase.rpc('increment_affiliate_earnings', {
           p_profile_id: rootId,
@@ -358,7 +376,6 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       // Record affiliate log
       const logDirectAmountCents = Math.round(DIRECT_COMMISSION * 100);
       const logRootAmountCents = (rootId && rootId !== directId) ? Math.round(ROOT_COMMISSION * 100) : 0;
-      const logPlatformAmountCents = Math.round(amount * 100) - logDirectAmountCents - logRootAmountCents;
       
       await supabase.from('affiliate_logs').insert({
         new_user: userId,
@@ -366,7 +383,7 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
         root_creator: (rootId && rootId !== directId) ? rootId : null,
         amount_direct: logDirectAmountCents,
         amount_root: logRootAmountCents,
-        amount_platform: logPlatformAmountCents,
+        amount_platform: platformAmountCents,
         event_type: 'REGISTRATION',
         payment_id: externalRef,
       });
@@ -374,11 +391,23 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       console.log('[webhook] Affiliate log recorded');
     }
 
+    // Record platform revenue
+    await supabase.from('platform_revenue').insert({
+      source_type: 'registration',
+      source_id: externalRef,
+      amount: platformAmountCents,
+      user_id: userId,
+      metadata: { direct_id: directId, root_id: rootId, gross_amount: Math.round(amount * 100) },
+    });
+
+    console.log('[webhook] Platform revenue recorded:', { amountCents: platformAmountCents });
+
     // Record transaction
     await supabase.from('transactions').insert({
       user_id: userId,
       type: 'registration',
       amount,
+      platform_amount: platformAmountCents / 100,
       status: 'completed',
       payment_method: payment.payment_method_id,
       external_id: externalRef,

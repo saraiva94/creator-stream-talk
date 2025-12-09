@@ -59,56 +59,65 @@ export const fetchPlatformRevenue = async (range: RevenueRange): Promise<Platfor
   const startDate = toStartDate(range);
 
   // Build queries with optional date filter
-  let platformRevenueQuery = db.from("platform_revenue").select("amount, created_at");
+  let platformRevenueQuery = db.from("platform_revenue").select("amount, created_at, source_type");
   let paymentsQuery = db.from("payments").select("amount, status, created_at");
+  let transactionsQuery = db.from("transactions").select("amount, status, created_at, type");
   let withdrawalsQuery = db.from("withdrawals").select("amount, status, processed_at, created_at");
 
   if (startDate) {
     const startIso = startDate.toISOString();
     platformRevenueQuery = platformRevenueQuery.gte("created_at", startIso);
     paymentsQuery = paymentsQuery.gte("created_at", startIso);
+    transactionsQuery = transactionsQuery.gte("created_at", startIso);
     withdrawalsQuery = withdrawalsQuery.gte("created_at", startIso);
   }
 
-  const [platformRevenueRes, paymentsRes, withdrawalsRes] = await Promise.all([
+  const [platformRevenueRes, paymentsRes, transactionsRes, withdrawalsRes] = await Promise.all([
     platformRevenueQuery,
     paymentsQuery,
+    transactionsQuery,
     withdrawalsQuery,
   ]);
 
-  if (platformRevenueRes.error) {
-    throw new Error(platformRevenueRes.error.message);
-  }
-  if (paymentsRes.error) {
-    throw new Error(paymentsRes.error.message);
-  }
-  if (withdrawalsRes.error) {
-    throw new Error(withdrawalsRes.error.message);
-  }
-
-  const platformRows = platformRevenueRes.data ?? [];
-  const paymentsRows = paymentsRes.data ?? [];
-  const withdrawalsRows = withdrawalsRes.data ?? [];
-
-  type PlatformRevenueRow = { amount: number | null; created_at: string };
+  type PlatformRevenueRow = { amount: number | null; created_at: string; source_type: string };
   type PaymentRow = { amount: number | null; status?: string | null; created_at: string };
+  type TransactionRow = { amount: number | null; status?: string | null; created_at: string; type: string };
   type WithdrawalRow = { amount: number | null; status?: string | null; created_at: string; processed_at?: string | null };
 
-  const platformCut = sumAmounts(platformRows.map((row: PlatformRevenueRow) => row.amount));
-  const grossRevenue = sumAmounts(
-    paymentsRows.filter((row: PaymentRow) => isCompletedPayment(row.status)).map((row: PaymentRow) => row.amount),
+  const platformRows: PlatformRevenueRow[] = platformRevenueRes.data ?? [];
+  const paymentsRows: PaymentRow[] = paymentsRes.data ?? [];
+  const transactionsRows: TransactionRow[] = transactionsRes.data ?? [];
+  const withdrawalsRows: WithdrawalRow[] = withdrawalsRes.data ?? [];
+
+  // Calculate platform cut from platform_revenue table (in centavos, convert to reais)
+  const platformCut = sumAmounts(platformRows.map((row) => (row.amount ?? 0) / 100));
+
+  // Calculate gross revenue from completed transactions or payments
+  let grossRevenue = sumAmounts(
+    transactionsRows.filter((row) => isCompletedPayment(row.status)).map((row) => row.amount),
   );
+  
+  // If no transactions, fallback to payments
+  if (grossRevenue === 0) {
+    grossRevenue = sumAmounts(
+      paymentsRows.filter((row) => isCompletedPayment(row.status)).map((row) => row.amount),
+    );
+  }
+
+  // Calculate creator payouts from withdrawals
   const creatorPayouts = sumAmounts(
     withdrawalsRows
-      .filter((row: WithdrawalRow) => isProcessedWithdrawal(row.status))
-      .map((row: WithdrawalRow) => row.amount),
+      .filter((row) => isProcessedWithdrawal(row.status))
+      .map((row) => row.amount),
   );
 
+  // Build series from platform_revenue table
   const seriesMap = new Map<string, number>();
-  platformRows.forEach((row: PlatformRevenueRow) => {
+  platformRows.forEach((row) => {
     const key = toDateKey(row.created_at);
     const prev = seriesMap.get(key) ?? 0;
-    seriesMap.set(key, Number((prev + (row.amount ?? 0)).toFixed(2)));
+    const amountInReais = (row.amount ?? 0) / 100;
+    seriesMap.set(key, Number((prev + amountInReais).toFixed(2)));
   });
 
   const series = Array.from(seriesMap.entries())
