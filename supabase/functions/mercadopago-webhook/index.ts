@@ -375,9 +375,16 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       const directAmountCents = Math.round(DIRECT_COMMISSION * 100);
       platformAmountCents -= directAmountCents;
       
+      // Increment affiliate_earnings (tracking)
       const { error: directError } = await supabase.rpc('increment_affiliate_earnings', {
         p_profile_id: directId,
         p_amount_cents: directAmountCents,
+      });
+
+      // Also increment balance (for withdrawals) - convert cents to BRL
+      await supabase.rpc('increment_balance', {
+        _user_id: directId,
+        _amount: DIRECT_COMMISSION,
       });
 
       if (directError) {
@@ -390,9 +397,16 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
         const rootAmountCents = Math.round(ROOT_COMMISSION * 100);
         platformAmountCents -= rootAmountCents;
         
+        // Increment affiliate_earnings (tracking)
         const { error: rootError } = await supabase.rpc('increment_affiliate_earnings', {
           p_profile_id: rootId,
           p_amount_cents: rootAmountCents,
+        });
+
+        // Also increment balance (for withdrawals) - convert cents to BRL
+        await supabase.rpc('increment_balance', {
+          _user_id: rootId,
+          _amount: ROOT_COMMISSION,
         });
 
         if (rootError) {
