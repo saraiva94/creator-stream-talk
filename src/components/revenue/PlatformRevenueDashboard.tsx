@@ -37,26 +37,24 @@ const PlatformRevenueDashboard = () => {
           .select("amount, status")
           .in("status", ["approved", "paid"]);
 
-        let creditsIncomeCents = 0;
-        let superchatIncomeCents = 0;
-        let registrationIncomeCents = 0;
+        let creditsIncome = 0;
+        let superchatIncome = 0;
+        let registrationIncome = 0;
 
-        // Note: transactions.amount is stored in centavos, convert to reais
+        // Note: transactions.amount is stored in reais (e.g., 500.00 = R$500, but actually R$5.00)
+        // The database stores 500.00 for R$5.00 registration, so we need to divide by 100
         transactions?.forEach((tx) => {
-          const amountCents = Number(tx.amount) || 0;
+          const amount = Number(tx.amount) || 0;
+          // Amount is stored as 500.00 representing R$5.00, so divide by 100
+          const amountReais = amount / 100;
           if (tx.type === "credits_purchase") {
-            creditsIncomeCents += amountCents;
+            creditsIncome += amountReais;
           } else if (tx.type === "superchat") {
-            superchatIncomeCents += amountCents;
+            superchatIncome += amountReais;
           } else if (tx.type === "registration") {
-            registrationIncomeCents += amountCents;
+            registrationIncome += amountReais;
           }
         });
-
-        // Convert centavos to reais
-        const creditsIncome = creditsIncomeCents / 100;
-        const superchatIncome = superchatIncomeCents / 100;
-        const registrationIncome = registrationIncomeCents / 100;
 
         // Platform cut: 20% of credits and superchat, variable from registration (after commissions)
         const platformCredits = creditsIncome * 0.2;
