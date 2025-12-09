@@ -87,6 +87,16 @@ const Admin = () => {
   const [pendingPaymentId, setPendingPaymentId] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
   
+  // Backfill revenue
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{
+    success: boolean;
+    processed: number;
+    skipped: number;
+    results?: Array<{ username: string; platformAmountCents: number }>;
+    error?: string;
+  } | null>(null);
+  
   // Webhook test
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
@@ -370,6 +380,49 @@ const Admin = () => {
     }
   };
 
+  // Backfill platform revenue for existing registrations
+  const handleBackfillRevenue = async () => {
+    setBackfillLoading(true);
+    setBackfillResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
+      const response = await supabase.functions.invoke("backfill-platform-revenue");
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to backfill revenue");
+      }
+
+      setBackfillResult(response.data);
+      
+      if (response.data.success) {
+        toast({
+          title: "Receita atualizada!",
+          description: `Processados: ${response.data.processed}, Ignorados: ${response.data.skipped}`,
+        });
+        // Refresh stats
+        fetchStats();
+        fetchRevenueBreakdown();
+      } else {
+        toast({
+          title: "Erro no backfill",
+          description: response.data.error,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error backfilling revenue:", error);
+      toast({
+        title: "Erro ao atualizar receita",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
   // Test webhook connection
   const handleTestWebhook = async () => {
     setTestingWebhook(true);
@@ -626,6 +679,69 @@ const Admin = () => {
                 )}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Backfill Platform Revenue */}
+        <Card className="mb-6 sm:mb-8 border-green-500/30 bg-green-500/5">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-5 w-5 text-green-500" />
+              Atualizar Receita da Plataforma
+            </CardTitle>
+            <CardDescription>
+              Processa registros passados que não tiveram o webhook do Mercado Pago executado corretamente e alimenta os índices de receita.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+            <Button 
+              onClick={handleBackfillRevenue}
+              disabled={backfillLoading}
+              variant="outline"
+              className="border-green-500/50 hover:bg-green-500/10"
+            >
+              {backfillLoading ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                  Processando...
+                </>
+              ) : (
+                "Atualizar Receita Retroativa"
+              )}
+            </Button>
+            
+            {backfillResult && (
+              <div className={`p-4 rounded-lg overflow-hidden ${backfillResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                {backfillResult.success ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                      <span className="font-medium text-green-500">Receita Atualizada!</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Processados: {backfillResult.processed} | Ignorados: {backfillResult.skipped}
+                    </p>
+                    {backfillResult.results && backfillResult.results.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-sm font-medium mb-1">Detalhes:</p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          {backfillResult.results.map((r, i) => (
+                            <li key={i} className="break-words">
+                              {r.username}: R$ {(r.platformAmountCents / 100).toFixed(2)} para plataforma
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                    <span className="text-red-500 break-words">{backfillResult.error}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
