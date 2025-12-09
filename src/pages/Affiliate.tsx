@@ -45,6 +45,8 @@ const Affiliate = () => {
   const [saving, setSaving] = useState(false);
   const [code, setCode] = useState("");
   const [totalReferrals, setTotalReferrals] = useState(0);
+  const [directReferrals, setDirectReferrals] = useState(0);
+  const [indirectReferrals, setIndirectReferrals] = useState(0);
   const [totalEarningsCents, setTotalEarningsCents] = useState(0);
   const [availableBalanceCents, setAvailableBalanceCents] = useState(0);
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
@@ -101,11 +103,28 @@ const Affiliate = () => {
         // Count unique users from affiliate_logs where this user earned commission
         const { data: affiliateLogs } = await supabase
           .from("affiliate_logs")
-          .select("new_user")
+          .select("new_user, direct_referrer, root_creator")
           .or(`direct_referrer.eq.${session.user.id},root_creator.eq.${session.user.id}`);
         
-        const uniqueReferrals = new Set(affiliateLogs?.map(l => l.new_user).filter(Boolean) ?? []);
-        setTotalReferrals(uniqueReferrals.size);
+        const directSet = new Set<string>();
+        const indirectSet = new Set<string>();
+        
+        affiliateLogs?.forEach(log => {
+          if (log.new_user) {
+            if (log.direct_referrer === session.user.id) {
+              directSet.add(log.new_user);
+            } else if (log.root_creator === session.user.id) {
+              indirectSet.add(log.new_user);
+            }
+          }
+        });
+        
+        // Remove users that are direct from indirect (avoid counting twice)
+        directSet.forEach(userId => indirectSet.delete(userId));
+        
+        setDirectReferrals(directSet.size);
+        setIndirectReferrals(indirectSet.size);
+        setTotalReferrals(directSet.size + indirectSet.size);
 
         const { data: logs } = await supabase
           .from("affiliate_logs")
@@ -275,9 +294,19 @@ const Affiliate = () => {
               <CardTitle className="text-xs sm:text-sm text-muted-foreground">{t.affiliate.totalReferrals}</CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-2">
                 <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 <span className="text-2xl sm:text-3xl font-bold">{totalReferrals}</span>
+              </div>
+              <div className="flex gap-3 text-[10px] sm:text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  {directReferrals} {t.affiliate.direct || "diretas"}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                  {indirectReferrals} {t.affiliate.indirect || "indiretas"}
+                </span>
               </div>
             </CardContent>
           </Card>
