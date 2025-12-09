@@ -255,7 +255,7 @@ export const InstructionsDialog = () => {
           </DialogTitle>
         </DialogHeader>
         
-        <Tabs defaultValue="viewer" className="w-full">
+        <Tabs defaultValue="creator" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="viewer" className="gap-2">
               <Eye className="w-4 h-4" />
