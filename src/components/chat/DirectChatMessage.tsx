@@ -7,11 +7,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/hooks/useLanguage";
 import { DirectMessageAudioPlayer } from "./DirectMessageAudioPlayer";
@@ -163,16 +158,18 @@ export const DirectChatMessage = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent 
-              align="end" 
-              side="left" 
-              className="min-w-0 p-1.5 bg-card border border-border shadow-lg"
+              align="start" 
+              side="top"
+              sideOffset={5}
+              className="min-w-[120px] p-1.5 bg-popover border border-border shadow-lg z-[9999]"
+              style={{ position: 'fixed' }}
             >
               <DropdownMenuItem 
                 onSelect={(e) => {
                   e.preventDefault();
                   handleOpenReactionPicker();
                 }}
-                className="px-2 py-1.5"
+                className="px-2 py-1.5 cursor-pointer"
               >
                 <Smile className="h-4 w-4 mr-2" />
                 {t.chat?.react || "Reagir"}
@@ -180,7 +177,7 @@ export const DirectChatMessage = ({
               {!isAudio && (
                 <DropdownMenuItem 
                   onClick={() => setIsEditing(true)}
-                  className="px-2 py-1.5"
+                  className="px-2 py-1.5 cursor-pointer"
                 >
                   <Edit2 className="h-4 w-4 mr-2" />
                   {t.chat?.edit || "Editar"}
@@ -188,7 +185,7 @@ export const DirectChatMessage = ({
               )}
               <DropdownMenuItem 
                 onClick={() => setShowConfirmDelete(true)}
-                className="text-destructive focus:text-destructive px-2 py-1.5"
+                className="text-destructive focus:text-destructive px-2 py-1.5 cursor-pointer"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 {t.chat?.delete || "Excluir"}
@@ -258,9 +255,16 @@ export const DirectChatMessage = ({
         </div>
       )}
 
-      {/* Delete confirmation popup - positioned beside the message */}
+      {/* Delete confirmation popup - fixed positioning to avoid clipping */}
       {showConfirmDelete && (
-        <div className="absolute top-1/2 -translate-y-1/2 -left-28 z-20 flex items-center gap-1 bg-card border border-border rounded-lg p-1.5 shadow-lg animate-in fade-in slide-in-from-right-2 duration-200">
+        <div 
+          className="fixed z-[9999] flex items-center gap-1 bg-popover border border-border rounded-lg p-1.5 shadow-lg animate-in fade-in slide-in-from-right-2 duration-200"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
           <span className="text-xs text-muted-foreground px-1 whitespace-nowrap">
             {t.chat?.confirmDelete || "Excluir?"}
           </span>
