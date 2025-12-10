@@ -36,10 +36,10 @@ const AppLayoutInner = ({ children, showSidebar = true }: AppLayoutProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-y-auto">
       <Navbar user={user} isAdmin={isAdmin} />
       {showSidebar && <ChannelsSidebar />}
-      <main className={`${sidebarWidth} transition-all duration-300 ease-in-out`}>
+      <main className={`${sidebarWidth} transition-all duration-300 ease-in-out min-h-screen pb-20`}>
         {children}
       </main>
       
