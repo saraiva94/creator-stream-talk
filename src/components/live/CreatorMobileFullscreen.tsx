@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
+import { DualCameraPreview } from "@/components/live/DualCameraPreview";
 import ChatBox from "@/components/ChatBox";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -94,13 +95,11 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
       {/* Fullscreen Video Preview */}
       <div className="flex-1 relative overflow-hidden">
         <div className="absolute inset-0 w-full h-full">
-          <NativeVideoPreview
+          <DualCameraPreview
             audioDeviceId={selectedAudioDevice}
-            videoDeviceId={selectedVideoDevice}
             isStreaming={isStreaming}
             isMirrored={isMirrored}
             orientation={orientation}
-            fullscreen
           />
         </div>
 
