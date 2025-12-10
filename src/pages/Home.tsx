@@ -57,9 +57,9 @@ const Home = () => {
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-6 text-center">
-          <div className="max-w-lg mx-auto space-y-4">
+      <div className="container mx-auto px-4 py-4">
+        <div className="text-center">
+          <div className="max-w-lg mx-auto space-y-3">
             <UserSearchAutocomplete 
               onSelectUser={handleUserSelect}
               placeholder={t.home?.search || "Buscar usuários..."}
@@ -73,8 +73,8 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Video Carousel - Twitch style - same spacing as buttons to search */}
-        <div className="mt-4">
+        {/* Video Carousel - same spacing as between search and buttons (space-y-3) */}
+        <div className="mt-3">
           <VideoCarousel 
             lives={onlineLives}
             onVideoClick={handleVideoClick}
