@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, CameraOff } from "lucide-react";
 
+export type VideoOrientation = "vertical" | "horizontal";
+
 interface NativeVideoPreviewProps {
   audioDeviceId: string | null;
   videoDeviceId: string | null;
   isStreaming: boolean;
   isMirrored?: boolean;
+  orientation?: VideoOrientation;
+  fullscreen?: boolean;
 }
 
 export const NativeVideoPreview = ({
@@ -13,6 +17,8 @@ export const NativeVideoPreview = ({
   videoDeviceId,
   isStreaming,
   isMirrored = false,
+  orientation = "vertical",
+  fullscreen = false,
 }: NativeVideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -70,7 +76,7 @@ export const NativeVideoPreview = ({
 
   if (!isStreaming) {
     return (
-      <div className="aspect-video bg-secondary/50 rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+      <div className={`${fullscreen ? "w-full h-full" : "aspect-video"} bg-secondary/50 rounded-lg flex flex-col items-center justify-center text-muted-foreground`}>
         <CameraOff className="h-16 w-16 mb-4" />
         <p className="text-lg">Transmissão desligada</p>
         <p className="text-sm">Ative a transmissão para iniciar</p>
@@ -80,7 +86,7 @@ export const NativeVideoPreview = ({
 
   if (error) {
     return (
-      <div className="aspect-video bg-destructive/10 rounded-lg flex flex-col items-center justify-center text-destructive">
+      <div className={`${fullscreen ? "w-full h-full" : "aspect-video"} bg-destructive/10 rounded-lg flex flex-col items-center justify-center text-destructive`}>
         <Camera className="h-16 w-16 mb-4" />
         <p className="text-lg">{error}</p>
         <p className="text-sm">Verifique as permissões do navegador</p>
@@ -88,16 +94,21 @@ export const NativeVideoPreview = ({
     );
   }
 
+  // For fullscreen mode, use object-cover for vertical and contain for horizontal
+  const objectFit = fullscreen 
+    ? (orientation === "vertical" ? "object-cover" : "object-contain")
+    : "object-cover";
+
   return (
-    <div className="aspect-video bg-black rounded-lg overflow-hidden relative">
+    <div className={`${fullscreen ? "w-full h-full" : "aspect-video"} bg-black rounded-lg overflow-hidden relative`}>
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
-        className={`w-full h-full object-cover ${isMirrored ? "scale-x-[-1]" : ""}`}
+        className={`w-full h-full ${objectFit} ${isMirrored ? "scale-x-[-1]" : ""}`}
       />
-      {isStreaming && (
+      {isStreaming && !fullscreen && (
         <div className="absolute top-4 left-4 flex items-center gap-2 bg-destructive text-white px-3 py-1 rounded-full text-sm font-medium">
           <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
           AO VIVO
