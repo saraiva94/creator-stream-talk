@@ -237,11 +237,11 @@ export const InstructionsDialog = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="default" className="gap-2 bg-primary hover:bg-primary/90 group relative overflow-hidden px-4 py-2 whitespace-nowrap">
+        <Button variant="outline" className="gap-2 bg-background border-2 border-primary hover:bg-primary/10 group relative overflow-hidden px-4 py-2 whitespace-nowrap">
           <span className="text-white font-bold text-sm">Contas</span>
           <HelpCircle className="w-5 h-5 text-destructive animate-pulse flex-shrink-0" />
           {/* Animated glow effect */}
-          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] mx-2 sm:mx-0">
