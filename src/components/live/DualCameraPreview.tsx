@@ -96,13 +96,38 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const pinchStartDistanceRef = useRef(0);
   const pinchStartScaleRef = useRef(1);
 
-  // Enumerate cameras
+  // Request camera permission and enumerate cameras
   useEffect(() => {
-    const enumerateCameras = async () => {
+    const requestCameraPermission = async () => {
       try {
-        // Request permission first to get labels
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        // First check permission state
+        const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
         
+        if (permissionStatus.state === 'denied') {
+          setError("Permissão de câmera negada. Ative nas configurações do navegador.");
+          return;
+        }
+
+        // Request permission explicitly with both cameras if possible
+        try {
+          // Request front camera first
+          const frontStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'user' } 
+          });
+          frontStream.getTracks().forEach(t => t.stop());
+          
+          // Then request back camera
+          const backStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'environment' } 
+          });
+          backStream.getTracks().forEach(t => t.stop());
+        } catch {
+          // Fallback to generic request
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(t => t.stop());
+        }
+        
+        // Now enumerate all cameras
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices
           .filter(d => d.kind === "videoinput")
@@ -110,9 +135,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             const label = d.label.toLowerCase();
             let facingMode: "user" | "environment" | undefined;
             
-            if (label.includes("front") || label.includes("frontal") || label.includes("user")) {
+            if (label.includes("front") || label.includes("frontal") || label.includes("user") || label.includes("selfie")) {
               facingMode = "user";
-            } else if (label.includes("back") || label.includes("traseira") || label.includes("rear") || label.includes("environment")) {
+            } else if (label.includes("back") || label.includes("traseira") || label.includes("rear") || label.includes("environment") || label.includes("principal")) {
               facingMode = "environment";
             }
             
@@ -125,7 +150,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         
         setCameras(videoDevices);
         
-        // Set initial cameras - prefer front for main, back for PiP
+        // Set initial cameras - prefer front for main, back for secondary
         const frontCamera = videoDevices.find(c => c.facingMode === "user") || videoDevices[0];
         const backCamera = videoDevices.find(c => c.facingMode === "environment") || videoDevices[1];
         
@@ -133,12 +158,15 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         if (backCamera && backCamera.deviceId !== frontCamera?.deviceId) {
           setPipCameraId(backCamera.deviceId);
         }
+        
+        setError(null);
       } catch (err) {
-        console.error("Error enumerating cameras:", err);
+        console.error("Error requesting camera permission:", err);
+        setError("Permita o acesso à câmera para continuar");
       }
     };
     
-    enumerateCameras();
+    requestCameraPermission();
   }, []);
 
   // Main camera stream
@@ -426,70 +454,70 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             <SwitchCamera className="h-4 w-4" />
           </button>
 
-          {/* Pinch hint indicator */}
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/50 rounded-full">
-            <span className="text-white/70 text-[10px]">Pinça p/ zoom</span>
+          {/* Resize hint indicator */}
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
+            <span className="text-white/80 text-[9px] font-medium">Arraste • Pinça p/ zoom</span>
           </div>
         </div>
       )}
 
-      {/* Toggle PiP button - only show if device has multiple cameras */}
+      {/* Toggle secondary camera button - only show if device has multiple cameras */}
       {hasMultipleCameras && (
         <div className="absolute top-20 right-4 z-20 flex flex-col items-center gap-1">
           <button
             onClick={togglePip}
             className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center",
-              "backdrop-blur-sm transition-all active:scale-90",
+              "w-14 h-14 rounded-full flex items-center justify-center",
+              "backdrop-blur-sm transition-all active:scale-90 shadow-lg",
               pipEnabled 
-                ? "bg-primary text-white" 
-                : "bg-white/20 text-white"
+                ? "bg-primary text-primary-foreground ring-2 ring-white/50" 
+                : "bg-white/20 text-white hover:bg-white/30"
             )}
-            title={pipEnabled ? "Desativar PiP" : "Ativar câmera traseira"}
+            title={pipEnabled ? "Desativar segunda câmera" : "Ativar segunda câmera"}
           >
-            <Camera className="h-5 w-5" />
+            <Camera className="h-6 w-6" />
           </button>
-          <span className="text-white text-[10px] font-medium drop-shadow-lg">
-            {pipEnabled ? "PiP" : "Traseira"}
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center leading-tight">
+            {pipEnabled ? "2ª Câmera\nLigada" : "Adicionar\nCâmera"}
           </span>
         </div>
       )}
 
-      {/* Switch cameras button - only show when PiP is enabled */}
+      {/* Switch cameras button - only show when secondary camera is enabled */}
       {pipEnabled && hasMultipleCameras && (
-        <div className="absolute top-20 right-20 z-20 flex flex-col items-center gap-1">
+        <div className="absolute top-40 right-4 z-20 flex flex-col items-center gap-1">
           <button
             onClick={handleSwitchCameras}
-            className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90"
-            title="Trocar câmeras"
+            className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30 shadow-lg"
+            title="Inverter posição das câmeras"
           >
-            <SwitchCamera className="h-5 w-5" />
+            <SwitchCamera className="h-6 w-6" />
           </button>
-          <span className="text-white text-[10px] font-medium drop-shadow-lg">Trocar</span>
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center leading-tight">Inverter\nPosição</span>
         </div>
       )}
 
-      {/* Flash/Torch button - only show when PiP is enabled and flash is supported */}
+      {/* Flash/Torch button - only show when secondary camera is enabled and flash is supported */}
       {pipEnabled && flashSupported && (
-        <div className="absolute top-36 right-4 z-20 flex flex-col items-center gap-1">
+        <div className="absolute top-64 right-4 z-20 flex flex-col items-center gap-1">
           <button
             onClick={toggleFlash}
             className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90",
+              "w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg",
               flashEnabled
-                ? "bg-yellow-500 text-black"
-                : "bg-white/20 backdrop-blur-sm text-white"
+                ? "bg-yellow-500 text-black ring-2 ring-white/50"
+                : "bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
             )}
-            title={flashEnabled ? "Desligar flash" : "Ligar flash"}
+            title={flashEnabled ? "Desligar lanterna" : "Ligar lanterna"}
           >
             {flashEnabled ? (
-              <Flashlight className="h-5 w-5" />
+              <Flashlight className="h-6 w-6" />
             ) : (
-              <FlashlightOff className="h-5 w-5" />
+              <FlashlightOff className="h-6 w-6" />
             )}
           </button>
-          <span className="text-white text-[10px] font-medium drop-shadow-lg">
-            {flashEnabled ? "Flash" : "Flash"}
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center">
+            Lanterna
           </span>
         </div>
       )}
