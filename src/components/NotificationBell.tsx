@@ -30,6 +30,7 @@ interface Notification {
   read: boolean;
   createdAt: string;
   activeLiveId?: string; // Cache the live ID
+  isLiveEnded?: boolean; // Track if live has ended
 }
 
 export const NotificationBell = ({ user }: NotificationBellProps) => {
@@ -167,7 +168,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
     return () => clearInterval(interval);
   }, [user, checkNotifications]);
 
-  // Subscribe to realtime changes
+  // Subscribe to realtime changes for creator_profiles and lives
   useEffect(() => {
     if (!user) return;
 
@@ -180,8 +181,47 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
           schema: "public",
           table: "creator_profiles",
         },
-        () => {
-          checkNotifications();
+        (payload) => {
+          const updatedCreator = payload.new as { id: string; is_streaming: boolean };
+          
+          // If creator stopped streaming, mark their notifications as ended or remove
+          if (updatedCreator && !updatedCreator.is_streaming) {
+            setNotifications((prev) => 
+              prev.filter((n) => n.creatorId !== updatedCreator.id)
+            );
+            // Remove from cache
+            setActiveLivesCache((prev) => {
+              const newCache = new Map(prev);
+              newCache.delete(updatedCreator.id);
+              return newCache;
+            });
+          } else {
+            checkNotifications();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "lives",
+        },
+        (payload) => {
+          const updatedLive = payload.new as { id: string; creator_id: string; is_active: boolean };
+          
+          // If live ended, remove notification for that creator
+          if (updatedLive && !updatedLive.is_active) {
+            setNotifications((prev) => 
+              prev.filter((n) => n.creatorId !== updatedLive.creator_id)
+            );
+            // Remove from cache
+            setActiveLivesCache((prev) => {
+              const newCache = new Map(prev);
+              newCache.delete(updatedLive.creator_id);
+              return newCache;
+            });
+          }
         }
       )
       .subscribe();
@@ -277,35 +317,52 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
             {t.notifications?.noNotifications || "Nenhuma notificação"}
           </div>
         ) : (
-          notifications.slice(0, 10).map((notification) => (
-            <DropdownMenuItem
-              key={notification.id}
-              className={`flex items-center gap-3 p-3 cursor-pointer ${
-                !notification.read ? "bg-primary/5" : ""
-              }`}
-              onClick={() => handleNotificationClick(notification)}
-            >
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={notification.avatarUrl || undefined} />
-                <AvatarFallback>
-                  {notification.displayName?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {notification.displayName}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {notification.type === "followed_live"
-                    ? t.notifications?.isLive || "Está ao vivo agora!"
-                    : `${t.notifications?.enteredTop5 || "Entrou no Top 5"} • ${notification.viewerCount} ${t.notifications?.viewers || "espectadores"}`}
-                </p>
-              </div>
-              {!notification.read && (
-                <span className="w-2 h-2 rounded-full bg-primary" />
-              )}
-            </DropdownMenuItem>
-          ))
+          notifications.slice(0, 10).map((notification) => {
+            // Check if live is still active
+            const isStillLive = notification.activeLiveId 
+              ? activeLivesCache.has(notification.creatorId) || notification.activeLiveId
+              : activeLivesCache.has(notification.creatorId);
+            
+            return (
+              <DropdownMenuItem
+                key={notification.id}
+                className={`flex items-center gap-3 p-3 cursor-pointer ${
+                  !notification.read ? "bg-primary/5" : ""
+                } ${notification.isLiveEnded || !isStillLive ? "opacity-50" : ""}`}
+                onClick={() => handleNotificationClick(notification)}
+              >
+                <div className="relative">
+                  <Avatar className={`h-10 w-10 ${notification.isLiveEnded ? "grayscale" : ""}`}>
+                    <AvatarImage src={notification.avatarUrl || undefined} />
+                    <AvatarFallback>
+                      {notification.displayName?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {notification.isLiveEnded && (
+                    <span className="absolute -bottom-1 -right-1 text-[10px] bg-destructive text-destructive-foreground px-1 rounded">
+                      {t.notifications?.ended || "OFF"}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${notification.isLiveEnded ? "text-muted-foreground" : ""}`}>
+                    {notification.displayName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {notification.isLiveEnded 
+                      ? t.notifications?.liveEnded || "Live encerrada"
+                      : notification.type === "followed_live"
+                        ? t.notifications?.isLive || "Está ao vivo agora!"
+                        : `${t.notifications?.enteredTop5 || "Entrou no Top 5"} • ${notification.viewerCount} ${t.notifications?.viewers || "espectadores"}`
+                    }
+                  </p>
+                </div>
+                {!notification.read && !notification.isLiveEnded && (
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                )}
+              </DropdownMenuItem>
+            );
+          })
         )}
       </DropdownMenuContent>
     </DropdownMenu>
