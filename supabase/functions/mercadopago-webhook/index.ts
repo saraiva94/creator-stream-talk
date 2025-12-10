@@ -375,16 +375,10 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       const directAmountCents = Math.round(DIRECT_COMMISSION * 100);
       platformAmountCents -= directAmountCents;
       
-      // Increment affiliate_earnings (tracking)
+      // Increment affiliate_earnings only (used for tracking AND withdrawals - single source of truth)
       const { error: directError } = await supabase.rpc('increment_affiliate_earnings', {
         p_profile_id: directId,
         p_amount_cents: directAmountCents,
-      });
-
-      // Also increment balance (for withdrawals) - convert cents to BRL
-      await supabase.rpc('increment_balance', {
-        _user_id: directId,
-        _amount: DIRECT_COMMISSION,
       });
 
       if (directError) {
@@ -397,16 +391,10 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
         const rootAmountCents = Math.round(ROOT_COMMISSION * 100);
         platformAmountCents -= rootAmountCents;
         
-        // Increment affiliate_earnings (tracking)
+        // Increment affiliate_earnings only (single source of truth)
         const { error: rootError } = await supabase.rpc('increment_affiliate_earnings', {
           p_profile_id: rootId,
           p_amount_cents: rootAmountCents,
-        });
-
-        // Also increment balance (for withdrawals) - convert cents to BRL
-        await supabase.rpc('increment_balance', {
-          _user_id: rootId,
-          _amount: ROOT_COMMISSION,
         });
 
         if (rootError) {
@@ -516,12 +504,17 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
 
     console.log('[webhook] Processing superchat:', { userId, roomId, tier, amount });
 
+    // Calculate amounts (80% creator, 20% platform)
+    const grossCents = Math.round(amount * 100);
+    const creatorAmountCents = Math.round(grossCents * 0.8);
+    const platformAmountCents = grossCents - creatorAmountCents;
+
     await supabase.from('superchats').insert({
       room_id: roomId,
       user_id: userId,
       creator_id: creatorId,
       message: message,
-      amount: Math.round(amount * 100),
+      amount: grossCents,
       tier: tier,
       duration_seconds: duration,
       status: 'pending',
@@ -533,6 +526,8 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       creator_id: creatorId,
       type: 'superchat',
       amount,
+      creator_amount: creatorAmountCents / 100,
+      platform_amount: platformAmountCents / 100,
       status: 'completed',
       payment_method: payment.payment_method_id,
       external_id: externalRef,
@@ -540,7 +535,6 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
     });
 
     // Credit creator (80%)
-    const creatorAmount = amount * 0.8;
     const { data: creatorWallet } = await supabase
       .from('creator_wallet')
       .select('balance_cents')
@@ -550,13 +544,29 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
     if (creatorWallet) {
       await supabase
         .from('creator_wallet')
-        .update({ balance_cents: (creatorWallet.balance_cents || 0) + Math.round(creatorAmount * 100) })
+        .update({ balance_cents: (creatorWallet.balance_cents || 0) + creatorAmountCents })
         .eq('creator_id', creatorId);
     } else {
       await supabase
         .from('creator_wallet')
-        .insert({ creator_id: creatorId, balance_cents: Math.round(creatorAmount * 100) });
+        .insert({ creator_id: creatorId, balance_cents: creatorAmountCents });
     }
+
+    // Record platform revenue (20%)
+    await supabase.from('platform_revenue').insert({
+      source_type: 'superchat',
+      source_id: externalRef,
+      amount: platformAmountCents,
+      user_id: userId,
+      metadata: { 
+        creator_id: creatorId, 
+        tier, 
+        gross_amount: grossCents,
+        creator_amount: creatorAmountCents,
+      },
+    });
+
+    console.log('[webhook] Platform revenue recorded for superchat:', { platformAmountCents });
 
     await notifyAdmins(
       'Novo SuperChat',
@@ -564,7 +574,7 @@ async function processPayment(supabase: any, paymentId: string): Promise<any> {
       'superchat'
     );
 
-    console.log('[webhook] SuperChat processed:', { userId, roomId, tier, creatorAmount });
+    console.log('[webhook] SuperChat processed:', { userId, roomId, tier, creatorAmountCents, platformAmountCents });
   }
 
   return { success: true, processed: eventType };

@@ -168,6 +168,129 @@ const updateLiveLifecycleStatus = async (liveId: string, status: LiveLifecycleSt
   }
 };
 
+const settleLiveEarnings = async (liveId: string, creatorId: string) => {
+  // Aggregate credits consumed for this live
+  const { data: consumptionData, error: consumptionError } = await supabase
+    .from('live_consumption')
+    .select('credits_consumed')
+    .eq('live_id', liveId);
+
+  if (consumptionError) {
+    console.error(`Failed to aggregate consumption for live ${liveId}:`, consumptionError.message);
+    return null;
+  }
+
+  const totalCreditsConsumed = (consumptionData ?? []).reduce(
+    (sum, row) => sum + (row.credits_consumed ?? 0),
+    0
+  );
+
+  if (totalCreditsConsumed === 0) {
+    console.log(`No credits consumed for live ${liveId}, skipping settlement`);
+    return null;
+  }
+
+  // Calculate earnings: (credits / 180) * 500 = gross in centavos
+  const grossCents = Math.floor((totalCreditsConsumed * 500) / 180);
+  const creatorCents = Math.floor((grossCents * 80) / 100);
+  const platformCents = grossCents - creatorCents;
+
+  // Check if earnings already exist
+  const { data: existingEarnings } = await supabase
+    .from('creator_earnings')
+    .select('id, status')
+    .eq('live_id', liveId)
+    .maybeSingle();
+
+  const nowIso = new Date().toISOString();
+
+  if (existingEarnings) {
+    const status = (existingEarnings.status ?? '').toLowerCase();
+    if (status === 'settled' || status === 'cancelled') {
+      console.log(`Live ${liveId} earnings already ${status}, skipping`);
+      return existingEarnings.id;
+    }
+
+    // Update existing earnings
+    await supabase
+      .from('creator_earnings')
+      .update({
+        credits_consumed: totalCreditsConsumed,
+        gross_amount_cents: grossCents,
+        creator_amount_cents: creatorCents,
+        platform_amount_cents: platformCents,
+        status: 'settled',
+        settled_at: nowIso,
+      })
+      .eq('id', existingEarnings.id);
+  } else {
+    // Insert new earnings record
+    await supabase
+      .from('creator_earnings')
+      .insert({
+        creator_id: creatorId,
+        live_id: liveId,
+        credits_consumed: totalCreditsConsumed,
+        gross_amount_cents: grossCents,
+        creator_amount_cents: creatorCents,
+        platform_amount_cents: platformCents,
+        status: 'settled',
+        settled_at: nowIso,
+        created_at: nowIso,
+      });
+  }
+
+  // Update creator wallet
+  const { data: wallet } = await supabase
+    .from('creator_wallet')
+    .select('balance_cents')
+    .eq('creator_id', creatorId)
+    .maybeSingle();
+
+  if (wallet) {
+    await supabase
+      .from('creator_wallet')
+      .update({ 
+        balance_cents: (wallet.balance_cents || 0) + creatorCents,
+        updated_at: nowIso,
+      })
+      .eq('creator_id', creatorId);
+  } else {
+    await supabase
+      .from('creator_wallet')
+      .insert({ 
+        creator_id: creatorId, 
+        balance_cents: creatorCents,
+        total_earned_cents: creatorCents,
+      });
+  }
+
+  // Record platform revenue (20%)
+  await supabase.from('platform_revenue').insert({
+    source_type: 'live_earnings',
+    source_id: liveId,
+    amount: platformCents,
+    user_id: creatorId,
+    metadata: { 
+      credits_consumed: totalCreditsConsumed,
+      gross_amount: grossCents,
+      creator_amount: creatorCents,
+    },
+  });
+
+  console.log(JSON.stringify({
+    event: 'live.earnings.settled',
+    liveId,
+    creatorId,
+    totalCreditsConsumed,
+    grossCents,
+    creatorCents,
+    platformCents,
+  }));
+
+  return liveId;
+};
+
 const endLive = async (liveId: string, reason: string) => {
   const endedAt = new Date().toISOString();
   const { data, error } = await supabase
@@ -182,25 +305,35 @@ const endLive = async (liveId: string, reason: string) => {
   }
 
   if (data) {
-    const { error: logError } = await supabase.from('live_end_log').insert({
-      live_id: liveId,
-      creator_id: (data as { creator_id: string }).creator_id,
-      reason,
-      ended_at: endedAt,
-    });
+    const creatorId = (data as { creator_id: string }).creator_id;
 
-    if (logError) {
-      throw new Error(`Failed to insert live end log: ${logError.message}`);
+    // Settle earnings automatically when live ends
+    try {
+      await settleLiveEarnings(liveId, creatorId);
+    } catch (settlementError) {
+      console.error(`Failed to settle earnings for live ${liveId}:`, settlementError);
+    }
+
+    // Log live end (table may not exist, so we handle gracefully)
+    try {
+      await supabase.from('live_end_log').insert({
+        live_id: liveId,
+        creator_id: creatorId,
+        reason,
+        ended_at: endedAt,
+      });
+    } catch (logError) {
+      console.warn(`Could not insert live end log (table may not exist):`, logError);
     }
   }
 
-  const { error: cleanupError } = await supabase.from('live_heartbeat').delete().eq('live_id', liveId);
-
-  if (cleanupError) {
-    throw new Error(`Failed to cleanup heartbeat row: ${cleanupError.message}`);
+  // Cleanup heartbeat
+  try {
+    await supabase.from('live_heartbeat').delete().eq('live_id', liveId);
+  } catch (cleanupError) {
+    console.warn(`Failed to cleanup heartbeat row:`, cleanupError);
   }
 
-  // Settlement would be done via separate service call or cron
   console.log(
     JSON.stringify({
       event: 'live.ended',
