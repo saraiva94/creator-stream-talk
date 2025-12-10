@@ -103,35 +103,30 @@ const Affiliate = () => {
         // Use affiliate_earnings as the single source of truth for available balance
         setAvailableBalanceCents(affiliateEarningsCents);
 
-        // Count unique users from affiliate_logs where this user earned commission
-        const userId = session.user.id.toLowerCase();
+        // Count referrals from affiliate_logs - each log entry represents one commission event
+        const userId = session.user.id;
         const { data: affiliateLogs } = await supabase
           .from("affiliate_logs")
-          .select("new_user, direct_referrer, root_creator")
+          .select("id, direct_referrer, root_creator")
           .or(`direct_referrer.eq.${session.user.id},root_creator.eq.${session.user.id}`);
         
-        const directSet = new Set<string>();
-        const indirectSet = new Set<string>();
+        let directCount = 0;
+        let indirectCount = 0;
         
         affiliateLogs?.forEach(log => {
-          if (log.new_user) {
-            const directRef = (log.direct_referrer ?? "").toLowerCase();
-            const rootRef = (log.root_creator ?? "").toLowerCase();
-            
-            if (directRef === userId) {
-              directSet.add(log.new_user);
-            } else if (rootRef === userId) {
-              indirectSet.add(log.new_user);
-            }
+          // Check if user is direct referrer (level 1 commission - R$1.00)
+          if (log.direct_referrer === userId) {
+            directCount++;
+          } 
+          // Check if user is root creator but NOT direct referrer (level 2 commission - R$0.50)
+          else if (log.root_creator === userId) {
+            indirectCount++;
           }
         });
         
-        // Remove users that are direct from indirect (avoid counting twice)
-        directSet.forEach(uId => indirectSet.delete(uId));
-        
-        setDirectReferrals(directSet.size);
-        setIndirectReferrals(indirectSet.size);
-        setTotalReferrals(directSet.size + indirectSet.size);
+        setDirectReferrals(directCount);
+        setIndirectReferrals(indirectCount);
+        setTotalReferrals(directCount + indirectCount);
 
         const { data: logs } = await supabase
           .from("affiliate_logs")
