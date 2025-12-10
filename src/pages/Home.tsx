@@ -12,6 +12,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { api, LiveSummary } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,7 +28,11 @@ const Home = () => {
   const [displayedCount, setDisplayedCount] = useState(4);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedEnd, setHasReachedEnd] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { user, isLoading: authLoading } = useAuth();
@@ -50,6 +55,72 @@ const Home = () => {
   useEffect(() => {
     fetchLives();
   }, []);
+
+  // Realtime subscription for creator_profiles changes (streaming status)
+  useEffect(() => {
+    const channel = supabase
+      .channel('creator-streaming-status')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'creator_profiles',
+          filter: 'is_streaming=eq.true'
+        },
+        () => {
+          // Refresh lives when streaming status changes
+          fetchLives();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lives'
+        },
+        () => {
+          // Refresh lives when lives table changes
+          fetchLives();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Pull-to-refresh handlers for mobile
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    touchStartY.current = e.touches[0].clientY;
+  }, [isMobile]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || isRefreshing) return;
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    if (scrollTop > 0) return;
+    
+    const touchY = e.touches[0].clientY;
+    const diff = touchY - touchStartY.current;
+    
+    if (diff > 0) {
+      setPullDistance(Math.min(diff * 0.5, 100));
+    }
+  }, [isMobile, isRefreshing]);
+
+  const handleTouchEnd = useCallback(async () => {
+    if (!isMobile || isRefreshing) return;
+    
+    if (pullDistance > 60) {
+      setIsRefreshing(true);
+      await fetchLives();
+      setIsRefreshing(false);
+    }
+    setPullDistance(0);
+  }, [isMobile, isRefreshing, pullDistance]);
 
   // Fetch user's referral code when logged in
   useEffect(() => {
@@ -154,7 +225,30 @@ const Home = () => {
 
   return (
     <AppLayout>
-      <div className="container mx-auto px-4 py-4">
+      <div 
+        ref={containerRef}
+        className="container mx-auto px-4 py-4"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull-to-refresh indicator */}
+        {isMobile && (pullDistance > 0 || isRefreshing) && (
+          <div 
+            className="flex items-center justify-center transition-all duration-200"
+            style={{ height: isRefreshing ? 50 : pullDistance }}
+          >
+            <RefreshCw 
+              className={`h-6 w-6 text-primary transition-transform ${isRefreshing ? 'animate-spin' : ''}`}
+              style={{ transform: `rotate(${pullDistance * 2}deg)` }}
+            />
+            {pullDistance > 60 && !isRefreshing && (
+              <span className="ml-2 text-sm text-muted-foreground">
+                {t.home?.releaseToRefresh || "Solte para atualizar"}
+              </span>
+            )}
+          </div>
+        )}
         <div className="text-center">
           <div className="max-w-lg mx-auto space-y-3">
             <UserSearchAutocomplete 
