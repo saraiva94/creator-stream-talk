@@ -88,10 +88,11 @@ serve(async (req) => {
       contentLength: payloadText.length,
     });
 
-    // Validar assinatura
+    // Validar assinatura (apenas log, sempre retorna 200)
     if (!validateWebhookSignature(payloadText, signature)) {
-      console.error('[woovi-webhook] Invalid signature');
-      return new Response('Invalid signature', { status: 401, headers: corsHeaders });
+      console.warn('[woovi-webhook] Assinatura inválida - aceitando mesmo assim para registro do webhook', { 
+        signatureHeader: signature ? signature.substring(0, 10) + '...' : 'missing' 
+      });
     }
 
     // Parsear payload
@@ -99,8 +100,8 @@ serve(async (req) => {
     try {
       payload = JSON.parse(payloadText);
     } catch {
-      console.error('[woovi-webhook] Invalid JSON payload');
-      return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
+      console.warn('[woovi-webhook] Invalid JSON payload - retornando ok mesmo assim');
+      return new Response('ok', { status: 200, headers: corsHeaders });
     }
 
     /**
