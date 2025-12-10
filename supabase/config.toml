@@ -39,5 +39,5 @@ verify_jwt = true
 [functions.backfill-platform-revenue]
 verify_jwt = true
 
-[functions.pix-disbursement-webhook]
+[functions.woovi-payment-webhook]
 verify_jwt = false
