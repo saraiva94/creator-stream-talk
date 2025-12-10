@@ -3,9 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, Eye, Clock, TrendingUp, Users } from "lucide-react";
-import { format } from "date-fns";
+import { BarChart3, Eye, Clock, TrendingUp, Users, Calendar } from "lucide-react";
+import { format, subDays, startOfDay, endOfDay, eachDayOfInterval, startOfWeek, endOfWeek, eachWeekOfInterval, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Button } from "@/components/ui/button";
 
 interface VideoAnalytics {
   video_id: string;
@@ -25,15 +28,25 @@ interface RecentView {
   user_id: string | null;
 }
 
+interface TimeSeriesData {
+  date: string;
+  views: number;
+  completions: number;
+}
+
+type TimeRange = 'day' | 'week';
+
 const PromoVideoAnalyticsPanel = () => {
   const [analytics, setAnalytics] = useState<VideoAnalytics[]>([]);
   const [recentViews, setRecentViews] = useState<RecentView[]>([]);
   const [totalViews, setTotalViews] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
+  const [timeRange, setTimeRange] = useState<TimeRange>('day');
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [timeRange]);
 
   const fetchAnalytics = async () => {
     try {
@@ -109,6 +122,57 @@ const PromoVideoAnalyticsPanel = () => {
       setAnalytics(analyticsData);
       setRecentViews(recentViewsData);
       setTotalViews(viewsData?.length || 0);
+
+      // Build time series data
+      const now = new Date();
+      let timeData: TimeSeriesData[] = [];
+
+      if (timeRange === 'day') {
+        // Last 14 days
+        const days = eachDayOfInterval({
+          start: subDays(now, 13),
+          end: now
+        });
+
+        timeData = days.map(day => {
+          const dayStart = startOfDay(day);
+          const dayEnd = endOfDay(day);
+          
+          const dayViews = viewsData?.filter(v => {
+            const viewDate = new Date(v.viewed_at);
+            return viewDate >= dayStart && viewDate <= dayEnd;
+          }) || [];
+
+          return {
+            date: format(day, 'dd/MM', { locale: ptBR }),
+            views: dayViews.length,
+            completions: dayViews.filter(v => v.completed).length
+          };
+        });
+      } else {
+        // Last 8 weeks
+        const weeks = eachWeekOfInterval({
+          start: subWeeks(now, 7),
+          end: now
+        }, { weekStartsOn: 0 });
+
+        timeData = weeks.map(weekStart => {
+          const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
+          
+          const weekViews = viewsData?.filter(v => {
+            const viewDate = new Date(v.viewed_at);
+            return viewDate >= weekStart && viewDate <= weekEnd;
+          }) || [];
+
+          return {
+            date: `Sem ${format(weekStart, 'dd/MM', { locale: ptBR })}`,
+            views: weekViews.length,
+            completions: weekViews.filter(v => v.completed).length
+          };
+        });
+      }
+
+      setTimeSeriesData(timeData);
     } catch (error) {
       console.error('Error fetching promo analytics:', error);
     } finally {
@@ -194,6 +258,87 @@ const PromoVideoAnalyticsPanel = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Time Series Chart */}
+      <Card className="border-border">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Calendar className="w-5 h-5 text-primary" />
+              Visualizações ao Longo do Tempo
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button
+                variant={timeRange === 'day' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setTimeRange('day')}
+              >
+                Por Dia
+              </Button>
+              <Button
+                variant={timeRange === 'week' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setTimeRange('week')}
+              >
+                Por Semana
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {timeSeriesData.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              Nenhum dado disponível ainda
+            </p>
+          ) : (
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={timeSeriesData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    tickLine={{ stroke: 'hsl(var(--border))' }}
+                  />
+                  <YAxis 
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    tickLine={{ stroke: 'hsl(var(--border))' }}
+                    allowDecimals={false}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                      color: 'hsl(var(--foreground))'
+                    }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="views" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                    name="Visualizações"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="completions" 
+                    stroke="hsl(142 71% 45%)" 
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(142 71% 45%)', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                    name="Completas"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Per-Video Analytics */}
       <Card className="border-border">
