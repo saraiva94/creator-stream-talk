@@ -2,8 +2,10 @@ import { useState } from "react";
 import { NativeVideoPreview } from "@/components/NativeVideoPreview";
 import ChatBox from "@/components/ChatBox";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
+import SuperChatQueue from "@/components/SuperChatQueue";
 import { StreamToggle } from "@/components/StreamToggle";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { 
   Users, 
   DollarSign, 
@@ -38,6 +40,7 @@ interface CreatorMobileFullscreenProps {
   activeSuperchat: ActiveSuperchat | null;
   onSuperchatExpire: () => void;
   onOpenSettings: () => void;
+  onSelectSuperchat: (superchat: ActiveSuperchat) => void;
   pendingSuperchatCount?: number;
   liveUrl?: string;
 }
@@ -55,11 +58,13 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   activeSuperchat,
   onSuperchatExpire,
   onOpenSettings,
+  onSelectSuperchat,
   pendingSuperchatCount = 0,
   liveUrl,
 }) => {
   const { t } = useLanguage();
   const [showChat, setShowChat] = useState(false);
+  const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
 
   const handleShare = async () => {
     const shareUrl = liveUrl || window.location.href;
@@ -149,7 +154,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 
               {/* SuperChat queue indicator */}
               <button 
-                onClick={onOpenSettings}
+                onClick={() => setShowSuperchatQueue(true)}
                 className="flex flex-col items-center gap-1 text-white relative"
               >
                 <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
@@ -225,6 +230,40 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           </div>
         </div>
       )}
+
+      {/* SuperChat Queue Sheet */}
+      <Sheet open={showSuperchatQueue} onOpenChange={setShowSuperchatQueue}>
+        <SheetContent side="bottom" className="h-[60vh] bg-background/95 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-yellow-400" />
+              SuperChats
+              {pendingSuperchatCount > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {pendingSuperchatCount}
+                </span>
+              )}
+            </h3>
+          </div>
+          {roomId && (
+            <SuperChatQueue
+              roomId={roomId}
+              creatorId={creatorId}
+              onSelectSuperchat={(superchat: any) => {
+                onSelectSuperchat({
+                  id: superchat.id,
+                  message: superchat.message,
+                  tier: superchat.tier,
+                  duration_seconds: superchat.duration_seconds,
+                  username: superchat.username || "Usuário",
+                  expires_at: superchat.expires_at || new Date(Date.now() + superchat.duration_seconds * 1000).toISOString()
+                });
+                setShowSuperchatQueue(false);
+              }}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
