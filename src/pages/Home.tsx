@@ -74,7 +74,7 @@ const Home = () => {
         </div>
 
         {/* Video Carousel - closer to buttons */}
-        <div className="mt-1">
+        <div className="-mt-2">
           <VideoCarousel 
             lives={onlineLives}
             onVideoClick={handleVideoClick}
