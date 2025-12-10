@@ -10,39 +10,39 @@ All colors MUST be HSL.
   :root {
     /* Original Purple Theme */
     --background: 0 0% 0%; /* Pure black #000000 */
-    --foreground: 0 0% 98%;
+    --foreground: 0 0% 100%; /* Pure white for maximum contrast */
 
-    --card: 0 0% 5%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 100%;
 
     /* Primary: Purple */
-    --primary: 270 70% 50%; /* Purple #7B3FF3 */
+    --primary: 270 70% 55%; /* Brighter Purple */
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 270 70% 65%;
+    --primary-glow: 270 70% 70%;
 
     /* Secondary: Lighter Purple */
-    --secondary: 270 50% 40%;
+    --secondary: 270 50% 45%;
     --secondary-foreground: 0 0% 100%;
 
     /* Accent: Purple variant */
-    --accent: 280 60% 55%;
+    --accent: 280 60% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 75%; /* Increased from 60% to 75% for better readability */
 
-    --success: 142 76% 36%;
+    --success: 142 76% 42%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
-    --ring: 270 70% 50%;
+    --border: 0 0% 25%; /* Increased from 15% to 25% for visible borders */
+    --input: 0 0% 20%;
+    --ring: 270 70% 55%;
 
     --radius: 0.75rem;
 
