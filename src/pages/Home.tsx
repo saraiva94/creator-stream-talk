@@ -7,7 +7,7 @@ import PublicProfileDialog from "@/components/PublicProfileDialog";
 import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
 import { InstructionsDialog } from "@/components/InstructionsDialog";
 import VideoCarousel from "@/components/VideoCarousel";
-import { Video } from "lucide-react";
+import LivesGridSkeleton from "@/components/LivesGridSkeleton";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -84,88 +84,48 @@ const Home = () => {
           />
         </div>
 
-        {loading || authLoading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">{t.common?.loading || "Loading..."}</p>
-          </div>
-        ) : (
-          <>
-            {onlineLives.length > 0 && (
-              <section className="mb-12">
-                <h2 className="text-2xl font-bold mb-6 text-primary flex items-center gap-2">
-                  <span className="w-3 h-3 bg-success rounded-full animate-pulse"></span>
-                  {t.home?.onlineNow || "Ao vivo agora"}
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {onlineLives.map((live) => (
-                    <LivePreviewCard
-                      key={live.id}
-                      live={live}
-                      isLoggedIn={!!user}
-                      onLoginRequired={() => setShowLoginDialog(true)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
+        {/* Lives Grid Section */}
+        <section className="mt-4">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 text-primary flex items-center gap-2">
+            <span className="w-2.5 h-2.5 md:w-3 md:h-3 bg-success rounded-full animate-pulse"></span>
+            {t.home?.onlineNow || "Ao vivo agora"}
+          </h2>
+          
+          {loading || authLoading ? (
+            <LivesGridSkeleton />
+          ) : onlineLives.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+              {onlineLives.map((live) => (
+                <LivePreviewCard
+                  key={live.id}
+                  live={live}
+                  isLoggedIn={!!user}
+                  onLoginRequired={() => setShowLoginDialog(true)}
+                />
+              ))}
+            </div>
+          ) : (
+            <LivesGridSkeleton />
+          )}
+        </section>
 
-            {offlineLives.length > 0 && (
-              <section>
-                <h2 className="text-2xl font-bold mb-6 text-muted-foreground">
-                  {t.home?.offline || "Offline"}
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {offlineLives.map((live) => (
-                    <LivePreviewCard
-                      key={live.id}
-                      live={live}
-                      isLoggedIn={!!user}
-                      onLoginRequired={() => setShowLoginDialog(true)}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {lives.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 space-y-6">
-                {/* REC indicator with blinking red circle */}
-                <div className="flex items-center gap-3">
-                  <span 
-                    className="w-4 h-4 bg-destructive rounded-full"
-                    style={{
-                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
-                    }}
-                  />
-                  <div className="flex items-center gap-2 text-destructive font-bold text-lg">
-                    <Video className="h-6 w-6" />
-                    <span>REC</span>
-                  </div>
-                </div>
-                
-                {/* Friendly empty state message */}
-                <div className="text-center space-y-2">
-                  <p className="text-xl text-foreground font-medium">
-                    {t.home?.emptyTitle || "It's a bit empty here..."}
-                  </p>
-                  <p className="text-muted-foreground">
-                    {t.home?.emptySubtitle || "Be the first to go live!"}
-                  </p>
-                </div>
-
-                {/* CTA button for creators */}
-                {user && (
-                  <Button 
-                    onClick={() => navigate("/live-management")}
-                    className="mt-4 gap-2"
-                  >
-                    <Video className="h-4 w-4" />
-                    {t.home?.startStream || "Start streaming"}
-                  </Button>
-                )}
-              </div>
-            )}
-          </>
+        {/* Offline Lives Section */}
+        {offlineLives.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-xl md:text-2xl font-bold mb-4 text-muted-foreground">
+              {t.home?.offline || "Offline"}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+              {offlineLives.map((live) => (
+                <LivePreviewCard
+                  key={live.id}
+                  live={live}
+                  isLoggedIn={!!user}
+                  onLoginRequired={() => setShowLoginDialog(true)}
+                />
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Login Dialog */}
