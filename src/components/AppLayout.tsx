@@ -38,6 +38,8 @@ const AppLayoutInner = ({ children, showSidebar = true }: AppLayoutProps) => {
   return (
     <div className="min-h-screen bg-background overflow-y-auto">
       <Navbar user={user} isAdmin={isAdmin} />
+      {/* Spacer for fixed navbar */}
+      <div className="h-16" />
       {showSidebar && <ChannelsSidebar />}
       <main className={`${sidebarWidth} transition-all duration-300 ease-in-out min-h-screen pb-20`}>
         {children}
