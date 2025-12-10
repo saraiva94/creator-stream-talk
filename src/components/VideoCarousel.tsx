@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Play, Megaphone, TrendingUp, Users, Tag, ExternalLink } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { ChevronLeft, ChevronRight, Play, Megaphone, TrendingUp, Users, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 
 interface PromotionalVideo {
   id: string;
@@ -23,7 +22,6 @@ interface TopCreator {
   viewer_count: number | null;
   is_streaming: boolean | null;
   avatar_url?: string | null;
-  tags?: string[] | null;
 }
 
 interface CarouselItem {
@@ -53,12 +51,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [promoVideos, setPromoVideos] = useState<PromotionalVideo[]>([]);
   const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
-  const [followedTags, setFollowedTags] = useState<string[]>([]);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [promoWatchTime, setPromoWatchTime] = useState(0);
   const [isWatchingPromo, setIsWatchingPromo] = useState(false);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
 
-  // Fetch initial data
+  // Fetch initial data - only online creators
   useEffect(() => {
     const fetchData = async () => {
       // Fetch promos
@@ -72,11 +69,12 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       
       if (promoData) setPromoVideos(promoData);
 
-      // Fetch top 10 creators by viewer_count
+      // Fetch top 10 ONLINE creators by viewer_count (only is_streaming = true)
       const { data: creatorData } = await supabase
         .from('creator_profiles')
-        .select('id, display_name, bio, viewer_count, is_streaming, tags')
+        .select('id, display_name, bio, viewer_count, is_streaming')
         .eq('approved_for_live', true)
+        .eq('is_streaming', true)
         .order('viewer_count', { ascending: false, nullsFirst: false })
         .limit(10);
 
@@ -96,29 +94,14 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         }));
         
         setTopCreators(creatorsWithAvatars);
-
-        // Extract all unique tags from creators
-        const allTags = new Set<string>();
-        creatorData.forEach(c => {
-          c.tags?.forEach(tag => allTags.add(tag));
-        });
-        setAvailableTags(Array.from(allTags));
-      }
-
-      // Fetch user's followed tags if logged in
-      if (userId) {
-        const { data: tagData } = await supabase
-          .from('user_followed_tags')
-          .select('tag')
-          .eq('user_id', userId);
-        
-        if (tagData) setFollowedTags(tagData.map(t => t.tag));
+      } else {
+        setTopCreators([]);
       }
     };
     fetchData();
-  }, [userId]);
+  }, []);
 
-  // Realtime subscription for creator viewer_count updates with smooth animation
+  // Realtime subscription for creator viewer_count updates - only show online
   useEffect(() => {
     const channel = supabase
       .channel('creator-viewer-updates')
@@ -131,14 +114,24 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         },
         (payload) => {
           const updated = payload.new as { id: string; viewer_count: number | null; is_streaming: boolean | null };
+          
           setTopCreators(prev => {
-            const updatedList = prev.map(c => 
-              c.id === updated.id 
-                ? { ...c, viewer_count: updated.viewer_count, is_streaming: updated.is_streaming }
-                : c
-            );
-            // Sort with animation-friendly approach
-            return [...updatedList].sort((a, b) => (b.viewer_count || 0) - (a.viewer_count || 0));
+            // If creator went offline, remove from list
+            if (!updated.is_streaming) {
+              return prev.filter(c => c.id !== updated.id);
+            }
+            
+            // If creator is online, update or add
+            const existingIndex = prev.findIndex(c => c.id === updated.id);
+            if (existingIndex >= 0) {
+              const updatedList = prev.map(c => 
+                c.id === updated.id 
+                  ? { ...c, viewer_count: updated.viewer_count, is_streaming: updated.is_streaming }
+                  : c
+              );
+              return [...updatedList].sort((a, b) => (b.viewer_count || 0) - (a.viewer_count || 0));
+            }
+            return prev;
           });
         }
       )
@@ -149,28 +142,22 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     };
   }, []);
 
-  // Toggle tag follow
-  const toggleTagFollow = async (tag: string) => {
-    if (!userId) {
-      onLoginRequired?.();
-      return;
+  // Record promo view analytics
+  const recordPromoView = useCallback(async (videoId: string, watchDuration: number, completed: boolean) => {
+    try {
+      await supabase.from('promo_video_views').insert({
+        video_id: videoId,
+        user_id: userId || null,
+        session_id: sessionIdRef.current,
+        watch_duration_seconds: watchDuration,
+        completed
+      });
+    } catch (error) {
+      console.error('Error recording promo view:', error);
     }
+  }, [userId]);
 
-    if (followedTags.includes(tag)) {
-      await supabase.from('user_followed_tags').delete().eq('user_id', userId).eq('tag', tag);
-      setFollowedTags(prev => prev.filter(t => t !== tag));
-    } else {
-      await supabase.from('user_followed_tags').insert({ user_id: userId, tag });
-      setFollowedTags(prev => [...prev, tag]);
-    }
-  };
-
-  // Filter creators by followed tags (if any tags followed)
-  const filteredCreators = followedTags.length > 0
-    ? topCreators.filter(c => c.tags?.some(t => followedTags.includes(t)))
-    : topCreators;
-
-  // Build carousel items with minimum count for UI continuity
+  // Build carousel items - only online creators + promos
   const carouselItems: CarouselItem[] = (() => {
     const items: CarouselItem[] = [];
     let promoIndex = 0;
@@ -187,9 +174,10 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       }
     });
 
-    // Add filtered top creators with ranking
-    filteredCreators.forEach((creator, index) => {
+    // Add online top creators with ranking
+    topCreators.forEach((creator, index) => {
       items.push({ type: 'creator', creator, rank: index + 1 });
+      itemCounter++;
       itemCounter++;
       
       if (itemCounter % 3 === 0 && promoIndex < promoVideos.length) {
@@ -228,19 +216,31 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   useEffect(() => {
     if (!isCurrentPromo || !isWatchingPromo) return;
 
+    const currentPromo = currentItem?.promo;
+    let watchedSeconds = 0;
+
     const timer = setInterval(() => {
-      setPromoWatchTime(prev => {
-        if (prev >= PROMO_VIDEO_MAX_SECONDS) {
-          // Auto advance to next after 20 seconds
-          setCurrentIndex(prevIndex => (prevIndex + 1) % itemCount);
-          return 0;
+      watchedSeconds++;
+      setPromoWatchTime(watchedSeconds);
+      
+      if (watchedSeconds >= PROMO_VIDEO_MAX_SECONDS) {
+        // Record analytics before advancing
+        if (currentPromo) {
+          recordPromoView(currentPromo.id, watchedSeconds, true);
         }
-        return prev + 1;
-      });
+        // Auto advance to next after 20 seconds
+        setCurrentIndex(prevIndex => (prevIndex + 1) % itemCount);
+      }
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [isCurrentPromo, isWatchingPromo, itemCount]);
+    return () => {
+      clearInterval(timer);
+      // Record partial view when leaving before completion
+      if (currentPromo && watchedSeconds > 0 && watchedSeconds < PROMO_VIDEO_MAX_SECONDS) {
+        recordPromoView(currentPromo.id, watchedSeconds, false);
+      }
+    };
+  }, [isCurrentPromo, isWatchingPromo, itemCount, currentItem, recordPromoView]);
 
   // Auto-scroll every 5 seconds for non-promo items
   useEffect(() => {
@@ -315,36 +315,6 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
 
   return (
     <div className="relative w-full py-4 overflow-hidden">
-      {/* Tags Filter Bar */}
-      {availableTags.length > 0 && (
-        <div className="flex items-center justify-center gap-2 mb-4 px-16 flex-wrap">
-          <Tag className="h-4 w-4 text-muted-foreground" />
-          {availableTags.slice(0, 8).map(tag => (
-            <Badge
-              key={tag}
-              variant={followedTags.includes(tag) ? "default" : "outline"}
-              className={cn(
-                "cursor-pointer transition-all hover:scale-105",
-                followedTags.includes(tag) 
-                  ? "bg-primary text-primary-foreground" 
-                  : "hover:bg-primary/20"
-              )}
-              onClick={() => toggleTagFollow(tag)}
-            >
-              {tag}
-            </Badge>
-          ))}
-          {followedTags.length > 0 && (
-            <Badge 
-              variant="secondary" 
-              className="cursor-pointer"
-              onClick={() => setFollowedTags([])}
-            >
-              Limpar filtros
-            </Badge>
-          )}
-        </div>
-      )}
 
       {/* Navigation Arrows */}
       <Button
