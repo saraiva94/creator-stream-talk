@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NativeVideoPreview } from "@/components/NativeVideoPreview";
+import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
 import ChatBox from "@/components/ChatBox";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -43,6 +43,7 @@ interface CreatorMobileFullscreenProps {
   onSelectSuperchat: (superchat: ActiveSuperchat) => void;
   pendingSuperchatCount?: number;
   liveUrl?: string;
+  orientation?: VideoOrientation;
 }
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
@@ -61,6 +62,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   onSelectSuperchat,
   pendingSuperchatCount = 0,
   liveUrl,
+  orientation = "vertical",
 }) => {
   const { t } = useLanguage();
   const [showChat, setShowChat] = useState(false);
@@ -97,6 +99,8 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             videoDeviceId={selectedVideoDevice}
             isStreaming={isStreaming}
             isMirrored={isMirrored}
+            orientation={orientation}
+            fullscreen
           />
         </div>
 

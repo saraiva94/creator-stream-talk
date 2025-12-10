@@ -7,10 +7,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Settings, MessageSquare, X, Camera, Mic, Image, FlipHorizontal } from "lucide-react";
+import { Settings, MessageSquare, X, Camera, Mic, Image, FlipHorizontal, Smartphone, Monitor } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ThumbnailCropDialog } from "./ThumbnailCropDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
+
+export type VideoOrientation = "vertical" | "horizontal";
 
 interface LiveConfigPanelProps {
   roomId: string | null;
@@ -19,6 +22,8 @@ interface LiveConfigPanelProps {
   onDevicesChange: (audioId: string, videoId: string) => void;
   onMirrorChange?: (mirrored: boolean) => void;
   onThumbnailChange?: (url: string) => void;
+  onOrientationChange?: (orientation: VideoOrientation) => void;
+  currentOrientation?: VideoOrientation;
 }
 
 interface MediaDevice {
@@ -33,13 +38,17 @@ export const LiveConfigPanel = ({
   onDevicesChange,
   onMirrorChange,
   onThumbnailChange,
+  onOrientationChange,
+  currentOrientation = "vertical",
 }: LiveConfigPanelProps) => {
   const { toast } = useToast();
+  const isMobileOrTablet = useIsMobileOrTablet();
   
   // Live settings
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isMirrored, setIsMirrored] = useState(false);
+  const [orientation, setOrientation] = useState<VideoOrientation>(currentOrientation);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [showThumbnailCrop, setShowThumbnailCrop] = useState(false);
@@ -125,6 +134,11 @@ export const LiveConfigPanel = ({
   useEffect(() => {
     onMirrorChange?.(isMirrored);
   }, [isMirrored, onMirrorChange]);
+
+  // Propagate orientation changes
+  useEffect(() => {
+    onOrientationChange?.(orientation);
+  }, [orientation, onOrientationChange]);
 
   // Load chat settings if room exists
   useEffect(() => {
@@ -307,6 +321,46 @@ export const LiveConfigPanel = ({
               </div>
             </div>
           </div>
+
+          {/* Video Orientation - Only on mobile/tablet */}
+          {isMobileOrTablet && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4" />
+                Orientação do vídeo
+              </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Escolha como a câmera vai capturar
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={orientation === "vertical" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setOrientation("vertical")}
+                  className="flex-1 flex items-center gap-2"
+                >
+                  <Smartphone className="h-4 w-4" />
+                  Vertical
+                </Button>
+                <Button
+                  type="button"
+                  variant={orientation === "horizontal" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setOrientation("horizontal")}
+                  className="flex-1 flex items-center gap-2"
+                >
+                  <Monitor className="h-4 w-4" />
+                  Horizontal
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {orientation === "vertical" 
+                  ? "Ideal para TikTok/Instagram (celular em pé)" 
+                  : "Ideal para YouTube/Twitch (celular deitado)"}
+              </p>
+            </div>
+          )}
 
           {/* Mirror Toggle */}
           <div className="flex items-center justify-between">

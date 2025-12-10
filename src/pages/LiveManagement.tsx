@@ -5,7 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
 import { NativeVideoPreview } from "@/components/NativeVideoPreview";
 import { StreamToggle } from "@/components/StreamToggle";
-import { LiveConfigPanel } from "@/components/LiveConfigPanel";
+import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import { CreatorMobileFullscreen } from "@/components/live/CreatorMobileFullscreen";
@@ -46,6 +46,7 @@ const LiveManagement = () => {
   const [selectedAudioDevice, setSelectedAudioDevice] = useState<string | null>(null);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState<string | null>(null);
   const [isMirrored, setIsMirrored] = useState(false);
+  const [videoOrientation, setVideoOrientation] = useState<VideoOrientation>("vertical");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
   const [pendingSuperchatCount, setPendingSuperchatCount] = useState(0);
@@ -375,6 +376,10 @@ const LiveManagement = () => {
     setThumbnailUrl(url);
   }, []);
 
+  const handleOrientationChange = useCallback((orientation: VideoOrientation) => {
+    setVideoOrientation(orientation);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -475,6 +480,7 @@ const LiveManagement = () => {
           onSelectSuperchat={(superchat) => setActiveSuperchat(superchat)}
           pendingSuperchatCount={pendingSuperchatCount}
           liveUrl={room ? `${window.location.origin}/live/${room.id}` : undefined}
+          orientation={videoOrientation}
         />
 
         {/* Settings Sheet for mobile */}
@@ -491,6 +497,8 @@ const LiveManagement = () => {
                 onDevicesChange={handleDevicesChange}
                 onMirrorChange={handleMirrorChange}
                 onThumbnailChange={handleThumbnailChange}
+                onOrientationChange={handleOrientationChange}
+                currentOrientation={videoOrientation}
               />
               
               {/* SuperChat Queue in settings */}
