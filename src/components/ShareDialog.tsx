@@ -181,18 +181,6 @@ export const ShareDialog = ({ isOpen, onClose, link, title }: ShareDialogProps) 
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Native Share Button - Only shows on supported devices */}
-          {supportsNativeShare && (
-            <Button
-              onClick={handleNativeShare}
-              className="w-full gap-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
-              size="lg"
-            >
-              <Share className="h-5 w-5" />
-              {t.share?.nativeShare || "Compartilhar via Apps"}
-            </Button>
-          )}
-
           {/* Social Media Buttons - Row with 5 buttons */}
           <div className="grid grid-cols-5 gap-2 sm:gap-4">
             {/* WhatsApp */}
