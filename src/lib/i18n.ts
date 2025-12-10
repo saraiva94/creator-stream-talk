@@ -166,6 +166,8 @@ export const translations = {
       isLive: "Is live now!",
       enteredTop5: "Entered Top 5",
       viewers: "viewers",
+      liveEnded: "Live ended",
+      liveEndedDesc: "This stream has already ended.",
     },
     profile: {
       title: "My Profile",
@@ -866,6 +868,8 @@ export const translations = {
       isLive: "¡Está en vivo ahora!",
       enteredTop5: "Entró al Top 5",
       viewers: "espectadores",
+      liveEnded: "Live terminada",
+      liveEndedDesc: "Esta transmisión ya ha terminado.",
     },
     profile: {
       title: "Mi Perfil",
@@ -1566,6 +1570,8 @@ export const translations = {
       isLive: "Está ao vivo agora!",
       enteredTop5: "Entrou no Top 5",
       viewers: "espectadores",
+      liveEnded: "Live encerrada",
+      liveEndedDesc: "Esta transmissão já foi encerrada.",
     },
     profile: {
       title: "Meu Perfil",
