@@ -48,21 +48,34 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     const affiliateEarningsCents = profileRow?.affiliate_earnings ?? 0;
     const availableBalanceCents = Math.round(((profileRow?.balance as number | null) ?? 0) * 100);
 
-    // Count DIRECT referrals (where user is referrer_direct)
-    const { count: directReferralCount } = await supabase
+    // Count DIRECT referrals from profiles (where user is referrer_direct)
+    const { count: directProfileCount } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('referrer_direct', profileId);
 
-    // Count INDIRECT referrals (where user is referrer_root but NOT referrer_direct)
-    const { count: indirectReferralCount } = await supabase
+    // Count INDIRECT referrals from profiles (where user is referrer_root but NOT referrer_direct)
+    const { count: indirectProfileCount } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('referrer_root', profileId)
       .neq('referrer_direct', profileId);
 
-    const directCount = directReferralCount ?? 0;
-    const indirectCount = indirectReferralCount ?? 0;
+    // Also count from affiliate_logs for commission events (more accurate for earnings history)
+    const { count: directLogsCount } = await supabase
+      .from('affiliate_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('direct_referrer', profileId);
+
+    const { count: indirectLogsCount } = await supabase
+      .from('affiliate_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('root_creator', profileId)
+      .neq('direct_referrer', profileId);
+
+    // Use the max between profiles and logs to capture all referrals
+    const directCount = Math.max(directProfileCount ?? 0, directLogsCount ?? 0);
+    const indirectCount = Math.max(indirectProfileCount ?? 0, indirectLogsCount ?? 0);
     const totalReferrals = directCount + indirectCount;
 
     return respondSuccess(res, 200, {
