@@ -29,6 +29,7 @@ import CreatorLives from "./pages/CreatorLives";
 import CreatorHistory from "./pages/CreatorHistory";
 import CreatorSettings from "./pages/CreatorSettings";
 import CreatorPayouts from "./pages/CreatorPayouts";
+import CreatorTags from "./pages/CreatorTags";
 import AdminCreators from "./pages/AdminCreators";
 import AdminWithdrawals from "./pages/AdminWithdrawals";
 import AdminPixWithdrawals from "./pages/AdminPixWithdrawals";
@@ -110,6 +111,11 @@ const App = () => (
                 <Route path="/creator/payouts" element={
                   <ProtectedRoute>
                     <CreatorPayouts />
+                  </ProtectedRoute>
+                } />
+                <Route path="/creator/tags" element={
+                  <ProtectedRoute>
+                    <CreatorTags />
                   </ProtectedRoute>
                 } />
 

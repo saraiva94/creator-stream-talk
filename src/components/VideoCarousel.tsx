@@ -114,7 +114,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     fetchData();
   }, [userId]);
 
-  // Realtime subscription for creator viewer_count updates
+  // Realtime subscription for creator viewer_count updates with smooth animation
   useEffect(() => {
     const channel = supabase
       .channel('creator-viewer-updates')
@@ -127,13 +127,15 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         },
         (payload) => {
           const updated = payload.new as { id: string; viewer_count: number | null; is_streaming: boolean | null };
-          setTopCreators(prev => 
-            prev.map(c => 
+          setTopCreators(prev => {
+            const updatedList = prev.map(c => 
               c.id === updated.id 
                 ? { ...c, viewer_count: updated.viewer_count, is_streaming: updated.is_streaming }
                 : c
-            ).sort((a, b) => (b.viewer_count || 0) - (a.viewer_count || 0))
-          );
+            );
+            // Sort with animation-friendly approach
+            return [...updatedList].sort((a, b) => (b.viewer_count || 0) - (a.viewer_count || 0));
+          });
         }
       )
       .subscribe();
@@ -436,10 +438,16 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     </div>
                   )}
 
-                  {/* Ranking badge */}
-                  <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 px-2 py-1 rounded text-xs font-bold text-white">
+                  {/* Ranking badge with smooth animation */}
+                  <div 
+                    className="absolute top-2 left-2 flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 px-2 py-1 rounded text-xs font-bold text-white transition-all duration-500 ease-out"
+                    style={{ 
+                      transform: `scale(1)`,
+                      animation: 'pulse 2s infinite'
+                    }}
+                  >
                     <TrendingUp className="w-3 h-3" />
-                    TOP {item.rank}
+                    <span className="transition-all duration-300">TOP {item.rank}</span>
                   </div>
 
                   {/* Live indicator if streaming */}

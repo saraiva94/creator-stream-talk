@@ -178,11 +178,11 @@ const PromotionalVideosPanel = () => {
   };
 
   return (
-    <Card className="border-border">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
+    <Card className="border-border mb-6 sm:mb-8">
+      <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-base">
           <Video className="w-5 h-5 text-primary" />
-          Vídeos Promocionais do Carrossel
+          Adicionar Vídeos Promocionais
         </CardTitle>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
