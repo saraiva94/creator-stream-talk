@@ -166,7 +166,7 @@ export const HowToMonetizeDialog = () => {
           <div className="bg-gradient-to-br from-background to-primary/5 rounded-xl p-2 sm:p-3 border border-primary/20 relative overflow-hidden">
             <Sparkles className="absolute top-2 right-2 w-4 h-4 text-primary/30 animate-pulse" />
             
-            <div className="relative overflow-x-auto" style={{ height: `${levels.length * rowHeight + 20}px`, minWidth: '280px' }}>
+            <div className="relative overflow-hidden" style={{ height: `${levels.length * rowHeight + 20}px`, minWidth: '280px' }}>
               {/* SVG for connection lines - absolutely positioned */}
               <svg 
                 className="absolute inset-0 w-full h-full pointer-events-none"
