@@ -292,6 +292,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const handleVideoClick = (index: number) => {
     const item = carouselItems[index];
     
+    // Skeletons should never be clickable - only for visual display
+    if (item.type === 'skeleton') {
+      return;
+    }
+    
     if (index === currentIndex) {
       if (item.type === 'live' && item.live) {
         if (!isLoggedIn) {
@@ -305,7 +310,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         if (!isLoggedIn) {
           onLoginRequired?.();
         } else {
-          navigate(`/creator/${item.creator.id}`);
+          navigate(`/room/${item.creator.id}`);
         }
       }
     } else {
@@ -417,10 +422,14 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
             <div
               key={index}
               className={cn(
-                "absolute cursor-pointer rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all duration-500",
+                "absolute rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all duration-500",
+                // Only make non-skeleton items clickable
+                item.type !== 'skeleton' && "cursor-pointer",
                 isCenter 
                   ? item.type === 'promo' 
                     ? "border-yellow-500 shadow-[0_0_20px_hsl(45_100%_50%/0.4)] sm:shadow-[0_0_30px_hsl(45_100%_50%/0.5)]"
+                    : item.type === 'skeleton'
+                    ? "border-border/30"
                     : "border-primary shadow-[0_0_20px_hsl(270_70%_55%/0.4)] sm:shadow-[0_0_30px_hsl(270_70%_55%/0.5)]" 
                   : "border-border/50"
               )}
@@ -430,8 +439,8 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                 height: cardHeight,
               }}
               onClick={() => handleVideoClick(index)}
-              onMouseEnter={() => setIsAutoPlaying(false)}
-              onMouseLeave={() => setIsAutoPlaying(true)}
+              onMouseEnter={() => item.type !== 'skeleton' && setIsAutoPlaying(false)}
+              onMouseLeave={() => item.type !== 'skeleton' && setIsAutoPlaying(true)}
             >
               {item.type === 'live' && item.live ? (
                 // Live video card
