@@ -254,13 +254,13 @@ export const InstructionsDialog = () => {
         
         <Tabs defaultValue="creator" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="viewer" className="gap-2">
-              <Eye className="w-4 h-4" />
-              {t.profile.viewerMode || "Viewer"}
-            </TabsTrigger>
             <TabsTrigger value="creator" className="gap-2">
               <Video className="w-4 h-4" />
               {t.profile.creatorMode || "Creator"}
+            </TabsTrigger>
+            <TabsTrigger value="viewer" className="gap-2">
+              <Eye className="w-4 h-4" />
+              {t.profile.viewerMode || "Viewer"}
             </TabsTrigger>
           </TabsList>
           
