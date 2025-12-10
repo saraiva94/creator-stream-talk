@@ -324,6 +324,57 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Touch/swipe handling for mobile
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+  const isSwiping = useRef(false);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    isSwiping.current = false;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = Math.abs(currentX - touchStartX.current);
+    const diffY = Math.abs(currentY - touchStartY.current);
+    
+    // Only consider horizontal swipes (diffX > diffY means horizontal)
+    if (diffX > diffY && diffX > 10) {
+      isSwiping.current = true;
+    }
+    
+    touchEndX.current = currentX;
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    
+    const diff = touchStartX.current - touchEndX.current;
+    const minSwipeDistance = 50; // Minimum distance to trigger swipe
+    
+    if (Math.abs(diff) > minSwipeDistance && isSwiping.current) {
+      if (diff > 0) {
+        // Swiped left - go to next
+        goToNext();
+      } else {
+        // Swiped right - go to previous
+        goToPrev();
+      }
+    }
+    
+    // Reset
+    touchStartX.current = null;
+    touchStartY.current = null;
+    touchEndX.current = null;
+    isSwiping.current = false;
+  }, [goToNext, goToPrev]);
+
   return (
     <div className="relative w-full pt-0 pb-4 overflow-hidden">
 
@@ -346,8 +397,13 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         <ChevronRight className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
       </Button>
 
-      {/* Carousel Container - Responsive height */}
-      <div className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center">
+      {/* Carousel Container - Responsive height with touch support */}
+      <div 
+        className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {carouselItems.map((item, index) => {
           const isCenter = index === currentIndex;
 
