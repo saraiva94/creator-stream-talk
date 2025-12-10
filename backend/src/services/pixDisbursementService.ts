@@ -1,14 +1,14 @@
 /**
  * Serviço de Saques via PIX
  * 
- * Centraliza toda a lógica de saques PIX usando a Efí como PSP.
+ * Centraliza toda a lógica de saques PIX usando a Woovi/OpenPix como PSP.
  * Garante consistência do ledger e tratamento correto de falhas.
  */
 
 import { supabaseAdmin } from '../lib/supabaseClient';
 import { logger } from '../lib/logger';
-import { EFI_CONSTANTS } from '../config/efiConfig';
-import { sendPixPayment } from './efiApiService';
+import { WOOVI_CONSTANTS } from '../config/wooviConfig';
+import { createPixPayment, detectPixKeyType, type PixKeyType } from './wooviPixService';
 import {
   recordWithdrawalHold,
   recordWithdrawalRelease,
@@ -48,21 +48,6 @@ interface PayoutRequest {
 }
 
 /**
- * Detecta tipo de chave PIX automaticamente
- */
-function detectPixKeyType(pixKey: string): string {
-  const cleanKey = pixKey.replace(/[^\w@.+-]/g, '');
-  
-  if (/^\d{11}$/.test(cleanKey)) return 'cpf';
-  if (/^\d{14}$/.test(cleanKey)) return 'cnpj';
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanKey)) return 'email';
-  if (/^\+?\d{10,13}$/.test(cleanKey)) return 'phone';
-  if (/^[a-f0-9-]{36}$/i.test(cleanKey)) return 'evp';
-  
-  return 'random';
-}
-
-/**
  * Máscara chave PIX para logs
  */
 function maskPixKey(pixKey: string): string {
@@ -90,7 +75,7 @@ async function checkRecentDuplicate(
   }
 
   // Busca por saque recente com mesmos parâmetros (janela de 60 segundos)
-  const windowStart = new Date(Date.now() - EFI_CONSTANTS.IDEMPOTENCY_WINDOW_SECONDS * 1000).toISOString();
+  const windowStart = new Date(Date.now() - WOOVI_CONSTANTS.IDEMPOTENCY_WINDOW_SECONDS * 1000).toISOString();
   
   const { data } = await supabaseAdmin
     .from('payout_requests')
@@ -141,18 +126,6 @@ async function debitWalletBalance(
   sourceType: 'creator' | 'affiliate'
 ): Promise<number> {
   if (sourceType === 'creator') {
-    const { data, error } = await supabaseAdmin
-      .from('creator_wallet')
-      .update({
-        balance_cents: supabaseAdmin.rpc('', {}) as any, // Placeholder
-        pending_cents: supabaseAdmin.rpc('', {}) as any,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('creator_id', userId)
-      .select('balance_cents')
-      .single();
-
-    // Implementação real: usar query direta
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from('creator_wallet')
       .select('balance_cents, pending_cents')
@@ -259,9 +232,9 @@ async function creditWalletBalance(
 }
 
 /**
- * Processa saque via PIX usando Efí
+ * Processa saque via PIX usando Woovi/OpenPix
  */
-export async function sendPixPaymentViaEfi(
+export async function sendPixPaymentViaWoovi(
   params: PixWithdrawalParams
 ): Promise<PixWithdrawalResult> {
   const {
@@ -273,10 +246,10 @@ export async function sendPixPaymentViaEfi(
     idempotencyKey,
   } = params;
 
-  const detectedPixKeyType = pixKeyType || detectPixKeyType(pixKey);
+  const detectedPixKeyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
   const walletType = sourceType === 'creator' ? 'creator' : 'affiliate';
 
-  logger.info('[PixDisbursement] Processing withdrawal request', {
+  logger.info('[PixDisbursement] Processing withdrawal request via Woovi', {
     userId,
     amountCents,
     pixKey: maskPixKey(pixKey),
@@ -284,10 +257,10 @@ export async function sendPixPaymentViaEfi(
   });
 
   // 1. Validar valor mínimo
-  if (amountCents < EFI_CONSTANTS.MIN_WITHDRAW_CENTS) {
+  if (amountCents < WOOVI_CONSTANTS.MIN_WITHDRAW_CENTS) {
     return {
       success: false,
-      message: `Valor mínimo para saque é de R$ ${(EFI_CONSTANTS.MIN_WITHDRAW_CENTS / 100).toFixed(2)}`,
+      message: `Valor mínimo para saque é de R$ ${(WOOVI_CONSTANTS.MIN_WITHDRAW_CENTS / 100).toFixed(2)}`,
     };
   }
 
@@ -323,7 +296,10 @@ export async function sendPixPaymentViaEfi(
     };
   }
 
-  // 4. Debitar saldo (hold)
+  // 4. Gerar correlationId único para rastreamento
+  const correlationId = idempotencyKey || crypto.randomUUID();
+
+  // 5. Debitar saldo (hold)
   let newBalance: number;
   try {
     newBalance = await debitWalletBalance(userId, amountCents, sourceType);
@@ -335,7 +311,7 @@ export async function sendPixPaymentViaEfi(
     };
   }
 
-  // 5. Criar payout_request
+  // 6. Criar payout_request
   const { data: payoutRequest, error: payoutError } = await supabaseAdmin
     .from('payout_requests')
     .insert({
@@ -345,7 +321,7 @@ export async function sendPixPaymentViaEfi(
       pix_key_type: detectedPixKeyType,
       source_type: sourceType,
       status: 'processing',
-      idempotency_key: idempotencyKey || null,
+      idempotency_key: correlationId,
     })
     .select()
     .single();
@@ -361,7 +337,7 @@ export async function sendPixPaymentViaEfi(
     };
   }
 
-  // 6. Registrar hold no ledger
+  // 7. Registrar hold no ledger
   try {
     await recordWithdrawalHold(
       walletType,
@@ -375,27 +351,31 @@ export async function sendPixPaymentViaEfi(
     // Continua mesmo se falhar o log do ledger
   }
 
-  // 7. Chamar API da Efí
+  // 8. Chamar API da Woovi
   try {
-    const efiResponse = await sendPixPayment(
+    const wooviResponse = await createPixPayment({
+      userId,
       amountCents,
       pixKey,
-      `Saque Stream Live Hub - ${payoutRequest.id.substring(0, 8)}`
-    );
+      pixKeyType: detectedPixKeyType,
+      correlationId,
+      comment: `Saque Stream Live Hub - ${payoutRequest.id.substring(0, 8)}`,
+    });
 
-    // 8. Atualizar payout_request com resposta do PSP
+    // 9. Atualizar payout_request com resposta do PSP
     await supabaseAdmin
       .from('payout_requests')
       .update({
-        psp_transaction_id: efiResponse.txid,
-        psp_response: efiResponse as any,
+        psp_transaction_id: correlationId,
+        psp_response: wooviResponse.rawResponse as Record<string, unknown>,
         status: 'processing', // Aguarda webhook para confirmar
       })
       .eq('id', payoutRequest.id);
 
-    logger.info('[PixDisbursement] PIX payment sent to PSP', {
+    logger.info('[PixDisbursement] PIX payment sent to Woovi', {
       payoutId: payoutRequest.id,
-      txid: efiResponse.txid,
+      correlationId,
+      status: wooviResponse.status,
     });
 
     // Enviar notificação ao usuário
@@ -411,11 +391,11 @@ export async function sendPixPaymentViaEfi(
       payoutRequestId: payoutRequest.id,
       status: 'processing',
       message: 'Saque enviado para processamento',
-      pspTransactionId: efiResponse.txid,
+      pspTransactionId: correlationId,
     };
   } catch (error) {
     // Falha ao chamar PSP - reverter tudo
-    logger.error('[PixDisbursement] PSP call failed, reverting', { error, payoutId: payoutRequest.id });
+    logger.error('[PixDisbursement] Woovi call failed, reverting', { error, payoutId: payoutRequest.id });
 
     // Reverter débito
     const refundedBalance = await creditWalletBalance(userId, amountCents, sourceType);
@@ -461,22 +441,23 @@ export async function sendPixPaymentViaEfi(
 }
 
 /**
- * Processa confirmação de sucesso do webhook
+ * Processa confirmação de sucesso do webhook Woovi
  */
 export async function handlePixDisbursementSuccess(
-  pspTransactionId: string
+  correlationId: string,
+  webhookPayload?: Record<string, unknown>
 ): Promise<void> {
-  logger.info('[PixDisbursement] Processing success webhook', { pspTransactionId });
+  logger.info('[PixDisbursement] Processing success webhook', { correlationId });
 
-  // Buscar payout_request
+  // Buscar payout_request pelo correlationId (armazenado em psp_transaction_id ou idempotency_key)
   const { data: payout, error } = await supabaseAdmin
     .from('payout_requests')
     .select('*')
-    .eq('psp_transaction_id', pspTransactionId)
+    .or(`psp_transaction_id.eq.${correlationId},idempotency_key.eq.${correlationId}`)
     .maybeSingle();
 
   if (error || !payout) {
-    logger.warn('[PixDisbursement] Payout request not found for txid', { pspTransactionId });
+    logger.warn('[PixDisbursement] Payout request not found for correlationId', { correlationId });
     return;
   }
 
@@ -493,6 +474,7 @@ export async function handlePixDisbursementSuccess(
     .update({
       status: 'paid',
       paid_at: new Date().toISOString(),
+      psp_response: webhookPayload || payout.psp_response,
     })
     .eq('id', payout.id);
 
@@ -518,10 +500,10 @@ export async function handlePixDisbursementSuccess(
   // Registrar release no ledger
   try {
     await recordWithdrawalRelease(
-      walletType as 'creator' | 'affiliate',
+      walletType,
       payout.creator_id,
       payout.amount,
-      0, // Balance after já foi debitado
+      0,
       payout.id
     );
   } catch (ledgerError) {
@@ -536,27 +518,27 @@ export async function handlePixDisbursementSuccess(
     message: `Seu saque de R$ ${(payout.amount / 100).toFixed(2)} foi depositado via PIX.`,
   });
 
-  logger.info('[PixDisbursement] Payout marked as paid', { payoutId: payout.id });
+  logger.info('[PixDisbursement] Payout marked as PAID', { payoutId: payout.id, correlationId });
 }
 
 /**
- * Processa falha do webhook
+ * Processa falha do webhook Woovi
  */
 export async function handlePixDisbursementFailure(
-  pspTransactionId: string,
-  reason: string
+  correlationId: string,
+  failureReason?: string,
+  webhookPayload?: Record<string, unknown>
 ): Promise<void> {
-  logger.info('[PixDisbursement] Processing failure webhook', { pspTransactionId, reason });
+  logger.info('[PixDisbursement] Processing failure webhook', { correlationId, failureReason });
 
-  // Buscar payout_request
   const { data: payout, error } = await supabaseAdmin
     .from('payout_requests')
     .select('*')
-    .eq('psp_transaction_id', pspTransactionId)
+    .or(`psp_transaction_id.eq.${correlationId},idempotency_key.eq.${correlationId}`)
     .maybeSingle();
 
   if (error || !payout) {
-    logger.warn('[PixDisbursement] Payout request not found for txid', { pspTransactionId });
+    logger.warn('[PixDisbursement] Payout request not found for correlationId', { correlationId });
     return;
   }
 
@@ -566,29 +548,64 @@ export async function handlePixDisbursementFailure(
   }
 
   const walletType = payout.source_type === 'creator' ? 'creator' : 'affiliate';
-  const sourceType = payout.source_type as 'creator' | 'affiliate';
 
-  // Devolver saldo
-  const refundedBalance = await creditWalletBalance(payout.creator_id, payout.amount, sourceType);
+  // Devolver saldo ao usuário
+  let refundedBalance: number;
+  if (payout.source_type === 'creator') {
+    const { data: wallet } = await supabaseAdmin
+      .from('creator_wallet')
+      .select('balance_cents, pending_cents')
+      .eq('creator_id', payout.creator_id)
+      .single();
 
-  // Atualizar status para failed
+    refundedBalance = (wallet?.balance_cents || 0) + payout.amount;
+    const newPending = Math.max(0, (wallet?.pending_cents || 0) - payout.amount);
+
+    await supabaseAdmin
+      .from('creator_wallet')
+      .update({
+        balance_cents: refundedBalance,
+        pending_cents: newPending,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('creator_id', payout.creator_id);
+  } else {
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('affiliate_earnings')
+      .eq('id', payout.creator_id)
+      .single();
+
+    refundedBalance = (profile?.affiliate_earnings || 0) + payout.amount;
+
+    await supabaseAdmin
+      .from('profiles')
+      .update({
+        affiliate_earnings: refundedBalance,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', payout.creator_id);
+  }
+
+  // Atualizar payout_request como falha
   await supabaseAdmin
     .from('payout_requests')
     .update({
       status: 'failed',
-      failure_reason: reason,
+      failure_reason: failureReason || 'Pagamento rejeitado pelo banco',
+      psp_response: webhookPayload || payout.psp_response,
     })
     .eq('id', payout.id);
 
   // Registrar refund no ledger
   try {
     await recordWithdrawalRefund(
-      walletType as 'creator' | 'affiliate',
+      walletType,
       payout.creator_id,
       payout.amount,
       refundedBalance,
       payout.id,
-      reason
+      failureReason || 'Falha no processamento PIX'
     );
   } catch (ledgerError) {
     logger.error('[PixDisbursement] Failed to record refund in ledger', { error: ledgerError });
@@ -599,8 +616,8 @@ export async function handlePixDisbursementFailure(
     user_id: payout.creator_id,
     type: 'withdrawal',
     title: 'Saque falhou',
-    message: `Seu saque de R$ ${(payout.amount / 100).toFixed(2)} não pôde ser processado. O valor foi devolvido ao seu saldo. Motivo: ${reason}`,
+    message: `Seu saque de R$ ${(payout.amount / 100).toFixed(2)} não pôde ser processado. O valor foi devolvido ao seu saldo. Motivo: ${failureReason || 'Rejeitado pelo banco'}`,
   });
 
-  logger.info('[PixDisbursement] Payout marked as failed, balance refunded', { payoutId: payout.id });
+  logger.info('[PixDisbursement] Payout marked as FAILED, balance refunded', { payoutId: payout.id });
 }

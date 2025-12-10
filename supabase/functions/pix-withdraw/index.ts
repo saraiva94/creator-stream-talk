@@ -1,3 +1,10 @@
+/**
+ * Edge Function: PIX Withdrawal via Woovi/OpenPix
+ * 
+ * Processa solicitações de saque PIX usando Woovi como PSP.
+ * Validações, débito de saldo, e chamada à API Woovi.
+ */
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -6,8 +13,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// PIX withdrawal configuration - NO minimum, NO fees
-const PLATFORM_FEE_PERCENT = 0;
+// Configurações
+const MIN_WITHDRAW_CENTS = 2000; // R$ 20,00
+const WOOVI_BASE_URL = Deno.env.get('WOOVI_SANDBOX') === 'true' 
+  ? 'https://api.woovi-sandbox.com'
+  : 'https://api.openpix.com.br';
+
+type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'RANDOM';
+
+/**
+ * Detecta tipo de chave PIX automaticamente
+ */
+function detectPixKeyType(key: string): PixKeyType {
+  const cleanKey = key.replace(/\D/g, '');
+  
+  if (/^\d{11}$/.test(cleanKey)) return 'CPF';
+  if (/^\d{14}$/.test(cleanKey)) return 'CNPJ';
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) return 'EMAIL';
+  if (/^\+?55?\d{10,11}$/.test(cleanKey)) return 'PHONE';
+  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(key)) return 'RANDOM';
+  
+  return 'RANDOM';
+}
+
+/**
+ * Máscara PIX key para logs
+ */
+function maskPixKey(key: string): string {
+  if (!key || key.length <= 6) return '***';
+  return key.substring(0, 4) + '***' + key.substring(key.length - 3);
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,19 +52,21 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const wooviAppId = Deno.env.get('WOOVI_APP_ID');
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { userId, pixKey, pixKeyType, amountCents, isCreator } = await req.json();
 
     console.log('[pix-withdraw] Request:', { 
       userId, 
-      pixKey: pixKey?.substring(0, 4) + '***', 
+      pixKey: maskPixKey(pixKey), 
       pixKeyType,
       amountCents,
       isCreator 
     });
 
-    // Validate required fields
+    // Validar campos obrigatórios
     if (!userId || !pixKey || !amountCents) {
       return new Response(JSON.stringify({ 
         error: 'Campos obrigatórios: userId, pixKey, amountCents' 
@@ -39,36 +76,26 @@ serve(async (req) => {
       });
     }
 
-    // Validate amount is positive
-    if (amountCents <= 0) {
+    // Validar valor mínimo
+    if (amountCents < MIN_WITHDRAW_CENTS) {
       return new Response(JSON.stringify({ 
-        error: 'O valor do saque deve ser maior que zero' 
+        error: `Valor mínimo para saque é de R$ ${(MIN_WITHDRAW_CENTS / 100).toFixed(2)}` 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Validate PIX key type
-    const validPixKeyTypes = ['cpf', 'cnpj', 'email', 'phone', 'random'];
-    const keyType = pixKeyType || detectPixKeyType(pixKey);
-    if (!validPixKeyTypes.includes(keyType)) {
-      return new Response(JSON.stringify({ 
-        error: 'Tipo de chave PIX inválido' 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Detectar tipo de chave PIX
+    const keyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
 
     let availableBalanceCents = 0;
     let balanceSource = '';
 
     if (isCreator) {
-      // Check creator wallet balance
       const { data: creatorWallet, error: walletError } = await supabase
         .from('creator_wallet')
-        .select('balance_cents')
+        .select('balance_cents, pending_cents')
         .eq('creator_id', userId)
         .maybeSingle();
 
@@ -85,10 +112,9 @@ serve(async (req) => {
       availableBalanceCents = creatorWallet.balance_cents || 0;
       balanceSource = 'creator_wallet';
     } else {
-      // Check affiliate balance (profiles.balance is in BRL, not cents)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('balance')
+        .select('affiliate_earnings')
         .eq('id', userId)
         .single();
 
@@ -102,11 +128,11 @@ serve(async (req) => {
         });
       }
 
-      availableBalanceCents = Math.round((profile.balance || 0) * 100);
+      availableBalanceCents = profile.affiliate_earnings || 0;
       balanceSource = 'profiles';
     }
 
-    // Check sufficient balance
+    // Verificar saldo suficiente
     if (availableBalanceCents < amountCents) {
       return new Response(JSON.stringify({ 
         error: `Saldo insuficiente. Disponível: R$ ${(availableBalanceCents / 100).toFixed(2)}` 
@@ -116,168 +142,273 @@ serve(async (req) => {
       });
     }
 
-    // Calculate fees (currently 0%)
-    const feeAmountCents = Math.round(amountCents * PLATFORM_FEE_PERCENT / 100);
-    const netAmountCents = amountCents - feeAmountCents;
-
-    // Create payout request - AUTO-APPROVED and PAID immediately
-    const payoutId = crypto.randomUUID();
+    // Gerar correlationId único
+    const correlationId = crypto.randomUUID();
     const now = new Date().toISOString();
-    
-    const { error: payoutError } = await supabase
-      .from('payout_requests')
-      .insert({
-        id: payoutId,
-        creator_id: userId,
-        amount: amountCents / 100, // Store in BRL
-        status: 'paid', // Auto-approved and marked as paid
-        approved_at: now,
-        paid_at: now,
-        admin_notes: JSON.stringify({
-          pix_key: pixKey,
-          pix_key_type: keyType,
-          gross_amount_cents: amountCents,
-          fee_cents: feeAmountCents,
-          net_amount_cents: netAmountCents,
-          balance_source: balanceSource,
-          requested_at: now,
-          auto_approved: true,
-          auto_approved_at: now,
-        }),
-      });
 
-    if (payoutError) {
-      console.error('[pix-withdraw] Payout request error:', payoutError);
-      throw new Error('Erro ao criar solicitação de saque');
-    }
-
-    // Deduct from balance immediately (permanent deduction since auto-approved)
+    // Debitar saldo e criar payout_request
     if (isCreator) {
+      const { data: wallet } = await supabase
+        .from('creator_wallet')
+        .select('balance_cents, pending_cents')
+        .eq('creator_id', userId)
+        .single();
+
+      const newBalance = (wallet?.balance_cents || 0) - amountCents;
+      const newPending = (wallet?.pending_cents || 0) + amountCents;
+
       const { error: updateError } = await supabase
         .from('creator_wallet')
         .update({ 
-          balance_cents: availableBalanceCents - amountCents,
-          // No pending_cents since it's auto-approved
+          balance_cents: newBalance,
+          pending_cents: newPending,
+          updated_at: now,
         })
         .eq('creator_id', userId);
 
       if (updateError) {
         console.error('[pix-withdraw] Balance update error:', updateError);
-        // Rollback payout request
-        await supabase.from('payout_requests').delete().eq('id', payoutId);
         throw new Error('Erro ao atualizar saldo');
       }
     } else {
-      const newBalanceBRL = (availableBalanceCents - amountCents) / 100;
+      const newBalanceCents = availableBalanceCents - amountCents;
+
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ balance: newBalanceBRL })
+        .update({ 
+          affiliate_earnings: newBalanceCents,
+          updated_at: now,
+        })
         .eq('id', userId);
 
       if (updateError) {
         console.error('[pix-withdraw] Balance update error:', updateError);
-        await supabase.from('payout_requests').delete().eq('id', payoutId);
         throw new Error('Erro ao atualizar saldo');
       }
     }
 
-    // Record transaction as completed
+    // Criar payout request
+    const { data: payoutRequest, error: payoutError } = await supabase
+      .from('payout_requests')
+      .insert({
+        creator_id: userId,
+        amount: amountCents,
+        pix_key: pixKey,
+        pix_key_type: keyType,
+        source_type: isCreator ? 'creator' : 'affiliate',
+        status: 'processing',
+        idempotency_key: correlationId,
+        psp_transaction_id: correlationId,
+      })
+      .select()
+      .single();
+
+    if (payoutError || !payoutRequest) {
+      console.error('[pix-withdraw] Payout request error:', payoutError);
+      
+      // Rollback balance
+      if (isCreator) {
+        const { data: wallet } = await supabase
+          .from('creator_wallet')
+          .select('balance_cents, pending_cents')
+          .eq('creator_id', userId)
+          .single();
+
+        await supabase
+          .from('creator_wallet')
+          .update({ 
+            balance_cents: (wallet?.balance_cents || 0) + amountCents,
+            pending_cents: Math.max(0, (wallet?.pending_cents || 0) - amountCents),
+          })
+          .eq('creator_id', userId);
+      } else {
+        await supabase
+          .from('profiles')
+          .update({ affiliate_earnings: availableBalanceCents })
+          .eq('id', userId);
+      }
+      
+      throw new Error('Erro ao criar solicitação de saque');
+    }
+
+    // Registrar hold no ledger
+    const walletType = isCreator ? 'creator' : 'affiliate';
+    await supabase.from('wallet_transactions').insert({
+      wallet_type: walletType,
+      wallet_id: userId,
+      type: 'hold',
+      amount_cents: -amountCents,
+      balance_after_cents: availableBalanceCents - amountCents,
+      reference_type: 'payout_request',
+      reference_id: payoutRequest.id,
+      description: `Saque PIX em processamento - R$ ${(amountCents / 100).toFixed(2)}`,
+      metadata: { action: 'withdrawal.hold', correlationId, psp: 'woovi' },
+    });
+
+    // Chamar API da Woovi para criar pagamento PIX
+    if (wooviAppId) {
+      try {
+        console.log('[pix-withdraw] Calling Woovi API...');
+        
+        const wooviPayload = {
+          value: amountCents,
+          destinationAlias: pixKey,
+          destinationAliasType: keyType,
+          correlationID: correlationId,
+          comment: `Saque Stream Live Hub - ${payoutRequest.id.substring(0, 8)}`,
+        };
+
+        const wooviResponse = await fetch(`${WOOVI_BASE_URL}/api/v1/payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': wooviAppId,
+          },
+          body: JSON.stringify(wooviPayload),
+        });
+
+        const wooviData = await wooviResponse.json();
+
+        if (!wooviResponse.ok) {
+          console.error('[pix-withdraw] Woovi API error:', wooviData);
+          
+          // Rollback everything
+          if (isCreator) {
+            const { data: wallet } = await supabase
+              .from('creator_wallet')
+              .select('balance_cents, pending_cents')
+              .eq('creator_id', userId)
+              .single();
+
+            await supabase
+              .from('creator_wallet')
+              .update({ 
+                balance_cents: (wallet?.balance_cents || 0) + amountCents,
+                pending_cents: Math.max(0, (wallet?.pending_cents || 0) - amountCents),
+              })
+              .eq('creator_id', userId);
+          } else {
+            await supabase
+              .from('profiles')
+              .update({ affiliate_earnings: availableBalanceCents })
+              .eq('id', userId);
+          }
+
+          await supabase
+            .from('payout_requests')
+            .update({ 
+              status: 'failed', 
+              failure_reason: wooviData.message || 'Erro na API Woovi',
+              psp_response: wooviData,
+            })
+            .eq('id', payoutRequest.id);
+
+          // Record refund in ledger
+          await supabase.from('wallet_transactions').insert({
+            wallet_type: walletType,
+            wallet_id: userId,
+            type: 'refund',
+            amount_cents: amountCents,
+            balance_after_cents: availableBalanceCents,
+            reference_type: 'payout_request',
+            reference_id: payoutRequest.id,
+            description: `Saque PIX falhou - valor estornado`,
+            metadata: { action: 'withdrawal.refund', correlationId, psp: 'woovi', error: wooviData.message },
+          });
+
+          throw new Error(wooviData.message || 'Erro ao processar PIX via Woovi');
+        }
+
+        // Atualizar payout_request com resposta da Woovi
+        await supabase
+          .from('payout_requests')
+          .update({
+            psp_response: wooviData,
+          })
+          .eq('id', payoutRequest.id);
+
+        console.log('[pix-withdraw] Woovi payment created:', {
+          correlationId,
+          status: wooviData.payment?.status,
+        });
+
+      } catch (wooviError) {
+        console.error('[pix-withdraw] Woovi error:', wooviError);
+        throw wooviError;
+      }
+    } else {
+      console.warn('[pix-withdraw] WOOVI_APP_ID not configured - payout will require manual processing');
+    }
+
+    // Record transaction
     await supabase.from('transactions').insert({
       user_id: userId,
       type: 'pix_withdraw',
       amount: -(amountCents / 100),
-      status: 'completed', // Auto-completed
+      status: 'processing',
       payment_method: 'pix',
-      external_id: payoutId,
+      external_id: payoutRequest.id,
       metadata: { 
-        pix_key_masked: pixKey.substring(0, 4) + '***',
+        pix_key_masked: maskPixKey(pixKey),
         pix_key_type: keyType,
-        fee_cents: feeAmountCents,
-        net_cents: netAmountCents,
-        auto_approved: true,
+        correlation_id: correlationId,
+        psp: 'woovi',
       },
     });
 
-    // Notify user of successful withdrawal
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', userId)
-      .single();
-
+    // Notify user
     await supabase.from('notifications').insert({
       user_id: userId,
-      title: '💰 Saque PIX processado',
-      message: `Seu saque de R$ ${(netAmountCents / 100).toFixed(2)} foi processado automaticamente.`,
-      type: 'withdrawal_completed',
+      title: '💰 Saque PIX em processamento',
+      message: `Seu saque de R$ ${(amountCents / 100).toFixed(2)} está sendo processado via PIX.`,
+      type: 'withdrawal_processing',
     });
 
-    // Notify admins for record keeping
+    // Notify admins
     const { data: admins } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('role', 'admin');
 
     if (admins && admins.length > 0) {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+
       const notifications = admins.map(admin => ({
         user_id: admin.user_id,
-        title: '🏦 Saque PIX auto-aprovado',
-        message: `${userProfile?.username || 'Usuário'} sacou R$ ${(amountCents / 100).toFixed(2)} (auto-aprovado)`,
-        type: 'withdrawal_auto_approved',
+        title: '🏦 Saque PIX solicitado',
+        message: `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)} via PIX`,
+        type: 'withdrawal_requested',
       }));
       await supabase.from('notifications').insert(notifications);
-      console.log('[pix-withdraw] Admin notifications sent');
     }
 
-    console.log('[pix-withdraw] Auto-approved and completed:', { 
-      payoutId, 
+    console.log('[pix-withdraw] Withdrawal created:', { 
+      payoutId: payoutRequest.id, 
+      correlationId,
       amountCents, 
-      netAmountCents,
       balanceSource 
     });
 
     return new Response(JSON.stringify({
       success: true,
-      status: 'completed',
-      message: 'Saque processado automaticamente com sucesso!',
-      payoutId,
+      status: 'processing',
+      message: 'Saque PIX enviado para processamento',
+      payoutId: payoutRequest.id,
+      correlationId,
       amount: amountCents / 100,
-      fee: feeAmountCents / 100,
-      netAmount: netAmountCents / 100,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('[pix-withdraw] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
-
-// Helper function to detect PIX key type
-function detectPixKeyType(key: string): string {
-  // CPF: 11 digits
-  if (/^\d{11}$/.test(key.replace(/\D/g, '')) && key.replace(/\D/g, '').length === 11) {
-    return 'cpf';
-  }
-  // CNPJ: 14 digits
-  if (/^\d{14}$/.test(key.replace(/\D/g, '')) && key.replace(/\D/g, '').length === 14) {
-    return 'cnpj';
-  }
-  // Email
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) {
-    return 'email';
-  }
-  // Phone: +55 followed by digits
-  if (/^\+?55?\d{10,11}$/.test(key.replace(/\D/g, ''))) {
-    return 'phone';
-  }
-  // Random key (UUID format)
-  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(key)) {
-    return 'random';
-  }
-  return 'random'; // Default
-}
