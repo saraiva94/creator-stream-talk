@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp, Search, Ban, CheckCircle, XCircle, ChevronLeft, ChevronRight, Activity } from "lucide-react";
 import { WebhookLogsPanel } from "@/components/admin/WebhookLogsPanel";
 import PromotionalVideosPanel from "@/components/admin/PromotionalVideosPanel";
+import PromoVideoAnalyticsPanel from "@/components/admin/PromoVideoAnalyticsPanel";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1050,6 +1051,9 @@ const Admin = () => {
 
         {/* Promotional Videos Panel - 3rd position after revenue breakdown */}
         <PromotionalVideosPanel />
+
+        {/* Promo Video Analytics */}
+        <PromoVideoAnalyticsPanel />
 
         {/* Process Pending Payment */}
         <Card className="mb-6 sm:mb-8 border-yellow-500/30 bg-yellow-500/5">

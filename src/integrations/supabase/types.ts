@@ -1010,6 +1010,50 @@ export type Database = {
         }
         Relationships: []
       }
+      promo_video_views: {
+        Row: {
+          completed: boolean
+          id: string
+          ip_hash: string | null
+          session_id: string | null
+          user_agent: string | null
+          user_id: string | null
+          video_id: string
+          viewed_at: string
+          watch_duration_seconds: number
+        }
+        Insert: {
+          completed?: boolean
+          id?: string
+          ip_hash?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          video_id: string
+          viewed_at?: string
+          watch_duration_seconds?: number
+        }
+        Update: {
+          completed?: boolean
+          id?: string
+          ip_hash?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          video_id?: string
+          viewed_at?: string
+          watch_duration_seconds?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_video_views_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "promotional_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       promotional_videos: {
         Row: {
           created_at: string
