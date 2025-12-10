@@ -472,6 +472,7 @@ const LiveManagement = () => {
           activeSuperchat={activeSuperchat}
           onSuperchatExpire={() => setActiveSuperchat(null)}
           onOpenSettings={() => setShowSettingsSheet(true)}
+          onSelectSuperchat={(superchat) => setActiveSuperchat(superchat)}
           pendingSuperchatCount={pendingSuperchatCount}
           liveUrl={room ? `${window.location.origin}/live/${room.id}` : undefined}
         />
