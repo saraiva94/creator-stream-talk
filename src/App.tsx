@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/hooks/useLanguage";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CreditsProvider } from "@/contexts/CreditsContext";
 import { AuthRedirectHandler } from "@/components/AuthRedirectHandler";
 import { PWAInstallNotification } from "@/components/PWAInstallNotification";
 import { useInactivityLogout } from "@/hooks/useInactivityLogout";
@@ -48,11 +49,12 @@ const App = () => (
       <TooltipProvider>
         <BrowserRouter>
           <AuthProvider>
-            <InactivityWrapper>
-              <Toaster />
-              <Sonner />
-              <PWAInstallNotification />
-              <AuthRedirectHandler />
+            <CreditsProvider>
+              <InactivityWrapper>
+                <Toaster />
+                <Sonner />
+                <PWAInstallNotification />
+                <AuthRedirectHandler />
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Home />} />
@@ -141,12 +143,13 @@ const App = () => (
                   </ProtectedRoute>
                 } />
 
-                {/* Catch-all route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </InactivityWrapper>
-          </AuthProvider>
-        </BrowserRouter>
+              {/* Catch-all route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </InactivityWrapper>
+        </CreditsProvider>
+      </AuthProvider>
+    </BrowserRouter>
       </TooltipProvider>
     </LanguageProvider>
   </QueryClientProvider>
