@@ -4,9 +4,32 @@ interface StreamToggleProps {
   isStreaming: boolean;
   onToggle: (streaming: boolean) => void;
   disabled?: boolean;
+  compact?: boolean;
 }
 
-export const StreamToggle = ({ isStreaming, onToggle, disabled }: StreamToggleProps) => {
+export const StreamToggle = ({ isStreaming, onToggle, disabled, compact }: StreamToggleProps) => {
+  if (compact) {
+    return (
+      <button
+        onClick={() => onToggle(!isStreaming)}
+        disabled={disabled}
+        className={cn(
+          "px-4 py-2 rounded-full transition-all duration-300 flex items-center gap-2 text-sm font-medium",
+          disabled && "opacity-50 cursor-not-allowed",
+          isStreaming 
+            ? "bg-green-500 text-white" 
+            : "bg-destructive text-white"
+        )}
+      >
+        <span className={cn(
+          "w-2 h-2 rounded-full",
+          isStreaming ? "bg-white animate-pulse" : "bg-white/60"
+        )} />
+        {isStreaming ? "Online" : "Desligado"}
+      </button>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2">
       <button
