@@ -125,7 +125,7 @@ const PixWithdrawDialog = ({
         withdrawKey = `BANK:${bankCode}:${agencyNumber}:${accountNumber}:${accountType}`;
       }
 
-      const { data, error } = await supabase.functions.invoke("pix-withdraw", {
+      const response = await supabase.functions.invoke("pix-withdraw", {
         body: {
           userId,
           pixKey: withdrawKey,
@@ -140,9 +140,14 @@ const PixWithdrawDialog = ({
         },
       });
 
-      if (error) throw error;
+      // Handle edge function errors - the error message is in response.data
+      if (response.error) {
+        // Try to get the error message from the response data
+        const errorMessage = response.data?.error || response.error.message || "Erro ao processar saque";
+        throw new Error(errorMessage);
+      }
 
-      if (data?.success) {
+      if (response.data?.success) {
         setSuccess(true);
         toast({
           title: t.pix?.successAuto || "Saque processado!",
@@ -158,7 +163,7 @@ const PixWithdrawDialog = ({
           onOpenChange(false);
         }, 3000);
       } else {
-        throw new Error(data?.error || "Erro ao processar saque");
+        throw new Error(response.data?.error || "Erro ao processar saque");
       }
     } catch (error: unknown) {
       const description = error instanceof Error ? error.message : "Não foi possível processar o saque";
