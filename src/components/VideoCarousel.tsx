@@ -325,7 +325,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   }, []);
 
   return (
-    <div className="relative w-full py-4 overflow-hidden">
+    <div className="relative w-full pt-0 pb-4 overflow-hidden">
 
       {/* Navigation Arrows */}
       <Button
