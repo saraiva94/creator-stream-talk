@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff } from "lucide-react";
+import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff, RotateCcw, User, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type VideoOrientation = "vertical" | "horizontal";
@@ -296,6 +296,30 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     setPipEnabled(prev => !prev);
   }, [cameras, mainCameraId, pipCameraId]);
 
+  // Reset PiP position and size
+  const resetPipLayout = useCallback(() => {
+    const defaultPosition = { x: 16, y: 16 };
+    const defaultScale = 1;
+    setPipPosition(defaultPosition);
+    setPipScale(defaultScale);
+    savePipPosition(defaultPosition);
+    savePipSize(defaultScale);
+  }, []);
+
+  // Get camera type label
+  const getCameraLabel = useCallback((cameraId: string | null): string => {
+    if (!cameraId) return "Desconhecida";
+    const camera = cameras.find(c => c.deviceId === cameraId);
+    if (!camera) return "Desconhecida";
+    if (camera.facingMode === "user") return "Frontal";
+    if (camera.facingMode === "environment") return "Traseira";
+    // Try to detect from label
+    const label = camera.label.toLowerCase();
+    if (label.includes("front") || label.includes("frontal") || label.includes("selfie")) return "Frontal";
+    if (label.includes("back") || label.includes("traseira") || label.includes("rear")) return "Traseira";
+    return "Câmera";
+  }, [cameras]);
+
   // PiP drag handlers
   const handleDragStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
     // Check for pinch gesture (2 fingers)
@@ -413,6 +437,19 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         )}
       />
 
+      {/* Main camera indicator */}
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in">
+        {getCameraLabel(mainCameraId) === "Frontal" ? (
+          <User className="h-4 w-4 text-primary" />
+        ) : (
+          <Video className="h-4 w-4 text-green-400" />
+        )}
+        <span className="text-white text-xs font-semibold">
+          {getCameraLabel(mainCameraId)}
+        </span>
+        <span className="text-white/60 text-xs">• Principal</span>
+      </div>
+
       {/* PiP camera - floating window with pinch-to-zoom */}
       {pipEnabled && pipStream && (
         <div
@@ -454,9 +491,19 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             <SwitchCamera className="h-4 w-4" />
           </button>
 
+          {/* Camera type indicator on PiP */}
+          <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1">
+            {getCameraLabel(pipCameraId) === "Frontal" ? (
+              <User className="h-3 w-3 text-primary" />
+            ) : (
+              <Video className="h-3 w-3 text-green-400" />
+            )}
+            <span className="text-white text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
+          </div>
+
           {/* Resize hint indicator */}
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
-            <span className="text-white/80 text-[9px] font-medium">Arraste • Pinça p/ zoom</span>
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
+            <span className="text-white/80 text-[8px] font-medium">Arraste • Pinça</span>
           </div>
         </div>
       )}
@@ -519,6 +566,20 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           <span className="text-white text-xs font-semibold drop-shadow-lg text-center">
             Lanterna
           </span>
+        </div>
+      )}
+
+      {/* Reset PiP layout button - only show when secondary camera is enabled */}
+      {pipEnabled && hasMultipleCameras && (
+        <div className="absolute bottom-20 right-4 z-20 flex flex-col items-center gap-1">
+          <button
+            onClick={resetPipLayout}
+            className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30 shadow-lg"
+            title="Resetar posição e tamanho"
+          >
+            <RotateCcw className="h-5 w-5" />
+          </button>
+          <span className="text-white text-[10px] font-semibold drop-shadow-lg text-center">Resetar</span>
         </div>
       )}
     </div>
