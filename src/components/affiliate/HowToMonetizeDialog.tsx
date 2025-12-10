@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { HelpCircle, User, Users, DollarSign, Sparkles, Coins } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import CompactReferralCodeBox from "./CompactReferralCodeBox";
 
 // Animated money icon with particles
 const AnimatedMoney = ({ className = "", size = "normal" }: { className?: string; size?: "small" | "normal" }) => {
@@ -105,7 +106,13 @@ const EarningsBox = ({
   );
 };
 
-export const HowToMonetizeDialog = () => {
+interface HowToMonetizeDialogProps {
+  userId?: string;
+  initialCode?: string;
+  onCodeSaved?: (code: string) => void;
+}
+
+export const HowToMonetizeDialog = ({ userId, initialCode, onCodeSaved }: HowToMonetizeDialogProps = {}) => {
   const { t } = useLanguage();
 
   // Layout: 3 horizontal zones
@@ -155,6 +162,15 @@ export const HowToMonetizeDialog = () => {
         </DialogHeader>
         
         <div className="space-y-3 py-2">
+          {/* Compact Referral Code Box - only show if userId is provided */}
+          {userId && (
+            <CompactReferralCodeBox 
+              userId={userId} 
+              initialCode={initialCode} 
+              onCodeSaved={onCodeSaved} 
+            />
+          )}
+          
           <div className="bg-primary/10 p-2 rounded-lg border border-primary/30">
             <p className="text-muted-foreground text-xs text-center">
               <strong className="text-primary">{t.affiliate?.twoLevelLogic || "Lógica de 2 níveis:"}</strong> {t.affiliate?.earnFromDirect || "Ganhe"} <span className="text-green-500 font-bold">R$1</span> {t.affiliate?.fromDirect || "do direto"} 
