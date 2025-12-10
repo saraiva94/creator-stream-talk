@@ -101,6 +101,7 @@ const Affiliate = () => {
         setAvailableBalanceCents(Math.round((profile?.balance ?? 0) * 100));
 
         // Count unique users from affiliate_logs where this user earned commission
+        const userId = session.user.id.toLowerCase();
         const { data: affiliateLogs } = await supabase
           .from("affiliate_logs")
           .select("new_user, direct_referrer, root_creator")
@@ -111,16 +112,19 @@ const Affiliate = () => {
         
         affiliateLogs?.forEach(log => {
           if (log.new_user) {
-            if (log.direct_referrer === session.user.id) {
+            const directRef = (log.direct_referrer ?? "").toLowerCase();
+            const rootRef = (log.root_creator ?? "").toLowerCase();
+            
+            if (directRef === userId) {
               directSet.add(log.new_user);
-            } else if (log.root_creator === session.user.id) {
+            } else if (rootRef === userId) {
               indirectSet.add(log.new_user);
             }
           }
         });
         
         // Remove users that are direct from indirect (avoid counting twice)
-        directSet.forEach(userId => indirectSet.delete(userId));
+        directSet.forEach(uId => indirectSet.delete(uId));
         
         setDirectReferrals(directSet.size);
         setIndirectReferrals(indirectSet.size);
