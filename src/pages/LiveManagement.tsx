@@ -8,8 +8,11 @@ import { StreamToggle } from "@/components/StreamToggle";
 import { LiveConfigPanel } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
+import { CreatorMobileFullscreen } from "@/components/live/CreatorMobileFullscreen";
+import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Users, DollarSign, TrendingUp, Video, UserPlus } from "lucide-react";
@@ -31,6 +34,7 @@ const LiveManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
+  const isMobileOrTablet = useIsMobileOrTablet();
   const [user, setUser] = useState<User | null>(null);
   const [creatorStatus, setCreatorStatus] = useState<CreatorStatus>("loading");
   const [room, setRoom] = useState<RoomRecord | null>(null);
@@ -43,6 +47,7 @@ const LiveManagement = () => {
   const [selectedVideoDevice, setSelectedVideoDevice] = useState<string | null>(null);
   const [isMirrored, setIsMirrored] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [showSettingsSheet, setShowSettingsSheet] = useState(false);
   const [activeSuperchat, setActiveSuperchat] = useState<{
     id: string;
     message: string;
@@ -409,6 +414,67 @@ const LiveManagement = () => {
     );
   }
 
+  // Mobile/Tablet: Fullscreen TikTok-style layout
+  if (isMobileOrTablet && creatorStatus === "approved") {
+    return (
+      <>
+        <CreatorMobileFullscreen
+          roomId={room?.id || null}
+          creatorId={user?.id || ""}
+          isStreaming={isStreaming}
+          onStreamToggle={handleStreamToggle}
+          participants={participants}
+          revenue={revenue}
+          selectedAudioDevice={selectedAudioDevice}
+          selectedVideoDevice={selectedVideoDevice}
+          isMirrored={isMirrored}
+          activeSuperchat={activeSuperchat}
+          onSuperchatExpire={() => setActiveSuperchat(null)}
+          onOpenSettings={() => setShowSettingsSheet(true)}
+        />
+
+        {/* Settings Sheet for mobile */}
+        <Sheet open={showSettingsSheet} onOpenChange={setShowSettingsSheet}>
+          <SheetContent side="bottom" className="h-[85vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Configurações da Live</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-4">
+              <LiveConfigPanel
+                roomId={room?.id || null}
+                creatorId={user?.id || ""}
+                onTitleChange={handleTitleChange}
+                onDevicesChange={handleDevicesChange}
+                onMirrorChange={handleMirrorChange}
+                onThumbnailChange={handleThumbnailChange}
+              />
+              
+              {/* SuperChat Queue in settings */}
+              {room && user && (
+                <SuperChatQueue
+                  roomId={room.id}
+                  creatorId={user.id}
+                  onSelectSuperchat={(sc) => {
+                    setActiveSuperchat({
+                      id: sc.id,
+                      message: sc.message,
+                      tier: sc.tier,
+                      duration_seconds: sc.duration_seconds,
+                      username: sc.username || "Usuário",
+                      expires_at: (sc as { expires_at?: string }).expires_at || new Date(Date.now() + sc.duration_seconds * 1000).toISOString(),
+                    });
+                    setShowSettingsSheet(false);
+                  }}
+                />
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
+
+  // Desktop layout
   return (
     <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-6">
