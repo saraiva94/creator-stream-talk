@@ -139,8 +139,8 @@ export const HowToMonetizeDialog = () => {
           size="sm" 
           className="gap-2 bg-primary hover:bg-primary/90 group relative overflow-hidden px-4 py-2 whitespace-nowrap"
         >
-          <HelpCircle className="w-5 h-5 text-white animate-pulse flex-shrink-0" />
-          <span className="text-white font-bold text-sm">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
+          <span className="text-white font-bold text-sm">Monetize!</span>
+          <HelpCircle className="w-5 h-5 text-destructive animate-pulse flex-shrink-0" />
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         </Button>
       </DialogTrigger>
