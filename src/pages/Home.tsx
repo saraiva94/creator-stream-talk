@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
@@ -9,6 +9,7 @@ import { InstructionsDialog } from "@/components/InstructionsDialog";
 import VideoCarousel from "@/components/VideoCarousel";
 import LivesGridSkeleton from "@/components/LivesGridSkeleton";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api, LiveSummary } from "@/lib/api";
@@ -23,9 +24,28 @@ const Home = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string>("");
+  const [skeletonCount, setSkeletonCount] = useState(4);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasReachedEnd, setHasReachedEnd] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { user, isLoading: authLoading } = useAuth();
+  const isMobile = useIsMobile();
+
+  // Determine initial and max skeleton counts based on screen size
+  const getSkeletonLimits = useCallback(() => {
+    if (typeof window === 'undefined') return { initial: 4, max: 8 };
+    const width = window.innerWidth;
+    if (width < 768) return { initial: 4, max: 8 }; // Mobile
+    if (width < 1024) return { initial: 6, max: 12 }; // Tablet
+    return { initial: 8, max: 16 }; // Desktop
+  }, []);
+
+  useEffect(() => {
+    const limits = getSkeletonLimits();
+    setSkeletonCount(limits.initial);
+  }, [getSkeletonLimits]);
 
   useEffect(() => {
     fetchLives();
@@ -50,6 +70,40 @@ const Home = () => {
     };
     fetchReferralCode();
   }, [user?.id]);
+
+  // Intersection Observer for infinite scroll effect
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && !hasReachedEnd) {
+          const limits = getSkeletonLimits();
+          if (skeletonCount < limits.max) {
+            setIsLoadingMore(true);
+            // Simulate loading delay
+            setTimeout(() => {
+              setSkeletonCount(prev => {
+                const newCount = Math.min(prev + 4, limits.max);
+                if (newCount >= limits.max) {
+                  setHasReachedEnd(true);
+                }
+                return newCount;
+              });
+              setIsLoadingMore(false);
+            }, 800);
+          } else {
+            setHasReachedEnd(true);
+          }
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [skeletonCount, isLoadingMore, hasReachedEnd, getSkeletonLimits]);
 
   const fetchLives = async () => {
     try {
@@ -129,7 +183,22 @@ const Home = () => {
             ))}
             
             {/* Ghost skeleton cards to fill remaining grid slots */}
-            <LivesGridSkeleton count={Math.max(0, 4 - (loading || authLoading ? 0 : onlineLives.length))} />
+            <LivesGridSkeleton count={Math.max(0, skeletonCount - (loading || authLoading ? 0 : onlineLives.length))} />
+          </div>
+
+          {/* Load more trigger */}
+          <div ref={loadMoreRef} className="h-10 mt-4 flex items-center justify-center">
+            {isLoadingMore && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">{t.home?.loadingMore || "Carregando mais..."}</span>
+              </div>
+            )}
+            {hasReachedEnd && !isLoadingMore && (
+              <p className="text-muted-foreground text-sm text-center">
+                {t.home?.endOfContent || "Você chegou ao fim! Volte mais tarde para ver novos criadores."}
+              </p>
+            )}
           </div>
         </section>
 
