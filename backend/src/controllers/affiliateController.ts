@@ -48,24 +48,29 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     const affiliateEarningsCents = profileRow?.affiliate_earnings ?? 0;
     const availableBalanceCents = Math.round(((profileRow?.balance as number | null) ?? 0) * 100);
 
-    // Count referrals from multiple sources for robustness
-    const { count: regReferralCount } = await supabase
-      .from('registration_referrals')
-      .select('id', { count: 'exact', head: true })
-      .eq('referrer_id', profileId);
-
-    const { count: profileReferralCount } = await supabase
+    // Count DIRECT referrals (where user is referrer_direct)
+    const { count: directReferralCount } = await supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('referrer_direct', profileId);
 
-    // Use the maximum count from either source
-    const referralCount = Math.max(regReferralCount ?? 0, profileReferralCount ?? 0);
+    // Count INDIRECT referrals (where user is referrer_root but NOT referrer_direct)
+    const { count: indirectReferralCount } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('referrer_root', profileId)
+      .neq('referrer_direct', profileId);
+
+    const directCount = directReferralCount ?? 0;
+    const indirectCount = indirectReferralCount ?? 0;
+    const totalReferrals = directCount + indirectCount;
 
     return respondSuccess(res, 200, {
       totalEarningsCents: Math.max(totalEarningsCents, affiliateEarningsCents),
       availableBalanceCents,
-      totalReferrals: referralCount ?? 0,
+      totalReferrals,
+      directReferrals: directCount,
+      indirectReferrals: indirectCount,
     });
   } catch (error) {
     next(error);

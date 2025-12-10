@@ -10,6 +10,8 @@ type Overview = {
   totalEarningsCents: number;
   availableBalanceCents: number;
   totalReferrals: number;
+  directReferrals: number;
+  indirectReferrals: number;
 };
 
 type HistoryItem = {
@@ -190,6 +192,13 @@ export const AffiliateDashboardPanel = () => {
             <p className="text-2xl font-semibold">
               {loading || !overview ? "..." : overview.totalReferrals}
             </p>
+            {overview && (
+              <p className="text-xs text-muted-foreground mt-1">
+                <span className="text-green-400">{overview.directReferrals} Direto</span>
+                {" • "}
+                <span className="text-yellow-400">{overview.indirectReferrals} Indireto</span>
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
