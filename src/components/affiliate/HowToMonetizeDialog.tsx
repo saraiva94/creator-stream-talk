@@ -149,7 +149,9 @@ export const HowToMonetizeDialog = () => {
         <DialogHeader>
           <DialogTitle className="text-lg font-bold flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-primary animate-bounce-slow" />
-            {t.affiliate?.howToMonetizeTitle || "Como funciona a monetização?"}
+            <span className="text-white animate-pulse">
+              {t.affiliate?.howToMonetizeTitle || "Ganhe dinheiro divulgando a plataforma"}
+            </span>
           </DialogTitle>
         </DialogHeader>
         
