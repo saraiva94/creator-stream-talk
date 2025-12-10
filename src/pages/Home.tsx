@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { api, LiveSummary } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
@@ -21,6 +22,7 @@ const Home = () => {
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string>("");
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { user, isLoading: authLoading } = useAuth();
@@ -28,6 +30,26 @@ const Home = () => {
   useEffect(() => {
     fetchLives();
   }, []);
+
+  // Fetch user's referral code when logged in
+  useEffect(() => {
+    const fetchReferralCode = async () => {
+      if (!user?.id) return;
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("referral_code")
+          .eq("id", user.id)
+          .single();
+        if (data?.referral_code) {
+          setReferralCode(data.referral_code);
+        }
+      } catch (err) {
+        console.error("Error fetching referral code:", err);
+      }
+    };
+    fetchReferralCode();
+  }, [user?.id]);
 
   const fetchLives = async () => {
     try {
@@ -67,7 +89,11 @@ const Home = () => {
             
             {/* Action buttons */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <HowToMonetizeDialog />
+              <HowToMonetizeDialog 
+                userId={user?.id} 
+                initialCode={referralCode} 
+                onCodeSaved={(newCode) => setReferralCode(newCode)} 
+              />
               <InstructionsDialog />
             </div>
           </div>
