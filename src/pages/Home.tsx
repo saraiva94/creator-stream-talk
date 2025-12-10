@@ -117,22 +117,20 @@ const Home = () => {
             {t.home?.onlineNow || "Ao vivo agora"}
           </h2>
           
-          {loading || authLoading ? (
-            <LivesGridSkeleton />
-          ) : onlineLives.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-              {onlineLives.map((live) => (
-                <LivePreviewCard
-                  key={live.id}
-                  live={live}
-                  isLoggedIn={!!user}
-                  onLoginRequired={() => setShowLoginDialog(true)}
-                />
-              ))}
-            </div>
-          ) : (
-            <LivesGridSkeleton />
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {/* Real live cards */}
+            {!loading && !authLoading && onlineLives.map((live) => (
+              <LivePreviewCard
+                key={live.id}
+                live={live}
+                isLoggedIn={!!user}
+                onLoginRequired={() => setShowLoginDialog(true)}
+              />
+            ))}
+            
+            {/* Ghost skeleton cards to fill remaining grid slots */}
+            <LivesGridSkeleton count={Math.max(0, 4 - (loading || authLoading ? 0 : onlineLives.length))} />
+          </div>
         </section>
 
         {/* Offline Lives Section */}
