@@ -180,14 +180,29 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = async (notification: Notification) => {
     // Mark as read
     setNotifications((prev) =>
       prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
     );
     
-    // Navigate to creator's stream
-    navigate(`/live/${notification.creatorId}`);
+    // Find the active live for this creator
+    const { data: activeLive } = await supabase
+      .from("lives")
+      .select("id")
+      .eq("creator_id", notification.creatorId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (activeLive) {
+      // Navigate to the actual live stream
+      navigate(`/live/${activeLive.id}`);
+    } else {
+      // Fallback to creator's public profile if no active live
+      navigate(`/profile/${notification.creatorId}`);
+    }
   };
 
   if (!user) return null;
