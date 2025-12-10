@@ -79,6 +79,7 @@ const Home = () => {
           onVideoClick={handleVideoClick}
           onLoginRequired={() => setShowLoginDialog(true)}
           isLoggedIn={!!user}
+          userId={user?.id || null}
         />
 
         {loading || authLoading ? (
