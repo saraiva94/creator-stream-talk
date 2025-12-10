@@ -9,9 +9,12 @@ import {
   DollarSign, 
   MessageCircle, 
   Settings,
-  X 
+  X,
+  Share2,
+  Sparkles
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
+import { toast } from "@/hooks/use-toast";
 
 interface ActiveSuperchat {
   id: string;
@@ -35,6 +38,8 @@ interface CreatorMobileFullscreenProps {
   activeSuperchat: ActiveSuperchat | null;
   onSuperchatExpire: () => void;
   onOpenSettings: () => void;
+  pendingSuperchatCount?: number;
+  liveUrl?: string;
 }
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
@@ -50,9 +55,32 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   activeSuperchat,
   onSuperchatExpire,
   onOpenSettings,
+  pendingSuperchatCount = 0,
+  liveUrl,
 }) => {
   const { t } = useLanguage();
   const [showChat, setShowChat] = useState(false);
+
+  const handleShare = async () => {
+    const shareUrl = liveUrl || window.location.href;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: (t.liveManagement as any)?.shareTitle || "Assista minha live!",
+          url: shareUrl,
+        });
+      } catch (err) {
+        // User cancelled or error
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: (t.liveManagement as any)?.linkCopied || "Link copiado!",
+        description: (t.liveManagement as any)?.linkCopiedDesc || "O link da live foi copiado para a área de transferência.",
+      });
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -95,23 +123,52 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
         {/* Bottom overlay - TikTok style interaction bar */}
         <div className="absolute bottom-0 left-0 right-0 z-20 p-4 pb-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
           <div className="flex items-end justify-between">
-            {/* Left side - Stream toggle */}
+            {/* Left side - Stream toggle with smooth animation */}
             <div className="flex flex-col gap-3">
-              <StreamToggle
-                isStreaming={isStreaming}
-                onToggle={onStreamToggle}
-                compact
-              />
+              <div className="transition-all duration-500 ease-in-out transform">
+                <StreamToggle
+                  isStreaming={isStreaming}
+                  onToggle={onStreamToggle}
+                  compact
+                />
+              </div>
             </div>
 
             {/* Right side - Action buttons */}
             <div className="flex flex-col items-center gap-4">
+              {/* Share button */}
+              <button 
+                onClick={handleShare}
+                className="flex flex-col items-center gap-1 text-white"
+              >
+                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+                  <Share2 className="h-6 w-6" />
+                </div>
+                <span className="text-xs">{t.common?.shareLink || "Compartilhar"}</span>
+              </button>
+
+              {/* SuperChat queue indicator */}
+              <button 
+                onClick={onOpenSettings}
+                className="flex flex-col items-center gap-1 text-white relative"
+              >
+                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+                  <Sparkles className="h-6 w-6 text-yellow-400" />
+                  {pendingSuperchatCount > 0 && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                      <span className="text-xs font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs">SuperChats</span>
+              </button>
+
               {/* Chat button */}
               <button 
                 onClick={() => setShowChat(true)}
                 className="flex flex-col items-center gap-1 text-white"
               >
-                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
                   <MessageCircle className="h-6 w-6" />
                 </div>
                 <span className="text-xs">Chat</span>
@@ -122,7 +179,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
                 onClick={onOpenSettings}
                 className="flex flex-col items-center gap-1 text-white"
               >
-                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
                   <Settings className="h-6 w-6" />
                 </div>
                 <span className="text-xs">Config</span>

@@ -48,6 +48,7 @@ const LiveManagement = () => {
   const [isMirrored, setIsMirrored] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
+  const [pendingSuperchatCount, setPendingSuperchatCount] = useState(0);
   const [activeSuperchat, setActiveSuperchat] = useState<{
     id: string;
     message: string;
@@ -317,6 +318,46 @@ const LiveManagement = () => {
     };
   }, [user?.id]);
 
+  // Fetch pending superchat count
+  useEffect(() => {
+    if (!room?.id) {
+      setPendingSuperchatCount(0);
+      return;
+    }
+
+    const fetchPendingCount = async () => {
+      const { data, error } = await supabase
+        .from("superchats")
+        .select("id")
+        .eq("room_id", room.id)
+        .eq("status", "pending");
+
+      if (!error && data) {
+        setPendingSuperchatCount(data.length);
+      }
+    };
+
+    fetchPendingCount();
+
+    const channel = supabase
+      .channel(`superchat_count:${room.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "superchats",
+          filter: `room_id=eq.${room.id}`,
+        },
+        () => fetchPendingCount()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [room?.id]);
+
   const handleDevicesChange = useCallback((audioId: string, videoId: string) => {
     setSelectedAudioDevice(audioId);
     setSelectedVideoDevice(videoId);
@@ -431,6 +472,8 @@ const LiveManagement = () => {
           activeSuperchat={activeSuperchat}
           onSuperchatExpire={() => setActiveSuperchat(null)}
           onOpenSettings={() => setShowSettingsSheet(true)}
+          pendingSuperchatCount={pendingSuperchatCount}
+          liveUrl={room ? `${window.location.origin}/live/${room.id}` : undefined}
         />
 
         {/* Settings Sheet for mobile */}
