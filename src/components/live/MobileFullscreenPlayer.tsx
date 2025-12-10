@@ -1,8 +1,8 @@
 import React from "react";
-import { ArrowLeft, MessageCircle, X, Users, Heart, Share2 } from "lucide-react";
+import { ArrowLeft, Heart, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { JitsiPlayer } from "@/components/JitsiPlayer";
-import ChatBox from "@/components/ChatBox";
+import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import PreviewCountdownOverlay from "@/components/PreviewCountdownOverlay";
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
@@ -60,7 +60,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   blurred = false,
 }) => {
   const navigate = useNavigate();
-  const [showChat, setShowChat] = React.useState(false);
   const [liked, setLiked] = React.useState(false);
   
   const showCountdown = isPreviewing && !hasExpired && !showPaywall;
@@ -137,16 +136,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             </div>
             <span className="text-white text-xs font-medium">Curtir</span>
           </button>
-          
-          <button
-            onClick={() => setShowChat(true)}
-            className="flex flex-col items-center gap-1"
-          >
-            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-              <MessageCircle className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-white text-xs font-medium">Chat</span>
-          </button>
 
           <button className="flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
@@ -155,6 +144,16 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             <span className="text-white text-xs font-medium">Compartilhar</span>
           </button>
         </div>
+
+        {/* Floating TikTok-style chat overlay */}
+        {roomId && (
+          <FloatingLiveChat
+            roomId={roomId}
+            currentUserId={currentUserId}
+            isAuthenticated={isAuthenticated}
+            disabled={showPaywall}
+          />
+        )}
 
         {/* Credit overlay */}
         {showCreditOverlay && (
@@ -188,42 +187,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
           </div>
         )}
       </div>
-
-      {/* Chat slide-up panel */}
-      {showChat && (
-        <div className="absolute inset-0 z-30 bg-black/50" onClick={() => setShowChat(false)}>
-          <div 
-            className="absolute bottom-0 left-0 right-0 h-[70vh] bg-background rounded-t-2xl animate-slide-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold">Chat ao vivo</h3>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowChat(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="h-[calc(70vh-64px)]">
-              {roomId && currentUserId && creatorId ? (
-                <ChatBox
-                  roomId={roomId}
-                  currentUserId={currentUserId}
-                  creatorId={creatorId}
-                  isCreator={false}
-                  disabled={showPaywall}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  {!isAuthenticated ? "Faça login para participar do chat" : "Carregando chat..."}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
