@@ -14,11 +14,13 @@ import { retryWithBackoff } from "@/lib/backoff";
 import { track } from "@/lib/analytics";
 import { usePreviewTimer } from "@/hooks/usePreviewTimer";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 import { JitsiPlayer } from "@/components/JitsiPlayer";
 import PreviewCountdownOverlay from "@/components/PreviewCountdownOverlay";
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
 import ChatBox from "@/components/ChatBox";
+import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +90,7 @@ const extractRoomNameFromUrl = (url?: string | null) => {
 
 const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
   const { toast } = useToast();
+  const isMobileOrTablet = useIsMobileOrTablet();
   const [searchParams, setSearchParams] = useSearchParams();
   const [liveInfo, setLiveInfo] = React.useState<ViewerLiveInfo | null>(null);
   const [phase, setPhase] = React.useState<ViewerAccessPhase>("loading-info");
@@ -98,6 +101,7 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
   const [isRetryingAccess, setIsRetryingAccess] = React.useState(false);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+  const [creatorAvatar, setCreatorAvatar] = React.useState<string | null>(null);
   const { creditBalance: globalCredits, setCredits } = useCredits();
   const [localCredits, setLocalCredits] = React.useState<number>(0);
   const [paywallReason, setPaywallReason] = React.useState<PaywallReason | null>(null);
@@ -222,7 +226,6 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
     };
   }, []);
 
-  // Fetch room ID for chat
   // Fetch room ID for chat based on liveInfo
   React.useEffect(() => {
     if (!liveInfo?.roomName) return;
@@ -241,6 +244,25 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
     
     fetchRoom();
   }, [liveInfo?.roomName]);
+
+  // Fetch creator avatar for mobile view
+  React.useEffect(() => {
+    if (!liveInfo?.creatorId) return;
+    
+    const fetchCreatorAvatar = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', liveInfo.creatorId)
+        .maybeSingle();
+      
+      if (data?.avatar_url) {
+        setCreatorAvatar(data.avatar_url);
+      }
+    };
+    
+    fetchCreatorAvatar();
+  }, [liveInfo?.creatorId]);
 
   React.useEffect(() => {
     const handleOnline = () => {
@@ -551,9 +573,39 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
   // Get creator ID from liveInfo
   const creatorId = liveInfo?.creatorId || '';
 
+  // Mobile/Tablet fullscreen view (TikTok/Instagram style)
+  if (isMobileOrTablet && resolvedRoomName) {
+    return (
+      <MobileFullscreenPlayer
+        roomName={resolvedRoomName}
+        creatorName={liveInfo?.creatorName}
+        creatorAvatar={creatorAvatar}
+        title={liveInfo?.title}
+        roomId={roomId}
+        currentUserId={currentUserId}
+        creatorId={creatorId}
+        isAuthenticated={isAuthenticated}
+        hasEntitlement={hasEntitlement}
+        showPaywall={showPaywall}
+        paywallReason={paywallReason}
+        priceLabel={priceLabel}
+        onPurchase={handlePurchase}
+        localCredits={localCredits}
+        isPreviewing={isPreviewing}
+        hasExpired={hasExpired}
+        remainingMs={remainingMs}
+        durationMs={durationMs}
+        showPreviewPlayer={showPreviewPlayer}
+        isOnline={isOnline}
+        muted={shouldMuteAndBlur}
+        blurred={shouldMuteAndBlur}
+      />
+    );
+  }
+
+  // Desktop layout
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* Main content - Video and controls (always first on mobile/tablet) */}
       <div className="lg:col-span-2 space-y-4 order-1 lg:order-none">
         <Card>
         <CardHeader>
