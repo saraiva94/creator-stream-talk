@@ -4,11 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BarChart3, Eye, Clock, TrendingUp, Users, Calendar } from "lucide-react";
-import { format, subDays, startOfDay, endOfDay, eachDayOfInterval, startOfWeek, endOfWeek, eachWeekOfInterval, subWeeks } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, eachDayOfInterval, startOfWeek, endOfWeek, eachWeekOfInterval, subWeeks, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface VideoAnalytics {
   video_id: string;
@@ -34,7 +36,12 @@ interface TimeSeriesData {
   completions: number;
 }
 
-type TimeRange = 'day' | 'week';
+type TimeRange = 'day' | 'week' | 'custom';
+
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
+}
 
 const PromoVideoAnalyticsPanel = () => {
   const [analytics, setAnalytics] = useState<VideoAnalytics[]>([]);
@@ -43,10 +50,12 @@ const PromoVideoAnalyticsPanel = () => {
   const [loading, setLoading] = useState(true);
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
   const [timeRange, setTimeRange] = useState<TimeRange>('day');
+  const [customDateRange, setCustomDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   useEffect(() => {
+    if (timeRange === 'custom' && (!customDateRange.from || !customDateRange.to)) return;
     fetchAnalytics();
-  }, [timeRange]);
+  }, [timeRange, customDateRange]);
 
   const fetchAnalytics = async () => {
     try {
@@ -127,7 +136,29 @@ const PromoVideoAnalyticsPanel = () => {
       const now = new Date();
       let timeData: TimeSeriesData[] = [];
 
-      if (timeRange === 'day') {
+      if (timeRange === 'custom' && customDateRange.from && customDateRange.to) {
+        // Custom date range
+        const days = eachDayOfInterval({
+          start: customDateRange.from,
+          end: customDateRange.to
+        });
+
+        timeData = days.map(day => {
+          const dayStart = startOfDay(day);
+          const dayEnd = endOfDay(day);
+          
+          const dayViews = viewsData?.filter(v => {
+            const viewDate = new Date(v.viewed_at);
+            return viewDate >= dayStart && viewDate <= dayEnd;
+          }) || [];
+
+          return {
+            date: format(day, 'dd/MM', { locale: ptBR }),
+            views: dayViews.length,
+            completions: dayViews.filter(v => v.completed).length
+          };
+        });
+      } else if (timeRange === 'day') {
         // Last 14 days
         const days = eachDayOfInterval({
           start: subDays(now, 13),
@@ -267,7 +298,7 @@ const PromoVideoAnalyticsPanel = () => {
               <Calendar className="w-5 h-5 text-primary" />
               Visualizações ao Longo do Tempo
             </CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant={timeRange === 'day' ? 'default' : 'outline'}
                 size="sm"
@@ -282,6 +313,35 @@ const PromoVideoAnalyticsPanel = () => {
               >
                 Por Semana
               </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={timeRange === 'custom' ? 'default' : 'outline'}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    {timeRange === 'custom' && customDateRange.from && customDateRange.to
+                      ? `${format(customDateRange.from, 'dd/MM')} - ${format(customDateRange.to, 'dd/MM')}`
+                      : 'Personalizado'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <CalendarComponent
+                    mode="range"
+                    selected={{ from: customDateRange.from, to: customDateRange.to }}
+                    onSelect={(range) => {
+                      setCustomDateRange({ from: range?.from, to: range?.to });
+                      if (range?.from && range?.to) {
+                        setTimeRange('custom');
+                      }
+                    }}
+                    numberOfMonths={2}
+                    className={cn("p-3 pointer-events-auto")}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </CardHeader>
