@@ -7,16 +7,22 @@ import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
 import PaywallOverlay from "@/components/PaywallOverlay";
 import PreviewCountdownOverlay from "@/components/PreviewCountdownOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
+import { ReportStreamDialog } from "@/components/live/ReportStreamDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 import { usePreviewTimer } from "@/hooks/usePreviewTimer";
 import { useCredits } from "@/contexts/CreditsContext";
-import { api } from "@/lib/api";
 import { 
   Users, 
   Heart, 
@@ -24,7 +30,8 @@ import {
   MoreVertical, 
   ArrowLeft,
   WifiOff,
-  AlertCircle
+  AlertCircle,
+  Flag
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -68,6 +75,8 @@ const LiveViewer: React.FC = () => {
   const [paywallReason, setPaywallReason] = useState<'preview' | 'credits' | null>(null);
   const [isOnline, setIsOnline] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [viewerCount, setViewerCount] = useState<number>(0);
 
   // Preview timer
   const previewTimer = usePreviewTimer({
@@ -150,6 +159,7 @@ const LiveViewer: React.FC = () => {
           ...creator,
           avatar_url: profile?.avatar_url || null,
         });
+        setViewerCount(creator.viewer_count || 0);
       }
 
       // Fetch room ID for chat
@@ -220,6 +230,49 @@ const LiveViewer: React.FC = () => {
       setPaywallReason(null);
     }
   }, [hasEntitlement, localCredits, paywallReason]);
+
+  // Realtime viewer count subscription
+  useEffect(() => {
+    if (!liveData?.creator_id || !roomId) return;
+
+    const channel = supabase
+      .channel(`viewer-count-${roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'rooms',
+          filter: `id=eq.${roomId}`,
+        },
+        (payload) => {
+          const newViewerCount = (payload.new as { viewer_count?: number }).viewer_count;
+          if (typeof newViewerCount === 'number') {
+            setViewerCount(newViewerCount);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'creator_profiles',
+          filter: `id=eq.${liveData.creator_id}`,
+        },
+        (payload) => {
+          const newViewerCount = (payload.new as { viewer_count?: number }).viewer_count;
+          if (typeof newViewerCount === 'number') {
+            setViewerCount(newViewerCount);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [liveData?.creator_id, roomId]);
 
   // Network status
   useEffect(() => {
@@ -471,7 +524,7 @@ const LiveViewer: React.FC = () => {
                   </Badge>
                   <span className="flex items-center gap-1">
                     <Users className="h-4 w-4" />
-                    {creatorData?.viewer_count || 0} {t.liveViewer?.watching || "assistindo"}
+                    {viewerCount} {t.liveViewer?.watching || "assistindo"}
                   </span>
                 </div>
               </div>
@@ -493,9 +546,23 @@ const LiveViewer: React.FC = () => {
                 <Button variant="outline" size="icon" onClick={handleShare}>
                   <Share2 className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => setShowReportDialog(true)}
+                      disabled={!isAuthenticated}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Flag className="h-4 w-4 mr-2" />
+                      {t.report?.reportStream || "Denunciar transmissão"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </div>
@@ -531,6 +598,15 @@ const LiveViewer: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Report Dialog */}
+      <ReportStreamDialog
+        open={showReportDialog}
+        onOpenChange={setShowReportDialog}
+        liveId={liveData.id}
+        creatorId={liveData.creator_id}
+        currentUserId={currentUserId}
+      />
     </div>
   );
 };
