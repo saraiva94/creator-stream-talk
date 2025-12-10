@@ -29,6 +29,7 @@ export const translations = {
       loginDesc: "Create an account or sign in to watch live streams and interact with creators.",
       loadingMore: "Loading more...",
       endOfContent: "You've reached the end! Come back later to see new creators.",
+      releaseToRefresh: "Release to refresh",
     },
     liveViewer: {
       live: "Live",
@@ -725,6 +726,7 @@ export const translations = {
       loginDesc: "Crea una cuenta o inicia sesión para ver transmisiones en vivo e interactuar con creadores.",
       loadingMore: "Cargando más...",
       endOfContent: "¡Has llegado al final! Vuelve más tarde para ver nuevos creadores.",
+      releaseToRefresh: "Suelta para actualizar",
     },
     liveViewer: {
       live: "En vivo",
@@ -1421,6 +1423,7 @@ export const translations = {
       loginDesc: "Crie uma conta ou entre para assistir transmissões ao vivo e interagir com criadores.",
       loadingMore: "Carregando mais...",
       endOfContent: "Você chegou ao fim! Volte mais tarde para ver novos criadores.",
+      releaseToRefresh: "Solte para atualizar",
     },
     liveViewer: {
       live: "Ao vivo",
