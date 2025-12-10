@@ -258,7 +258,8 @@ export const HowToMonetizeDialog = () => {
                         opacity="0.85"
                       />
                       {/* Flowing coin */}
-                      <circle r="4" fill="#22c55e" opacity="0.9">
+                      <circle r="4" fill="#22c55e" opacity="0.9" visibility="hidden">
+                        <set attributeName="visibility" to="visible" begin={`${level * 0.2}s`} />
                         <animateMotion
                           dur="1.2s"
                           repeatCount="indefinite"
@@ -316,7 +317,8 @@ export const HowToMonetizeDialog = () => {
                         opacity="0.75"
                       />
                       {/* Flowing coin */}
-                      <circle r="3" fill="#eab308" opacity="0.85">
+                      <circle r="3" fill="#eab308" opacity="0.85" visibility="hidden">
+                        <set attributeName="visibility" to="visible" begin={`${level * 0.3 + 0.3}s`} />
                         <animateMotion
                           dur="1.6s"
                           repeatCount="indefinite"
