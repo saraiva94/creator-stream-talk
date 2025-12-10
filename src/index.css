@@ -88,18 +88,12 @@ All colors MUST be HSL.
   animation: neon-pulse 2s ease-in-out infinite;
 }
 
-/* Subtle pulse animation for buttons */
-@keyframes pulse-subtle {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.95;
-    transform: scale(1.01);
-  }
-}
-
-.animate-pulse-subtle {
-  animation: pulse-subtle 2s ease-in-out infinite;
+/* Sharp text rendering for maximum clarity */
+button span,
+.btn-text {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  filter: none !important;
+  text-shadow: none !important;
 }
