@@ -73,8 +73,8 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Video Carousel - same spacing as between search and buttons (space-y-3) */}
-        <div className="mt-3">
+        {/* Video Carousel - closer to buttons */}
+        <div className="mt-1">
           <VideoCarousel 
             lives={onlineLives}
             onVideoClick={handleVideoClick}
