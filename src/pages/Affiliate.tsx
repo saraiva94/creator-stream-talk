@@ -90,15 +90,17 @@ const Affiliate = () => {
       try {
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("referral_code, affiliate_earnings, balance")
+          .select("referral_code, affiliate_earnings")
           .eq("id", session.user.id)
           .single();
 
         if (profileError) throw profileError;
 
+        const affiliateEarningsCents = profile?.affiliate_earnings ?? 0;
         setCode(profile?.referral_code ?? "");
-        setTotalEarningsCents(profile?.affiliate_earnings ?? 0);
-        setAvailableBalanceCents(Math.round((profile?.balance ?? 0) * 100));
+        setTotalEarningsCents(affiliateEarningsCents);
+        // Use affiliate_earnings as the single source of truth for available balance
+        setAvailableBalanceCents(affiliateEarningsCents);
 
         // Count unique users from affiliate_logs where this user earned commission
         const userId = session.user.id.toLowerCase();

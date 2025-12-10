@@ -20,17 +20,6 @@ export type PlatformRevenueResponse = {
   series: RevenueSeriesPoint[];
 };
 
-const isCompletedPayment = (status?: string | null) => {
-  if (!status) return false;
-  const normalized = status.toLowerCase();
-  return ["approved", "completed", "paid", "succeeded"].includes(normalized);
-};
-
-const isProcessedWithdrawal = (status?: string | null) => {
-  if (!status) return false;
-  const normalized = status.toLowerCase();
-  return ["approved", "paid"].includes(normalized);
-};
 
 const toStartDate = (range: RevenueRange): Date | null => {
   const now = new Date();
@@ -60,55 +49,61 @@ export const fetchPlatformRevenue = async (range: RevenueRange): Promise<Platfor
 
   // Build queries with optional date filter
   let platformRevenueQuery = db.from("platform_revenue").select("amount, created_at, source_type");
-  let paymentsQuery = db.from("payments").select("amount, status, created_at");
-  let transactionsQuery = db.from("transactions").select("amount, status, created_at, type");
-  let withdrawalsQuery = db.from("withdrawals").select("amount, status, processed_at, created_at");
+  let payoutRequestsQuery = db.from("payout_requests").select("amount, status, paid_at, created_at");
 
   if (startDate) {
     const startIso = startDate.toISOString();
     platformRevenueQuery = platformRevenueQuery.gte("created_at", startIso);
-    paymentsQuery = paymentsQuery.gte("created_at", startIso);
-    transactionsQuery = transactionsQuery.gte("created_at", startIso);
-    withdrawalsQuery = withdrawalsQuery.gte("created_at", startIso);
+    payoutRequestsQuery = payoutRequestsQuery.gte("created_at", startIso);
   }
 
-  const [platformRevenueRes, paymentsRes, transactionsRes, withdrawalsRes] = await Promise.all([
+  const [platformRevenueRes, payoutRequestsRes] = await Promise.all([
     platformRevenueQuery,
-    paymentsQuery,
-    transactionsQuery,
-    withdrawalsQuery,
+    payoutRequestsQuery,
   ]);
 
   type PlatformRevenueRow = { amount: number | null; created_at: string; source_type: string };
-  type PaymentRow = { amount: number | null; status?: string | null; created_at: string };
-  type TransactionRow = { amount: number | null; status?: string | null; created_at: string; type: string };
-  type WithdrawalRow = { amount: number | null; status?: string | null; created_at: string; processed_at?: string | null };
+  type PayoutRow = { amount: number | null; status?: string | null; created_at: string; paid_at?: string | null };
 
   const platformRows: PlatformRevenueRow[] = platformRevenueRes.data ?? [];
-  const paymentsRows: PaymentRow[] = paymentsRes.data ?? [];
-  const transactionsRows: TransactionRow[] = transactionsRes.data ?? [];
-  const withdrawalsRows: WithdrawalRow[] = withdrawalsRes.data ?? [];
+  const payoutRows: PayoutRow[] = payoutRequestsRes.data ?? [];
 
   // Calculate platform cut from platform_revenue table (in centavos, convert to reais)
   const platformCut = sumAmounts(platformRows.map((row) => (row.amount ?? 0) / 100));
 
-  // Calculate gross revenue from completed transactions (amounts stored in centavos, convert to reais)
-  let grossRevenue = sumAmounts(
-    transactionsRows.filter((row) => isCompletedPayment(row.status)).map((row) => (row.amount ?? 0) / 100),
-  );
-  
-  // If no transactions, fallback to payments (also in centavos)
-  if (grossRevenue === 0) {
-    grossRevenue = sumAmounts(
-      paymentsRows.filter((row) => isCompletedPayment(row.status)).map((row) => (row.amount ?? 0) / 100),
-    );
-  }
+  // Calculate gross revenue from platform_revenue sources
+  // Gross = platform revenue amounts (which are only platform's cut) / 0.2 for most sources
+  // Registration: platform gets remainder after commissions (variable)
+  // Credits: platform gets 100%
+  // SuperChat/Live: platform gets 20%
+  let grossRevenue = 0;
+  platformRows.forEach((row) => {
+    const amountReais = (row.amount ?? 0) / 100;
+    const sourceType = (row.source_type ?? "").toLowerCase();
+    
+    if (sourceType === "credits_purchase") {
+      // 100% of credits goes to platform
+      grossRevenue += amountReais;
+    } else if (sourceType === "superchat" || sourceType === "live_earnings") {
+      // 20% goes to platform, so gross = platform / 0.2
+      grossRevenue += amountReais / 0.2;
+    } else if (sourceType === "registration") {
+      // Registration has variable split, estimate gross as R$5 per registration
+      grossRevenue += 5;
+    } else {
+      // Unknown source, just add platform amount as minimum
+      grossRevenue += amountReais;
+    }
+  });
 
-  // Calculate creator payouts from withdrawals (in reais, no conversion needed)
+  // Calculate creator payouts from payout_requests with status 'paid'
   const creatorPayouts = sumAmounts(
-    withdrawalsRows
-      .filter((row) => isProcessedWithdrawal(row.status))
-      .map((row) => row.amount),
+    payoutRows
+      .filter((row) => {
+        const status = (row.status ?? "").toLowerCase();
+        return status === "paid";
+      })
+      .map((row) => (row.amount ?? 0) / 100), // payout_requests.amount is in centavos
   );
 
   // Build series from platform_revenue table
@@ -126,7 +121,7 @@ export const fetchPlatformRevenue = async (range: RevenueRange): Promise<Platfor
 
   return {
     summary: {
-      grossRevenue,
+      grossRevenue: Number(grossRevenue.toFixed(2)),
       platformCut,
       creatorPayouts,
     },
