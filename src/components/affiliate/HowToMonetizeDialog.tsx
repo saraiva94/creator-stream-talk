@@ -211,12 +211,12 @@ export const HowToMonetizeDialog = () => {
                         className="animate-flow-arrow"
                       />
                       {/* Animated dot flowing down - using animateMotion for proper path following */}
-                      <circle r="3" fill="white" opacity="0.9">
+                      <circle r="3" fill="white" opacity="0.9" visibility="hidden">
+                        <set attributeName="visibility" to="visible" begin={`${idx * 0.25}s`} />
                         <animateMotion
                           dur="1s"
                           repeatCount="indefinite"
                           begin={`${idx * 0.25}s`}
-                          path={`M 0 0 L 0 ${toY - fromY}`}
                         >
                           <mpath xlinkHref={`#flow-path-${from}-${to}`} />
                         </animateMotion>
