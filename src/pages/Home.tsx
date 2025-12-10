@@ -58,7 +58,7 @@ const Home = () => {
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-4 text-center">
+        <div className="mb-6 text-center">
           <div className="max-w-lg mx-auto space-y-4">
             <UserSearchAutocomplete 
               onSelectUser={handleUserSelect}
@@ -73,14 +73,16 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Video Carousel - Twitch style */}
-        <VideoCarousel 
-          lives={onlineLives}
-          onVideoClick={handleVideoClick}
-          onLoginRequired={() => setShowLoginDialog(true)}
-          isLoggedIn={!!user}
-          userId={user?.id || null}
-        />
+        {/* Video Carousel - Twitch style - same spacing as buttons to search */}
+        <div className="mt-4">
+          <VideoCarousel 
+            lives={onlineLives}
+            onVideoClick={handleVideoClick}
+            onLoginRequired={() => setShowLoginDialog(true)}
+            isLoggedIn={!!user}
+            userId={user?.id || null}
+          />
+        </div>
 
         {loading || authLoading ? (
           <div className="text-center py-12">
