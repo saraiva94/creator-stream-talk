@@ -6,6 +6,7 @@ import UserSearchAutocomplete from "@/components/UserSearchAutocomplete";
 import PublicProfileDialog from "@/components/PublicProfileDialog";
 import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
 import { InstructionsDialog } from "@/components/InstructionsDialog";
+import VideoCarousel from "@/components/VideoCarousel";
 import { Video } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -50,10 +51,14 @@ const Home = () => {
     setProfileDialogOpen(true);
   };
 
+  const handleVideoClick = (live: LiveSummary) => {
+    navigate(`/live/${live.id}`);
+  };
+
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8 text-center">
+        <div className="mb-4 text-center">
           <div className="max-w-lg mx-auto space-y-4">
             <UserSearchAutocomplete 
               onSelectUser={handleUserSelect}
@@ -67,6 +72,14 @@ const Home = () => {
             </div>
           </div>
         </div>
+
+        {/* Video Carousel - Twitch style */}
+        <VideoCarousel 
+          lives={onlineLives}
+          onVideoClick={handleVideoClick}
+          onLoginRequired={() => setShowLoginDialog(true)}
+          isLoggedIn={!!user}
+        />
 
         {loading || authLoading ? (
           <div className="text-center py-12">
