@@ -657,6 +657,9 @@ export const translations = {
       youAreOfflineNow: "You are offline now",
       toggleError: "Error changing stream",
       startToActivateChat: "Start streaming to activate chat",
+      shareTitle: "Watch my live!",
+      linkCopied: "Link copied!",
+      linkCopiedDesc: "The live stream link has been copied to clipboard.",
     },
     pixWithdrawals: {
       title: "PIX Withdrawals",
@@ -1354,6 +1357,9 @@ export const translations = {
       youAreOfflineNow: "Estás offline ahora",
       toggleError: "Error al cambiar transmisión",
       startToActivateChat: "Inicia la transmisión para activar el chat",
+      shareTitle: "¡Mira mi transmisión en vivo!",
+      linkCopied: "¡Enlace copiado!",
+      linkCopiedDesc: "El enlace de la transmisión se ha copiado al portapapeles.",
     },
     pixWithdrawals: {
       title: "Retiros PIX",
@@ -2051,6 +2057,9 @@ export const translations = {
       youAreOfflineNow: "Você está offline agora",
       toggleError: "Erro ao alterar transmissão",
       startToActivateChat: "Inicie a transmissão para ativar o chat",
+      shareTitle: "Assista minha live!",
+      linkCopied: "Link copiado!",
+      linkCopiedDesc: "O link da live foi copiado para a área de transferência.",
     },
     pixWithdrawals: {
       title: "Saques PIX",
