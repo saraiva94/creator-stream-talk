@@ -135,14 +135,13 @@ export const HowToMonetizeDialog = () => {
     <Dialog>
       <DialogTrigger asChild>
         <Button 
-          variant="outline" 
+          variant="default" 
           size="sm" 
-          className="gap-1.5 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden px-3 text-xs whitespace-nowrap"
+          className="gap-2 bg-primary hover:bg-primary/90 group relative overflow-hidden px-4 py-2 whitespace-nowrap"
         >
-          <HelpCircle className="w-4 h-4 text-primary animate-pulse flex-shrink-0" />
-          <span className="text-primary font-medium">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
-          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-          <span className="absolute inset-0 rounded-md animate-border-glow pointer-events-none" />
+          <HelpCircle className="w-5 h-5 text-white animate-pulse flex-shrink-0" />
+          <span className="text-white font-bold text-sm">{t.affiliate?.howToMonetize || "Como monetizar"}</span>
+          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto mx-2 sm:mx-0">

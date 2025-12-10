@@ -237,13 +237,11 @@ export const InstructionsDialog = () => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-1.5 border-primary/50 hover:border-primary hover:bg-primary/10 group relative overflow-hidden text-xs px-3 whitespace-nowrap">
-          <HelpCircle className="w-4 h-4 text-primary animate-pulse flex-shrink-0" />
-          <span className="text-primary font-medium">{t.profile.instructions || "Como funciona"}</span>
+        <Button variant="default" className="gap-2 bg-primary hover:bg-primary/90 group relative overflow-hidden px-4 py-2 whitespace-nowrap">
+          <HelpCircle className="w-5 h-5 text-white animate-pulse flex-shrink-0" />
+          <span className="text-white font-bold text-sm">{t.profile.instructions || "Como funciona"}</span>
           {/* Animated glow effect */}
-          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-          {/* Pulsing border glow */}
-          <span className="absolute inset-0 rounded-md pointer-events-none" style={{ animation: 'border-glow 2s ease-in-out infinite' }} />
+          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[85vh] mx-2 sm:mx-0">
