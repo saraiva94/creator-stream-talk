@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
+import { toast } from "@/hooks/use-toast";
 import type { User } from "@supabase/supabase-js";
 
 interface NotificationBellProps {
@@ -28,6 +29,7 @@ interface Notification {
   viewerCount: number;
   read: boolean;
   createdAt: string;
+  activeLiveId?: string; // Cache the live ID
 }
 
 export const NotificationBell = ({ user }: NotificationBellProps) => {
@@ -37,6 +39,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [followedCreatorIds, setFollowedCreatorIds] = useState<string[]>([]);
   const [previousTop5, setPreviousTop5] = useState<string[]>([]);
+  const [activeLivesCache, setActiveLivesCache] = useState<Map<string, string>>(new Map());
 
   // Fetch followed creators
   const fetchFollowedCreators = useCallback(async () => {
@@ -53,7 +56,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
     }
   }, [user]);
 
-  // Check for new notifications
+  // Check for new notifications and cache active lives
   const checkNotifications = useCallback(async () => {
     if (!user) return;
 
@@ -68,6 +71,21 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
 
     // Fetch avatars separately to avoid ambiguous relationship error
     const creatorIds = liveCreators.map((c) => c.id);
+    
+    // Fetch active lives for these creators to cache
+    const { data: activeLives } = await supabase
+      .from("lives")
+      .select("id, creator_id")
+      .in("creator_id", creatorIds)
+      .eq("is_active", true);
+
+    // Build cache map: creatorId -> liveId
+    const newCache = new Map<string, string>();
+    activeLives?.forEach((live) => {
+      newCache.set(live.creator_id, live.id);
+    });
+    setActiveLivesCache(newCache);
+
     const { data: profilesData } = await supabase
       .from("profiles")
       .select("id, avatar_url")
@@ -96,6 +114,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
             viewerCount: creator.viewer_count || 0,
             read: false,
             createdAt: new Date().toISOString(),
+            activeLiveId: newCache.get(creator.id),
           });
         }
       }
@@ -120,6 +139,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
             viewerCount: creator.viewer_count || 0,
             read: false,
             createdAt: new Date().toISOString(),
+            activeLiveId: newCache.get(creator.id),
           });
         }
       }
@@ -186,7 +206,20 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
       prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
     );
     
-    // Find the active live for this creator
+    // Use cached live ID if available
+    if (notification.activeLiveId) {
+      navigate(`/live/${notification.activeLiveId}`);
+      return;
+    }
+
+    // Check cache first
+    const cachedLiveId = activeLivesCache.get(notification.creatorId);
+    if (cachedLiveId) {
+      navigate(`/live/${cachedLiveId}`);
+      return;
+    }
+
+    // Fallback: fetch from database
     const { data: activeLive } = await supabase
       .from("lives")
       .select("id")
@@ -197,10 +230,14 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
       .single();
     
     if (activeLive) {
-      // Navigate to the actual live stream
       navigate(`/live/${activeLive.id}`);
     } else {
-      // Fallback to creator's public profile if no active live
+      // Show toast and navigate to profile
+      toast({
+        title: t.notifications?.liveEnded || "Live encerrada",
+        description: t.notifications?.liveEndedDesc || "Esta transmissão já foi encerrada.",
+        variant: "destructive",
+      });
       navigate(`/profile/${notification.creatorId}`);
     }
   };
