@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Play, Megaphone, TrendingUp, Users, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Megaphone, TrendingUp, Users, Tag, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LiveSummary } from "@/lib/api";
@@ -44,6 +44,8 @@ interface VideoCarouselProps {
 
 // Minimum cards to maintain UI continuity
 const MIN_CAROUSEL_ITEMS = 7;
+// Maximum viewing time per promo video (20 seconds like live preview)
+const PROMO_VIDEO_MAX_SECONDS = 20;
 
 const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, userId }: VideoCarouselProps) => {
   const navigate = useNavigate();
@@ -53,6 +55,8 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
   const [followedTags, setFollowedTags] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [promoWatchTime, setPromoWatchTime] = useState(0);
+  const [isWatchingPromo, setIsWatchingPromo] = useState(false);
 
   // Fetch initial data
   useEffect(() => {
@@ -210,16 +214,45 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
 
   const itemCount = carouselItems.length;
 
-  // Auto-scroll every 5 seconds
+  // Track if current item is a promo video
+  const currentItem = carouselItems[currentIndex];
+  const isCurrentPromo = currentItem?.type === 'promo';
+
+  // Reset promo watch time when changing slides
   useEffect(() => {
-    if (!isAutoPlaying || itemCount <= 1) return;
+    setPromoWatchTime(0);
+    setIsWatchingPromo(isCurrentPromo);
+  }, [currentIndex, isCurrentPromo]);
+
+  // Promo video 20-second timer - auto advance after max viewing time
+  useEffect(() => {
+    if (!isCurrentPromo || !isWatchingPromo) return;
+
+    const timer = setInterval(() => {
+      setPromoWatchTime(prev => {
+        if (prev >= PROMO_VIDEO_MAX_SECONDS) {
+          // Auto advance to next after 20 seconds
+          setCurrentIndex(prevIndex => (prevIndex + 1) % itemCount);
+          return 0;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isCurrentPromo, isWatchingPromo, itemCount]);
+
+  // Auto-scroll every 5 seconds for non-promo items
+  useEffect(() => {
+    // Don't auto-scroll if watching promo (has its own 20s timer)
+    if (!isAutoPlaying || itemCount <= 1 || isCurrentPromo) return;
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % itemCount);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isAutoPlaying, itemCount]);
+  }, [isAutoPlaying, itemCount, isCurrentPromo]);
 
   const goToNext = useCallback(() => {
     setCurrentIndex((prev) => (prev + 1) % itemCount);
@@ -388,7 +421,27 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
               ) : item.type === 'promo' && item.promo ? (
                 // Promotional video card
                 <div className="relative w-full h-full bg-card">
-                  {item.promo.thumbnail_url ? (
+                  {/* Video embed or thumbnail */}
+                  {isCenter && item.promo.video_url ? (
+                    item.promo.video_url.includes('youtube.com/embed') ? (
+                      <iframe
+                        src={item.promo.video_url}
+                        className="w-full h-full"
+                        allow="autoplay; encrypted-media"
+                        allowFullScreen
+                        title={item.promo.title}
+                      />
+                    ) : (
+                      <video
+                        src={item.promo.video_url}
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                      />
+                    )
+                  ) : item.promo.thumbnail_url ? (
                     <img 
                       src={item.promo.thumbnail_url} 
                       alt={item.promo.title} 
@@ -406,6 +459,23 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     PATROCINADO
                   </div>
 
+                  {/* 20-second progress bar for center promo */}
+                  {isCenter && (
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
+                      <div 
+                        className="h-full bg-yellow-500 transition-all duration-1000 ease-linear"
+                        style={{ width: `${(promoWatchTime / PROMO_VIDEO_MAX_SECONDS) * 100}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Time remaining indicator */}
+                  {isCenter && (
+                    <div className="absolute top-2 right-2 bg-black/70 px-2 py-1 rounded text-xs font-mono text-white">
+                      {PROMO_VIDEO_MAX_SECONDS - promoWatchTime}s
+                    </div>
+                  )}
+
                   {/* Title overlay */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3">
                     <p className="text-white font-semibold text-sm truncate">{item.promo.title}</p>
@@ -414,11 +484,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     )}
                   </div>
 
-                  {/* Play overlay on center */}
+                  {/* Click overlay for redirect */}
                   {isCenter && item.promo.redirect_url && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
                       <div className="w-14 h-14 rounded-full bg-yellow-500/90 flex items-center justify-center">
-                        <Play className="w-7 h-7 text-black fill-black" />
+                        <ExternalLink className="w-7 h-7 text-black" />
                       </div>
                     </div>
                   )}

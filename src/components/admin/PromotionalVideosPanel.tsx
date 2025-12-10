@@ -1,15 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Video, ExternalLink, GripVertical } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Plus, Pencil, Trash2, Video, ExternalLink, GripVertical, Upload, Youtube, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -27,23 +27,107 @@ interface PromotionalVideo {
   created_at: string;
 }
 
+type VideoSourceType = 'youtube' | 'upload';
+
 const PromotionalVideosPanel = () => {
   const { t } = useLanguage();
   const [videos, setVideos] = useState<PromotionalVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<PromotionalVideo | null>(null);
+  const [videoSourceType, setVideoSourceType] = useState<VideoSourceType>('youtube');
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: "",
-    description: "",
-    thumbnail_url: "",
     video_url: "",
     redirect_url: "",
     position: 0,
     is_active: true,
-    starts_at: "",
-    ends_at: "",
   });
+
+  // Extract YouTube video ID from URL
+  const extractYouTubeId = (url: string): string | null => {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/,
+      /^([a-zA-Z0-9_-]{11})$/
+    ];
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  // Generate YouTube embed URL for autoplay
+  const getYouTubeEmbedUrl = (url: string): string | null => {
+    const videoId = extractYouTubeId(url);
+    if (!videoId) return null;
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}`;
+  };
+
+  // Handle video file selection and validate duration
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+      toast.error('Selecione um arquivo de vídeo válido');
+      return;
+    }
+
+    // Check file size (max 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('O arquivo é muito grande. Máximo: 50MB');
+      return;
+    }
+
+    // Check video duration
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.src = URL.createObjectURL(file);
+    
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(video.src);
+      const duration = Math.round(video.duration);
+      
+      if (duration > 20) {
+        toast.error(`Vídeo muito longo (${duration}s). Máximo permitido: 20 segundos`);
+        setVideoFile(null);
+        setVideoDuration(null);
+        if (videoInputRef.current) videoInputRef.current.value = '';
+        return;
+      }
+      
+      setVideoFile(file);
+      setVideoDuration(duration);
+    };
+  };
+
+  // Upload video to Supabase storage
+  const uploadVideoFile = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+    const filePath = `promotional/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('chat-media')
+      .upload(filePath, file);
+
+    if (error) {
+      console.error('Upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('chat-media')
+      .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
+  };
 
   useEffect(() => {
     fetchVideos();
@@ -70,16 +154,45 @@ const PromotionalVideosPanel = () => {
     e.preventDefault();
     
     try {
+      let videoUrl = formData.video_url;
+      let thumbnailUrl: string | null = null;
+
+      // Handle YouTube URL
+      if (videoSourceType === 'youtube') {
+        const embedUrl = getYouTubeEmbedUrl(formData.video_url);
+        if (!embedUrl) {
+          toast.error('URL do YouTube inválida');
+          return;
+        }
+        videoUrl = embedUrl;
+        // Generate YouTube thumbnail
+        const videoId = extractYouTubeId(formData.video_url);
+        if (videoId) {
+          thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        }
+      } else if (videoSourceType === 'upload' && videoFile) {
+        // Upload video file
+        setUploadingVideo(true);
+        const uploadedUrl = await uploadVideoFile(videoFile);
+        if (!uploadedUrl) {
+          toast.error('Erro ao fazer upload do vídeo');
+          setUploadingVideo(false);
+          return;
+        }
+        videoUrl = uploadedUrl;
+        setUploadingVideo(false);
+      }
+
       const payload = {
         title: formData.title,
-        description: formData.description || null,
-        thumbnail_url: formData.thumbnail_url || null,
-        video_url: formData.video_url || null,
+        description: null,
+        thumbnail_url: thumbnailUrl,
+        video_url: videoUrl || null,
         redirect_url: formData.redirect_url || null,
         position: formData.position,
         is_active: formData.is_active,
-        starts_at: formData.starts_at || null,
-        ends_at: formData.ends_at || null,
+        starts_at: null,
+        ends_at: null,
       };
 
       if (editingVideo) {
@@ -110,16 +223,15 @@ const PromotionalVideosPanel = () => {
 
   const handleEdit = (video: PromotionalVideo) => {
     setEditingVideo(video);
+    // Detect if it's a YouTube URL
+    const isYouTube = video.video_url?.includes('youtube.com') || video.video_url?.includes('youtu.be');
+    setVideoSourceType(isYouTube ? 'youtube' : 'upload');
     setFormData({
       title: video.title,
-      description: video.description || "",
-      thumbnail_url: video.thumbnail_url || "",
       video_url: video.video_url || "",
       redirect_url: video.redirect_url || "",
       position: video.position,
       is_active: video.is_active,
-      starts_at: video.starts_at ? video.starts_at.slice(0, 16) : "",
-      ends_at: video.ends_at ? video.ends_at.slice(0, 16) : "",
     });
     setDialogOpen(true);
   };
@@ -159,16 +271,16 @@ const PromotionalVideosPanel = () => {
 
   const resetForm = () => {
     setEditingVideo(null);
+    setVideoSourceType('youtube');
+    setVideoFile(null);
+    setVideoDuration(null);
+    if (videoInputRef.current) videoInputRef.current.value = '';
     setFormData({
       title: "",
-      description: "",
-      thumbnail_url: "",
       video_url: "",
       redirect_url: "",
       position: videos.length,
       is_active: true,
-      starts_at: "",
-      ends_at: "",
     });
   };
 
@@ -209,35 +321,98 @@ const PromotionalVideosPanel = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Descrição opcional"
-                  rows={2}
-                />
+              {/* Video Source Type Selection */}
+              <div className="space-y-3">
+                <Label>Origem do Vídeo *</Label>
+                <RadioGroup 
+                  value={videoSourceType} 
+                  onValueChange={(value) => setVideoSourceType(value as VideoSourceType)}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${videoSourceType === 'youtube' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    <RadioGroupItem value="youtube" id="youtube" />
+                    <Label htmlFor="youtube" className="flex items-center gap-2 cursor-pointer">
+                      <Youtube className="w-5 h-5 text-red-500" />
+                      YouTube
+                    </Label>
+                  </div>
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${videoSourceType === 'upload' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                    <RadioGroupItem value="upload" id="upload" />
+                    <Label htmlFor="upload" className="flex items-center gap-2 cursor-pointer">
+                      <Upload className="w-5 h-5 text-primary" />
+                      Upload (máx 20s)
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="thumbnail_url">URL da Thumbnail</Label>
-                <Input
-                  id="thumbnail_url"
-                  value={formData.thumbnail_url}
-                  onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                  placeholder="https://exemplo.com/imagem.jpg"
-                />
-              </div>
+              {/* YouTube URL Input */}
+              {videoSourceType === 'youtube' && (
+                <div className="space-y-2">
+                  <Label htmlFor="video_url">URL do YouTube *</Label>
+                  <Input
+                    id="video_url"
+                    value={formData.video_url}
+                    onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                    placeholder="https://youtube.com/watch?v=... ou https://youtu.be/..."
+                    required={videoSourceType === 'youtube'}
+                  />
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Youtube className="w-3 h-3" />
+                    O vídeo será reproduzido automaticamente no carrossel
+                  </p>
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="video_url">URL do Vídeo</Label>
-                <Input
-                  id="video_url"
-                  value={formData.video_url}
-                  onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-                  placeholder="https://exemplo.com/video.mp4"
-                />
+              {/* Video Upload Input */}
+              {videoSourceType === 'upload' && (
+                <div className="space-y-2">
+                  <Label>Upload de Vídeo (máx 20 segundos) *</Label>
+                  <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+                    <input
+                      ref={videoInputRef}
+                      type="file"
+                      accept="video/*"
+                      onChange={handleVideoFileChange}
+                      className="hidden"
+                      id="video-upload"
+                    />
+                    <label htmlFor="video-upload" className="cursor-pointer block">
+                      {videoFile ? (
+                        <div className="space-y-2">
+                          <Video className="w-10 h-10 mx-auto text-primary" />
+                          <p className="text-sm font-medium">{videoFile.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Duração: {videoDuration}s • {(videoFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Upload className="w-10 h-10 mx-auto text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            Clique para selecionar um vídeo
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Máximo: 20 segundos, 50MB
+                          </p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                  {videoDuration && videoDuration <= 20 && (
+                    <p className="text-xs text-green-500 flex items-center gap-1">
+                      ✓ Duração válida: {videoDuration} segundos
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Alert about 20s limit */}
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-500">
+                  <strong>Lógica do Carrossel:</strong> Usuários podem assistir até 20 segundos de cada vídeo promocional. Após isso, o carrossel avança automaticamente.
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -262,27 +437,6 @@ const PromotionalVideosPanel = () => {
                 <p className="text-xs text-muted-foreground">Menor número = maior prioridade</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="starts_at">Início (opcional)</Label>
-                  <Input
-                    id="starts_at"
-                    type="datetime-local"
-                    value={formData.starts_at}
-                    onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ends_at">Fim (opcional)</Label>
-                  <Input
-                    id="ends_at"
-                    type="datetime-local"
-                    value={formData.ends_at}
-                    onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
-                  />
-                </div>
-              </div>
-
               <div className="flex items-center gap-3">
                 <Switch
                   id="is_active"
@@ -293,8 +447,8 @@ const PromotionalVideosPanel = () => {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button type="submit" className="flex-1">
-                  {editingVideo ? "Salvar Alterações" : "Adicionar Vídeo"}
+                <Button type="submit" className="flex-1" disabled={uploadingVideo}>
+                  {uploadingVideo ? "Enviando..." : editingVideo ? "Salvar Alterações" : "Adicionar Vídeo"}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
