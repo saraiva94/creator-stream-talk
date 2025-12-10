@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { CameraOff, SwitchCamera, Camera } from "lucide-react";
+import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type VideoOrientation = "vertical" | "horizontal";
@@ -16,6 +16,31 @@ interface CameraInfo {
   label: string;
   facingMode?: "user" | "environment";
 }
+
+const PIP_POSITION_KEY = "streamstar_pip_position";
+
+const getStoredPipPosition = (): { x: number; y: number } => {
+  try {
+    const stored = localStorage.getItem(PIP_POSITION_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+  return { x: 16, y: 16 };
+};
+
+const savePipPosition = (position: { x: number; y: number }) => {
+  try {
+    localStorage.setItem(PIP_POSITION_KEY, JSON.stringify(position));
+  } catch {
+    // Ignore errors
+  }
+};
 
 export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   audioDeviceId,
@@ -34,9 +59,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const [pipCameraId, setPipCameraId] = useState<string | null>(null);
   const [pipEnabled, setPipEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [flashEnabled, setFlashEnabled] = useState(false);
+  const [flashSupported, setFlashSupported] = useState(false);
   
-  // PiP drag state
-  const [pipPosition, setPipPosition] = useState({ x: 16, y: 16 });
+  // PiP drag state - load from localStorage
+  const [pipPosition, setPipPosition] = useState(getStoredPipPosition);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const positionStartRef = useRef({ x: 0, y: 0 });
@@ -127,7 +154,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     };
   }, [mainCameraId, audioDeviceId, isStreaming]);
 
-  // PiP camera stream
+  // PiP camera stream with flash support check
   useEffect(() => {
     const startPipStream = async () => {
       try {
@@ -137,6 +164,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
         if (!isStreaming || !pipEnabled || !pipCameraId) {
           setPipStream(null);
+          setFlashSupported(false);
+          setFlashEnabled(false);
           if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
           return;
         }
@@ -152,6 +181,14 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         if (pipVideoRef.current) {
           pipVideoRef.current.srcObject = stream;
         }
+
+        // Check if flash/torch is supported
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const capabilities = videoTrack.getCapabilities?.();
+          const hasTorch = capabilities && 'torch' in capabilities;
+          setFlashSupported(!!hasTorch);
+        }
       } catch (err) {
         console.error("Error accessing PiP camera:", err);
       }
@@ -165,6 +202,24 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       }
     };
   }, [pipCameraId, pipEnabled, isStreaming]);
+
+  // Toggle flash/torch
+  const toggleFlash = useCallback(async () => {
+    if (!pipStream) return;
+    
+    const videoTrack = pipStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    try {
+      const newFlashState = !flashEnabled;
+      await videoTrack.applyConstraints({
+        advanced: [{ torch: newFlashState } as MediaTrackConstraintSet]
+      });
+      setFlashEnabled(newFlashState);
+    } catch (err) {
+      console.error("Error toggling flash:", err);
+    }
+  }, [pipStream, flashEnabled]);
 
   // Switch cameras
   const handleSwitchCameras = useCallback(() => {
@@ -209,9 +264,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     setPipPosition({ x: newX, y: newY });
   }, [isDragging]);
 
+  // Save PiP position when drag ends
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
-  }, []);
+    savePipPosition(pipPosition);
+  }, [pipPosition]);
 
   // Check if device has multiple cameras
   const hasMultipleCameras = cameras.length > 1;
@@ -324,6 +381,25 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           className="absolute top-20 right-20 z-20 w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90"
         >
           <SwitchCamera className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Flash/Torch button - only show when PiP is enabled and flash is supported */}
+      {pipEnabled && flashSupported && (
+        <button
+          onClick={toggleFlash}
+          className={cn(
+            "absolute top-36 right-4 z-20 w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90",
+            flashEnabled
+              ? "bg-yellow-500 text-black"
+              : "bg-white/20 backdrop-blur-sm text-white"
+          )}
+        >
+          {flashEnabled ? (
+            <Flashlight className="h-5 w-5" />
+          ) : (
+            <FlashlightOff className="h-5 w-5" />
+          )}
         </button>
       )}
     </div>
