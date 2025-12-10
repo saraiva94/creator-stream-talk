@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2, Globe } from "lucide-react";
+import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import PixWithdrawDialog from "@/components/PixWithdrawDialog";
-import InternationalWithdrawDialog from "@/components/InternationalWithdrawDialog";
+
 import ShareDialog from "@/components/ShareDialog";
 import { useLanguage } from "@/hooks/useLanguage";
 import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
@@ -53,13 +53,14 @@ const Affiliate = () => {
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
-  const [showInternationalDialog, setShowInternationalDialog] = useState(false);
+  
   const [showShareDialog, setShowShareDialog] = useState(false);
 
   const refreshBalance = async () => {
     if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("balance").eq("id", user.id).single();
-    if (profile) setAvailableBalanceCents(Math.round((profile.balance ?? 0) * 100));
+    // Use affiliate_earnings as single source of truth (in centavos)
+    const { data: profile } = await supabase.from("profiles").select("affiliate_earnings").eq("id", user.id).single();
+    if (profile) setAvailableBalanceCents(profile.affiliate_earnings ?? 0);
 
     const { data: withdrawals } = await supabase
       .from("transactions")
@@ -267,28 +268,19 @@ const Affiliate = () => {
             <h1 className="text-2xl sm:text-3xl font-bold">{t.nav.finances}</h1>
           </div>
           
-          {/* Action buttons - responsive grid */}
+          {/* Action button - single withdraw button */}
           <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-2">
-              <Button 
-                onClick={() => setShowWithdrawDialog(true)} 
-                className="bg-green-600 hover:bg-green-700 text-xs sm:text-sm px-2 sm:px-4" 
-                disabled={availableBalanceCents <= 0}
-              >
-                <Banknote className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="truncate">{t.affiliate.withdrawViaPix}</span>
-              </Button>
-              <Button 
-                onClick={() => setShowInternationalDialog(true)} 
-                variant="outline" 
-                className="border-primary/50 text-xs sm:text-sm px-2 sm:px-4" 
-                disabled={availableBalanceCents <= 0}
-              >
-                <Globe className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
-                <span className="truncate">{t.affiliate.bankTransferShort || "Transferência"}</span>
-              </Button>
-            </div>
-            <p className="text-[10px] text-muted-foreground">PIX apenas para contas brasileiras</p>
+            <Button 
+              onClick={() => setShowWithdrawDialog(true)} 
+              className="bg-green-600 hover:bg-green-700 text-sm px-4 w-full" 
+              disabled={availableBalanceCents <= 0}
+            >
+              <Banknote className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span>{t.affiliate.withdrawBalance || "Sacar saldo disponível"}</span>
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center">
+              Via PIX ou transferência bancária
+            </p>
           </div>
         </div>
 
@@ -455,7 +447,7 @@ const Affiliate = () => {
       </main>
 
       <PixWithdrawDialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog} userId={user?.id ?? ""} availableBalanceCents={availableBalanceCents} onSuccess={refreshBalance} />
-      <InternationalWithdrawDialog open={showInternationalDialog} onOpenChange={setShowInternationalDialog} />
+      
       <ShareDialog isOpen={showShareDialog} onClose={() => setShowShareDialog(false)} link={referralLink} title="Stream Star" />
     </AppLayout>
   );
