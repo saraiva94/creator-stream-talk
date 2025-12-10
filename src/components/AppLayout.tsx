@@ -4,14 +4,22 @@ import { ChannelsSidebar } from "./ChannelsSidebar";
 import { BlockedUserOverlay } from "./BlockedUserOverlay";
 import { GlobalChatButton } from "./GlobalChatButton";
 import { useAuth } from "@/hooks/useAuth";
+import { SidebarProvider, useSidebarContext } from "@/contexts/SidebarContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppLayoutProps {
   children: ReactNode;
   showSidebar?: boolean;
 }
 
-export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
+const AppLayoutInner = ({ children, showSidebar = true }: AppLayoutProps) => {
   const { user, isLoading, isBlocked, blockedReason, isAdmin } = useAuth();
+  const { isExpanded } = useSidebarContext();
+  const isMobile = useIsMobile();
+
+  // Force collapsed on mobile
+  const effectiveExpanded = isMobile ? false : isExpanded;
+  const sidebarWidth = showSidebar ? (effectiveExpanded ? "ml-60" : "ml-14") : "";
 
   // Show blocked overlay if user is banned
   if (isBlocked && user) {
@@ -31,12 +39,20 @@ export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
     <div className="min-h-screen bg-background">
       <Navbar user={user} isAdmin={isAdmin} />
       {showSidebar && <ChannelsSidebar />}
-      <main className={`${showSidebar ? "ml-14 lg:ml-60" : ""} transition-all duration-300`}>
+      <main className={`${sidebarWidth} transition-all duration-300 ease-in-out`}>
         {children}
       </main>
       
       {/* Global Chat Button - Bottom Right Corner */}
       <GlobalChatButton user={user} />
     </div>
+  );
+};
+
+export const AppLayout = ({ children, showSidebar = true }: AppLayoutProps) => {
+  return (
+    <SidebarProvider>
+      <AppLayoutInner showSidebar={showSidebar}>{children}</AppLayoutInner>
+    </SidebarProvider>
   );
 };
