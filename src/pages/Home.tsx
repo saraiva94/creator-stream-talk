@@ -24,7 +24,7 @@ const Home = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUsername, setSelectedUsername] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string>("");
-  const [skeletonCount, setSkeletonCount] = useState(4);
+  const [displayedCount, setDisplayedCount] = useState(4);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasReachedEnd, setHasReachedEnd] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -33,19 +33,19 @@ const Home = () => {
   const { user, isLoading: authLoading } = useAuth();
   const isMobile = useIsMobile();
 
-  // Determine initial and max skeleton counts based on screen size
-  const getSkeletonLimits = useCallback(() => {
-    if (typeof window === 'undefined') return { initial: 4, max: 8 };
+  // Determine display limits based on screen size
+  const getDisplayLimits = useCallback(() => {
+    if (typeof window === 'undefined') return { initial: 4, step: 4, max: 8 };
     const width = window.innerWidth;
-    if (width < 768) return { initial: 4, max: 8 }; // Mobile
-    if (width < 1024) return { initial: 6, max: 12 }; // Tablet
-    return { initial: 8, max: 16 }; // Desktop
+    if (width < 768) return { initial: 4, step: 4, max: 8 }; // Mobile
+    if (width < 1024) return { initial: 6, step: 4, max: 12 }; // Tablet
+    return { initial: 8, step: 4, max: 16 }; // Desktop
   }, []);
 
   useEffect(() => {
-    const limits = getSkeletonLimits();
-    setSkeletonCount(limits.initial);
-  }, [getSkeletonLimits]);
+    const limits = getDisplayLimits();
+    setDisplayedCount(limits.initial);
+  }, [getDisplayLimits]);
 
   useEffect(() => {
     fetchLives();
@@ -71,25 +71,46 @@ const Home = () => {
     fetchReferralCode();
   }, [user?.id]);
 
-  // Intersection Observer for infinite scroll effect
+  // Intersection Observer for infinite scroll - loads more from API
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoadingMore && !hasReachedEnd) {
-          const limits = getSkeletonLimits();
-          if (skeletonCount < limits.max) {
+        if (entries[0].isIntersecting && !isLoadingMore && !hasReachedEnd && !loading) {
+          const limits = getDisplayLimits();
+          
+          if (displayedCount < limits.max) {
             setIsLoadingMore(true);
-            // Simulate loading delay
-            setTimeout(() => {
-              setSkeletonCount(prev => {
-                const newCount = Math.min(prev + 4, limits.max);
-                if (newCount >= limits.max) {
-                  setHasReachedEnd(true);
+            
+            // Load more from API with pagination
+            const loadMore = async () => {
+              try {
+                const response = await api.lives.getPublic();
+                const allLives = response.lives ?? [];
+                
+                // Update lives if we got new data
+                if (allLives.length > lives.length) {
+                  setLives(allLives);
                 }
-                return newCount;
-              });
-              setIsLoadingMore(false);
-            }, 800);
+                
+                // Increase display count
+                setDisplayedCount(prev => {
+                  const newCount = Math.min(prev + limits.step, limits.max);
+                  // Check if we've reached the end (either max display or no more lives)
+                  if (newCount >= limits.max || newCount >= allLives.length) {
+                    setHasReachedEnd(true);
+                  }
+                  return newCount;
+                });
+              } catch (err) {
+                console.error("Error loading more lives:", err);
+                setHasReachedEnd(true);
+              } finally {
+                setIsLoadingMore(false);
+              }
+            };
+            
+            // Small delay for smooth animation
+            setTimeout(loadMore, 400);
           } else {
             setHasReachedEnd(true);
           }
@@ -103,7 +124,7 @@ const Home = () => {
     }
 
     return () => observer.disconnect();
-  }, [skeletonCount, isLoadingMore, hasReachedEnd, getSkeletonLimits]);
+  }, [displayedCount, isLoadingMore, hasReachedEnd, loading, lives.length, getDisplayLimits]);
 
   const fetchLives = async () => {
     try {
@@ -183,7 +204,7 @@ const Home = () => {
             ))}
             
             {/* Ghost skeleton cards to fill remaining grid slots */}
-            <LivesGridSkeleton count={Math.max(0, skeletonCount - (loading || authLoading ? 0 : onlineLives.length))} />
+            <LivesGridSkeleton count={Math.max(0, displayedCount - (loading || authLoading ? 0 : onlineLives.length))} />
           </div>
 
           {/* Load more trigger */}
