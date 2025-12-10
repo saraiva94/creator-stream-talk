@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff, RotateCcw, User, Video } from "lucide-react";
+import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff, RotateCcw, User, Video, Circle, Square, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export type VideoOrientation = "vertical" | "horizontal";
 
@@ -66,6 +67,13 @@ const savePipSize = (scale: number) => {
   }
 };
 
+// Format recording duration
+const formatDuration = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
 export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   audioDeviceId,
   isStreaming,
@@ -75,6 +83,10 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const mainVideoRef = useRef<HTMLVideoElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
   const pipContainerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const animationFrameRef = useRef<number | null>(null);
   
   const [mainStream, setMainStream] = useState<MediaStream | null>(null);
   const [pipStream, setPipStream] = useState<MediaStream | null>(null);
@@ -85,6 +97,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [flashSupported, setFlashSupported] = useState(false);
+  
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   
   // PiP drag state - load from localStorage
   const [pipPosition, setPipPosition] = useState(getStoredPipPosition);
@@ -319,6 +336,166 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     if (label.includes("back") || label.includes("traseira") || label.includes("rear")) return "Traseira";
     return "Câmera";
   }, [cameras]);
+
+  // Draw composited frame to canvas
+  const drawCompositeFrame = useCallback(() => {
+    const canvas = canvasRef.current;
+    const mainVideo = mainVideoRef.current;
+    const pipVideo = pipVideoRef.current;
+    
+    if (!canvas || !mainVideo) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Set canvas size based on orientation
+    const canvasWidth = orientation === "vertical" ? 720 : 1280;
+    const canvasHeight = orientation === "vertical" ? 1280 : 720;
+    
+    if (canvas.width !== canvasWidth || canvas.height !== canvasHeight) {
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+    }
+    
+    // Draw main video (fullscreen, possibly mirrored)
+    ctx.save();
+    if (isMirrored) {
+      ctx.translate(canvasWidth, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(mainVideo, 0, 0, canvasWidth, canvasHeight);
+    ctx.restore();
+    
+    // Draw PiP video if enabled
+    if (pipEnabled && pipVideo && pipStream) {
+      const pipW = Math.round(canvasWidth * 0.2 * pipScale);
+      const pipH = Math.round(canvasHeight * 0.15 * pipScale);
+      const pipX = Math.round((pipPosition.x / window.innerWidth) * canvasWidth);
+      const pipY = Math.round((pipPosition.y / window.innerHeight) * canvasHeight);
+      
+      // Draw rounded rectangle border
+      ctx.save();
+      ctx.beginPath();
+      const radius = 12;
+      ctx.roundRect(pipX - 2, pipY - 2, pipW + 4, pipH + 4, radius);
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fill();
+      
+      // Clip and draw PiP video
+      ctx.beginPath();
+      ctx.roundRect(pipX, pipY, pipW, pipH, radius - 2);
+      ctx.clip();
+      ctx.drawImage(pipVideo, pipX, pipY, pipW, pipH);
+      ctx.restore();
+    }
+    
+    // Continue animation loop if recording
+    if (isRecording) {
+      animationFrameRef.current = requestAnimationFrame(drawCompositeFrame);
+    }
+  }, [isMirrored, orientation, pipEnabled, pipStream, pipPosition, pipScale, isRecording]);
+
+  // Start recording
+  const startRecording = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !mainStream) {
+      toast.error("Câmera não disponível para gravação");
+      return;
+    }
+    
+    // Clear previous recording
+    if (recordedVideoUrl) {
+      URL.revokeObjectURL(recordedVideoUrl);
+      setRecordedVideoUrl(null);
+    }
+    recordedChunksRef.current = [];
+    
+    // Set canvas dimensions
+    canvas.width = orientation === "vertical" ? 720 : 1280;
+    canvas.height = orientation === "vertical" ? 1280 : 720;
+    
+    // Get canvas stream
+    const canvasStream = canvas.captureStream(30); // 30 FPS
+    
+    // Add audio track from main stream
+    const audioTracks = mainStream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      canvasStream.addTrack(audioTracks[0]);
+    }
+    
+    // Create MediaRecorder
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+      ? 'video/webm;codecs=vp9,opus'
+      : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : 'video/webm';
+    
+    const recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 5000000 });
+    
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        recordedChunksRef.current.push(event.data);
+      }
+    };
+    
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      setRecordedVideoUrl(url);
+      toast.success("Gravação salva! Clique em Baixar para salvar.");
+    };
+    
+    mediaRecorderRef.current = recorder;
+    recorder.start(1000); // Collect data every second
+    setIsRecording(true);
+    setRecordingDuration(0);
+    
+    // Start drawing composite frames
+    animationFrameRef.current = requestAnimationFrame(drawCompositeFrame);
+    
+    toast.success("Gravação iniciada!");
+  }, [mainStream, orientation, recordedVideoUrl, drawCompositeFrame]);
+
+  // Stop recording
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    setIsRecording(false);
+  }, []);
+
+  // Recording duration timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (recordedVideoUrl) {
+        URL.revokeObjectURL(recordedVideoUrl);
+      }
+    };
+  }, [recordedVideoUrl]);
 
   // PiP drag handlers
   const handleDragStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
@@ -582,6 +759,47 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           <span className="text-white text-[10px] font-semibold drop-shadow-lg text-center">Resetar</span>
         </div>
       )}
+
+      {/* Recording button - only show when streaming */}
+      <div className="absolute bottom-4 left-4 z-20 flex flex-col items-center gap-1">
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          className={cn(
+            "w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg",
+            isRecording
+              ? "bg-destructive text-destructive-foreground animate-pulse ring-4 ring-destructive/50"
+              : "bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
+          )}
+          title={isRecording ? "Parar gravação" : "Iniciar gravação"}
+        >
+          {isRecording ? (
+            <Square className="h-7 w-7 fill-current" />
+          ) : (
+            <Circle className="h-7 w-7 fill-current text-red-500" />
+          )}
+        </button>
+        <span className="text-white text-xs font-semibold drop-shadow-lg text-center">
+          {isRecording ? formatDuration(recordingDuration) : "Gravar"}
+        </span>
+      </div>
+
+      {/* Download button - show when recording is available */}
+      {recordedVideoUrl && !isRecording && (
+        <div className="absolute bottom-4 left-24 z-20 flex flex-col items-center gap-1 animate-fade-in">
+          <a
+            href={recordedVideoUrl}
+            download={`gravacao_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.webm`}
+            className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-white transition-all active:scale-90 hover:bg-green-600 shadow-lg"
+            title="Baixar gravação"
+          >
+            <Download className="h-6 w-6" />
+          </a>
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center">Baixar</span>
+        </div>
+      )}
+
+      {/* Hidden canvas for compositing */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 };
