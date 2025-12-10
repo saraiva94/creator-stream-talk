@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSidebarContext } from "@/contexts/SidebarContext";
 
 interface Channel {
   id: string;
@@ -26,7 +27,7 @@ const PLACEHOLDER_COUNT = 5;
 export const ChannelsSidebar = () => {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { isExpanded, toggleExpanded } = useSidebarContext();
   const [followedChannels, setFollowedChannels] = useState<FollowedChannel[]>([]);
   const [liveChannels, setLiveChannels] = useState<Channel[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -259,17 +260,17 @@ export const ChannelsSidebar = () => {
 
   return (
     <aside
-      className={`fixed left-0 top-[57px] h-[calc(100vh-57px)] bg-card/95 backdrop-blur-sm border-r border-border z-40 transition-all duration-300 ${
+      className={`fixed left-0 top-[57px] h-[calc(100vh-57px)] bg-card/95 backdrop-blur-sm border-r border-border z-40 transition-all duration-300 ease-in-out ${
         effectiveExpanded ? "w-60" : "w-14"
       }`}
     >
       {/* Toggle Button - hidden on mobile */}
       {!isMobile && (
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={toggleExpanded}
           className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1 hover:bg-accent transition-colors z-50"
         >
-          {isExpanded ? (
+          {effectiveExpanded ? (
             <ChevronLeft className="h-4 w-4" />
           ) : (
             <ChevronRight className="h-4 w-4" />
