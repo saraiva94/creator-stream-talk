@@ -342,7 +342,7 @@ const Affiliate = () => {
                   <LinkIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                   <span className="truncate">{t.affiliate.createReferralCode}</span>
                 </CardTitle>
-                <HowToMonetizeDialog />
+                <HowToMonetizeDialog userId={user?.id} initialCode={code} onCodeSaved={(newCode) => setCode(newCode)} />
               </div>
               <div className="animate-pulse">
                 <CardDescription className="text-xs sm:text-sm text-foreground" style={{ textShadow: '0 0 8px hsl(var(--foreground) / 0.5)' }}>
