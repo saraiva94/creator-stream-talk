@@ -168,6 +168,7 @@ export const translations = {
       viewers: "viewers",
       liveEnded: "Live ended",
       liveEndedDesc: "This stream has already ended.",
+      ended: "OFF",
     },
     profile: {
       title: "My Profile",
@@ -870,6 +871,7 @@ export const translations = {
       viewers: "espectadores",
       liveEnded: "Live terminada",
       liveEndedDesc: "Esta transmisión ya ha terminado.",
+      ended: "OFF",
     },
     profile: {
       title: "Mi Perfil",
@@ -1572,6 +1574,7 @@ export const translations = {
       viewers: "espectadores",
       liveEnded: "Live encerrada",
       liveEndedDesc: "Esta transmissão já foi encerrada.",
+      ended: "OFF",
     },
     profile: {
       title: "Meu Perfil",
