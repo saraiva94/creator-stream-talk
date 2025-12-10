@@ -57,12 +57,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn }
     const translateX = adjustedDiff * 220; // Horizontal spacing
     const scale = Math.max(0.6, 1 - absDistance * 0.15); // Scale decreases with distance
     const zIndex = 10 - absDistance;
-    const opacity = Math.max(0.3, 1 - absDistance * 0.25);
     
     return {
       transform: `translateX(${translateX}px) scale(${scale})`,
       zIndex,
-      opacity,
+      opacity: 1, // Fully opaque
       transition: "all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)",
     };
   };
@@ -155,21 +154,21 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn }
                   )}
                 </div>
               ) : (
-                // Skeleton placeholder
-                <div className="w-full h-full bg-card animate-pulse">
-                  <div className="w-full h-full bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-muted-foreground/20 flex items-center justify-center">
-                      <Play className="w-8 h-8 text-muted-foreground/40" />
+                // Skeleton placeholder - solid, no animation
+                <div className="w-full h-full bg-card">
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full bg-muted-foreground/30 flex items-center justify-center">
+                      <Play className="w-8 h-8 text-muted-foreground/60" />
                     </div>
                   </div>
 
                   {/* Skeleton badge */}
-                  <div className="absolute top-2 left-2 w-16 h-5 bg-muted-foreground/20 rounded animate-pulse" />
+                  <div className="absolute top-2 left-2 w-16 h-5 bg-muted-foreground/30 rounded" />
 
                   {/* Skeleton title area */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 space-y-2">
-                    <div className="w-3/4 h-3 bg-muted-foreground/30 rounded animate-pulse" />
-                    <div className="w-1/2 h-2 bg-muted-foreground/20 rounded animate-pulse" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black p-3 space-y-2">
+                    <div className="w-3/4 h-3 bg-muted-foreground/40 rounded" />
+                    <div className="w-1/2 h-2 bg-muted-foreground/30 rounded" />
                   </div>
                 </div>
               )}
