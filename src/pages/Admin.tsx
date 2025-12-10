@@ -1048,6 +1048,9 @@ const Admin = () => {
           </CardContent>
         </Card>
 
+        {/* Promotional Videos Panel - 3rd position after revenue breakdown */}
+        <PromotionalVideosPanel />
+
         {/* Process Pending Payment */}
         <Card className="mb-6 sm:mb-8 border-yellow-500/30 bg-yellow-500/5">
           <CardHeader className="p-4 sm:p-6">
@@ -1255,9 +1258,6 @@ const Admin = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {/* Promotional Videos Panel */}
-        <PromotionalVideosPanel />
 
         {/* Webhook Logs Panel */}
         <WebhookLogsPanel />
