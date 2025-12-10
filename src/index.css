@@ -31,18 +31,18 @@ All colors MUST be HSL.
     --accent: 280 60% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 75%; /* Increased from 60% to 75% for better readability */
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 85%; /* Maximum contrast for muted text */
 
-    --success: 142 76% 42%;
+    --success: 142 76% 50%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 65%;
+    --destructive: 0 84% 70%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 25%; /* Increased from 15% to 25% for visible borders */
-    --input: 0 0% 20%;
-    --ring: 270 70% 55%;
+    --border: 0 0% 100%; /* Pure white borders for maximum contrast */
+    --input: 0 0% 25%;
+    --ring: 270 70% 60%;
 
     --radius: 0.75rem;
 
