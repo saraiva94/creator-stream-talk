@@ -264,7 +264,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     setIsAutoPlaying(false);
   }, [itemCount]);
 
-  const getItemStyle = (index: number) => {
+  const getItemStyle = (index: number, isMobile: boolean) => {
     const diff = index - currentIndex;
     const normalizedDiff = ((diff + itemCount) % itemCount);
     
@@ -275,15 +275,16 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
 
     const absDistance = Math.abs(adjustedDiff);
     
-    // Calculate transform and styling based on distance from center
-    const translateX = adjustedDiff * 220; // Horizontal spacing
-    const scale = Math.max(0.6, 1 - absDistance * 0.15); // Scale decreases with distance
+    // Responsive horizontal spacing
+    const spacing = isMobile ? 140 : 220;
+    const translateX = adjustedDiff * spacing;
+    const scale = Math.max(0.6, 1 - absDistance * 0.15);
     const zIndex = 10 - absDistance;
     
     return {
       transform: `translateX(${translateX}px) scale(${scale})`,
       zIndex,
-      opacity: 1, // Fully opaque
+      opacity: 1,
       transition: "all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)",
     };
   };
@@ -313,6 +314,16 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     }
   };
 
+  // Detect if mobile for responsive sizing
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   return (
     <div className="relative w-full py-4 overflow-hidden">
 
@@ -320,41 +331,47 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       <Button
         variant="ghost"
         size="icon"
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-12 w-12"
+        className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-8 w-8 sm:h-12 sm:w-12"
         onClick={goToPrev}
       >
-        <ChevronLeft className="h-6 w-6 text-foreground" />
+        <ChevronLeft className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
       </Button>
 
       <Button
         variant="ghost"
         size="icon"
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-12 w-12"
+        className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-8 w-8 sm:h-12 sm:w-12"
         onClick={goToNext}
       >
-        <ChevronRight className="h-6 w-6 text-foreground" />
+        <ChevronRight className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
       </Button>
 
-      {/* Carousel Container */}
-      <div className="relative h-[280px] flex items-center justify-center">
+      {/* Carousel Container - Responsive height */}
+      <div className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center">
         {carouselItems.map((item, index) => {
           const isCenter = index === currentIndex;
+
+          // Responsive card dimensions
+          const cardWidth = isMobile ? "200px" : "320px";
+          const cardHeight = isCenter 
+            ? (isMobile ? "140px" : "200px")
+            : (isMobile ? "120px" : "180px");
 
           return (
             <div
               key={index}
               className={cn(
-                "absolute cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-500",
+                "absolute cursor-pointer rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all duration-500",
                 isCenter 
                   ? item.type === 'promo' 
-                    ? "border-yellow-500 shadow-[0_0_30px_hsl(45_100%_50%/0.5)]"
-                    : "border-primary shadow-[0_0_30px_hsl(270_70%_55%/0.5)]" 
+                    ? "border-yellow-500 shadow-[0_0_20px_hsl(45_100%_50%/0.4)] sm:shadow-[0_0_30px_hsl(45_100%_50%/0.5)]"
+                    : "border-primary shadow-[0_0_20px_hsl(270_70%_55%/0.4)] sm:shadow-[0_0_30px_hsl(270_70%_55%/0.5)]" 
                   : "border-border/50"
               )}
               style={{
-                ...getItemStyle(index),
-                width: "320px",
-                height: isCenter ? "200px" : "180px",
+                ...getItemStyle(index, isMobile),
+                width: cardWidth,
+                height: cardHeight,
               }}
               onClick={() => handleVideoClick(index)}
               onMouseEnter={() => setIsAutoPlaying(false)}
@@ -364,26 +381,26 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                 // Live video card
                 <div className="relative w-full h-full bg-card">
                   <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                    <Play className="w-12 h-12 text-primary/50" />
+                    <Play className="w-8 h-8 sm:w-12 sm:h-12 text-primary/50" />
                   </div>
 
                   {/* Live badge */}
-                  <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-destructive px-2 py-1 rounded text-xs font-bold text-white">
-                    <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex items-center gap-1 sm:gap-1.5 bg-destructive px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white">
+                    <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse" />
                     AO VIVO
                   </div>
 
                   {/* Title overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3">
-                    <p className="text-white font-semibold text-sm truncate">{item.live.title || "Live"}</p>
-                    <p className="text-white/70 text-xs truncate">{item.live.creator_username || "Creator"}</p>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 sm:p-3">
+                    <p className="text-white font-semibold text-xs sm:text-sm truncate">{item.live.title || "Live"}</p>
+                    <p className="text-white/70 text-[10px] sm:text-xs truncate">{item.live.creator_username || "Creator"}</p>
                   </div>
 
                   {/* Play overlay on center */}
                   {isCenter && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
-                      <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center">
-                        <Play className="w-7 h-7 text-white fill-white" />
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-primary/90 flex items-center justify-center">
+                        <Play className="w-5 h-5 sm:w-7 sm:h-7 text-white fill-white" />
                       </div>
                     </div>
                   )}
@@ -419,19 +436,20 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center">
-                      <Megaphone className="w-12 h-12 text-yellow-500/50" />
+                      <Megaphone className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-500/50" />
                     </div>
                   )}
 
                   {/* Promo badge */}
-                  <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-yellow-500 px-2 py-1 rounded text-xs font-bold text-black">
-                    <Megaphone className="w-3 h-3" />
-                    PATROCINADO
+                  <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex items-center gap-1 sm:gap-1.5 bg-yellow-500 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-black">
+                    <Megaphone className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    <span className="hidden sm:inline">PATROCINADO</span>
+                    <span className="sm:hidden">AD</span>
                   </div>
 
                   {/* 20-second progress bar for center promo */}
                   {isCenter && (
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
+                    <div className="absolute top-0 left-0 right-0 h-0.5 sm:h-1 bg-black/40">
                       <div 
                         className="h-full bg-yellow-500 transition-all duration-1000 ease-linear"
                         style={{ width: `${(promoWatchTime / PROMO_VIDEO_MAX_SECONDS) * 100}%` }}
@@ -441,24 +459,24 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
 
                   {/* Time remaining indicator */}
                   {isCenter && (
-                    <div className="absolute top-2 right-2 bg-black/70 px-2 py-1 rounded text-xs font-mono text-white">
+                    <div className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-black/70 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-mono text-white">
                       {PROMO_VIDEO_MAX_SECONDS - promoWatchTime}s
                     </div>
                   )}
 
                   {/* Title overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3">
-                    <p className="text-white font-semibold text-sm truncate">{item.promo.title}</p>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 sm:p-3">
+                    <p className="text-white font-semibold text-xs sm:text-sm truncate">{item.promo.title}</p>
                     {item.promo.description && (
-                      <p className="text-white/70 text-xs truncate">{item.promo.description}</p>
+                      <p className="text-white/70 text-[10px] sm:text-xs truncate hidden sm:block">{item.promo.description}</p>
                     )}
                   </div>
 
                   {/* Click overlay for redirect */}
                   {isCenter && item.promo.redirect_url && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-                      <div className="w-14 h-14 rounded-full bg-yellow-500/90 flex items-center justify-center">
-                        <ExternalLink className="w-7 h-7 text-black" />
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-yellow-500/90 flex items-center justify-center">
+                        <ExternalLink className="w-5 h-5 sm:w-7 sm:h-7 text-black" />
                       </div>
                     </div>
                   )}
@@ -474,51 +492,52 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
-                      <Users className="w-12 h-12 text-emerald-500/50" />
+                      <Users className="w-8 h-8 sm:w-12 sm:h-12 text-emerald-500/50" />
                     </div>
                   )}
 
                   {/* Ranking badge with smooth animation */}
                   <div 
-                    className="absolute top-2 left-2 flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 px-2 py-1 rounded text-xs font-bold text-white transition-all duration-500 ease-out"
+                    className="absolute top-1 left-1 sm:top-2 sm:left-2 flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white transition-all duration-500 ease-out"
                     style={{ 
                       transform: `scale(1)`,
                       animation: 'pulse 2s infinite'
                     }}
                   >
-                    <TrendingUp className="w-3 h-3" />
+                    <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     <span className="transition-all duration-300">TOP {item.rank}</span>
                   </div>
 
                   {/* Live indicator if streaming */}
                   {item.creator.is_streaming && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-destructive px-2 py-1 rounded text-xs font-bold text-white">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                      AO VIVO
+                    <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex items-center gap-1 sm:gap-1.5 bg-destructive px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white">
+                      <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse" />
+                      <span className="hidden sm:inline">AO VIVO</span>
+                      <span className="sm:hidden">LIVE</span>
                     </div>
                   )}
 
                   {/* Viewer count */}
-                  {(item.creator.viewer_count ?? 0) > 0 && (
-                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 px-2 py-1 rounded text-xs text-white">
-                      <Users className="w-3 h-3" />
+                  {(item.creator.viewer_count ?? 0) > 0 && !item.creator.is_streaming && (
+                    <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex items-center gap-1 bg-black/60 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs text-white">
+                      <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       {item.creator.viewer_count}
                     </div>
                   )}
 
                   {/* Title overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-3">
-                    <p className="text-white font-semibold text-sm truncate">{item.creator.display_name}</p>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 sm:p-3">
+                    <p className="text-white font-semibold text-xs sm:text-sm truncate">{item.creator.display_name}</p>
                     {item.creator.bio && (
-                      <p className="text-white/70 text-xs truncate">{item.creator.bio}</p>
+                      <p className="text-white/70 text-[10px] sm:text-xs truncate hidden sm:block">{item.creator.bio}</p>
                     )}
                   </div>
 
                   {/* Hover overlay */}
                   {isCenter && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center">
-                        <Play className="w-7 h-7 text-white fill-white" />
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center">
+                        <Play className="w-5 h-5 sm:w-7 sm:h-7 text-white fill-white" />
                       </div>
                     </div>
                   )}
@@ -527,18 +546,18 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                 // Skeleton placeholder
                 <div className="w-full h-full bg-card">
                   <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-muted-foreground/30 flex items-center justify-center">
-                      <Play className="w-8 h-8 text-muted-foreground/60" />
+                    <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-full bg-muted-foreground/30 flex items-center justify-center">
+                      <Play className="w-5 h-5 sm:w-8 sm:h-8 text-muted-foreground/60" />
                     </div>
                   </div>
 
                   {/* Skeleton badge */}
-                  <div className="absolute top-2 left-2 w-16 h-5 bg-muted-foreground/30 rounded" />
+                  <div className="absolute top-1 left-1 sm:top-2 sm:left-2 w-12 sm:w-16 h-4 sm:h-5 bg-muted-foreground/30 rounded" />
 
                   {/* Skeleton title area */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black p-3 space-y-2">
-                    <div className="w-3/4 h-3 bg-muted-foreground/40 rounded" />
-                    <div className="w-1/2 h-2 bg-muted-foreground/30 rounded" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black p-2 sm:p-3 space-y-1 sm:space-y-2">
+                    <div className="w-3/4 h-2 sm:h-3 bg-muted-foreground/40 rounded" />
+                    <div className="w-1/2 h-1.5 sm:h-2 bg-muted-foreground/30 rounded" />
                   </div>
                 </div>
               )}
