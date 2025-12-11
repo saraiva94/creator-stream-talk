@@ -618,15 +618,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const pipWidth = Math.round(100 * pipScale);
   const pipHeight = Math.round(150 * pipScale);
 
-  if (!isStreaming) {
-    return (
-      <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
-        <CameraOff className="h-16 w-16 mb-4" />
-        <p className="text-lg">Transmissão desligada</p>
-        <p className="text-sm">Ative a transmissão para iniciar</p>
-      </div>
-    );
-  }
+  // Show camera preview even when not streaming (for creator to see what will be broadcast)
 
   if (error) {
     return (
@@ -662,13 +654,22 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         )}
       />
 
-      {/* Main camera indicator - GREEN for principal camera */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in border border-green-500/50">
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-green-400 text-xs font-semibold">
+      {/* Main camera indicator - GREEN for principal camera when streaming, GRAY when offline */}
+      <div className={cn(
+        "absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in border",
+        isStreaming ? "border-green-500/50" : "border-gray-500/50"
+      )}>
+        <div className={cn(
+          "w-2 h-2 rounded-full",
+          isStreaming ? "bg-green-500 animate-pulse" : "bg-gray-500"
+        )} />
+        <span className={cn(
+          "text-xs font-semibold",
+          isStreaming ? "text-green-400" : "text-gray-400"
+        )}>
           {getCameraLabel(mainCameraId)}
         </span>
-        <span className="text-white/60 text-xs">• Principal</span>
+        <span className="text-white/60 text-xs">• {isStreaming ? "Ao Vivo" : "Preview"}</span>
       </div>
 
       {/* PiP camera - floating window with pinch-to-zoom */}
