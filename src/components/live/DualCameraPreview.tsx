@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff, RotateCcw, User, Video, Circle, Square, Download } from "lucide-react";
+import { CameraOff, SwitchCamera, Camera, Flashlight, FlashlightOff, RotateCcw, User, Video, Circle, Square, Download, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+export type RecordingQuality = "high" | "medium" | "low";
+
+const QUALITY_SETTINGS: Record<RecordingQuality, { bitrate: number; width: number; height: number; label: string }> = {
+  high: { bitrate: 8000000, width: 1080, height: 1920, label: "Alta (1080p)" },
+  medium: { bitrate: 5000000, width: 720, height: 1280, label: "Média (720p)" },
+  low: { bitrate: 2000000, width: 480, height: 854, label: "Baixa (480p)" },
+};
 
 export type VideoOrientation = "vertical" | "horizontal";
 
@@ -102,6 +111,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>("medium");
+  const [showQualitySelector, setShowQualitySelector] = useState(false);
   
   // PiP drag state - load from localStorage
   const [pipPosition, setPipPosition] = useState(getStoredPipPosition);
@@ -395,7 +406,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [isMirrored, orientation, pipEnabled, pipStream, pipPosition, pipScale, isRecording]);
 
-  // Start recording
+  // Start recording with quality settings
   const startRecording = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !mainStream) {
@@ -410,9 +421,17 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
     recordedChunksRef.current = [];
     
-    // Set canvas dimensions
-    canvas.width = orientation === "vertical" ? 720 : 1280;
-    canvas.height = orientation === "vertical" ? 1280 : 720;
+    // Get quality settings
+    const quality = QUALITY_SETTINGS[recordingQuality];
+    
+    // Set canvas dimensions based on quality and orientation
+    if (orientation === "vertical") {
+      canvas.width = quality.width;
+      canvas.height = quality.height;
+    } else {
+      canvas.width = quality.height;
+      canvas.height = quality.width;
+    }
     
     // Get canvas stream
     const canvasStream = canvas.captureStream(30); // 30 FPS
@@ -423,14 +442,17 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       canvasStream.addTrack(audioTracks[0]);
     }
     
-    // Create MediaRecorder
+    // Create MediaRecorder with quality-based bitrate
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
       ? 'video/webm;codecs=vp9,opus'
       : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
         ? 'video/webm;codecs=vp8,opus'
         : 'video/webm';
     
-    const recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 5000000 });
+    const recorder = new MediaRecorder(canvasStream, { 
+      mimeType, 
+      videoBitsPerSecond: quality.bitrate 
+    });
     
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
@@ -449,12 +471,13 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     recorder.start(1000); // Collect data every second
     setIsRecording(true);
     setRecordingDuration(0);
+    setShowQualitySelector(false);
     
     // Start drawing composite frames
     animationFrameRef.current = requestAnimationFrame(drawCompositeFrame);
     
-    toast.success("Gravação iniciada!");
-  }, [mainStream, orientation, recordedVideoUrl, drawCompositeFrame]);
+    toast.success(`Gravação iniciada em ${quality.label}!`);
+  }, [mainStream, orientation, recordedVideoUrl, drawCompositeFrame, recordingQuality]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -614,14 +637,10 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         )}
       />
 
-      {/* Main camera indicator - positioned to avoid overlap with viewer count */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in">
-        {getCameraLabel(mainCameraId) === "Frontal" ? (
-          <User className="h-4 w-4 text-primary" />
-        ) : (
-          <Video className="h-4 w-4 text-green-400" />
-        )}
-        <span className="text-white text-xs font-semibold">
+      {/* Main camera indicator - GREEN for principal camera */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in border border-green-500/50">
+        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        <span className="text-green-400 text-xs font-semibold">
           {getCameraLabel(mainCameraId)}
         </span>
         <span className="text-white/60 text-xs">• Principal</span>
@@ -668,14 +687,10 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             <SwitchCamera className="h-4 w-4" />
           </button>
 
-          {/* Camera type indicator on PiP */}
-          <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1">
-            {getCameraLabel(pipCameraId) === "Frontal" ? (
-              <User className="h-3 w-3 text-primary" />
-            ) : (
-              <Video className="h-3 w-3 text-green-400" />
-            )}
-            <span className="text-white text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
+          {/* Camera type indicator on PiP - BLUE for secondary camera */}
+          <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1 border border-blue-500/50">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-blue-400 text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
           </div>
 
           {/* Resize hint indicator */}
@@ -760,8 +775,53 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         </div>
       )}
 
-      {/* Left side controls - Recording and Download buttons positioned vertically in middle */}
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4">
+      {/* Left side controls - Recording, Quality selector, and Download buttons */}
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
+        {/* Quality selector button - only show when not recording */}
+        {!isRecording && (
+          <div className="flex flex-col items-center gap-1">
+            <button
+              onClick={() => setShowQualitySelector(!showQualitySelector)}
+              className={cn(
+                "w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg",
+                showQualitySelector
+                  ? "bg-primary text-primary-foreground ring-2 ring-white/50"
+                  : "bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
+              )}
+              title="Qualidade da gravação"
+            >
+              <Settings2 className="h-5 w-5" />
+            </button>
+            <span className="text-white text-[10px] font-semibold drop-shadow-lg text-center">
+              {QUALITY_SETTINGS[recordingQuality].label.split(' ')[0]}
+            </span>
+          </div>
+        )}
+
+        {/* Quality dropdown - positioned to the right */}
+        {showQualitySelector && !isRecording && (
+          <div className="absolute left-16 top-0 bg-background/95 backdrop-blur-sm rounded-lg shadow-xl border border-border p-2 min-w-[140px] z-50">
+            <p className="text-xs text-muted-foreground mb-2 px-2">Qualidade</p>
+            {(["high", "medium", "low"] as RecordingQuality[]).map((quality) => (
+              <button
+                key={quality}
+                onClick={() => {
+                  setRecordingQuality(quality);
+                  setShowQualitySelector(false);
+                }}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-md text-sm transition-colors",
+                  recordingQuality === quality
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted text-foreground"
+                )}
+              >
+                {QUALITY_SETTINGS[quality].label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Recording button */}
         <div className="flex flex-col items-center gap-1">
           <button
