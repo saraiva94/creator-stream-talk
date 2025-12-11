@@ -411,7 +411,7 @@ const LiveViewer: React.FC = () => {
   }, []);
 
   const handlePurchaseCredits = () => {
-    navigate("/affiliate");
+    navigate("/profile");
   };
 
   const handleFollow = async () => {
