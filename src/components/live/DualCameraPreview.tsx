@@ -833,7 +833,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
       {/* Switch cameras button - SEMPRE visível se tem 2 câmeras */}
       {hasMultipleCameras && (
-        <div className="absolute top-40 right-4 z-20 flex flex-col items-center gap-1">
+        <div className="absolute top-48 right-4 z-20 flex flex-col items-center gap-1">
           <button
             onClick={handleSwitchCameras}
             className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30 shadow-lg"
