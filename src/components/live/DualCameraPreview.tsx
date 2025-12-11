@@ -255,7 +255,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [isStreaming, cameras.length, pipCameraId]);
 
-  // PiP camera stream - SEMPRE usa câmera oposta à principal
+  // PiP camera stream - SEMPRE usa câmera DIFERENTE da principal via deviceId
   useEffect(() => {
     let isMounted = true;
     let currentStream: MediaStream | null = null;
@@ -273,26 +273,34 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         return;
       }
       
+      // Verificar se temos pelo menos 2 câmeras
+      if (cameras.length < 2) {
+        setPipError("Apenas 1 câmera disponível");
+        return;
+      }
+      
       // Parar stream anterior
       if (pipStream) {
         pipStream.getTracks().forEach(track => track.stop());
         setPipStream(null);
       }
       
-      // Determinar facingMode da câmera principal
-      const mainCamera = cameras.find(c => c.deviceId === mainCameraId);
-      const mainFacing = mainCamera?.facingMode || 'user';
+      // Encontrar câmera DIFERENTE da principal usando deviceId
+      const otherCamera = cameras.find(c => c.deviceId !== mainCameraId);
       
-      // PiP SEMPRE usa o modo OPOSTO
-      const pipFacing: 'user' | 'environment' = mainFacing === 'user' ? 'environment' : 'user';
+      if (!otherCamera) {
+        setPipError("Câmera secundária não encontrada");
+        return;
+      }
       
-      console.log("[PIP] Main:", mainFacing, "-> PiP:", pipFacing);
+      console.log("[PIP] Main camera:", mainCameraId?.slice(0, 8));
+      console.log("[PIP] Other camera:", otherCamera.deviceId.slice(0, 8), otherCamera.facingMode);
       
       try {
-        // Forçar facingMode oposto com exact
+        // Usar deviceId exato da outra câmera
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { exact: pipFacing } }
+          video: { deviceId: { exact: otherCamera.deviceId } }
         });
         
         if (!isMounted) {
@@ -315,29 +323,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           }
         }
         
-      } catch (err) {
-        console.error("[PIP] Failed with exact facingMode:", err);
+        console.log("[PIP] Success with deviceId:", otherCamera.deviceId.slice(0, 8));
         
-        // Fallback: tentar sem exact
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: pipFacing }
-          });
-          
-          if (!isMounted) {
-            stream.getTracks().forEach(track => track.stop());
-            return;
-          }
-          
-          currentStream = stream;
-          setPipStream(stream);
-          setPipError(null);
-          
-        } catch (err2) {
-          console.error("[PIP] Fallback failed:", err2);
-          setPipError((err2 as Error).message);
-        }
+      } catch (err) {
+        console.error("[PIP] Failed with exact deviceId:", err);
+        setPipError((err as Error).message);
       }
     };
 
@@ -833,7 +823,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
       {/* Switch cameras button - SEMPRE visível se tem 2 câmeras */}
       {hasMultipleCameras && (
-        <div className="absolute top-48 right-4 z-20 flex flex-col items-center gap-1">
+        <div className="absolute top-56 right-4 z-20 flex flex-col items-center gap-1">
           <button
             onClick={handleSwitchCameras}
             className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30 shadow-lg"
