@@ -131,49 +131,36 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   useEffect(() => {
     const requestCameraPermission = async () => {
       try {
-        console.log("[DualCameraPreview] Starting camera permission request...");
-        
         // First check permission state - some browsers don't support this
         try {
           const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          console.log("[DualCameraPreview] Permission state:", permissionStatus.state);
-          
           if (permissionStatus.state === 'denied') {
             setError("Permissão de câmera negada. Ative nas configurações do navegador.");
             return;
           }
-        } catch (permErr) {
-          console.log("[DualCameraPreview] Permission API not supported, proceeding with getUserMedia");
+        } catch {
+          // Permission API not supported, proceeding with getUserMedia
         }
 
         // Request permission explicitly with both cameras if possible
         try {
-          // Request front camera first
-          console.log("[DualCameraPreview] Requesting front camera...");
           const frontStream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'user' } 
           });
           frontStream.getTracks().forEach(t => t.stop());
-          console.log("[DualCameraPreview] Front camera access granted");
           
-          // Then request back camera
-          console.log("[DualCameraPreview] Requesting back camera...");
           const backStream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'environment' } 
           });
           backStream.getTracks().forEach(t => t.stop());
-          console.log("[DualCameraPreview] Back camera access granted");
-        } catch (cameraErr) {
-          console.log("[DualCameraPreview] Multi-camera request failed, using fallback:", cameraErr);
+        } catch {
           // Fallback to generic request
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
           stream.getTracks().forEach(t => t.stop());
-          console.log("[DualCameraPreview] Fallback camera access granted");
         }
         
         // Now enumerate all cameras
         const devices = await navigator.mediaDevices.enumerateDevices();
-        console.log("[DualCameraPreview] All devices:", devices.map(d => ({ kind: d.kind, label: d.label })));
         
         const videoDevices = devices
           .filter(d => d.kind === "videoinput")
@@ -194,30 +181,22 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             };
           });
         
-        console.log("[DualCameraPreview] Video devices found:", videoDevices.length, videoDevices);
         setCameras(videoDevices);
         
         // Set initial cameras - prefer front for main, back for secondary
         const frontCamera = videoDevices.find(c => c.facingMode === "user") || videoDevices[0];
         const backCamera = videoDevices.find(c => c.facingMode === "environment") || videoDevices[1];
         
-        console.log("[DualCameraPreview] Front camera:", frontCamera);
-        console.log("[DualCameraPreview] Back camera:", backCamera);
-        
         if (frontCamera) {
           setMainCameraId(frontCamera.deviceId);
-          console.log("[DualCameraPreview] Main camera set to:", frontCamera.deviceId);
         }
         if (backCamera && backCamera.deviceId !== frontCamera?.deviceId) {
           setPipCameraId(backCamera.deviceId);
-          console.log("[DualCameraPreview] PiP camera set to:", backCamera.deviceId);
-        } else {
-          console.log("[DualCameraPreview] No secondary camera available or same as main");
         }
         
         setError(null);
       } catch (err) {
-        console.error("[DualCameraPreview] Error requesting camera permission:", err);
+        console.error("Error requesting camera permission:", err);
         setError("Permita o acesso à câmera para continuar");
       }
     };
@@ -279,14 +258,10 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     let isMounted = true;
     let currentStream: MediaStream | null = null;
     
-    console.log("[PiP useEffect] Running with pipEnabled:", pipEnabled, "pipCameraId:", pipCameraId);
-    
     const startPipStream = async () => {
-      console.log("[PiP] startPipStream called", { pipEnabled, pipCameraId });
       setPipError(null);
       
       if (!pipEnabled) {
-        console.log("[PiP] Not enabled, clearing stream");
         setPipStream(null);
         setFlashSupported(false);
         setFlashEnabled(false);
@@ -294,39 +269,29 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       }
       
       if (!pipCameraId) {
-        console.log("[PiP] No pipCameraId, cannot start stream");
         setPipError("Sem pipCameraId");
         return;
       }
 
       // Try multiple approaches to get the second camera
       const attempts = [
-        // Attempt 1: exact deviceId
         { audio: false, video: { deviceId: { exact: pipCameraId } } },
-        // Attempt 2: ideal deviceId (less strict)
         { audio: false, video: { deviceId: pipCameraId } },
-        // Attempt 3: facingMode environment (back camera)
         { audio: false, video: { facingMode: 'environment' } },
-        // Attempt 4: facingMode user (front camera) 
         { audio: false, video: { facingMode: 'user' } },
       ];
       
       for (let i = 0; i < attempts.length; i++) {
         try {
           const constraints = attempts[i] as MediaStreamConstraints;
-          console.log(`[PiP] Attempt ${i + 1}: Requesting getUserMedia with:`, JSON.stringify(constraints));
-          
           const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          console.log(`[PiP] Attempt ${i + 1} SUCCESS! Got stream:`, stream.id);
           
           if (!isMounted) {
-            console.log("[PiP] Component unmounted, stopping stream");
             stream.getTracks().forEach(track => track.stop());
             return;
           }
           
           currentStream = stream;
-          console.log("[PiP] Setting pipStream state NOW");
           setPipStream(stream);
           setPipError(null);
 
@@ -336,15 +301,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             const capabilities = videoTrack.getCapabilities?.();
             const hasTorch = capabilities && 'torch' in capabilities;
             setFlashSupported(!!hasTorch);
-            console.log("[PiP] Flash supported:", !!hasTorch);
           }
           
-          // Success - exit loop
           return;
         } catch (err) {
-          console.error(`[PiP] Attempt ${i + 1} FAILED:`, err);
           if (i === attempts.length - 1) {
-            // Last attempt failed
             setPipError(`Falha: ${(err as Error).message}`);
           }
         }
@@ -354,7 +315,6 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     startPipStream();
 
     return () => {
-      console.log("[PiP useEffect] Cleanup");
       isMounted = false;
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
@@ -380,33 +340,32 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [pipStream, flashEnabled]);
 
-  // Switch cameras
+  // Switch cameras - swap main and pip camera IDs
   const handleSwitchCameras = useCallback(() => {
-    if (!mainCameraId || !pipCameraId) return;
+    if (!mainCameraId || !pipCameraId || !pipEnabled) {
+      toast.error("Ative a segunda câmera para inverter");
+      return;
+    }
     
     const tempMain = mainCameraId;
     setMainCameraId(pipCameraId);
     setPipCameraId(tempMain);
-  }, [mainCameraId, pipCameraId]);
+    
+    toast.success("Câmeras invertidas!");
+  }, [mainCameraId, pipCameraId, pipEnabled]);
 
   // Toggle PiP
   const togglePip = useCallback(() => {
-    console.log("[PiP] togglePip called - current pipEnabled:", pipEnabled, "pipCameraId:", pipCameraId);
-    
     if (pipEnabled) {
-      // Desativando PiP
-      console.log("[PiP] Disabling PiP");
       setPipEnabled(false);
     } else {
       // Ativando PiP - primeiro garantir que temos um pipCameraId
       if (!pipCameraId && cameras.length > 1) {
         const otherCamera = cameras.find(c => c.deviceId !== mainCameraId);
         if (otherCamera) {
-          console.log("[PiP] Setting pipCameraId to:", otherCamera.deviceId);
           setPipCameraId(otherCamera.deviceId);
         }
       }
-      console.log("[PiP] Enabling PiP");
       setPipEnabled(true);
     }
   }, [cameras, mainCameraId, pipCameraId, pipEnabled]);
@@ -670,7 +629,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     setPipPosition({ x: newX, y: newY });
   }, [isDragging, isPinching, pipScale]);
 
-  // Save PiP position and size when drag/pinch ends, or switch cameras on tap
+  // Save PiP position and size when drag/pinch ends - tap to switch removed (use external button)
   const handleDragEnd = useCallback(() => {
     if (isPinching) {
       setIsPinching(false);
@@ -678,16 +637,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
     if (isDragging) {
       setIsDragging(false);
-      
-      // If user didn't drag (just tapped), switch cameras
-      if (!hasDraggedRef.current) {
-        handleSwitchCameras();
-        toast.success("Câmeras invertidas!");
-      } else {
-        savePipPosition(pipPosition);
-      }
+      savePipPosition(pipPosition);
     }
-  }, [pipPosition, pipScale, isDragging, isPinching, handleSwitchCameras]);
+  }, [pipPosition, pipScale, isDragging, isPinching]);
 
   // Check if device has multiple cameras
   const hasMultipleCameras = cameras.length > 1;
@@ -750,40 +702,6 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         <span className="text-white/60 text-xs">• {isStreaming ? "Ao Vivo" : "Preview"}</span>
       </div>
 
-      {/* DEBUG: Camera count indicator */}
-      <div className="absolute bottom-4 left-4 z-50 bg-black/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-yellow-500/50">
-        <div className="flex flex-col gap-1 text-xs">
-          <div className="flex items-center gap-2">
-            <Camera className="h-3 w-3 text-yellow-400" />
-            <span className="text-yellow-400 font-semibold">DEBUG</span>
-          </div>
-          <div className="text-white/80">
-            Câmeras: <span className={cn("font-bold", cameras.length > 1 ? "text-green-400" : "text-red-400")}>{cameras.length}</span>
-          </div>
-          <div className="text-white/60 text-[10px]">
-            mainCameraId: {mainCameraId ? "✓" : "✗"}
-          </div>
-          <div className="text-white/60 text-[10px]">
-            pipCameraId: {pipCameraId ? "✓" : "✗"}
-          </div>
-          <div className={cn("text-[10px]", pipStream ? "text-green-400" : "text-red-400")}>
-            pipStream: {pipStream ? "✓ ATIVO" : "✗ NULL"}
-          </div>
-          <div className="text-white/60 text-[10px]">
-            pipEnabled: {pipEnabled ? "Sim" : "Não"}
-          </div>
-          {pipError && (
-            <div className="text-red-400 text-[9px] font-semibold">
-              Erro: {pipError}
-            </div>
-          )}
-          {cameras.map((cam, i) => (
-            <div key={cam.deviceId} className="text-white/50 text-[9px] truncate max-w-[120px]">
-              {i + 1}. {cam.label.slice(0, 20)}
-            </div>
-          ))}
-        </div>
-      </div>
       {/* Hidden video element for PiP - always rendered to keep ref available */}
       <video
         ref={pipVideoRef}
@@ -827,20 +745,15 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             }}
           />
           
-          {/* Tap to switch hint overlay */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 hover:opacity-100 transition-opacity bg-black/30">
-            <SwitchCamera className="h-8 w-8 text-white/80" />
-          </div>
-
           {/* Camera type indicator on PiP - BLUE for secondary camera */}
           <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1 border border-blue-500/50">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             <span className="text-blue-400 text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
           </div>
 
-          {/* Hint indicator - tap to switch */}
+          {/* Drag hint */}
           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
-            <span className="text-white/80 text-[8px] font-medium">Toque p/ trocar</span>
+            <span className="text-white/80 text-[8px] font-medium">Arraste p/ mover</span>
           </div>
         </div>
       )}
