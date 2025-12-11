@@ -255,12 +255,13 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [isStreaming, cameras.length, pipCameraId]);
 
-  // PiP camera stream - SIMPLIFICADO
+  // PiP camera stream - usando facingMode ao invés de deviceId exato
   useEffect(() => {
     let isMounted = true;
+    let currentStream: MediaStream | null = null;
     
     const startPipStream = async () => {
-      console.log("[PIP] useEffect triggered", { pipEnabled, pipCameraId, mainCameraId, camerasCount: cameras.length });
+      console.log("[PIP] useEffect triggered", { pipEnabled, mainCameraId, camerasCount: cameras.length });
       
       // Se PiP desabilitado, limpar stream
       if (!pipEnabled) {
@@ -278,60 +279,78 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       // Verificar se temos câmeras suficientes
       if (cameras.length < 2) {
         console.log("[PIP] Not enough cameras:", cameras.length);
-        setPipError("Apenas 1 câmera detectada");
+        setPipError("Apenas 1 câmera");
         return;
       }
-      
-      // Encontrar câmera diferente da principal
-      const targetCamera = cameras.find(c => c.deviceId !== mainCameraId);
-      if (!targetCamera) {
-        console.log("[PIP] No different camera found");
-        setPipError("Sem câmera alternativa");
-        return;
+
+      // Parar stream anterior
+      if (pipStream) {
+        console.log("[PIP] Stopping previous stream");
+        pipStream.getTracks().forEach(track => track.stop());
+        setPipStream(null);
       }
       
-      console.log("[PIP] Target camera:", targetCamera.label, targetCamera.deviceId.slice(0, 8));
+      // Determinar qual facingMode usar para PiP (oposto da câmera principal)
+      const mainCamera = cameras.find(c => c.deviceId === mainCameraId);
+      const mainFacing = mainCamera?.facingMode || 'user';
+      const pipFacing = mainFacing === 'user' ? 'environment' : 'user';
       
-      // Atualizar pipCameraId se necessário
-      if (pipCameraId !== targetCamera.deviceId) {
-        setPipCameraId(targetCamera.deviceId);
-      }
+      console.log("[PIP] Main facing:", mainFacing, "-> PiP facing:", pipFacing);
+      
+      // Tentar várias abordagens em ordem
+      const attempts = [
+        // 1. Usar facingMode oposto
+        { video: { facingMode: pipFacing } },
+        // 2. Usar facingMode ideal
+        { video: { facingMode: { ideal: pipFacing } } },
+        // 3. Usar deviceId da segunda câmera (não exact)
+        { video: { deviceId: cameras.find(c => c.deviceId !== mainCameraId)?.deviceId } },
+        // 4. Qualquer câmera disponível
+        { video: true },
+      ];
+      
+      for (let i = 0; i < attempts.length; i++) {
+        try {
+          console.log(`[PIP] Attempt ${i + 1}:`, JSON.stringify(attempts[i]));
+          
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            ...attempts[i]
+          });
+          
+          if (!isMounted) {
+            stream.getTracks().forEach(track => track.stop());
+            return;
+          }
+          
+          // Verificar se obtivemos uma câmera diferente
+          const newTrack = stream.getVideoTracks()[0];
+          const settings = newTrack?.getSettings?.();
+          console.log("[PIP] Got stream, settings:", settings?.facingMode, settings?.deviceId?.slice(0, 8));
+          
+          currentStream = stream;
+          setPipStream(stream);
+          setPipError(null);
 
-      try {
-        // Parar stream anterior
-        if (pipStream) {
-          console.log("[PIP] Stopping previous stream");
-          pipStream.getTracks().forEach(track => track.stop());
-        }
-        
-        console.log("[PIP] Requesting camera...");
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { deviceId: { exact: targetCamera.deviceId } }
-        });
-        
-        if (!isMounted) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-        
-        console.log("[PIP] Stream obtained successfully!");
-        setPipStream(stream);
-        setPipError(null);
-
-        // Check flash support
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          try {
-            const capabilities = videoTrack.getCapabilities?.() as Record<string, unknown> | undefined;
-            setFlashSupported(!!capabilities?.['torch']);
-          } catch {
-            setFlashSupported(false);
+          // Check flash support
+          if (newTrack) {
+            try {
+              const capabilities = newTrack.getCapabilities?.() as Record<string, unknown> | undefined;
+              setFlashSupported(!!capabilities?.['torch']);
+            } catch {
+              setFlashSupported(false);
+            }
+          }
+          
+          console.log("[PIP] Success on attempt", i + 1);
+          return; // Sucesso, sair do loop
+          
+        } catch (err) {
+          console.log(`[PIP] Attempt ${i + 1} failed:`, (err as Error).message);
+          if (i === attempts.length - 1) {
+            setPipError((err as Error).message);
           }
         }
-      } catch (err) {
-        console.error("[PIP] Error:", err);
-        setPipError((err as Error).message);
       }
     };
 
@@ -339,6 +358,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
     return () => {
       isMounted = false;
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
     };
   }, [pipEnabled, mainCameraId, cameras]);
 
