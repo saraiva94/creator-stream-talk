@@ -255,49 +255,59 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [isStreaming, cameras.length, pipCameraId]);
 
-  // PiP camera stream with flash support check - active when pipEnabled is true
+  // PiP camera stream - SIMPLIFICADO
   useEffect(() => {
     let isMounted = true;
-    let currentStream: MediaStream | null = null;
     
     const startPipStream = async () => {
-      setPipError(null);
+      console.log("[PIP] useEffect triggered", { pipEnabled, pipCameraId, mainCameraId, camerasCount: cameras.length });
       
       // Se PiP desabilitado, limpar stream
       if (!pipEnabled) {
+        console.log("[PIP] Disabled, cleaning up");
         if (pipStream) {
           pipStream.getTracks().forEach(track => track.stop());
+          setPipStream(null);
         }
-        setPipStream(null);
         setFlashSupported(false);
         setFlashEnabled(false);
+        setPipError(null);
         return;
       }
       
-      // Se não temos pipCameraId, tentar encontrar uma câmera diferente da principal
-      let targetCameraId = pipCameraId;
-      if (!targetCameraId || targetCameraId === mainCameraId) {
-        const otherCamera = cameras.find(c => c.deviceId !== mainCameraId);
-        if (otherCamera) {
-          targetCameraId = otherCamera.deviceId;
-          setPipCameraId(otherCamera.deviceId);
-        } else {
-          setPipError("Sem segunda câmera disponível");
-          return;
-        }
+      // Verificar se temos câmeras suficientes
+      if (cameras.length < 2) {
+        console.log("[PIP] Not enough cameras:", cameras.length);
+        setPipError("Apenas 1 câmera detectada");
+        return;
       }
-
-      // Parar stream anterior se existir
-      if (pipStream) {
-        pipStream.getTracks().forEach(track => track.stop());
-        setPipStream(null);
+      
+      // Encontrar câmera diferente da principal
+      const targetCamera = cameras.find(c => c.deviceId !== mainCameraId);
+      if (!targetCamera) {
+        console.log("[PIP] No different camera found");
+        setPipError("Sem câmera alternativa");
+        return;
+      }
+      
+      console.log("[PIP] Target camera:", targetCamera.label, targetCamera.deviceId.slice(0, 8));
+      
+      // Atualizar pipCameraId se necessário
+      if (pipCameraId !== targetCamera.deviceId) {
+        setPipCameraId(targetCamera.deviceId);
       }
 
       try {
-        // Tentar obter stream com o deviceId exato
+        // Parar stream anterior
+        if (pipStream) {
+          console.log("[PIP] Stopping previous stream");
+          pipStream.getTracks().forEach(track => track.stop());
+        }
+        
+        console.log("[PIP] Requesting camera...");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { deviceId: { exact: targetCameraId } }
+          video: { deviceId: { exact: targetCamera.deviceId } }
         });
         
         if (!isMounted) {
@@ -305,20 +315,23 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           return;
         }
         
-        currentStream = stream;
+        console.log("[PIP] Stream obtained successfully!");
         setPipStream(stream);
         setPipError(null);
 
-        // Check if flash/torch is supported
+        // Check flash support
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
-          const capabilities = videoTrack.getCapabilities?.();
-          const hasTorch = capabilities && 'torch' in capabilities;
-          setFlashSupported(!!hasTorch);
+          try {
+            const capabilities = videoTrack.getCapabilities?.() as Record<string, unknown> | undefined;
+            setFlashSupported(!!capabilities?.['torch']);
+          } catch {
+            setFlashSupported(false);
+          }
         }
       } catch (err) {
-        console.error("PiP camera error:", err);
-        setPipError(`Falha: ${(err as Error).message}`);
+        console.error("[PIP] Error:", err);
+        setPipError((err as Error).message);
       }
     };
 
@@ -326,11 +339,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
     return () => {
       isMounted = false;
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
     };
-  }, [pipCameraId, pipEnabled, mainCameraId, cameras]);
+  }, [pipEnabled, mainCameraId, cameras]);
 
   // Toggle flash/torch
   const toggleFlash = useCallback(async () => {
@@ -350,31 +360,47 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [pipStream, flashEnabled]);
 
-  // Switch cameras - swap main and pip camera IDs usando os estados armazenados
+  // Switch cameras - SIMPLIFICADO
   const handleSwitchCameras = useCallback(() => {
-    if (!mainCameraId || !pipCameraId) {
-      toast.error("Câmeras não configuradas");
+    console.log("[SWITCH] Called", { mainCameraId, pipCameraId, pipEnabled, hasPipStream: !!pipStream });
+    
+    if (!pipEnabled) {
+      toast.error("Ative a segunda câmera primeiro");
       return;
     }
     
-    if (!pipEnabled || !pipStream) {
-      toast.error("Ative a segunda câmera para inverter");
+    if (cameras.length < 2) {
+      toast.error("Apenas uma câmera disponível");
       return;
     }
     
-    // Simplesmente trocar os IDs armazenados nos estados
-    const tempMainId = mainCameraId;
-    const tempPipId = pipCameraId;
+    // Encontrar as duas câmeras
+    const cam1 = cameras[0];
+    const cam2 = cameras[1];
     
-    // Atualizar estados - isso vai triggerar os useEffects para reiniciar os streams
-    setMainCameraId(tempPipId);
-    setPipCameraId(tempMainId);
+    if (!cam1 || !cam2) {
+      toast.error("Câmeras não encontradas");
+      return;
+    }
+    
+    // Se main é cam1, trocar para cam2 e vice-versa
+    if (mainCameraId === cam1.deviceId) {
+      console.log("[SWITCH] Swapping to cam2 main, cam1 pip");
+      setMainCameraId(cam2.deviceId);
+      setPipCameraId(cam1.deviceId);
+    } else {
+      console.log("[SWITCH] Swapping to cam1 main, cam2 pip");
+      setMainCameraId(cam1.deviceId);
+      setPipCameraId(cam2.deviceId);
+    }
     
     toast.success("Câmeras invertidas!");
-  }, [mainCameraId, pipCameraId, pipEnabled, pipStream]);
+  }, [cameras, mainCameraId, pipCameraId, pipEnabled, pipStream]);
 
-  // Toggle PiP
+  // Toggle PiP - SIMPLIFICADO
   const togglePip = useCallback(() => {
+    console.log("[TOGGLE PIP] Called", { pipEnabled, camerasCount: cameras.length });
+    
     if (pipEnabled) {
       // Desativando PiP
       if (pipStream) {
@@ -382,24 +408,17 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       }
       setPipStream(null);
       setPipEnabled(false);
+      console.log("[TOGGLE PIP] Disabled");
     } else {
-      // Ativando PiP - garantir que temos um pipCameraId diferente do main
-      const currentMainDeviceId = mainStream?.getVideoTracks()[0]?.getSettings?.()?.deviceId || mainCameraId;
-      const otherCamera = cameras.find(c => c.deviceId !== currentMainDeviceId);
-      
-      if (otherCamera) {
-        setPipCameraId(otherCamera.deviceId);
-        setPipEnabled(true);
-      } else if (cameras.length > 1) {
-        // Fallback: pegar qualquer câmera diferente
-        const altCamera = cameras.find(c => c.deviceId !== mainCameraId);
-        if (altCamera) {
-          setPipCameraId(altCamera.deviceId);
-          setPipEnabled(true);
-        }
+      // Ativando PiP
+      if (cameras.length < 2) {
+        toast.error("Seu dispositivo tem apenas uma câmera");
+        return;
       }
+      setPipEnabled(true);
+      console.log("[TOGGLE PIP] Enabled");
     }
-  }, [cameras, mainCameraId, mainStream, pipEnabled, pipStream]);
+  }, [cameras.length, pipEnabled, pipStream]);
 
   // Reset PiP position and size
   const resetPipLayout = useCallback(() => {
@@ -715,6 +734,23 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       onTouchMove={handleDragMove}
       onTouchEnd={handleDragEnd}
     >
+      {/* DEBUG PANEL - temporário para diagnóstico */}
+      <div className="absolute bottom-4 left-4 z-[100] bg-black/90 text-white text-[10px] p-2 rounded-lg max-w-[200px] font-mono">
+        <div className="text-yellow-400 font-bold mb-1">DEBUG CÂMERAS</div>
+        <div>Câmeras: {cameras.length}</div>
+        {cameras.map((c, i) => (
+          <div key={c.deviceId} className="text-gray-300 truncate">
+            {i+1}. {c.facingMode || 'unknown'}: {c.label.slice(0, 15)}
+          </div>
+        ))}
+        <div className="border-t border-gray-600 mt-1 pt-1">
+          <div>mainCameraId: {mainCameraId ? '✓' : '✗'}</div>
+          <div>pipCameraId: {pipCameraId ? '✓' : '✗'}</div>
+          <div>pipEnabled: {pipEnabled ? '✓ SIM' : '✗ NÃO'}</div>
+          <div>pipStream: {pipStream ? '✓ ATIVO' : '✗ NULL'}</div>
+          {pipError && <div className="text-red-400">Erro: {pipError}</div>}
+        </div>
+      </div>
       {/* Main camera - fullscreen */}
       <video
         ref={mainVideoRef}
