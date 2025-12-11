@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
 import { DualCameraPreview } from "@/components/live/DualCameraPreview";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
@@ -12,7 +13,9 @@ import {
   DollarSign, 
   Settings,
   Share2,
-  Sparkles
+  Sparkles,
+  Home,
+  ChevronLeft
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
@@ -64,6 +67,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   orientation = "vertical",
 }) => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
 
   const handleShare = async () => {
@@ -100,8 +104,17 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         </div>
 
-        {/* Top overlay - stats */}
+        {/* Top overlay - navigation and stats */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+          {/* Back/Home button */}
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 text-white hover:bg-black/80 transition-colors active:scale-95"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <Home className="h-4 w-4" />
+          </button>
+
           {/* Viewer count */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
