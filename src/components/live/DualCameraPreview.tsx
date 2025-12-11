@@ -105,6 +105,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const [pipCameraId, setPipCameraId] = useState<string | null>(null);
   const [pipEnabled, setPipEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pipError, setPipError] = useState<string | null>(null);
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [flashSupported, setFlashSupported] = useState(false);
   
@@ -282,61 +283,71 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     
     const startPipStream = async () => {
       console.log("[PiP] startPipStream called", { pipEnabled, pipCameraId });
+      setPipError(null);
       
       if (!pipEnabled) {
         console.log("[PiP] Not enabled, clearing stream");
         setPipStream(null);
         setFlashSupported(false);
         setFlashEnabled(false);
-        if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
         return;
       }
       
       if (!pipCameraId) {
         console.log("[PiP] No pipCameraId, cannot start stream");
+        setPipError("Sem pipCameraId");
         return;
       }
 
-      try {
-        const constraints: MediaStreamConstraints = {
-          audio: false,
-          video: { deviceId: { exact: pipCameraId } },
-        };
+      // Try multiple approaches to get the second camera
+      const attempts = [
+        // Attempt 1: exact deviceId
+        { audio: false, video: { deviceId: { exact: pipCameraId } } },
+        // Attempt 2: ideal deviceId (less strict)
+        { audio: false, video: { deviceId: pipCameraId } },
+        // Attempt 3: facingMode environment (back camera)
+        { audio: false, video: { facingMode: 'environment' } },
+        // Attempt 4: facingMode user (front camera) 
+        { audio: false, video: { facingMode: 'user' } },
+      ];
+      
+      for (let i = 0; i < attempts.length; i++) {
+        try {
+          const constraints = attempts[i] as MediaStreamConstraints;
+          console.log(`[PiP] Attempt ${i + 1}: Requesting getUserMedia with:`, JSON.stringify(constraints));
+          
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          console.log(`[PiP] Attempt ${i + 1} SUCCESS! Got stream:`, stream.id);
+          
+          if (!isMounted) {
+            console.log("[PiP] Component unmounted, stopping stream");
+            stream.getTracks().forEach(track => track.stop());
+            return;
+          }
+          
+          currentStream = stream;
+          console.log("[PiP] Setting pipStream state NOW");
+          setPipStream(stream);
+          setPipError(null);
 
-        console.log("[PiP] Requesting getUserMedia with constraints:", JSON.stringify(constraints));
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log("[PiP] Got stream successfully:", stream.id);
-        
-        if (!isMounted) {
-          console.log("[PiP] Component unmounted, stopping stream");
-          stream.getTracks().forEach(track => track.stop());
+          // Check if flash/torch is supported
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            const capabilities = videoTrack.getCapabilities?.();
+            const hasTorch = capabilities && 'torch' in capabilities;
+            setFlashSupported(!!hasTorch);
+            console.log("[PiP] Flash supported:", !!hasTorch);
+          }
+          
+          // Success - exit loop
           return;
+        } catch (err) {
+          console.error(`[PiP] Attempt ${i + 1} FAILED:`, err);
+          if (i === attempts.length - 1) {
+            // Last attempt failed
+            setPipError(`Falha: ${(err as Error).message}`);
+          }
         }
-        
-        currentStream = stream;
-        console.log("[PiP] Setting pipStream state");
-        setPipStream(stream);
-        
-        // Assign to video element
-        console.log("[PiP] pipVideoRef.current:", pipVideoRef.current);
-        if (pipVideoRef.current) {
-          console.log("[PiP] Assigning stream to video element");
-          pipVideoRef.current.srcObject = stream;
-          await pipVideoRef.current.play().catch(e => console.log("[PiP] Video play error:", e));
-        } else {
-          console.log("[PiP] WARNING: pipVideoRef.current is null, cannot assign stream");
-        }
-
-        // Check if flash/torch is supported
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          const capabilities = videoTrack.getCapabilities?.();
-          const hasTorch = capabilities && 'torch' in capabilities;
-          setFlashSupported(!!hasTorch);
-          console.log("[PiP] Flash supported:", !!hasTorch);
-        }
-      } catch (err) {
-        console.error("[PiP] Error accessing PiP camera:", err);
       }
     };
 
@@ -761,6 +772,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           <div className="text-white/60 text-[10px]">
             pipEnabled: {pipEnabled ? "Sim" : "Não"}
           </div>
+          {pipError && (
+            <div className="text-red-400 text-[9px] font-semibold">
+              Erro: {pipError}
+            </div>
+          )}
           {cameras.map((cam, i) => (
             <div key={cam.deviceId} className="text-white/50 text-[9px] truncate max-w-[120px]">
               {i + 1}. {cam.label.slice(0, 20)}
