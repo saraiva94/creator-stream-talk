@@ -42,7 +42,8 @@ const getStoredPipPosition = (): { x: number; y: number } => {
   } catch {
     // Ignore errors
   }
-  return { x: 16, y: 16 };
+  // Default position: bottom-left corner with safe margins
+  return { x: 16, y: window.innerHeight ? window.innerHeight - 250 : 400 };
 };
 
 const savePipPosition = (position: { x: number; y: number }) => {
@@ -639,9 +640,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   // Check if device has multiple cameras
   const hasMultipleCameras = cameras.length > 1;
 
-  // PiP dimensions based on scale
-  const pipWidth = Math.round(100 * pipScale);
-  const pipHeight = Math.round(150 * pipScale);
+  // PiP dimensions based on scale - larger base size for visibility
+  const pipWidth = Math.round(140 * pipScale);
+  const pipHeight = Math.round(200 * pipScale);
 
   // Show camera preview even when not streaming (for creator to see what will be broadcast)
 
@@ -720,21 +721,22 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           ))}
         </div>
       </div>
+      {/* PiP secondary camera */}
       {pipEnabled && pipStream && (
         <div
           ref={pipContainerRef}
           className={cn(
-            "absolute rounded-xl overflow-hidden border-2 border-white/30 shadow-2xl",
+            "absolute rounded-xl overflow-hidden border-4 border-primary/70 shadow-2xl",
             "bg-black cursor-move select-none touch-none",
-            isDragging && "ring-2 ring-primary",
-            isPinching && "ring-2 ring-yellow-500"
+            isDragging && "ring-4 ring-primary",
+            isPinching && "ring-4 ring-yellow-500"
           )}
           style={{
             width: `${pipWidth}px`,
             height: `${pipHeight}px`,
             left: pipPosition.x,
             top: pipPosition.y,
-            zIndex: 30,
+            zIndex: 50, // Higher z-index to ensure visibility above all overlays
             transition: isPinching || isDragging ? 'none' : 'width 0.2s, height 0.2s',
           }}
           onMouseDown={handleDragStart}
