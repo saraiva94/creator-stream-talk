@@ -119,33 +119,31 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
           )}
         </div>
 
-        {/* Right side actions - TikTok style */}
-        <div className="absolute right-3 bottom-32 z-10 flex flex-col items-center gap-5">
+        {/* Right side actions - Instagram style */}
+        <div className="absolute right-3 bottom-[28vh] z-20 flex flex-col items-center gap-5">
           <button
             onClick={() => setLiked(!liked)}
             className="flex flex-col items-center gap-1"
           >
             <div className={cn(
-              "w-12 h-12 rounded-full flex items-center justify-center transition-all",
-              liked ? "bg-destructive" : "bg-white/20"
+              "w-11 h-11 rounded-full flex items-center justify-center transition-all",
+              liked ? "bg-destructive" : "bg-black/40"
             )}>
               <Heart className={cn(
-                "h-6 w-6 transition-all",
+                "h-5 w-5 transition-all",
                 liked ? "text-white fill-white" : "text-white"
               )} />
             </div>
-            <span className="text-white text-xs font-medium">Curtir</span>
           </button>
 
           <button className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-              <Share2 className="h-6 w-6 text-white" />
+            <div className="w-11 h-11 rounded-full bg-black/40 flex items-center justify-center">
+              <Share2 className="h-5 w-5 text-white" />
             </div>
-            <span className="text-white text-xs font-medium">Compartilhar</span>
           </button>
         </div>
 
-        {/* Floating TikTok-style chat overlay */}
+        {/* Floating Instagram-style chat overlay - bottom 25% */}
         {roomId && (
           <FloatingLiveChat
             roomId={roomId}
