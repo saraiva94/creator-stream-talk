@@ -9,9 +9,9 @@ import {
 } from './ui/dropdown-menu';
 
 const LANGUAGES = [
-  { code: 'en', label: 'EN', flag: '🇺🇸' },
-  { code: 'es', label: 'ES', flag: '🇪🇸' },
-  { code: 'pt', label: 'PT', flag: '🇧🇷' },
+  { code: 'en', label: 'EN', flag: '/flags/us.png' },
+  { code: 'es', label: 'ES', flag: '/flags/es.png' },
+  { code: 'pt', label: 'PT', flag: '/flags/br.png' },
 ];
 
 export const LanguageSelector = () => {
@@ -21,8 +21,12 @@ export const LanguageSelector = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-2xl rounded-md">
-          <span role="img" aria-label={currentLang.label}>{currentLang.flag}</span>
+        <Button variant="ghost" size="icon" className="rounded-md p-1">
+          <img 
+            src={currentLang.flag} 
+            alt={currentLang.label} 
+            className="w-6 h-4 object-cover rounded-sm"
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[100px] bg-card border-border">
@@ -37,7 +41,11 @@ export const LanguageSelector = () => {
             }`}
           >
             {language === lang.code && <Check className="h-4 w-4 text-primary" />}
-            <span className="text-lg">{lang.flag}</span>
+            <img 
+              src={lang.flag} 
+              alt={lang.label} 
+              className="w-5 h-3.5 object-cover rounded-sm"
+            />
             <span>{lang.label}</span>
           </DropdownMenuItem>
         ))}
