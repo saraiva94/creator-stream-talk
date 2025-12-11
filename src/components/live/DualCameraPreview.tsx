@@ -278,15 +278,22 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     let isMounted = true;
     let currentStream: MediaStream | null = null;
     
+    console.log("[PiP useEffect] Running with pipEnabled:", pipEnabled, "pipCameraId:", pipCameraId);
+    
     const startPipStream = async () => {
       console.log("[PiP] startPipStream called", { pipEnabled, pipCameraId });
       
-      if (!pipEnabled || !pipCameraId) {
-        console.log("[PiP] Not starting - pipEnabled:", pipEnabled, "pipCameraId:", pipCameraId);
+      if (!pipEnabled) {
+        console.log("[PiP] Not enabled, clearing stream");
         setPipStream(null);
         setFlashSupported(false);
         setFlashEnabled(false);
         if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+        return;
+      }
+      
+      if (!pipCameraId) {
+        console.log("[PiP] No pipCameraId, cannot start stream");
         return;
       }
 
@@ -296,8 +303,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           video: { deviceId: { exact: pipCameraId } },
         };
 
-        console.log("[PiP] Requesting getUserMedia with constraints:", constraints);
+        console.log("[PiP] Requesting getUserMedia with constraints:", JSON.stringify(constraints));
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log("[PiP] Got stream successfully:", stream.id);
         
         if (!isMounted) {
           console.log("[PiP] Component unmounted, stopping stream");
@@ -306,14 +314,17 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         }
         
         currentStream = stream;
-        console.log("[PiP] Got stream, setting pipStream state");
+        console.log("[PiP] Setting pipStream state");
         setPipStream(stream);
         
+        // Assign to video element
+        console.log("[PiP] pipVideoRef.current:", pipVideoRef.current);
         if (pipVideoRef.current) {
           console.log("[PiP] Assigning stream to video element");
           pipVideoRef.current.srcObject = stream;
+          await pipVideoRef.current.play().catch(e => console.log("[PiP] Video play error:", e));
         } else {
-          console.log("[PiP] pipVideoRef.current is null!");
+          console.log("[PiP] WARNING: pipVideoRef.current is null, cannot assign stream");
         }
 
         // Check if flash/torch is supported
@@ -332,7 +343,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     startPipStream();
 
     return () => {
-      console.log("[PiP] Cleanup - stopping stream");
+      console.log("[PiP useEffect] Cleanup");
       isMounted = false;
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
@@ -369,13 +380,25 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
   // Toggle PiP
   const togglePip = useCallback(() => {
-    if (!pipCameraId && cameras.length > 1) {
-      // Find a camera that's not the main one
-      const otherCamera = cameras.find(c => c.deviceId !== mainCameraId);
-      if (otherCamera) setPipCameraId(otherCamera.deviceId);
+    console.log("[PiP] togglePip called - current pipEnabled:", pipEnabled, "pipCameraId:", pipCameraId);
+    
+    if (pipEnabled) {
+      // Desativando PiP
+      console.log("[PiP] Disabling PiP");
+      setPipEnabled(false);
+    } else {
+      // Ativando PiP - primeiro garantir que temos um pipCameraId
+      if (!pipCameraId && cameras.length > 1) {
+        const otherCamera = cameras.find(c => c.deviceId !== mainCameraId);
+        if (otherCamera) {
+          console.log("[PiP] Setting pipCameraId to:", otherCamera.deviceId);
+          setPipCameraId(otherCamera.deviceId);
+        }
+      }
+      console.log("[PiP] Enabling PiP");
+      setPipEnabled(true);
     }
-    setPipEnabled(prev => !prev);
-  }, [cameras, mainCameraId, pipCameraId]);
+  }, [cameras, mainCameraId, pipCameraId, pipEnabled]);
 
   // Reset PiP position and size
   const resetPipLayout = useCallback(() => {
@@ -745,7 +768,16 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           ))}
         </div>
       </div>
-      {/* PiP secondary camera */}
+      {/* Hidden video element for PiP - always rendered to keep ref available */}
+      <video
+        ref={pipVideoRef}
+        autoPlay
+        playsInline
+        muted
+        className="hidden"
+      />
+      
+      {/* PiP secondary camera - visible container */}
       {pipEnabled && pipStream && (
         <div
           ref={pipContainerRef}
@@ -760,18 +792,23 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             height: `${pipHeight}px`,
             left: pipPosition.x,
             top: pipPosition.y,
-            zIndex: 50, // Higher z-index to ensure visibility above all overlays
+            zIndex: 50,
             transition: isPinching || isDragging ? 'none' : 'width 0.2s, height 0.2s',
           }}
           onMouseDown={handleDragStart}
           onTouchStart={handleDragStart}
         >
+          {/* Clone the video stream into this visible container */}
           <video
-            ref={pipVideoRef}
             autoPlay
             playsInline
             muted
             className="w-full h-full object-cover"
+            ref={(el) => {
+              if (el && pipStream) {
+                el.srcObject = pipStream;
+              }
+            }}
           />
           
           {/* Tap to switch hint overlay */}
