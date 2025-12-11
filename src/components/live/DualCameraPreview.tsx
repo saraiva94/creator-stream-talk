@@ -382,15 +382,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [pipStream, flashEnabled]);
 
-  // Switch cameras - SIMPLIFICADO
+  // Switch cameras - funciona com ou sem PiP
   const handleSwitchCameras = useCallback(() => {
-    console.log("[SWITCH] Called", { mainCameraId, pipCameraId, pipEnabled, hasPipStream: !!pipStream });
-    
-    if (!pipEnabled) {
-      toast.error("Ative a segunda câmera primeiro");
-      return;
-    }
-    
     if (cameras.length < 2) {
       toast.error("Apenas uma câmera disponível");
       return;
@@ -407,17 +400,15 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     
     // Se main é cam1, trocar para cam2 e vice-versa
     if (mainCameraId === cam1.deviceId) {
-      console.log("[SWITCH] Swapping to cam2 main, cam1 pip");
       setMainCameraId(cam2.deviceId);
-      setPipCameraId(cam1.deviceId);
+      if (pipEnabled) setPipCameraId(cam1.deviceId);
     } else {
-      console.log("[SWITCH] Swapping to cam1 main, cam2 pip");
       setMainCameraId(cam1.deviceId);
-      setPipCameraId(cam2.deviceId);
+      if (pipEnabled) setPipCameraId(cam2.deviceId);
     }
     
-    toast.success("Câmeras invertidas!");
-  }, [cameras, mainCameraId, pipCameraId, pipEnabled, pipStream]);
+    toast.success("Câmera invertida!");
+  }, [cameras, mainCameraId, pipEnabled]);
 
   // Toggle PiP - SIMPLIFICADO
   const togglePip = useCallback(() => {
@@ -756,23 +747,6 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       onTouchMove={handleDragMove}
       onTouchEnd={handleDragEnd}
     >
-      {/* DEBUG PANEL - temporário para diagnóstico */}
-      <div className="absolute bottom-4 left-4 z-[100] bg-black/90 text-white text-[10px] p-2 rounded-lg max-w-[200px] font-mono">
-        <div className="text-yellow-400 font-bold mb-1">DEBUG CÂMERAS</div>
-        <div>Câmeras: {cameras.length}</div>
-        {cameras.map((c, i) => (
-          <div key={c.deviceId} className="text-gray-300 truncate">
-            {i+1}. {c.facingMode || 'unknown'}: {c.label.slice(0, 15)}
-          </div>
-        ))}
-        <div className="border-t border-gray-600 mt-1 pt-1">
-          <div>mainCameraId: {mainCameraId ? '✓' : '✗'}</div>
-          <div>pipCameraId: {pipCameraId ? '✓' : '✗'}</div>
-          <div>pipEnabled: {pipEnabled ? '✓ SIM' : '✗ NÃO'}</div>
-          <div>pipStream: {pipStream ? '✓ ATIVO' : '✗ NULL'}</div>
-          {pipError && <div className="text-red-400">Erro: {pipError}</div>}
-        </div>
-      </div>
       {/* Main camera - fullscreen */}
       <video
         ref={mainVideoRef}
@@ -813,16 +787,14 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         className="hidden"
       />
       
-      {/* PiP secondary camera - visible container */}
+      {/* PiP secondary camera - visible container - LIMPO sem labels */}
       {pipEnabled && pipStream && (
         <div
           ref={pipContainerRef}
           className={cn(
-            "absolute rounded-xl overflow-hidden border-4 border-primary/70 shadow-2xl",
+            "absolute rounded-xl overflow-hidden border-2 border-white/30 shadow-2xl",
             "bg-black cursor-move select-none touch-none",
-            isDragging && "ring-4 ring-primary",
-            isPinching && "ring-4 ring-yellow-500",
-            showSwitchHint && "ring-4 ring-yellow-400"
+            isDragging && "border-primary ring-2 ring-primary/50"
           )}
           style={{
             width: `${pipWidth}px`,
@@ -830,12 +802,12 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             left: pipPosition.x,
             top: pipPosition.y,
             zIndex: 50,
-            transition: isPinching || isDragging ? 'none' : 'width 0.2s, height 0.2s',
+            transition: isDragging ? 'none' : 'width 0.2s, height 0.2s',
           }}
           onMouseDown={handleDragStart}
           onTouchStart={handleDragStart}
         >
-          {/* Clone the video stream into this visible container */}
+          {/* Video da segunda câmera */}
           <video
             autoPlay
             playsInline
@@ -847,65 +819,38 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
               }
             }}
           />
-          
-          {/* Switch hint overlay - shows when user taps */}
-          {showSwitchHint && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 animate-fade-in">
-              <SwitchCamera className="h-8 w-8 text-yellow-400 mb-1" />
-              <span className="text-yellow-400 text-[9px] font-bold text-center px-2">
-                Use o botão<br/>Inverter →
-              </span>
-            </div>
-          )}
-          
-          {/* Camera type indicator on PiP - BLUE for secondary camera */}
-          <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1 border border-blue-500/50">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-blue-400 text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
-          </div>
-
-          {/* Drag hint - hidden when switch hint is showing */}
-          {!showSwitchHint && (
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
-              <span className="text-white/80 text-[8px] font-medium">Arraste p/ mover</span>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Toggle secondary camera button - ALWAYS visible for debugging, disabled if no second camera */}
-      <div className="absolute top-20 right-4 z-20 flex flex-col items-center gap-1">
-        <button
-          onClick={togglePip}
-          disabled={!hasMultipleCameras}
-          className={cn(
-            "w-14 h-14 rounded-full flex items-center justify-center",
-            "backdrop-blur-sm transition-all active:scale-90 shadow-lg",
-            !hasMultipleCameras
-              ? "bg-gray-500/50 text-gray-400 cursor-not-allowed"
-              : pipEnabled 
+      {/* Toggle secondary camera button */}
+      {hasMultipleCameras && (
+        <div className="absolute top-20 right-4 z-20 flex flex-col items-center gap-1">
+          <button
+            onClick={togglePip}
+            className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center",
+              "backdrop-blur-sm transition-all active:scale-90 shadow-lg",
+              pipEnabled 
                 ? "bg-primary text-primary-foreground ring-2 ring-white/50" 
                 : "bg-white/20 text-white hover:bg-white/30"
-          )}
-          title={!hasMultipleCameras ? "Apenas uma câmera detectada" : pipEnabled ? "Desativar segunda câmera" : "Ativar segunda câmera"}
-        >
-          <Camera className="h-6 w-6" />
-        </button>
-        <span className={cn(
-          "text-xs font-semibold drop-shadow-lg text-center leading-tight",
-          !hasMultipleCameras ? "text-gray-500" : "text-white"
-        )}>
-          {!hasMultipleCameras ? "Sem 2ª\nCâmera" : pipEnabled ? "Segunda\nCâmera" : "Segunda\nCâmera"}
-        </span>
-      </div>
+            )}
+            title={pipEnabled ? "Desativar segunda câmera" : "Ativar segunda câmera"}
+          >
+            <Camera className="h-6 w-6" />
+          </button>
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center leading-tight">
+            Segunda<br/>Câmera
+          </span>
+        </div>
+      )}
 
-      {/* Switch cameras button - only show when secondary camera is enabled */}
-      {pipEnabled && hasMultipleCameras && (
+      {/* Switch cameras button - SEMPRE visível se tem 2 câmeras */}
+      {hasMultipleCameras && (
         <div className="absolute top-40 right-4 z-20 flex flex-col items-center gap-1">
           <button
             onClick={handleSwitchCameras}
             className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white transition-all active:scale-90 hover:bg-white/30 shadow-lg"
-            title="Inverter posição das câmeras"
+            title="Inverter câmera principal"
           >
             <SwitchCamera className="h-6 w-6" />
           </button>
