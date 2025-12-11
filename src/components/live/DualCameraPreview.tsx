@@ -275,30 +275,45 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
   // PiP camera stream with flash support check - active when pipEnabled is true
   useEffect(() => {
+    let isMounted = true;
+    let currentStream: MediaStream | null = null;
+    
     const startPipStream = async () => {
+      console.log("[PiP] startPipStream called", { pipEnabled, pipCameraId });
+      
+      if (!pipEnabled || !pipCameraId) {
+        console.log("[PiP] Not starting - pipEnabled:", pipEnabled, "pipCameraId:", pipCameraId);
+        setPipStream(null);
+        setFlashSupported(false);
+        setFlashEnabled(false);
+        if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+        return;
+      }
+
       try {
-        if (pipStream) {
-          pipStream.getTracks().forEach(track => track.stop());
-        }
-
-        if (!pipEnabled || !pipCameraId) {
-          setPipStream(null);
-          setFlashSupported(false);
-          setFlashEnabled(false);
-          if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
-          return;
-        }
-
         const constraints: MediaStreamConstraints = {
           audio: false,
           video: { deviceId: { exact: pipCameraId } },
         };
 
+        console.log("[PiP] Requesting getUserMedia with constraints:", constraints);
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (!isMounted) {
+          console.log("[PiP] Component unmounted, stopping stream");
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
+        currentStream = stream;
+        console.log("[PiP] Got stream, setting pipStream state");
         setPipStream(stream);
         
         if (pipVideoRef.current) {
+          console.log("[PiP] Assigning stream to video element");
           pipVideoRef.current.srcObject = stream;
+        } else {
+          console.log("[PiP] pipVideoRef.current is null!");
         }
 
         // Check if flash/torch is supported
@@ -307,17 +322,20 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           const capabilities = videoTrack.getCapabilities?.();
           const hasTorch = capabilities && 'torch' in capabilities;
           setFlashSupported(!!hasTorch);
+          console.log("[PiP] Flash supported:", !!hasTorch);
         }
       } catch (err) {
-        console.error("Error accessing PiP camera:", err);
+        console.error("[PiP] Error accessing PiP camera:", err);
       }
     };
 
     startPipStream();
 
     return () => {
-      if (pipStream) {
-        pipStream.getTracks().forEach(track => track.stop());
+      console.log("[PiP] Cleanup - stopping stream");
+      isMounted = false;
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
       }
     };
   }, [pipCameraId, pipEnabled]);
@@ -699,7 +717,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       </div>
 
       {/* DEBUG: Camera count indicator */}
-      <div className="absolute bottom-4 left-4 z-30 bg-black/80 backdrop-blur-sm rounded-lg px-3 py-2 border border-yellow-500/50">
+      <div className="absolute bottom-4 left-4 z-50 bg-black/90 backdrop-blur-sm rounded-lg px-3 py-2 border border-yellow-500/50">
         <div className="flex flex-col gap-1 text-xs">
           <div className="flex items-center gap-2">
             <Camera className="h-3 w-3 text-yellow-400" />
@@ -709,10 +727,16 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             Câmeras: <span className={cn("font-bold", cameras.length > 1 ? "text-green-400" : "text-red-400")}>{cameras.length}</span>
           </div>
           <div className="text-white/60 text-[10px]">
-            Main: {mainCameraId ? "✓" : "✗"} | PiP: {pipCameraId ? "✓" : "✗"}
+            mainCameraId: {mainCameraId ? "✓" : "✗"}
           </div>
           <div className="text-white/60 text-[10px]">
-            PiP ativo: {pipEnabled ? "Sim" : "Não"}
+            pipCameraId: {pipCameraId ? "✓" : "✗"}
+          </div>
+          <div className={cn("text-[10px]", pipStream ? "text-green-400" : "text-red-400")}>
+            pipStream: {pipStream ? "✓ ATIVO" : "✗ NULL"}
+          </div>
+          <div className="text-white/60 text-[10px]">
+            pipEnabled: {pipEnabled ? "Sim" : "Não"}
           </div>
           {cameras.map((cam, i) => (
             <div key={cam.deviceId} className="text-white/50 text-[9px] truncate max-w-[120px]">
