@@ -172,7 +172,7 @@ export const ContentReportsPanel = () => {
   const pendingCount = reports.filter((r) => r.status === "pending").length;
 
   return (
-    <Card className="bg-card border-border">
+    <Card className="bg-card border-border mb-6">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
