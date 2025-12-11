@@ -123,6 +123,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const positionStartRef = useRef({ x: 0, y: 0 });
   const pinchStartDistanceRef = useRef(0);
   const pinchStartScaleRef = useRef(1);
+  const hasDraggedRef = useRef(false); // Track if user dragged (to distinguish tap from drag)
 
   // Request camera permission and enumerate cameras
   useEffect(() => {
@@ -522,6 +523,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
 
   // PiP drag handlers
   const handleDragStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    // Reset drag tracking
+    hasDraggedRef.current = false;
+    
     // Check for pinch gesture (2 fingers)
     if ('touches' in e && e.touches.length === 2) {
       setIsPinching(true);
@@ -555,6 +559,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       const scaleChange = distance / pinchStartDistanceRef.current;
       const newScale = Math.max(0.5, Math.min(2, pinchStartScaleRef.current * scaleChange));
       setPipScale(newScale);
+      hasDraggedRef.current = true; // Mark as dragged
       return;
     }
 
@@ -566,6 +571,11 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     const deltaX = clientX - dragStartRef.current.x;
     const deltaY = clientY - dragStartRef.current.y;
     
+    // Check if user moved enough to consider it a drag (threshold: 10px)
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+      hasDraggedRef.current = true;
+    }
+    
     const pipWidth = 100 * pipScale;
     const pipHeight = 150 * pipScale;
     const newX = Math.max(8, Math.min(window.innerWidth - pipWidth - 8, positionStartRef.current.x + deltaX));
@@ -574,7 +584,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     setPipPosition({ x: newX, y: newY });
   }, [isDragging, isPinching, pipScale]);
 
-  // Save PiP position and size when drag/pinch ends
+  // Save PiP position and size when drag/pinch ends, or switch cameras on tap
   const handleDragEnd = useCallback(() => {
     if (isPinching) {
       setIsPinching(false);
@@ -582,9 +592,16 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
     if (isDragging) {
       setIsDragging(false);
-      savePipPosition(pipPosition);
+      
+      // If user didn't drag (just tapped), switch cameras
+      if (!hasDraggedRef.current) {
+        handleSwitchCameras();
+        toast.success("Câmeras invertidas!");
+      } else {
+        savePipPosition(pipPosition);
+      }
     }
-  }, [pipPosition, pipScale, isDragging, isPinching]);
+  }, [pipPosition, pipScale, isDragging, isPinching, handleSwitchCameras]);
 
   // Check if device has multiple cameras
   const hasMultipleCameras = cameras.length > 1;
@@ -675,17 +692,10 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             className="w-full h-full object-cover"
           />
           
-          {/* Switch button on PiP */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSwitchCameras();
-            }}
-            className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-            title="Trocar câmeras"
-          >
-            <SwitchCamera className="h-4 w-4" />
-          </button>
+          {/* Tap to switch hint overlay */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 hover:opacity-100 transition-opacity bg-black/30">
+            <SwitchCamera className="h-8 w-8 text-white/80" />
+          </div>
 
           {/* Camera type indicator on PiP - BLUE for secondary camera */}
           <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1 border border-blue-500/50">
@@ -693,9 +703,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             <span className="text-blue-400 text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
           </div>
 
-          {/* Resize hint indicator */}
+          {/* Hint indicator - tap to switch */}
           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
-            <span className="text-white/80 text-[8px] font-medium">Arraste • Pinça</span>
+            <span className="text-white/80 text-[8px] font-medium">Toque p/ trocar</span>
           </div>
         </div>
       )}
