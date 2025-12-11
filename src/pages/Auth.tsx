@@ -221,7 +221,7 @@ const Auth = () => {
           <Card className="border-border shadow-gold">
             <CardHeader>
               <CardTitle>{t.auth.welcome}</CardTitle>
-              <CardDescription>Connect with creators streaming live</CardDescription>
+              <CardDescription>{t.home?.subtitle || "Connect with creators streaming live"}</CardDescription>
             </CardHeader>
             <CardContent>
               {renderLoginForm()}

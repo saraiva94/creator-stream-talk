@@ -37,8 +37,8 @@ const Navbar = ({ user, isAdmin = false }: NavbarProps) => {
       return;
     }
     toast({
-      title: "Goodbye!",
-      description: "You have been signed out.",
+      title: t.common?.goodbye || "Goodbye!",
+      description: t.common?.signedOut || "You have been signed out.",
     });
     navigate("/auth");
   };

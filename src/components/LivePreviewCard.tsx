@@ -163,7 +163,7 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
         </div>
 
         <Button onClick={handleEnter} className="w-full" disabled={live.status === "ended"}>
-          {live.status === "ended" ? "Encerrado" : "Assistir"}
+          {live.status === "ended" ? (t.home?.ended || "Ended") : (t.home?.watch || "Watch")}
         </Button>
       </div>
     </Card>

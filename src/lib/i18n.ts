@@ -170,6 +170,8 @@ export const translations = {
       copied: "Link copied!",
       backToHome: "Back to home",
       sending: "Sending...",
+      goodbye: "Goodbye!",
+      signedOut: "You have been signed out.",
     },
     sidebar: {
       followedChannels: "Followed Channels",
@@ -295,6 +297,7 @@ export const translations = {
       grossRevenue: "in gross revenue",
       yourEarnings: "Your earnings",
       revenueExampleNote: "This money goes directly to your creator wallet and you can withdraw via PIX anytime!",
+      helpButton: "Help",
     },
     credits: {
       title: "Credits Wallet",
@@ -440,6 +443,7 @@ export const translations = {
       ifEachRefers: "If each person refers 2 people...",
       networkGrows: "And the network keeps growing infinitely!",
       perpetualSystem: "2-level system that perpetuates!",
+      referAndEarn: "Refer and Earn!",
     },
     creator: {
       loading: "Loading...",
@@ -909,6 +913,8 @@ export const translations = {
       copied: "¡Enlace copiado!",
       backToHome: "Volver al inicio",
       sending: "Enviando...",
+      goodbye: "¡Adiós!",
+      signedOut: "Has cerrado sesión.",
     },
     sidebar: {
       followedChannels: "Canales Seguidos",
@@ -1034,6 +1040,7 @@ export const translations = {
       grossRevenue: "en ingresos brutos",
       yourEarnings: "Tus ganancias",
       revenueExampleNote: "¡Este dinero va directamente a tu billetera de creador y puedes retirarlo vía PIX cuando quieras!",
+      helpButton: "Ayuda",
     },
     credits: {
       title: "Cartera de Créditos",
@@ -1179,6 +1186,7 @@ export const translations = {
       ifEachRefers: "Si cada persona refiere a 2 personas...",
       networkGrows: "¡Y la red sigue creciendo infinitamente!",
       perpetualSystem: "¡Sistema de 2 niveles que se perpetúa!",
+      referAndEarn: "¡Indica y Gana!",
     },
     creator: {
       loading: "Cargando...",
@@ -1648,6 +1656,8 @@ export const translations = {
       copied: "Link copiado!",
       backToHome: "Voltar ao início",
       sending: "Enviando...",
+      goodbye: "Até logo!",
+      signedOut: "Você saiu da sua conta.",
     },
     sidebar: {
       followedChannels: "Canais Seguidos",
@@ -1773,6 +1783,7 @@ export const translations = {
       grossRevenue: "em receita bruta",
       yourEarnings: "Seus ganhos",
       revenueExampleNote: "Esse dinheiro vai direto para sua carteira de criador e você pode sacar via PIX quando quiser!",
+      helpButton: "Ajuda",
     },
     credits: {
       title: "Carteira de Créditos",
@@ -1918,6 +1929,7 @@ export const translations = {
       ifEachRefers: "Se cada pessoa indicar 2 pessoas...",
       networkGrows: "E a rede continua crescendo infinitamente!",
       perpetualSystem: "Sistema de 2 níveis que se perpetua!",
+      referAndEarn: "Indique e Ganhe!",
     },
     creator: {
       loading: "Carregando...",
