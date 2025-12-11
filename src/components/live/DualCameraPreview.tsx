@@ -350,28 +350,28 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [pipStream, flashEnabled]);
 
-  // Switch cameras - swap main and pip camera IDs
-  const handleSwitchCameras = useCallback(async () => {
-    if (!mainCameraId || !pipEnabled) {
+  // Switch cameras - swap main and pip camera IDs usando os estados armazenados
+  const handleSwitchCameras = useCallback(() => {
+    if (!mainCameraId || !pipCameraId) {
+      toast.error("Câmeras não configuradas");
+      return;
+    }
+    
+    if (!pipEnabled || !pipStream) {
       toast.error("Ative a segunda câmera para inverter");
       return;
     }
     
-    // Encontrar a câmera atual do PiP stream
-    const currentPipDeviceId = pipStream?.getVideoTracks()[0]?.getSettings?.()?.deviceId;
-    const currentMainDeviceId = mainStream?.getVideoTracks()[0]?.getSettings?.()?.deviceId;
+    // Simplesmente trocar os IDs armazenados nos estados
+    const tempMainId = mainCameraId;
+    const tempPipId = pipCameraId;
     
-    if (!currentPipDeviceId || !currentMainDeviceId) {
-      toast.error("Câmeras não disponíveis");
-      return;
-    }
-    
-    // Trocar os IDs - main recebe o ID do PiP, PiP recebe o ID do main
-    setMainCameraId(currentPipDeviceId);
-    setPipCameraId(currentMainDeviceId);
+    // Atualizar estados - isso vai triggerar os useEffects para reiniciar os streams
+    setMainCameraId(tempPipId);
+    setPipCameraId(tempMainId);
     
     toast.success("Câmeras invertidas!");
-  }, [mainCameraId, pipEnabled, pipStream, mainStream]);
+  }, [mainCameraId, pipCameraId, pipEnabled, pipStream]);
 
   // Toggle PiP
   const togglePip = useCallback(() => {
