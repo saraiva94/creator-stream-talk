@@ -179,82 +179,88 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   };
 
   return (
-    <div className="absolute bottom-24 left-0 right-16 z-10 pointer-events-none">
-      {/* Messages container - floating over video */}
-      <div className="flex flex-col justify-end px-3 pb-2 max-h-48 overflow-hidden">
-        {messages.map((message, index) => {
-          const opacity = getMessageOpacity(message.created_at);
-          const isOlder = index < messages.length - 4;
-          
-          return (
-            <div
-              key={message.id}
-              className={cn(
-                "flex items-start gap-2 py-1 transition-all duration-500",
-                message.isNew && "animate-slide-in-bottom"
-              )}
-              style={{ 
-                opacity: isOlder ? opacity * 0.6 : opacity,
-                transform: `translateY(${message.isNew ? '0' : '0'})`,
-              }}
-            >
-              <div 
-                className="inline-flex items-baseline gap-1.5 px-2.5 py-1 rounded-full max-w-[85%]"
-                style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+    <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" style={{ height: '25vh' }}>
+      {/* Gradient mask for fading effect at top */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'linear-gradient(to bottom, transparent 0%, transparent 100%)',
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 40%, black 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 40%, black 100%)',
+        }}
+      />
+      
+      {/* Messages container - Instagram Live style */}
+      <div className="flex flex-col justify-end h-full px-3 pb-16">
+        <div className="flex flex-col gap-1 overflow-hidden">
+          {messages.map((message, index) => {
+            const opacity = getMessageOpacity(message.created_at);
+            const positionFromBottom = messages.length - 1 - index;
+            const fadeMultiplier = positionFromBottom > 4 ? 0.3 : positionFromBottom > 2 ? 0.6 : 1;
+            
+            return (
+              <div
+                key={message.id}
+                className={cn(
+                  "flex items-start transition-all duration-500",
+                  message.isNew && "animate-slide-in-bottom"
+                )}
+                style={{ 
+                  opacity: opacity * fadeMultiplier,
+                }}
               >
-                <span className="text-primary font-semibold text-xs shrink-0">
-                  {message.username}
-                </span>
-                <span className="text-white text-xs break-words">
-                  {message.content}
-                </span>
+                <div 
+                  className="inline-flex items-baseline gap-1.5 px-3 py-1.5 rounded-2xl max-w-[80%]"
+                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+                >
+                  <span className="text-primary font-bold text-sm shrink-0">
+                    {message.username}
+                  </span>
+                  <span className="text-white text-sm break-words">
+                    {message.content}
+                  </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Input area - always visible at bottom left */}
-      {isAuthenticated && !disabled && (
-        <form 
-          onSubmit={handleSend} 
-          className="px-3 pointer-events-auto"
-        >
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input
-                ref={inputRef}
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Enviar mensagem..."
-                className="bg-black/50 border-white/20 text-white placeholder:text-white/50 text-sm h-9 pr-10 rounded-full backdrop-blur-sm"
-                disabled={sending}
-              />
-              <Button
-                type="submit"
-                size="icon"
-                variant="ghost"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-white hover:bg-white/20 rounded-full"
-                disabled={!newMessage.trim() || sending}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+      {/* Input area - fixed at bottom like Instagram */}
+      <div className="absolute bottom-0 left-0 right-0 px-3 pb-4 pointer-events-auto">
+        {isAuthenticated && !disabled ? (
+          <form onSubmit={handleSend}>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  ref={inputRef}
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Comentar..."
+                  className="bg-black/40 border-white/20 text-white placeholder:text-white/60 text-sm h-10 pr-10 rounded-full backdrop-blur-sm"
+                  disabled={sending}
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  variant="ghost"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                  disabled={!newMessage.trim() || sending}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        </form>
-      )}
-
-      {/* Login prompt for unauthenticated users */}
-      {!isAuthenticated && (
-        <div className="px-3 pointer-events-auto">
+          </form>
+        ) : (
           <div 
-            className="px-3 py-2 rounded-full text-center text-white/70 text-xs"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
+            className="px-4 py-2.5 rounded-full text-white/70 text-sm"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
           >
-            Faça login para enviar mensagens
+            Faça login para comentar
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

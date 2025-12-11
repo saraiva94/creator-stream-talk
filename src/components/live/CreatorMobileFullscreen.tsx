@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
 import { DualCameraPreview } from "@/components/live/DualCameraPreview";
-import ChatBox from "@/components/ChatBox";
+import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import { StreamToggle } from "@/components/StreamToggle";
@@ -10,9 +10,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { 
   Users, 
   DollarSign, 
-  MessageCircle, 
   Settings,
-  X,
   Share2,
   Sparkles
 } from "lucide-react";
@@ -66,7 +64,6 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   orientation = "vertical",
 }) => {
   const { t } = useLanguage();
-  const [showChat, setShowChat] = useState(false);
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
 
   const handleShare = async () => {
@@ -118,9 +115,9 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           </div>
         </div>
 
-        {/* Active SuperChat display */}
+        {/* Active SuperChat display - positioned above chat */}
         {activeSuperchat && (
-          <div className="absolute bottom-32 left-4 right-4 z-20">
+          <div className="absolute bottom-[28vh] left-4 right-16 z-20">
             <SuperChatDisplay
               superchat={activeSuperchat}
               onExpire={onSuperchatExpire}
@@ -128,111 +125,65 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           </div>
         )}
 
-        {/* Bottom overlay - TikTok style interaction bar */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 p-4 pb-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-          <div className="flex items-end justify-between">
-            {/* Left side - Stream toggle with smooth animation */}
-            <div className="flex flex-col gap-3">
-              <div className="transition-all duration-500 ease-in-out transform">
-                <StreamToggle
-                  isStreaming={isStreaming}
-                  onToggle={onStreamToggle}
-                  compact
-                />
-              </div>
+        {/* Floating Instagram-style chat - bottom 25% */}
+        {roomId && (
+          <FloatingLiveChat
+            roomId={roomId}
+            currentUserId={creatorId}
+            isAuthenticated={true}
+            disabled={false}
+          />
+        )}
+
+        {/* Right side action buttons - above chat area */}
+        <div className="absolute right-3 bottom-[28vh] z-20 flex flex-col items-center gap-4">
+          {/* Share button */}
+          <button 
+            onClick={handleShare}
+            className="flex flex-col items-center gap-1 text-white"
+          >
+            <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Share2 className="h-5 w-5" />
             </div>
+          </button>
 
-            {/* Right side - Action buttons */}
-            <div className="flex flex-col items-center gap-4">
-              {/* Share button */}
-              <button 
-                onClick={handleShare}
-                className="flex flex-col items-center gap-1 text-white"
-              >
-                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-                  <Share2 className="h-6 w-6" />
+          {/* SuperChat queue indicator */}
+          <button 
+            onClick={() => setShowSuperchatQueue(true)}
+            className="flex flex-col items-center gap-1 text-white relative"
+          >
+            <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Sparkles className="h-5 w-5 text-yellow-400" />
+              {pendingSuperchatCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                  <span className="text-xs font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
                 </div>
-                <span className="text-xs">{t.common?.shareLink || "Compartilhar"}</span>
-              </button>
-
-              {/* SuperChat queue indicator */}
-              <button 
-                onClick={() => setShowSuperchatQueue(true)}
-                className="flex flex-col items-center gap-1 text-white relative"
-              >
-                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-                  <Sparkles className="h-6 w-6 text-yellow-400" />
-                  {pendingSuperchatCount > 0 && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
-                      <span className="text-xs font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
-                    </div>
-                  )}
-                </div>
-                <span className="text-xs">SuperChats</span>
-              </button>
-
-              {/* Chat button */}
-              <button 
-                onClick={() => setShowChat(true)}
-                className="flex flex-col items-center gap-1 text-white"
-              >
-                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-                  <MessageCircle className="h-6 w-6" />
-                </div>
-                <span className="text-xs">Chat</span>
-              </button>
-
-              {/* Settings button */}
-              <button 
-                onClick={onOpenSettings}
-                className="flex flex-col items-center gap-1 text-white"
-              >
-                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-                  <Settings className="h-6 w-6" />
-                </div>
-                <span className="text-xs">Config</span>
-              </button>
+              )}
             </div>
+          </button>
+
+          {/* Settings button */}
+          <button 
+            onClick={onOpenSettings}
+            className="flex flex-col items-center gap-1 text-white"
+          >
+            <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Settings className="h-5 w-5" />
+            </div>
+          </button>
+        </div>
+
+        {/* Stream toggle - top left */}
+        <div className="absolute top-20 left-4 z-20">
+          <div className="transition-all duration-500 ease-in-out transform">
+            <StreamToggle
+              isStreaming={isStreaming}
+              onToggle={onStreamToggle}
+              compact
+            />
           </div>
         </div>
       </div>
-
-      {/* Slide-up Chat Panel */}
-      {showChat && (
-        <div 
-          className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm animate-slide-up"
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
-        >
-          {/* Chat header */}
-          <div className="flex items-center justify-between p-4 border-b border-border/50">
-            <h3 className="text-lg font-semibold text-foreground">Chat</h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowChat(false)}
-              className="text-foreground"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Chat content */}
-          <div className="flex-1 overflow-hidden">
-            {roomId ? (
-              <ChatBox
-                roomId={roomId}
-                currentUserId={creatorId}
-                creatorId={creatorId}
-                isCreator={true}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                {t.liveManagement?.startToActivateChat || "Start streaming to activate chat"}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* SuperChat Queue Sheet */}
       <Sheet open={showSuperchatQueue} onOpenChange={setShowSuperchatQueue}>
