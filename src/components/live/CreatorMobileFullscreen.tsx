@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
 import { DualCameraPreview } from "@/components/live/DualCameraPreview";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
@@ -13,9 +12,7 @@ import {
   DollarSign, 
   Settings,
   Share2,
-  Sparkles,
-  Home,
-  ChevronLeft
+  Sparkles
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
@@ -67,7 +64,6 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   orientation = "vertical",
 }) => {
   const { t } = useLanguage();
-  const navigate = useNavigate();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
 
   const handleShare = async () => {
@@ -93,8 +89,8 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-      {/* Fullscreen Video Preview */}
-      <div className="flex-1 relative overflow-hidden">
+      {/* Fullscreen Video Preview - removed overflow-hidden to allow PiP visibility */}
+      <div className="flex-1 relative">
         <div className="absolute inset-0 w-full h-full">
           <DualCameraPreview
             audioDeviceId={selectedAudioDevice}
@@ -104,24 +100,15 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         </div>
 
-        {/* Top overlay - navigation and stats */}
+        {/* Top overlay - stats only (removed Home button) */}
         <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
-          {/* Back/Home button */}
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 text-white hover:bg-black/80 transition-colors active:scale-95"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            <Home className="h-4 w-4" />
-          </button>
-
-          {/* Viewer count */}
+          {/* Viewer count - now on the left */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-white">{participants}</span>
           </div>
 
-          {/* Revenue */}
+          {/* Revenue - on the right */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <DollarSign className="h-4 w-4 text-green-500" />
             <span className="text-sm font-medium text-white">R$ {revenue.total.toFixed(2)}</span>
