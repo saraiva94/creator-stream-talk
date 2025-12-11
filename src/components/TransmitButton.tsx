@@ -10,7 +10,7 @@ interface TransmitButtonProps {
 
 export const TransmitButton = ({ user }: TransmitButtonProps) => {
   const { t } = useLanguage();
-  const [isApprovedCreator, setIsApprovedCreator] = useState(false);
+  const [isApprovedCreator, setIsApprovedCreator] = useState<boolean | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
 
   useEffect(() => {
@@ -30,6 +30,8 @@ export const TransmitButton = ({ user }: TransmitButtonProps) => {
       if (data) {
         setIsApprovedCreator(data.approved_for_live || false);
         setIsStreaming(data.is_streaming || false);
+      } else {
+        setIsApprovedCreator(false);
       }
     };
 
@@ -60,8 +62,19 @@ export const TransmitButton = ({ user }: TransmitButtonProps) => {
     };
   }, [user]);
 
-  if (!isApprovedCreator) {
+  // Show nothing if not approved (after loading)
+  if (isApprovedCreator === false) {
     return null;
+  }
+
+  // Show placeholder while loading to prevent layout shift
+  if (isApprovedCreator === null) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border min-w-[100px] h-[34px]">
+        <span className="w-2.5 h-2.5 bg-muted rounded-full animate-pulse" />
+        <span className="w-16 h-3 bg-muted rounded animate-pulse" />
+      </div>
+    );
   }
 
   return (
