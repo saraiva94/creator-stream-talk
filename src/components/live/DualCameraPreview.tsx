@@ -255,17 +255,14 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
   }, [isStreaming, cameras.length, pipCameraId]);
 
-  // PiP camera stream - usando facingMode ao invés de deviceId exato
+  // PiP camera stream - SEMPRE usa câmera oposta à principal
   useEffect(() => {
     let isMounted = true;
     let currentStream: MediaStream | null = null;
     
     const startPipStream = async () => {
-      console.log("[PIP] useEffect triggered", { pipEnabled, mainCameraId, camerasCount: cameras.length });
-      
       // Se PiP desabilitado, limpar stream
       if (!pipEnabled) {
-        console.log("[PIP] Disabled, cleaning up");
         if (pipStream) {
           pipStream.getTracks().forEach(track => track.stop());
           setPipStream(null);
@@ -276,46 +273,56 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         return;
       }
       
-      // Verificar se temos câmeras suficientes
-      if (cameras.length < 2) {
-        console.log("[PIP] Not enough cameras:", cameras.length);
-        setPipError("Apenas 1 câmera");
-        return;
-      }
-
       // Parar stream anterior
       if (pipStream) {
-        console.log("[PIP] Stopping previous stream");
         pipStream.getTracks().forEach(track => track.stop());
         setPipStream(null);
       }
       
-      // Determinar qual facingMode usar para PiP (oposto da câmera principal)
+      // Determinar facingMode da câmera principal
       const mainCamera = cameras.find(c => c.deviceId === mainCameraId);
       const mainFacing = mainCamera?.facingMode || 'user';
-      const pipFacing = mainFacing === 'user' ? 'environment' : 'user';
       
-      console.log("[PIP] Main facing:", mainFacing, "-> PiP facing:", pipFacing);
+      // PiP SEMPRE usa o modo OPOSTO
+      const pipFacing: 'user' | 'environment' = mainFacing === 'user' ? 'environment' : 'user';
       
-      // Tentar várias abordagens em ordem
-      const attempts = [
-        // 1. Usar facingMode oposto
-        { video: { facingMode: pipFacing } },
-        // 2. Usar facingMode ideal
-        { video: { facingMode: { ideal: pipFacing } } },
-        // 3. Usar deviceId da segunda câmera (não exact)
-        { video: { deviceId: cameras.find(c => c.deviceId !== mainCameraId)?.deviceId } },
-        // 4. Qualquer câmera disponível
-        { video: true },
-      ];
+      console.log("[PIP] Main:", mainFacing, "-> PiP:", pipFacing);
       
-      for (let i = 0; i < attempts.length; i++) {
+      try {
+        // Forçar facingMode oposto com exact
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { exact: pipFacing } }
+        });
+        
+        if (!isMounted) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
+        currentStream = stream;
+        setPipStream(stream);
+        setPipError(null);
+
+        // Check flash support
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          try {
+            const capabilities = videoTrack.getCapabilities?.() as Record<string, unknown> | undefined;
+            setFlashSupported(!!capabilities?.['torch']);
+          } catch {
+            setFlashSupported(false);
+          }
+        }
+        
+      } catch (err) {
+        console.error("[PIP] Failed with exact facingMode:", err);
+        
+        // Fallback: tentar sem exact
         try {
-          console.log(`[PIP] Attempt ${i + 1}:`, JSON.stringify(attempts[i]));
-          
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            ...attempts[i]
+            video: { facingMode: pipFacing }
           });
           
           if (!isMounted) {
@@ -323,33 +330,13 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             return;
           }
           
-          // Verificar se obtivemos uma câmera diferente
-          const newTrack = stream.getVideoTracks()[0];
-          const settings = newTrack?.getSettings?.();
-          console.log("[PIP] Got stream, settings:", settings?.facingMode, settings?.deviceId?.slice(0, 8));
-          
           currentStream = stream;
           setPipStream(stream);
           setPipError(null);
-
-          // Check flash support
-          if (newTrack) {
-            try {
-              const capabilities = newTrack.getCapabilities?.() as Record<string, unknown> | undefined;
-              setFlashSupported(!!capabilities?.['torch']);
-            } catch {
-              setFlashSupported(false);
-            }
-          }
           
-          console.log("[PIP] Success on attempt", i + 1);
-          return; // Sucesso, sair do loop
-          
-        } catch (err) {
-          console.log(`[PIP] Attempt ${i + 1} failed:`, (err as Error).message);
-          if (i === attempts.length - 1) {
-            setPipError((err as Error).message);
-          }
+        } catch (err2) {
+          console.error("[PIP] Fallback failed:", err2);
+          setPipError((err2 as Error).message);
         }
       }
     };
