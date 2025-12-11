@@ -121,11 +121,13 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   const [pipScale, setPipScale] = useState(getStoredPipSize);
   const [isDragging, setIsDragging] = useState(false);
   const [isPinching, setIsPinching] = useState(false);
+  const [showSwitchHint, setShowSwitchHint] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const positionStartRef = useRef({ x: 0, y: 0 });
   const pinchStartDistanceRef = useRef(0);
   const pinchStartScaleRef = useRef(1);
   const hasDraggedRef = useRef(false); // Track if user dragged (to distinguish tap from drag)
+  const switchHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Request camera permission and enumerate cameras
   useEffect(() => {
@@ -273,18 +275,35 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         return;
       }
 
-      // Try multiple approaches to get the second camera
+      // Determine which facing mode the main camera is using to get the OPPOSITE for PiP
+      const mainCamera = cameras.find(c => c.deviceId === mainCameraId);
+      const mainFacingMode = mainCamera?.facingMode;
+      const pipFacingMode = mainFacingMode === "user" ? "environment" : "user";
+
+      // Try to get a DIFFERENT camera than main - prioritize opposite facing mode
       const attempts = [
+        // Attempt 1: exact deviceId for pipCameraId
         { audio: false, video: { deviceId: { exact: pipCameraId } } },
+        // Attempt 2: ideal deviceId (less strict)
         { audio: false, video: { deviceId: pipCameraId } },
-        { audio: false, video: { facingMode: 'environment' } },
-        { audio: false, video: { facingMode: 'user' } },
+        // Attempt 3: opposite facingMode of main camera
+        { audio: false, video: { facingMode: pipFacingMode } },
       ];
       
       for (let i = 0; i < attempts.length; i++) {
         try {
           const constraints = attempts[i] as MediaStreamConstraints;
           const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          
+          // Verify we got a different camera than main
+          const newVideoTrack = stream.getVideoTracks()[0];
+          const newDeviceId = newVideoTrack?.getSettings?.()?.deviceId;
+          
+          // If we got the same camera as main, skip this attempt
+          if (newDeviceId && newDeviceId === mainCameraId && i < attempts.length - 1) {
+            stream.getTracks().forEach(track => track.stop());
+            continue;
+          }
           
           if (!isMounted) {
             stream.getTracks().forEach(track => track.stop());
@@ -296,9 +315,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           setPipError(null);
 
           // Check if flash/torch is supported
-          const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) {
-            const capabilities = videoTrack.getCapabilities?.();
+          if (newVideoTrack) {
+            const capabilities = newVideoTrack.getCapabilities?.();
             const hasTorch = capabilities && 'torch' in capabilities;
             setFlashSupported(!!hasTorch);
           }
@@ -320,7 +338,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         currentStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [pipCameraId, pipEnabled]);
+  }, [pipCameraId, pipEnabled, mainCameraId, cameras]);
 
   // Toggle flash/torch
   const toggleFlash = useCallback(async () => {
@@ -629,7 +647,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     setPipPosition({ x: newX, y: newY });
   }, [isDragging, isPinching, pipScale]);
 
-  // Save PiP position and size when drag/pinch ends - tap to switch removed (use external button)
+  // Save PiP position and size when drag/pinch ends, show switch hint on tap
   const handleDragEnd = useCallback(() => {
     if (isPinching) {
       setIsPinching(false);
@@ -637,7 +655,20 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     }
     if (isDragging) {
       setIsDragging(false);
-      savePipPosition(pipPosition);
+      
+      // If user didn't drag (just tapped), show the switch hint
+      if (!hasDraggedRef.current) {
+        // Clear any existing timeout
+        if (switchHintTimeoutRef.current) {
+          clearTimeout(switchHintTimeoutRef.current);
+        }
+        setShowSwitchHint(true);
+        switchHintTimeoutRef.current = setTimeout(() => {
+          setShowSwitchHint(false);
+        }, 2000);
+      } else {
+        savePipPosition(pipPosition);
+      }
     }
   }, [pipPosition, pipScale, isDragging, isPinching]);
 
@@ -719,7 +750,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             "absolute rounded-xl overflow-hidden border-4 border-primary/70 shadow-2xl",
             "bg-black cursor-move select-none touch-none",
             isDragging && "ring-4 ring-primary",
-            isPinching && "ring-4 ring-yellow-500"
+            isPinching && "ring-4 ring-yellow-500",
+            showSwitchHint && "ring-4 ring-yellow-400"
           )}
           style={{
             width: `${pipWidth}px`,
@@ -745,16 +777,28 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             }}
           />
           
+          {/* Switch hint overlay - shows when user taps */}
+          {showSwitchHint && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 animate-fade-in">
+              <SwitchCamera className="h-8 w-8 text-yellow-400 mb-1" />
+              <span className="text-yellow-400 text-[9px] font-bold text-center px-2">
+                Use o botão<br/>Inverter →
+              </span>
+            </div>
+          )}
+          
           {/* Camera type indicator on PiP - BLUE for secondary camera */}
           <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/70 backdrop-blur-sm rounded-full flex items-center gap-1 border border-blue-500/50">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             <span className="text-blue-400 text-[9px] font-semibold">{getCameraLabel(pipCameraId)}</span>
           </div>
 
-          {/* Drag hint */}
-          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
-            <span className="text-white/80 text-[8px] font-medium">Arraste p/ mover</span>
-          </div>
+          {/* Drag hint - hidden when switch hint is showing */}
+          {!showSwitchHint && (
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/60 rounded-full">
+              <span className="text-white/80 text-[8px] font-medium">Arraste p/ mover</span>
+            </div>
+          )}
         </div>
       )}
 
