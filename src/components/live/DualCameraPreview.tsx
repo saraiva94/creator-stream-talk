@@ -198,7 +198,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     requestCameraPermission();
   }, []);
 
-  // Main camera stream
+  // Main camera stream - always active for preview (not dependent on isStreaming)
   useEffect(() => {
     const startMainStream = async () => {
       try {
@@ -206,7 +206,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           mainStream.getTracks().forEach(track => track.stop());
         }
 
-        if (!isStreaming || !mainCameraId) {
+        if (!mainCameraId) {
           setMainStream(null);
           if (mainVideoRef.current) mainVideoRef.current.srcObject = null;
           return;
@@ -237,9 +237,17 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         mainStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [mainCameraId, audioDeviceId, isStreaming]);
+  }, [mainCameraId, audioDeviceId]);
 
-  // PiP camera stream with flash support check
+  // Auto-enable PiP when streaming starts if device has multiple cameras
+  useEffect(() => {
+    if (isStreaming && cameras.length > 1 && pipCameraId && !pipEnabled) {
+      setPipEnabled(true);
+      toast.success("Segunda câmera ativada automaticamente");
+    }
+  }, [isStreaming, cameras.length, pipCameraId]);
+
+  // PiP camera stream with flash support check - active when pipEnabled is true
   useEffect(() => {
     const startPipStream = async () => {
       try {
@@ -247,7 +255,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           pipStream.getTracks().forEach(track => track.stop());
         }
 
-        if (!isStreaming || !pipEnabled || !pipCameraId) {
+        if (!pipEnabled || !pipCameraId) {
           setPipStream(null);
           setFlashSupported(false);
           setFlashEnabled(false);
@@ -286,7 +294,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         pipStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [pipCameraId, pipEnabled, isStreaming]);
+  }, [pipCameraId, pipEnabled]);
 
   // Toggle flash/torch
   const toggleFlash = useCallback(async () => {
