@@ -727,7 +727,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
             <Camera className="h-6 w-6" />
           </button>
           <span className="text-white text-xs font-semibold drop-shadow-lg text-center leading-tight">
-            {pipEnabled ? "2ª Câmera\nLigada" : "Adicionar\nCâmera"}
+            {pipEnabled ? "Segunda\nCâmera" : "Segunda\nCâmera"}
           </span>
         </div>
       )}
@@ -742,7 +742,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           >
             <SwitchCamera className="h-6 w-6" />
           </button>
-          <span className="text-white text-xs font-semibold drop-shadow-lg text-center leading-tight">Inverter\nPosição</span>
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center">Inverter</span>
         </div>
       )}
 
