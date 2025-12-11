@@ -48,6 +48,21 @@ const DeviceSelector = ({ onDevicesSelected }: DeviceSelectorProps) => {
     }
   };
 
+  // Convert camera label to user-friendly name
+  const getCameraDisplayName = (device: MediaDeviceInfo): string => {
+    const label = device.label.toLowerCase();
+    
+    if (label.includes("front") || label.includes("frontal") || label.includes("user") || label.includes("selfie")) {
+      return "Frontal";
+    }
+    if (label.includes("back") || label.includes("traseira") || label.includes("rear") || label.includes("environment") || label.includes("principal")) {
+      return "Principal";
+    }
+    
+    // Fallback: use simplified label
+    return device.label || `Câmera ${device.deviceId.slice(0, 4)}`;
+  };
+
   return (
     <Card className="border-border">
       <CardHeader>
@@ -91,7 +106,7 @@ const DeviceSelector = ({ onDevicesSelected }: DeviceSelectorProps) => {
             <SelectContent>
               {videoDevices.map((device) => (
                 <SelectItem key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Câmera ${device.deviceId.slice(0, 8)}`}
+                  {getCameraDisplayName(device)}
                 </SelectItem>
               ))}
             </SelectContent>
