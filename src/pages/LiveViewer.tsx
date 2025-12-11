@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { JitsiPlayer } from "@/components/JitsiPlayer";
@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { api, ApiError } from "@/lib/api";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 import { usePreviewTimer } from "@/hooks/usePreviewTimer";
@@ -55,6 +56,8 @@ interface CreatorData {
   viewer_count: number;
 }
 
+const HEARTBEAT_INTERVAL_MS = 5000;
+
 const LiveViewer: React.FC = () => {
   const { liveId } = useParams<{ liveId: string }>();
   const navigate = useNavigate();
@@ -78,6 +81,11 @@ const LiveViewer: React.FC = () => {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
 
+  // Refs for heartbeat
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionTokenRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
+
   // Preview timer
   const previewTimer = usePreviewTimer({
     role: isAuthenticated ? "authenticated" : "anonymous",
@@ -94,6 +102,17 @@ const LiveViewer: React.FC = () => {
     remainingMs, 
     durationMs 
   } = previewTimer;
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Check auth state
   useEffect(() => {
@@ -115,7 +134,7 @@ const LiveViewer: React.FC = () => {
     };
   }, []);
 
-  // Fetch live data directly from Supabase
+  // Fetch live data and check access
   const fetchLiveData = useCallback(async () => {
     if (!liveId) return;
     
@@ -123,7 +142,7 @@ const LiveViewer: React.FC = () => {
     setError(null);
 
     try {
-      // Fetch live data
+      // Fetch live data from Supabase
       const { data: live, error: liveError } = await supabase
         .from("lives")
         .select("id, title, description, status, is_active, room_name, creator_id, price, thumbnail_url")
@@ -148,7 +167,6 @@ const LiveViewer: React.FC = () => {
         .maybeSingle();
 
       if (creator) {
-        // Fetch avatar separately
         const { data: profile } = await supabase
           .from("profiles")
           .select("avatar_url")
@@ -175,8 +193,38 @@ const LiveViewer: React.FC = () => {
         }
       }
 
-      // Check if user is following
+      // Check if user has credits - this determines entitlement
       if (currentUserId) {
+        const { data: wallet } = await supabase
+          .from("credits_wallet")
+          .select("balance_credits")
+          .eq("user_id", currentUserId)
+          .maybeSingle();
+        
+        const credits = wallet?.balance_credits ?? 0;
+        setLocalCredits(credits);
+        setCredits(credits);
+        
+        // User has entitlement if they have credits
+        if (credits > 0) {
+          setHasEntitlement(true);
+          
+          // Try to get/create live_access
+          const { data: existingAccess } = await supabase
+            .from("live_access")
+            .select("id")
+            .eq("user_id", currentUserId)
+            .eq("live_id", liveId)
+            .maybeSingle();
+          
+          if (!existingAccess) {
+            await supabase
+              .from("live_access")
+              .insert({ user_id: currentUserId, live_id: liveId, status: "active" });
+          }
+        }
+
+        // Check if user is following
         const { data: subscription } = await supabase
           .from("subscriptions")
           .select("id")
@@ -194,21 +242,92 @@ const LiveViewer: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [liveId, currentUserId, t]);
+  }, [liveId, currentUserId, t, setCredits]);
 
   useEffect(() => {
     fetchLiveData();
   }, [fetchLiveData]);
 
-  // Update credits
+  // Update credits from context
   useEffect(() => {
-    setLocalCredits(creditBalance);
-  }, [creditBalance]);
+    if (creditBalance !== localCredits) {
+      setLocalCredits(creditBalance);
+      if (creditBalance > 0 && !hasEntitlement) {
+        setHasEntitlement(true);
+      }
+    }
+  }, [creditBalance, localCredits, hasEntitlement]);
+
+  // Heartbeat mechanism - consume credits while watching
+  useEffect(() => {
+    if (!hasEntitlement || !liveId || !currentUserId || paywallReason === "credits") {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const ensureSessionToken = () => {
+      if (sessionTokenRef.current) return sessionTokenRef.current;
+      const fallback = `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      sessionTokenRef.current = typeof crypto !== "undefined" && crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : fallback;
+      return sessionTokenRef.current;
+    };
+
+    const sendHeartbeat = async () => {
+      try {
+        const token = ensureSessionToken();
+        const response = await api.lives.heartbeat(liveId, token);
+        
+        if (!isMountedRef.current) return;
+
+        // Update credits
+        setLocalCredits(response.remainingCredits);
+        setCredits(response.remainingCredits);
+
+        console.debug("[LiveViewer] Heartbeat response:", {
+          status: response.status,
+          remaining: response.remainingCredits,
+          charged: response.creditsChargedThisTick,
+        });
+
+        // Check if credits ran out
+        if (response.status === "NO_CREDITS" || response.ranOutOfCredits || response.remainingCredits <= 0) {
+          setPaywallReason("credits");
+          setHasEntitlement(false);
+          if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current);
+            heartbeatIntervalRef.current = null;
+          }
+        }
+      } catch (error) {
+        console.debug("[LiveViewer] Heartbeat failed:", error);
+        // Don't stop heartbeat on error, just log it
+      }
+    };
+
+    // Send initial heartbeat
+    sendHeartbeat();
+
+    // Set up interval
+    heartbeatIntervalRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+    };
+  }, [hasEntitlement, liveId, currentUserId, paywallReason, setCredits]);
 
   // Handle preview timer
   useEffect(() => {
     if (hasEntitlement) {
       stopPreview();
+      setPaywallReason(null);
       return;
     }
 
@@ -217,17 +336,19 @@ const LiveViewer: React.FC = () => {
       return;
     }
 
-    if (liveData && !hasEntitlement) {
+    if (liveData && !hasEntitlement && isAuthenticated) {
       startPreview();
     }
-  }, [hasEntitlement, hasExpired, liveData, startPreview, stopPreview]);
+  }, [hasEntitlement, hasExpired, liveData, startPreview, stopPreview, isAuthenticated]);
 
   // Credits paywall
   useEffect(() => {
     if (hasEntitlement && localCredits <= 0) {
       setPaywallReason("credits");
+      setHasEntitlement(false);
     } else if (paywallReason === "credits" && localCredits > 0) {
       setPaywallReason(null);
+      setHasEntitlement(true);
     }
   }, [hasEntitlement, localCredits, paywallReason]);
 
@@ -339,7 +460,7 @@ const LiveViewer: React.FC = () => {
   };
 
   const showPaywall = Boolean(paywallReason);
-  const showCountdown = isPreviewing && !hasExpired && !showPaywall;
+  const showCountdown = isPreviewing && !hasExpired && !showPaywall && !hasEntitlement;
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
   const canShowVideo = liveData?.room_name && (liveData.is_active || liveData.status === "live");
   const shouldMuteAndBlur = showPaywall;
