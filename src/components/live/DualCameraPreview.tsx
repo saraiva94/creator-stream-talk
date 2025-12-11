@@ -614,8 +614,8 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         )}
       />
 
-      {/* Main camera indicator */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in">
+      {/* Main camera indicator - positioned to avoid overlap with viewer count */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full animate-fade-in">
         {getCameraLabel(mainCameraId) === "Frontal" ? (
           <User className="h-4 w-4 text-primary" />
         ) : (
@@ -760,43 +760,46 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         </div>
       )}
 
-      {/* Recording button - only show when streaming */}
-      <div className="absolute bottom-4 left-4 z-20 flex flex-col items-center gap-1">
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          className={cn(
-            "w-16 h-16 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg",
-            isRecording
-              ? "bg-destructive text-destructive-foreground animate-pulse ring-4 ring-destructive/50"
-              : "bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
-          )}
-          title={isRecording ? "Parar gravação" : "Iniciar gravação"}
-        >
-          {isRecording ? (
-            <Square className="h-7 w-7 fill-current" />
-          ) : (
-            <Circle className="h-7 w-7 fill-current text-red-500" />
-          )}
-        </button>
-        <span className="text-white text-xs font-semibold drop-shadow-lg text-center">
-          {isRecording ? formatDuration(recordingDuration) : "Gravar"}
-        </span>
-      </div>
-
-      {/* Download button - show when recording is available */}
-      {recordedVideoUrl && !isRecording && (
-        <div className="absolute bottom-4 left-24 z-20 flex flex-col items-center gap-1 animate-fade-in">
-          <a
-            href={recordedVideoUrl}
-            download={`gravacao_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.webm`}
-            className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-white transition-all active:scale-90 hover:bg-green-600 shadow-lg"
-            title="Baixar gravação"
+      {/* Left side controls - Recording and Download buttons positioned vertically in middle */}
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-4">
+        {/* Recording button */}
+        <div className="flex flex-col items-center gap-1">
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            className={cn(
+              "w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90 shadow-lg",
+              isRecording
+                ? "bg-destructive text-destructive-foreground animate-pulse ring-4 ring-destructive/50"
+                : "bg-white/20 backdrop-blur-sm text-white hover:bg-white/30"
+            )}
+            title={isRecording ? "Parar gravação" : "Iniciar gravação"}
           >
-            <Download className="h-6 w-6" />
-          </a>
-          <span className="text-white text-xs font-semibold drop-shadow-lg text-center">Baixar</span>
+            {isRecording ? (
+              <Square className="h-6 w-6 fill-current" />
+            ) : (
+              <Circle className="h-6 w-6 fill-current text-red-500" />
+            )}
+          </button>
+          <span className="text-white text-xs font-semibold drop-shadow-lg text-center">
+            {isRecording ? formatDuration(recordingDuration) : "Gravar"}
+          </span>
         </div>
-      )}
+
+        {/* Download button - show when recording is available */}
+        {recordedVideoUrl && !isRecording && (
+          <div className="flex flex-col items-center gap-1 animate-fade-in">
+            <a
+              href={recordedVideoUrl}
+              download={`gravacao_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.webm`}
+              className="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center text-white transition-all active:scale-90 hover:bg-green-600 shadow-lg"
+              title="Baixar gravação"
+            >
+              <Download className="h-6 w-6" />
+            </a>
+            <span className="text-white text-xs font-semibold drop-shadow-lg text-center">Baixar</span>
+          </div>
+        )}
+      </div>
 
       {/* Hidden canvas for compositing */}
       <canvas ref={canvasRef} className="hidden" />
