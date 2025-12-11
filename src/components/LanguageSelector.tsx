@@ -19,8 +19,8 @@ export const LanguageSelector = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-xl">
-          {FLAGS[language] || '🇧🇷'}
+        <Button variant="ghost" size="icon" className="text-2xl leading-none">
+          <span role="img" aria-label="language">{FLAGS[language] || '🇧🇷'}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
