@@ -1,6 +1,5 @@
 import { useLanguage } from '@/hooks/useLanguage';
 import { Button } from './ui/button';
-import { Globe } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,15 +7,20 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
+const FLAGS: Record<string, string> = {
+  en: '🇺🇸',
+  es: '🇪🇸',
+  pt: '🇧🇷',
+};
+
 export const LanguageSelector = () => {
   const { language, setLanguage } = useLanguage();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Globe className="h-4 w-4 mr-2" />
-          {language.toUpperCase()}
+        <Button variant="ghost" size="icon" className="text-xl">
+          {FLAGS[language] || '🇧🇷'}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
