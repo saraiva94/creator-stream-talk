@@ -265,7 +265,7 @@ export const ChannelsSidebar = () => {
       {isMobile && !effectiveVisible && (
         <button
           onClick={toggleVisible}
-          className="fixed left-0 top-[72px] bg-card/90 border border-border border-l-0 rounded-r-lg p-1.5 hover:bg-accent transition-all duration-300 z-50"
+          className="fixed left-0 top-[120px] bg-card/90 border border-border border-l-0 rounded-r-lg p-1.5 hover:bg-accent transition-all duration-300 z-50"
           aria-label="Abrir barra lateral"
         >
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
