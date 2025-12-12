@@ -48,6 +48,7 @@ const LiveManagement = () => {
   const [isMirrored, setIsMirrored] = useState(false);
   const [videoOrientation, setVideoOrientation] = useState<VideoOrientation>("vertical");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [currentLiveId, setCurrentLiveId] = useState<string | null>(null);
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
   const [pendingSuperchatCount, setPendingSuperchatCount] = useState(0);
   const [activeSuperchat, setActiveSuperchat] = useState<{
@@ -173,17 +174,19 @@ const LiveManagement = () => {
         });
 
         // Create live entry with active status
-        const { error: liveError } = await supabase.from("lives").insert({
+        const { data: liveData, error: liveError } = await supabase.from("lives").insert({
           creator_id: user.id,
           title: liveTitle || "Live Stream",
           status: "live",
           is_active: true,
           room_name: newRoom.id,
           thumbnail_url: thumbnailUrl,
-        });
+        }).select().single();
 
         if (liveError) {
           console.error("Error creating live:", liveError);
+        } else if (liveData) {
+          setCurrentLiveId(liveData.id);
         }
 
         // Update creator profile
@@ -227,6 +230,7 @@ const LiveManagement = () => {
 
         setIsStreaming(false);
         setRoom(null);
+        setCurrentLiveId(null);
         logger.live.info("Stream ended");
         toast({
           title: t.liveManagement?.streamEnded || "Stream ended",
@@ -585,6 +589,9 @@ const LiveManagement = () => {
               videoDeviceId={selectedVideoDevice}
               isStreaming={isStreaming}
               isMirrored={isMirrored}
+              liveId={currentLiveId}
+              creatorId={user?.id || ""}
+              autoCaptureThumbnail={isStreaming}
             />
             {activeSuperchat && (
               <div className="absolute bottom-4 left-4 right-4 z-10">
@@ -652,6 +659,9 @@ const LiveManagement = () => {
                 videoDeviceId={selectedVideoDevice}
                 isStreaming={isStreaming}
                 isMirrored={isMirrored}
+                liveId={currentLiveId}
+                creatorId={user?.id || ""}
+                autoCaptureThumbnail={isStreaming}
               />
               {activeSuperchat && (
                 <div className="absolute bottom-4 left-4 right-4 z-10">

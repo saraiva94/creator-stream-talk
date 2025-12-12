@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Camera, CameraOff } from "lucide-react";
+import { useAutoThumbnail } from "@/hooks/useAutoThumbnail";
 
 export type VideoOrientation = "vertical" | "horizontal";
 
@@ -10,6 +11,9 @@ interface NativeVideoPreviewProps {
   isMirrored?: boolean;
   orientation?: VideoOrientation;
   fullscreen?: boolean;
+  liveId?: string | null;
+  creatorId?: string;
+  autoCaptureThumbnail?: boolean;
 }
 
 export const NativeVideoPreview = ({
@@ -19,10 +23,51 @@ export const NativeVideoPreview = ({
   isMirrored = false,
   orientation = "vertical",
   fullscreen = false,
+  liveId = null,
+  creatorId = "",
+  autoCaptureThumbnail = false,
 }: NativeVideoPreviewProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const initialCaptureRef = useRef(false);
+
+  const { captureAndUpload } = useAutoThumbnail({
+    liveId,
+    creatorId,
+    intervalMs: 30000, // Capture every 30 seconds
+  });
+
+  // Auto-capture thumbnail periodically while streaming
+  const startAutoCapture = useCallback(() => {
+    if (!autoCaptureThumbnail || !videoRef.current || captureIntervalRef.current) return;
+
+    // Initial capture after 5 seconds (allow stream to stabilize)
+    if (!initialCaptureRef.current) {
+      setTimeout(() => {
+        if (videoRef.current && isStreaming) {
+          captureAndUpload(videoRef.current);
+          initialCaptureRef.current = true;
+        }
+      }, 5000);
+    }
+
+    // Then capture every 30 seconds
+    captureIntervalRef.current = setInterval(() => {
+      if (videoRef.current && isStreaming) {
+        captureAndUpload(videoRef.current);
+      }
+    }, 30000);
+  }, [autoCaptureThumbnail, captureAndUpload, isStreaming]);
+
+  const stopAutoCapture = useCallback(() => {
+    if (captureIntervalRef.current) {
+      clearInterval(captureIntervalRef.current);
+      captureIntervalRef.current = null;
+    }
+    initialCaptureRef.current = false;
+  }, []);
 
   useEffect(() => {
     const startStream = async () => {
@@ -34,6 +79,7 @@ export const NativeVideoPreview = ({
 
         if (!isStreaming) {
           setStream(null);
+          stopAutoCapture();
           if (videoRef.current) {
             videoRef.current.srcObject = null;
           }
@@ -52,6 +98,11 @@ export const NativeVideoPreview = ({
           videoRef.current.srcObject = mediaStream;
         }
         setError(null);
+        
+        // Start auto-capture after stream is ready
+        if (autoCaptureThumbnail) {
+          startAutoCapture();
+        }
       } catch (err) {
         console.error("Error accessing media devices:", err);
         setError("Não foi possível acessar câmera/microfone");
@@ -64,6 +115,7 @@ export const NativeVideoPreview = ({
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
+      stopAutoCapture();
     };
   }, [audioDeviceId, videoDeviceId, isStreaming]);
 
@@ -73,6 +125,17 @@ export const NativeVideoPreview = ({
       videoRef.current.srcObject = stream;
     }
   }, [stream]);
+
+  // Handle auto-capture start/stop
+  useEffect(() => {
+    if (isStreaming && autoCaptureThumbnail && stream) {
+      startAutoCapture();
+    } else {
+      stopAutoCapture();
+    }
+
+    return () => stopAutoCapture();
+  }, [isStreaming, autoCaptureThumbnail, stream, startAutoCapture, stopAutoCapture]);
 
   if (!isStreaming) {
     return (
@@ -109,8 +172,8 @@ export const NativeVideoPreview = ({
         className={`w-full h-full ${objectFit} ${isMirrored ? "scale-x-[-1]" : ""}`}
       />
       {isStreaming && !fullscreen && (
-        <div className="absolute top-4 left-4 flex items-center gap-2 bg-destructive text-white px-3 py-1 rounded-full text-sm font-medium">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+        <div className="absolute top-4 left-4 flex items-center gap-2 bg-destructive text-white px-3 py-1 rounded-full text-sm font-medium animate-live-pulse">
+          <span className="w-2 h-2 bg-white rounded-full animate-live-dot" />
           AO VIVO
         </div>
       )}

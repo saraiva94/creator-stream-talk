@@ -108,11 +108,35 @@ export default {
             transform: "translateY(0)",
           },
         },
+        "live-pulse": {
+          "0%, 100%": {
+            opacity: "1",
+            transform: "scale(1)",
+            boxShadow: "0 0 0 0 hsl(var(--destructive) / 0.7)",
+          },
+          "50%": {
+            opacity: "0.9",
+            transform: "scale(1.05)",
+            boxShadow: "0 0 20px 4px hsl(var(--destructive) / 0.5)",
+          },
+        },
+        "live-dot": {
+          "0%, 100%": {
+            opacity: "1",
+            transform: "scale(1)",
+          },
+          "50%": {
+            opacity: "0.6",
+            transform: "scale(1.3)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "slide-in-bottom": "slide-in-bottom 0.3s ease-out",
+        "live-pulse": "live-pulse 1.5s ease-in-out infinite",
+        "live-dot": "live-dot 1s ease-in-out infinite",
       },
     },
   },
