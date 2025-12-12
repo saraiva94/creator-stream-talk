@@ -591,10 +591,6 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
         priceLabel={priceLabel}
         onPurchase={handlePurchase}
         localCredits={localCredits}
-        isPreviewing={isPreviewing}
-        hasExpired={hasExpired}
-        remainingMs={remainingMs}
-        durationMs={durationMs}
         showPreviewPlayer={showPreviewPlayer}
         isOnline={isOnline}
         muted={shouldMuteAndBlur}

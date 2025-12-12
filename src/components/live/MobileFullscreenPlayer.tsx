@@ -3,7 +3,7 @@ import { ArrowLeft, Heart, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { JitsiPlayer } from "@/components/JitsiPlayer";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
-import PreviewCountdownOverlay from "@/components/PreviewCountdownOverlay";
+// PreviewCountdownOverlay removed - countdown is hidden from viewers
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,11 @@ interface MobileFullscreenPlayerProps {
   priceLabel: string;
   onPurchase: () => void;
   localCredits: number;
-  isPreviewing: boolean;
-  hasExpired: boolean;
-  remainingMs: number;
-  durationMs: number;
   showPreviewPlayer: boolean;
   isOnline: boolean;
   muted?: boolean;
   blurred?: boolean;
+  // Removed: isPreviewing, hasExpired, remainingMs, durationMs - countdown is hidden
 }
 
 const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
@@ -42,7 +39,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   title,
   roomId,
   currentUserId,
-  creatorId,
   isAuthenticated,
   hasEntitlement,
   showPaywall,
@@ -50,10 +46,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   priceLabel,
   onPurchase,
   localCredits,
-  isPreviewing,
-  hasExpired,
-  remainingMs,
-  durationMs,
   showPreviewPlayer,
   isOnline,
   muted = false,
@@ -62,7 +54,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   const navigate = useNavigate();
   const [liked, setLiked] = React.useState(false);
   
-  const showCountdown = isPreviewing && !hasExpired && !showPaywall;
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
   const canRenderJitsi = Boolean(roomName && (hasEntitlement || showPreviewPlayer || showPaywall));
 
@@ -160,10 +151,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
           </div>
         )}
 
-        {/* Preview countdown */}
-        {showCountdown && (
-          <PreviewCountdownOverlay remainingMs={remainingMs} totalMs={durationMs} />
-        )}
+        {/* Preview countdown hidden - runs silently */}
 
         {/* Paywall */}
         {showPaywall && (
