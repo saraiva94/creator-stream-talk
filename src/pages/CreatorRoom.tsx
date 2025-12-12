@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useLanguage } from "@/hooks/useLanguage";
+import { useAuth } from "@/hooks/useAuth";
 
 interface CreatorInfo {
   id: string;
@@ -133,10 +134,12 @@ const CreatorRoom: React.FC = () => {
     };
   }, [creatorId]);
 
+  const { user, isAdmin } = useAuth();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <Navbar user={user ?? null} isAdmin={isAdmin} />
         <main className="container mx-auto px-4 py-8">
           <Card>
             <CardHeader>
@@ -155,7 +158,7 @@ const CreatorRoom: React.FC = () => {
   if (error || !creator) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <Navbar user={user ?? null} isAdmin={isAdmin} />
         <main className="container mx-auto px-4 py-8">
           <Card>
             <CardHeader>
@@ -186,7 +189,7 @@ const CreatorRoom: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar user={user ?? null} isAdmin={isAdmin} />
       <main className="container mx-auto px-4 py-8">
         {/* Creator Info Header */}
         <Card className="mb-6">
