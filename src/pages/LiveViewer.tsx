@@ -573,6 +573,7 @@ const LiveViewer: React.FC = () => {
                   height="100%"
                   muted={shouldMuteAndBlur}
                   blurred={shouldMuteAndBlur}
+                  viewerOnly={true}
                 />
                 
                 {showCreditOverlay && (

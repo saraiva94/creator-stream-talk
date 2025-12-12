@@ -69,6 +69,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             className="absolute inset-0 object-cover"
             muted={muted || blurred}
             blurred={blurred}
+            viewerOnly={true}
           />
         )}
 
