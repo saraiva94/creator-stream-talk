@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import type { User } from "@supabase/supabase-js";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { JitsiPlayer } from "@/components/JitsiPlayer";
@@ -73,6 +74,7 @@ const LiveViewer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [hasEntitlement, setHasEntitlement] = useState(false);
   const [localCredits, setLocalCredits] = useState<number>(creditBalance);
   const [paywallReason, setPaywallReason] = useState<'preview' | 'credits' | null>(null);
@@ -120,6 +122,7 @@ const LiveViewer: React.FC = () => {
       const { data } = await supabase.auth.getSession();
       setIsAuthenticated(Boolean(data.session));
       setCurrentUserId(data.session?.user?.id || null);
+      setCurrentUser(data.session?.user || null);
     };
     
     checkAuth();
@@ -127,6 +130,7 @@ const LiveViewer: React.FC = () => {
     const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
       setIsAuthenticated(Boolean(session));
       setCurrentUserId(session?.user?.id || null);
+      setCurrentUser(session?.user || null);
     });
 
     return () => {
@@ -470,7 +474,7 @@ const LiveViewer: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <Navbar user={currentUser} />
         <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)]">
           <div className="flex-1 bg-black flex items-center justify-center">
             <Skeleton className="w-full h-full" />
@@ -487,7 +491,7 @@ const LiveViewer: React.FC = () => {
   if (error || !liveData) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <Navbar user={currentUser} />
         <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-4">
           <AlertCircle className="h-16 w-16 text-destructive mb-4" />
           <h2 className="text-2xl font-bold mb-2">{t.liveViewer?.notFound || "Live não encontrada"}</h2>
@@ -507,7 +511,7 @@ const LiveViewer: React.FC = () => {
   if (!liveData.is_active && liveData.status === "ended") {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
+        <Navbar user={currentUser} />
         <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-4">
           <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">{t.liveViewer?.liveEnded || "Transmissão encerrada"}</h2>
@@ -559,7 +563,7 @@ const LiveViewer: React.FC = () => {
   // Desktop: Twitch-style layout
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Navbar />
+      <Navbar user={currentUser} />
       
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content - Video + Info */}
