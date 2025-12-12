@@ -297,7 +297,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       console.log("[PIP] Other camera:", otherCamera.deviceId.slice(0, 8), otherCamera.facingMode);
       
       try {
-        // Usar deviceId exato da outra câmera
+        // Tentar primeiro com deviceId exato da outra câmera
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: { deviceId: { exact: otherCamera.deviceId } }
@@ -327,7 +327,39 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         
       } catch (err) {
         console.error("[PIP] Failed with exact deviceId:", err);
-        setPipError((err as Error).message);
+        
+        // Fallback: tentar usando facingMode (melhor suporte em alguns celulares)
+        try {
+          const facingMode = otherCamera.facingMode || 'environment';
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: { facingMode }
+          });
+
+          if (!isMounted) {
+            fallbackStream.getTracks().forEach(track => track.stop());
+            return;
+          }
+
+          currentStream = fallbackStream;
+          setPipStream(fallbackStream);
+          setPipError(null);
+
+          const videoTrack = fallbackStream.getVideoTracks()[0];
+          if (videoTrack) {
+            try {
+              const capabilities = videoTrack.getCapabilities?.() as Record<string, unknown> | undefined;
+              setFlashSupported(!!capabilities?.['torch']);
+            } catch {
+              setFlashSupported(false);
+            }
+          }
+
+          console.log("[PIP] Success with facingMode fallback:", facingMode);
+        } catch (fallbackErr) {
+          console.error("[PIP] Fallback with facingMode failed:", fallbackErr);
+          setPipError((fallbackErr as Error).message || (err as Error).message);
+        }
       }
     };
 
