@@ -38,7 +38,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isAdmin, isLoading: authLoading } = useAuth();
 
   // Redirect if already logged in
   useEffect(() => {
@@ -215,7 +215,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar user={user} isAdmin={isAdmin} />
       <div className="flex items-center justify-center p-4 pt-24">
         <div className="w-full max-w-md">
           <Card className="border-border shadow-gold">
