@@ -130,12 +130,12 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
           </div>
         )}
         
-        {/* Live badge overlay */}
+        {/* Live badge overlay with enhanced pulsing animation */}
         {live.status === "live" && (
           <div className="absolute top-3 left-3">
-            <Badge className="bg-destructive text-white animate-pulse">
-              <span className="w-2 h-2 bg-white rounded-full mr-1.5 inline-block" />
-              LIVE
+            <Badge className="bg-destructive text-white animate-live-pulse shadow-lg border border-destructive/50">
+              <span className="w-2.5 h-2.5 bg-white rounded-full mr-2 inline-block animate-live-dot" />
+              <span className="font-bold tracking-wider">LIVE</span>
             </Badge>
           </div>
         )}
