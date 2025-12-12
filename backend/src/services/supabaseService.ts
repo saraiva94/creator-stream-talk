@@ -161,20 +161,22 @@ export const listPublicLives = async (): Promise<LiveSummary[]> => {
     throw new Error(`Failed to load public lives: ${error.message}`);
   }
 
+  // lives.creator_id references profiles.id (same as creator_profiles.id)
   const creatorIds = Array.from(new Set((data ?? []).map((row) => row.creator_id).filter(Boolean)));
-  const { data: creatorRows, error: creatorError } = await supabase
-    .from('creators')
-    .select('id, profiles ( username )')
+  
+  // Fetch usernames from profiles table (creator_id is actually the profile id)
+  const { data: profileRows, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, username')
     .in('id', creatorIds);
 
-  if (creatorError) {
-    throw new Error(`Failed to load creator metadata: ${creatorError.message}`);
+  if (profileError) {
+    logger.warn({ event: 'listPublicLives.profiles.error', error: profileError.message });
   }
 
   const creatorUsernameById = new Map<string, string | null>();
-  (creatorRows ?? []).forEach((row) => {
-    const username = (row as { profiles?: { username?: string | null } | null })?.profiles?.username ?? null;
-    creatorUsernameById.set(row.id, username);
+  (profileRows ?? []).forEach((row) => {
+    creatorUsernameById.set(row.id, row.username ?? null);
   });
 
   return (data ?? []).map((row) => ({
