@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { AppLayout } from "@/components/AppLayout";
 import RevenueSummaryCards from "@/components/revenue/RevenueSummaryCards";
 import RevenueBreakdownChart from "@/components/revenue/RevenueBreakdownChart";
 import RevenueFilters from "@/components/revenue/RevenueFilters";
@@ -20,7 +21,7 @@ const PlatformRevenue = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
@@ -63,7 +64,7 @@ const PlatformRevenue = () => {
           </CardContent>
         </Card>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 

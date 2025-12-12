@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { AppLayout } from "@/components/AppLayout";
 import WithdrawalsTable from "@/components/admin/WithdrawalsTable";
 import WithdrawalFilters from "@/components/admin/WithdrawalFilters";
 import WithdrawalDecisionModal from "@/components/admin/WithdrawalDecisionModal";
@@ -34,7 +35,7 @@ const AdminWithdrawals = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
@@ -89,7 +90,7 @@ const AdminWithdrawals = () => {
           isProcessing={isUpdating}
         />
       </main>
-    </div>
+    </AppLayout>
   );
 };
 

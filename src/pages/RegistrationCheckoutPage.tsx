@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { api, ApiError, type RegistrationCheckoutPayload } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import type { User } from "@supabase/supabase-js";
 
 const REGISTRATION_PRICE = 5.0;
 
@@ -19,10 +20,28 @@ const RegistrationCheckoutPage = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const referrerId = params.get("ref");
   const isFree = params.get("free") === "1";
   const isRoot = params.get("root") === "1";
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+      
+      if (session?.user?.id) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id);
+        setIsAdmin(roles?.some(r => r.role === "admin") || false);
+      }
+    };
+    checkAuth();
+  }, []);
 
   const headline = useMemo(() => {
     if (isFree) return "Free registration link";
@@ -93,7 +112,7 @@ const RegistrationCheckoutPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
+      <Navbar user={user} isAdmin={isAdmin} />
       <div className="container mx-auto max-w-2xl py-10">
         <Card>
           <CardHeader>
