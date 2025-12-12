@@ -286,7 +286,7 @@ const Home = () => {
             {t.home?.onlineNow || "Ao vivo agora"}
           </h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
             {/* Real live cards */}
             {!loading && !authLoading && onlineLives.map((live) => (
               <LivePreviewCard
@@ -323,7 +323,7 @@ const Home = () => {
             <h2 className="text-xl md:text-2xl font-bold mb-4 text-muted-foreground">
               {t.home?.offline || "Offline"}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
               {offlineLives.map((live) => (
                 <LivePreviewCard
                   key={live.id}
