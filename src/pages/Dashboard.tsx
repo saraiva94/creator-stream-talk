@@ -40,7 +40,7 @@ const Dashboard = () => {
   const [showGoLiveDialog, setShowGoLiveDialog] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [approvedForLive, setApprovedForLive] = useState(false);
-
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     const checkAuth = async () => {
       logger.auth.info("Dashboard checkAuth started");
@@ -52,6 +52,13 @@ const Dashboard = () => {
       }
       setUser(session.user);
       logger.auth.info("Session found", { userId: session.user.id });
+
+      // Check admin role
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id);
+      setIsAdmin(roles?.some(r => r.role === "admin") || false);
 
       // Check if user is a creator
       const { data: creatorData, error: creatorError } = await supabase
@@ -259,7 +266,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar user={user} />
+      <Navbar user={user} isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-8 max-w-2xl">
         <div className="flex items-center gap-3 mb-8">

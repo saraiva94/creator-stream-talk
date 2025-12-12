@@ -23,6 +23,7 @@ const Subscribe = () => {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [searchParams] = useSearchParams();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,6 +53,13 @@ const Subscribe = () => {
       
       if (session?.user) {
         logger.auth.info('Usuário já logado', { userId: session.user.id, email: session.user.email });
+        
+        // Check admin role
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id);
+        setIsAdmin(roles?.some(r => r.role === "admin") || false);
       }
       setUser(session?.user || null);
     };
@@ -243,7 +251,7 @@ const Subscribe = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar user={user} />
+      <Navbar user={user} isAdmin={isAdmin} />
 
       <main className="container mx-auto px-4 py-16">
         <div className="max-w-3xl mx-auto">
