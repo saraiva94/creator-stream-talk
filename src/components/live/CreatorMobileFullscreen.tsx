@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
 import { DualCameraPreview } from "@/components/live/DualCameraPreview";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
@@ -100,16 +101,32 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         </div>
 
-        {/* Top overlay - centered viewer count and revenue on right */}
-        <div className="absolute top-4 left-0 right-0 flex items-center justify-center z-20 px-4">
-          {/* Viewer count - centered */}
+        {/* Top overlay - status on left, viewer count center, revenue right */}
+        <div className="absolute top-4 left-0 right-0 flex items-center justify-between z-20 px-3">
+          {/* Status indicator - left edge */}
+          <div className={cn(
+            "flex items-center gap-1.5 rounded-full px-2.5 py-1",
+            isStreaming 
+              ? "bg-green-500/20 border border-green-500" 
+              : "bg-black/60 backdrop-blur-sm"
+          )}>
+            <span className={cn(
+              "w-2 h-2 rounded-full",
+              isStreaming ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
+            )} />
+            <span className="text-xs font-medium text-white">
+              {isStreaming ? "Ao Vivo" : "Preview"}
+            </span>
+          </div>
+
+          {/* Viewer count - center */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-white">{participants}</span>
           </div>
 
-          {/* Revenue - absolute positioned on the right */}
-          <div className="absolute right-4 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
+          {/* Revenue - right edge */}
+          <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <DollarSign className="h-4 w-4 text-green-500" />
             <span className="text-sm font-medium text-white">R$ {revenue.total.toFixed(2)}</span>
           </div>
@@ -117,7 +134,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 
         {/* Active SuperChat display - positioned above chat */}
         {activeSuperchat && (
-          <div className="absolute bottom-[28vh] left-16 right-4 z-20">
+          <div className="absolute bottom-[28vh] left-16 right-16 z-20">
             <SuperChatDisplay
               superchat={activeSuperchat}
               onExpire={onSuperchatExpire}
@@ -135,21 +152,22 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         )}
 
-        {/* Left side action buttons - vertical along left edge */}
-        <div className="absolute left-3 bottom-[28vh] z-20 flex flex-col items-center gap-4">
-          {/* Stream toggle */}
-          <div className="transition-all duration-500 ease-in-out transform">
-            <StreamToggle
-              isStreaming={isStreaming}
-              onToggle={onStreamToggle}
-              compact
-            />
-          </div>
+        {/* Left side action buttons - vertical along left edge, vertically centered */}
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
+          {/* Stream toggle - circular ON/OFF */}
+          <StreamToggle
+            isStreaming={isStreaming}
+            onToggle={onStreamToggle}
+            compact
+          />
+        </div>
 
+        {/* Right side action buttons - vertical along right edge, vertically centered */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
           {/* Share button */}
           <button 
             onClick={handleShare}
-            className="flex flex-col items-center gap-1 text-white"
+            className="flex flex-col items-center text-white"
           >
             <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
               <Share2 className="h-5 w-5" />
@@ -159,7 +177,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           {/* SuperChat queue indicator */}
           <button 
             onClick={() => setShowSuperchatQueue(true)}
-            className="flex flex-col items-center gap-1 text-white relative"
+            className="flex flex-col items-center text-white relative"
           >
             <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
               <Sparkles className="h-5 w-5 text-yellow-400" />
@@ -174,7 +192,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           {/* Settings button */}
           <button 
             onClick={onOpenSettings}
-            className="flex flex-col items-center gap-1 text-white"
+            className="flex flex-col items-center text-white"
           >
             <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
               <Settings className="h-5 w-5" />
