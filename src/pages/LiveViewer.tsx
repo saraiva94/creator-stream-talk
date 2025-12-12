@@ -336,7 +336,8 @@ const LiveViewer: React.FC = () => {
       return;
     }
 
-    if (liveData && !hasEntitlement && isAuthenticated) {
+    // Start preview for all users (authenticated or not) if they don't have entitlement
+    if (liveData && !hasEntitlement) {
       startPreview();
     }
   }, [hasEntitlement, hasExpired, liveData, startPreview, stopPreview, isAuthenticated]);
