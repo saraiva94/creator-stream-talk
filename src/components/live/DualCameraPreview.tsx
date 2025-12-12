@@ -285,26 +285,29 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         setPipStream(null);
       }
       
-      // Encontrar câmera DIFERENTE da principal usando deviceId
-      const otherCamera = cameras.find(c => c.deviceId !== mainCameraId);
+      // Encontrar câmera SECUNDÁRIA baseada em pipCameraId quando disponível,
+      // garantindo que seja diferente da principal
+      const secondaryCamera = pipCameraId
+        ? cameras.find((c) => c.deviceId === pipCameraId && c.deviceId !== mainCameraId)
+        : cameras.find((c) => c.deviceId !== mainCameraId);
       
-      if (!otherCamera) {
+      if (!secondaryCamera) {
         setPipError("Câmera secundária não encontrada");
         return;
       }
       
       console.log("[PIP] Main camera:", mainCameraId?.slice(0, 8));
-      console.log("[PIP] Other camera:", otherCamera.deviceId.slice(0, 8), otherCamera.facingMode);
+      console.log("[PIP] Secondary camera:", secondaryCamera.deviceId.slice(0, 8), secondaryCamera.facingMode);
       
       try {
-        // Tentar primeiro com deviceId exato da outra câmera
+        // Tentar primeiro com deviceId exato da câmera secundária
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { deviceId: { exact: otherCamera.deviceId } }
+          video: { deviceId: { exact: secondaryCamera.deviceId } },
         });
         
         if (!isMounted) {
-          stream.getTracks().forEach(track => track.stop());
+          stream.getTracks().forEach((track) => track.stop());
           return;
         }
         
@@ -317,27 +320,26 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         if (videoTrack) {
           try {
             const capabilities = videoTrack.getCapabilities?.() as Record<string, unknown> | undefined;
-            setFlashSupported(!!capabilities?.['torch']);
+            setFlashSupported(!!capabilities?.["torch"]);
           } catch {
             setFlashSupported(false);
           }
         }
         
-        console.log("[PIP] Success with deviceId:", otherCamera.deviceId.slice(0, 8));
-        
+        console.log("[PIP] Success with deviceId:", secondaryCamera.deviceId.slice(0, 8));
       } catch (err) {
         console.error("[PIP] Failed with exact deviceId:", err);
         
         // Fallback: tentar usando facingMode (melhor suporte em alguns celulares)
         try {
-          const facingMode = otherCamera.facingMode || 'environment';
+          const facingMode = secondaryCamera.facingMode || "environment";
           const fallbackStream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: { facingMode }
+            video: { facingMode },
           });
 
           if (!isMounted) {
-            fallbackStream.getTracks().forEach(track => track.stop());
+            fallbackStream.getTracks().forEach((track) => track.stop());
             return;
           }
 
@@ -349,7 +351,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           if (videoTrack) {
             try {
               const capabilities = videoTrack.getCapabilities?.() as Record<string, unknown> | undefined;
-              setFlashSupported(!!capabilities?.['torch']);
+              setFlashSupported(!!capabilities?.["torch"]);
             } catch {
               setFlashSupported(false);
             }
@@ -368,10 +370,10 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     return () => {
       isMounted = false;
       if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
+        currentStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [pipEnabled, mainCameraId, cameras]);
+  }, [pipEnabled, mainCameraId, pipCameraId, cameras]);
 
   // Connect pipStream to pipVideoRef when stream changes
   useEffect(() => {
@@ -406,36 +408,46 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
       toast.error("Apenas uma câmera disponível");
       return;
     }
-    
-    // Encontrar as duas câmeras
-    const cam1 = cameras[0];
-    const cam2 = cameras[1];
-    
-    if (!cam1 || !cam2) {
+
+    // Quando PiP está ativo e temos uma câmera secundária definida,
+    // apenas trocamos os papéis: principal <-> secundária
+    if (pipEnabled && pipCameraId && mainCameraId) {
+      setMainCameraId(pipCameraId);
+      setPipCameraId(mainCameraId);
+      toast.success("Câmeras invertidas!");
+      return;
+    }
+
+    // Sem PiP: alternar entre frontal e traseira usando facingMode
+    const frontCamera =
+      cameras.find((c) => c.facingMode === "user") || cameras[0];
+    const backCamera =
+      cameras.find((c) => c.facingMode === "environment") ||
+      cameras.find((c) => c.deviceId !== frontCamera?.deviceId) ||
+      cameras[1];
+
+    if (!frontCamera || !backCamera) {
       toast.error("Câmeras não encontradas");
       return;
     }
-    
-    // Se main é cam1, trocar para cam2 e vice-versa
-    if (mainCameraId === cam1.deviceId) {
-      setMainCameraId(cam2.deviceId);
-      if (pipEnabled) setPipCameraId(cam1.deviceId);
-    } else {
-      setMainCameraId(cam1.deviceId);
-      if (pipEnabled) setPipCameraId(cam2.deviceId);
-    }
-    
-    toast.success("Câmera invertida!");
-  }, [cameras, mainCameraId, pipEnabled]);
 
-  // Toggle PiP - SIMPLIFICADO
+    if (mainCameraId === frontCamera.deviceId) {
+      setMainCameraId(backCamera.deviceId);
+    } else {
+      setMainCameraId(frontCamera.deviceId);
+    }
+
+    toast.success("Câmera invertida!");
+  }, [cameras, mainCameraId, pipEnabled, pipCameraId]);
+
+  // Toggle PiP - garante que a secundária seja sempre uma câmera diferente
   const togglePip = useCallback(() => {
-    console.log("[TOGGLE PIP] Called", { pipEnabled, camerasCount: cameras.length });
-    
+    console.log("[TOGGLE PIP] Called", { pipEnabled, camerasCount: cameras.length, mainCameraId, pipCameraId });
+
     if (pipEnabled) {
       // Desativando PiP
       if (pipStream) {
-        pipStream.getTracks().forEach(track => track.stop());
+        pipStream.getTracks().forEach((track) => track.stop());
       }
       setPipStream(null);
       setPipEnabled(false);
@@ -446,10 +458,23 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         toast.error("Seu dispositivo tem apenas uma câmera");
         return;
       }
+
+      // Escolher câmera secundária diferente da principal, priorizando traseira
+      const secondary =
+        cameras.find((c) => c.facingMode === "environment" && c.deviceId !== mainCameraId) ||
+        cameras.find((c) => c.deviceId !== mainCameraId) ||
+        null;
+
+      if (!secondary) {
+        toast.error("Não foi possível encontrar uma segunda câmera");
+        return;
+      }
+
+      setPipCameraId(secondary.deviceId);
       setPipEnabled(true);
-      console.log("[TOGGLE PIP] Enabled");
+      console.log("[TOGGLE PIP] Enabled with secondary", secondary.deviceId.slice(0, 8));
     }
-  }, [cameras.length, pipEnabled, pipStream]);
+  }, [cameras, pipEnabled, pipStream, mainCameraId, pipCameraId]);
 
   // Reset PiP position and size
   const resetPipLayout = useCallback(() => {
