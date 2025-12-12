@@ -100,16 +100,16 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         </div>
 
-        {/* Top overlay - stats only (removed Home button) */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
-          {/* Viewer count - now on the left */}
+        {/* Top overlay - centered viewer count and revenue on right */}
+        <div className="absolute top-4 left-0 right-0 flex items-center justify-center z-20 px-4">
+          {/* Viewer count - centered */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-sm font-medium text-white">{participants}</span>
           </div>
 
-          {/* Revenue - on the right */}
-          <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
+          {/* Revenue - absolute positioned on the right */}
+          <div className="absolute right-4 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <DollarSign className="h-4 w-4 text-green-500" />
             <span className="text-sm font-medium text-white">R$ {revenue.total.toFixed(2)}</span>
           </div>
@@ -117,7 +117,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 
         {/* Active SuperChat display - positioned above chat */}
         {activeSuperchat && (
-          <div className="absolute bottom-[28vh] left-4 right-16 z-20">
+          <div className="absolute bottom-[28vh] left-16 right-4 z-20">
             <SuperChatDisplay
               superchat={activeSuperchat}
               onExpire={onSuperchatExpire}
@@ -135,8 +135,17 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         )}
 
-        {/* Right side action buttons - above chat area */}
-        <div className="absolute right-3 bottom-[28vh] z-20 flex flex-col items-center gap-4">
+        {/* Left side action buttons - vertical along left edge */}
+        <div className="absolute left-3 bottom-[28vh] z-20 flex flex-col items-center gap-4">
+          {/* Stream toggle */}
+          <div className="transition-all duration-500 ease-in-out transform">
+            <StreamToggle
+              isStreaming={isStreaming}
+              onToggle={onStreamToggle}
+              compact
+            />
+          </div>
+
           {/* Share button */}
           <button 
             onClick={handleShare}
@@ -171,17 +180,6 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               <Settings className="h-5 w-5" />
             </div>
           </button>
-        </div>
-
-        {/* Stream toggle - top left */}
-        <div className="absolute top-20 left-4 z-20">
-          <div className="transition-all duration-500 ease-in-out transform">
-            <StreamToggle
-              isStreaming={isStreaming}
-              onToggle={onStreamToggle}
-              compact
-            />
-          </div>
         </div>
       </div>
 
