@@ -23,6 +23,7 @@ interface TopCreator {
   viewer_count: number | null;
   is_streaming: boolean | null;
   avatar_url?: string | null;
+  activeLiveId?: string | null;
 }
 
 interface CarouselItem {
@@ -56,7 +57,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const [isWatchingPromo, setIsWatchingPromo] = useState(false);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
 
-  // Fetch initial data - only online creators
+  // Fetch initial data - only online creators (based on active lives)
   useEffect(() => {
     const fetchData = async () => {
       // Fetch promos
@@ -70,31 +71,46 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       
       if (promoData) setPromoVideos(promoData);
 
-      // Fetch top 10 ONLINE creators by viewer_count (only is_streaming = true)
-      const { data: creatorData } = await supabase
-        .from('creator_profiles')
-        .select('id, display_name, bio, viewer_count, is_streaming')
-        .eq('approved_for_live', true)
-        .eq('is_streaming', true)
-        .order('viewer_count', { ascending: false, nullsFirst: false })
-        .limit(10);
+      // First get active lives (source of truth for online status)
+      const { data: activeLivesData } = await supabase
+        .from('lives')
+        .select('id, creator_id')
+        .eq('is_active', true)
+        .eq('status', 'live');
 
-      if (creatorData && creatorData.length > 0) {
-        // Fetch avatar URLs from profiles
-        const creatorIds = creatorData.map(c => c.id);
-        const { data: profileData } = await supabase
-          .from('public_profiles')
-          .select('id, avatar_url')
-          .in('id', creatorIds);
+      const activeCreatorIds = activeLivesData?.map(l => l.creator_id) || [];
+      
+      if (activeCreatorIds.length > 0) {
+        // Fetch creator profiles for those with active lives
+        const { data: creatorData } = await supabase
+          .from('creator_profiles')
+          .select('id, display_name, bio, viewer_count, is_streaming')
+          .in('id', activeCreatorIds)
+          .eq('approved_for_live', true)
+          .order('viewer_count', { ascending: false, nullsFirst: false })
+          .limit(10);
 
-        const avatarMap = new Map(profileData?.map(p => [p.id, p.avatar_url]) || []);
-        
-        const creatorsWithAvatars = creatorData.map(c => ({
-          ...c,
-          avatar_url: avatarMap.get(c.id) || null
-        }));
-        
-        setTopCreators(creatorsWithAvatars);
+        if (creatorData && creatorData.length > 0) {
+          const creatorIds = creatorData.map(c => c.id);
+          const { data: profileData } = await supabase
+            .from('public_profiles')
+            .select('id, avatar_url')
+            .in('id', creatorIds);
+
+          const avatarMap = new Map(profileData?.map(p => [p.id, p.avatar_url]) || []);
+          const liveMap = new Map(activeLivesData?.map(l => [l.creator_id, l.id]) || []);
+          
+          const creatorsWithAvatars = creatorData.map(c => ({
+            ...c,
+            is_streaming: true, // Force true since they have active live
+            avatar_url: avatarMap.get(c.id) || null,
+            activeLiveId: liveMap.get(c.id) || null
+          }));
+          
+          setTopCreators(creatorsWithAvatars);
+        } else {
+          setTopCreators([]);
+        }
       } else {
         setTopCreators([]);
       }
@@ -102,32 +118,71 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     fetchData();
   }, []);
 
-  // Realtime subscription for creator viewer_count updates - only show online
+  // Realtime subscription for lives table changes (source of truth for online status)
   useEffect(() => {
+    const refetchCreators = async () => {
+      // Re-fetch active lives
+      const { data: activeLivesData } = await supabase
+        .from('lives')
+        .select('id, creator_id')
+        .eq('is_active', true)
+        .eq('status', 'live');
+
+      const activeCreatorIds = activeLivesData?.map(l => l.creator_id) || [];
+      
+      if (activeCreatorIds.length > 0) {
+        const { data: creatorData } = await supabase
+          .from('creator_profiles')
+          .select('id, display_name, bio, viewer_count, is_streaming')
+          .in('id', activeCreatorIds)
+          .eq('approved_for_live', true)
+          .order('viewer_count', { ascending: false, nullsFirst: false })
+          .limit(10);
+
+        if (creatorData && creatorData.length > 0) {
+          const creatorIds = creatorData.map(c => c.id);
+          const { data: profileData } = await supabase
+            .from('public_profiles')
+            .select('id, avatar_url')
+            .in('id', creatorIds);
+
+          const avatarMap = new Map(profileData?.map(p => [p.id, p.avatar_url]) || []);
+          const liveMap = new Map(activeLivesData?.map(l => [l.creator_id, l.id]) || []);
+          
+          const creatorsWithAvatars = creatorData.map(c => ({
+            ...c,
+            is_streaming: true,
+            avatar_url: avatarMap.get(c.id) || null,
+            activeLiveId: liveMap.get(c.id) || null
+          }));
+          
+          setTopCreators(creatorsWithAvatars);
+        } else {
+          setTopCreators([]);
+        }
+      } else {
+        setTopCreators([]);
+      }
+    };
+
     const channel = supabase
-      .channel('creator-viewer-updates')
+      .channel('carousel-live-updates')
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'creator_profiles'
-        },
+        { event: '*', schema: 'public', table: 'lives' },
+        () => refetchCreators()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'creator_profiles' },
         (payload) => {
-          const updated = payload.new as { id: string; viewer_count: number | null; is_streaming: boolean | null };
-          
+          const updated = payload.new as { id: string; viewer_count: number | null };
           setTopCreators(prev => {
-            // If creator went offline, remove from list
-            if (!updated.is_streaming) {
-              return prev.filter(c => c.id !== updated.id);
-            }
-            
-            // If creator is online, update or add
             const existingIndex = prev.findIndex(c => c.id === updated.id);
             if (existingIndex >= 0) {
               const updatedList = prev.map(c => 
                 c.id === updated.id 
-                  ? { ...c, viewer_count: updated.viewer_count, is_streaming: updated.is_streaming }
+                  ? { ...c, viewer_count: updated.viewer_count }
                   : c
               );
               return [...updatedList].sort((a, b) => (b.viewer_count || 0) - (a.viewer_count || 0));
@@ -305,8 +360,12 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       } else if (item.type === 'promo' && item.promo?.redirect_url) {
         window.open(item.promo.redirect_url, '_blank');
       } else if (item.type === 'creator' && item.creator) {
-        // Navigate to creator's live if streaming
-        navigate(`/room/${item.creator.id}`);
+        // Navigate to creator's active live if they have one
+        if (item.creator.activeLiveId) {
+          navigate(`/live/${item.creator.activeLiveId}`);
+        } else {
+          navigate(`/room/${item.creator.id}`);
+        }
       }
     } else {
       setCurrentIndex(index);

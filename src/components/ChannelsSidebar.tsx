@@ -49,53 +49,50 @@ export const ChannelsSidebar = () => {
 
   useEffect(() => {
     const fetchChannels = async () => {
-      // Fetch live channels (sorted by viewer count)
-      const { data: liveData } = await supabase
-        .from("creator_profiles")
-        .select(`
-          id,
-          display_name,
-          viewer_count,
-          is_streaming,
-          tags
-        `)
-        .eq("is_streaming", true)
-        .order("viewer_count", { ascending: false })
-        .limit(50);
+      // Fetch active lives first (source of truth for online status)
+      const { data: activeLivesData } = await supabase
+        .from("lives")
+        .select("id, creator_id, title")
+        .eq("is_active", true)
+        .eq("status", "live");
 
-      // Fetch avatars and usernames separately to avoid ambiguous relationship
-      if (liveData && liveData.length > 0) {
-        const ids = liveData.map((c: any) => c.id);
-        const { data: profilesData } = await supabase
-          .from("profiles")
-          .select("id, avatar_url, username")
-          .in("id", ids);
-        
-        // Fetch active lives for these creators
-        const { data: livesData } = await supabase
-          .from("lives")
-          .select("id, creator_id")
-          .in("creator_id", ids)
-          .eq("is_active", true);
-        
-        const profileMap = new Map(profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []);
-        const liveMap = new Map(livesData?.map((l: any) => [l.creator_id, l.id]) || []);
-        
-        setLiveChannels(
-          liveData.map((c: any) => ({
+      // Get creator IDs from active lives
+      const activeCreatorIds = activeLivesData?.map((l: any) => l.creator_id) || [];
+      
+      // Fetch creator profiles for those with active lives
+      let liveChannelsData: Channel[] = [];
+      
+      if (activeCreatorIds.length > 0) {
+        const { data: creatorData } = await supabase
+          .from("creator_profiles")
+          .select("id, display_name, viewer_count, is_streaming, tags")
+          .in("id", activeCreatorIds)
+          .order("viewer_count", { ascending: false });
+
+        if (creatorData && creatorData.length > 0) {
+          const ids = creatorData.map((c: any) => c.id);
+          const { data: profilesData } = await supabase
+            .from("profiles")
+            .select("id, avatar_url, username")
+            .in("id", ids);
+
+          const profileMap = new Map(profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []);
+          const liveMap = new Map(activeLivesData?.map((l: any) => [l.creator_id, l.id]) || []);
+          
+          liveChannelsData = creatorData.map((c: any) => ({
             id: c.id,
             display_name: c.display_name,
             username: profileMap.get(c.id)?.username || c.display_name,
             avatar_url: profileMap.get(c.id)?.avatar_url || null,
             viewer_count: c.viewer_count || 0,
-            is_streaming: c.is_streaming || false,
+            is_streaming: true, // Force true since they have active live
             tags: c.tags || [],
             activeLiveId: liveMap.get(c.id) || null,
-          }))
-        );
-      } else {
-        setLiveChannels([]);
+          }));
+        }
       }
+      
+      setLiveChannels(liveChannelsData);
 
       // Fetch followed channels if user is logged in - OPTIMIZED: single batch query
       if (currentUserId) {
@@ -142,13 +139,14 @@ export const ChannelsSidebar = () => {
             .map((sub: any) => {
               const creator = sub.creator_profiles as any;
               const profile = profileMap.get(creator.id);
+              const hasActiveLive = followedLiveMap.has(creator.id);
               return {
                 id: creator.id,
                 display_name: creator.display_name,
                 username: profile?.username || creator.display_name,
                 avatar_url: profile?.avatar_url || null,
                 viewer_count: creator.viewer_count || 0,
-                is_streaming: creator.is_streaming || false,
+                is_streaming: hasActiveLive, // Use active live as source of truth
                 is_followed: true,
                 tags: creator.tags || [],
                 activeLiveId: followedLiveMap.get(creator.id) || null,
@@ -170,12 +168,17 @@ export const ChannelsSidebar = () => {
 
     fetchChannels();
 
-    // Subscribe to realtime updates for creator_profiles
+    // Subscribe to realtime updates for creator_profiles and lives
     const channel = supabase
       .channel("sidebar-channels")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "creator_profiles" },
+        () => fetchChannels()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "lives" },
         () => fetchChannels()
       )
       .subscribe();
