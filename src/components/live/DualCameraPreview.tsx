@@ -285,9 +285,15 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         setPipStream(null);
       }
       
-      // Encontrar câmera SECUNDÁRIA SEMPRE diferente da principal
-      // Ignoramos pipCameraId aqui para evitar casos em que ele fique igual à câmera principal
-      const secondaryCamera = cameras.find((c) => c.deviceId !== mainCameraId);
+      // Encontrar câmera SECUNDÁRIA baseada em pipCameraId quando disponível,
+      // mas garantindo que seja SEMPRE diferente da principal
+      let secondaryCamera = pipCameraId
+        ? cameras.find((c) => c.deviceId === pipCameraId)
+        : null;
+
+      if (!secondaryCamera || secondaryCamera.deviceId === mainCameraId) {
+        secondaryCamera = cameras.find((c) => c.deviceId !== mainCameraId) || null;
+      }
       
       if (!secondaryCamera) {
         setPipError("Câmera secundária não encontrada");
@@ -457,11 +463,27 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         return;
       }
 
-      // Escolher câmera secundária diferente da principal, priorizando traseira
-      const secondary =
-        cameras.find((c) => c.facingMode === "environment" && c.deviceId !== mainCameraId) ||
-        cameras.find((c) => c.deviceId !== mainCameraId) ||
-        null;
+      // Escolher câmera secundária OPOSTA à principal
+      const mainCamera = cameras.find((c) => c.deviceId === mainCameraId) || null;
+
+      let secondary: CameraInfo | null = null;
+
+      if (mainCamera?.facingMode === "user") {
+        // Principal = frontal -> tentar traseira
+        secondary =
+          cameras.find((c) => c.facingMode === "environment") ||
+          cameras.find((c) => c.deviceId !== mainCameraId) ||
+          null;
+      } else if (mainCamera?.facingMode === "environment") {
+        // Principal = traseira -> tentar frontal
+        secondary =
+          cameras.find((c) => c.facingMode === "user") ||
+          cameras.find((c) => c.deviceId !== mainCameraId) ||
+          null;
+      } else {
+        // Sem facingMode definido -> pegar qualquer outra câmera diferente
+        secondary = cameras.find((c) => c.deviceId !== mainCameraId) || null;
+      }
 
       if (!secondary) {
         toast.error("Não foi possível encontrar uma segunda câmera");
