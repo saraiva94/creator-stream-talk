@@ -8,11 +8,13 @@ export interface JitsiPlayerProps {
   className?: string;
   muted?: boolean;
   blurred?: boolean;
+  /** If true, joins as viewer only - no camera/mic prompts, just watches the stream */
+  viewerOnly?: boolean;
 }
 
 const DEFAULT_DIMENSION = "100%";
 
-const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean) => {
+const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean, viewerOnly?: boolean) => {
   const trimmedRoom = roomName.trim();
   const params = new URLSearchParams();
   
@@ -20,8 +22,31 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean)
     params.set("jwt", token);
   }
   
-  // If muted, start with audio/video muted
-  if (muted) {
+  // Viewer-only mode: disable all device prompts and UI, just watch
+  if (viewerOnly) {
+    // Start with devices muted/disabled - viewer doesn't broadcast
+    params.set("config.startWithAudioMuted", "true");
+    params.set("config.startWithVideoMuted", "true");
+    // Disable pre-join screen completely
+    params.set("config.prejoinConfig.enabled", "false");
+    params.set("config.prejoinPageEnabled", "false");
+    // Hide toolbar buttons viewers don't need
+    params.set("config.toolbarButtons", "[]");
+    // Disable all prompts
+    params.set("config.disableDeepLinking", "true");
+    params.set("config.disableInviteFunctions", "true");
+    // Filmstrip off - just show main video
+    params.set("config.filmstrip.disabled", "true");
+    // No notifications
+    params.set("config.notifications", "[]");
+    // Interface config for cleaner viewer experience
+    params.set("interfaceConfig.TOOLBAR_BUTTONS", "[]");
+    params.set("interfaceConfig.FILM_STRIP_MAX_HEIGHT", "0");
+    params.set("interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS", "true");
+    params.set("interfaceConfig.HIDE_INVITE_MORE_HEADER", "true");
+    params.set("interfaceConfig.SHOW_CHROME_EXTENSION_BANNER", "false");
+  } else if (muted) {
+    // Creator mode but muted
     params.set("config.startWithAudioMuted", "true");
     params.set("config.startWithVideoMuted", "false");
   }
@@ -29,12 +54,13 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean)
   const baseUrl = `https://meet.jit.si/${encodeURIComponent(trimmedRoom)}`;
   const paramString = params.toString();
   
-  return paramString ? `${baseUrl}?${paramString}` : baseUrl;
+  return paramString ? `${baseUrl}#${paramString}` : baseUrl;
 };
 
 /**
  * JitsiPlayer renders a simple iframe that loads a Meet session for the supplied room name.
  * Supports muting and blurring for paywall scenarios.
+ * viewerOnly mode joins as spectator without camera/mic prompts.
  */
 export const JitsiPlayer: React.FC<JitsiPlayerProps> = ({
   roomName,
@@ -44,19 +70,20 @@ export const JitsiPlayer: React.FC<JitsiPlayerProps> = ({
   className,
   muted = false,
   blurred = false,
+  viewerOnly = false,
 }) => {
-  const jitsiUrl = React.useMemo(() => buildJitsiUrl(roomName, token, muted), [roomName, token, muted]);
+  const jitsiUrl = React.useMemo(() => buildJitsiUrl(roomName, token, muted, viewerOnly), [roomName, token, muted, viewerOnly]);
   const isTrustedHost = React.useMemo(() => jitsiUrl.startsWith("https://meet.jit.si/"), [jitsiUrl]);
 
   React.useEffect(() => {
-    console.debug("[JitsiPlayer] mount", { roomName, jitsiUrl, muted, blurred });
+    console.debug("[JitsiPlayer] mount", { roomName, jitsiUrl, muted, blurred, viewerOnly });
     if (!isTrustedHost) {
       console.warn("[JitsiPlayer] Untrusted Jitsi host detected", { jitsiUrl });
     }
     return () => {
       console.debug("[JitsiPlayer] unmount", { roomName });
     };
-  }, [isTrustedHost, jitsiUrl, roomName, muted, blurred]);
+  }, [isTrustedHost, jitsiUrl, roomName, muted, blurred, viewerOnly]);
 
   const sandbox = isTrustedHost
     ? "allow-same-origin allow-forms allow-scripts allow-modals allow-popups"
