@@ -13,7 +13,10 @@ import {
   DollarSign, 
   Settings,
   Share2,
-  Sparkles
+  Sparkles,
+  Video,
+  RefreshCw,
+  SlidersHorizontal
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
@@ -152,40 +155,33 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         )}
 
-        {/* Left side action buttons - vertical along left edge, vertically centered */}
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
-          {/* Stream toggle - circular ON/OFF */}
-          <StreamToggle
-            isStreaming={isStreaming}
-            onToggle={onStreamToggle}
-            compact
-          />
-        </div>
-
-        {/* Right side action buttons - vertical along right edge, vertically centered */}
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
-          {/* Share button */}
+        {/* Right side action buttons - all buttons stacked vertically on right edge */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
+          {/* Quality button - top */}
           <button 
-            onClick={handleShare}
+            onClick={onOpenSettings}
             className="flex flex-col items-center text-white"
           >
-            <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Share2 className="h-5 w-5" />
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <SlidersHorizontal className="h-4 w-4" />
             </div>
           </button>
 
-          {/* SuperChat queue indicator */}
+          {/* Flip/Invert button */}
           <button 
-            onClick={() => setShowSuperchatQueue(true)}
-            className="flex flex-col items-center text-white relative"
+            className="flex flex-col items-center text-white"
           >
-            <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Sparkles className="h-5 w-5 text-yellow-400" />
-              {pendingSuperchatCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
-                  <span className="text-xs font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
-                </div>
-              )}
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <RefreshCw className="h-4 w-4" />
+            </div>
+          </button>
+
+          {/* Record button */}
+          <button 
+            className="flex flex-col items-center text-white"
+          >
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Video className="h-4 w-4" />
             </div>
           </button>
 
@@ -194,10 +190,42 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             onClick={onOpenSettings}
             className="flex flex-col items-center text-white"
           >
-            <div className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Settings className="h-5 w-5" />
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Settings className="h-4 w-4" />
             </div>
           </button>
+
+          {/* SuperChat queue indicator */}
+          <button 
+            onClick={() => setShowSuperchatQueue(true)}
+            className="flex flex-col items-center text-white relative"
+          >
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Sparkles className="h-4 w-4 text-yellow-400" />
+              {pendingSuperchatCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                  <span className="text-[10px] font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
+                </div>
+              )}
+            </div>
+          </button>
+
+          {/* Share button */}
+          <button 
+            onClick={handleShare}
+            className="flex flex-col items-center text-white"
+          >
+            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Share2 className="h-4 w-4" />
+            </div>
+          </button>
+
+          {/* Stream toggle ON/OFF - bottom */}
+          <StreamToggle
+            isStreaming={isStreaming}
+            onToggle={onStreamToggle}
+            compact
+          />
         </div>
       </div>
 
