@@ -341,6 +341,15 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     };
   }, [pipEnabled, mainCameraId, cameras]);
 
+  // Connect pipStream to pipVideoRef when stream changes
+  useEffect(() => {
+    if (pipVideoRef.current && pipStream) {
+      pipVideoRef.current.srcObject = pipStream;
+    } else if (pipVideoRef.current && !pipStream) {
+      pipVideoRef.current.srcObject = null;
+    }
+  }, [pipStream]);
+
   // Toggle flash/torch
   const toggleFlash = useCallback(async () => {
     if (!pipStream) return;
