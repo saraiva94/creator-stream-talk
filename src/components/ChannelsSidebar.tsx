@@ -15,6 +15,7 @@ interface Channel {
   viewer_count: number;
   is_streaming: boolean;
   tags?: string[];
+  activeLiveId?: string | null;
 }
 
 interface FollowedChannel extends Channel {
@@ -70,7 +71,15 @@ export const ChannelsSidebar = () => {
           .select("id, avatar_url, username")
           .in("id", ids);
         
+        // Fetch active lives for these creators
+        const { data: livesData } = await supabase
+          .from("lives")
+          .select("id, creator_id")
+          .in("creator_id", ids)
+          .eq("is_active", true);
+        
         const profileMap = new Map(profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []);
+        const liveMap = new Map(livesData?.map((l: any) => [l.creator_id, l.id]) || []);
         
         setLiveChannels(
           liveData.map((c: any) => ({
@@ -81,6 +90,7 @@ export const ChannelsSidebar = () => {
             viewer_count: c.viewer_count || 0,
             is_streaming: c.is_streaming || false,
             tags: c.tags || [],
+            activeLiveId: liveMap.get(c.id) || null,
           }))
         );
       } else {
@@ -114,10 +124,18 @@ export const ChannelsSidebar = () => {
             .from("profiles")
             .select("id, avatar_url, username")
             .in("id", creatorIds);
+
+          // Fetch active lives for followed creators
+          const { data: followedLivesData } = await supabase
+            .from("lives")
+            .select("id, creator_id")
+            .in("creator_id", creatorIds)
+            .eq("is_active", true);
           
           const profileMap = new Map(
             profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []
           );
+          const followedLiveMap = new Map(followedLivesData?.map((l: any) => [l.creator_id, l.id]) || []);
 
           const followed: FollowedChannel[] = followedData
             .filter((sub: any) => sub.creator_profiles)
@@ -133,6 +151,7 @@ export const ChannelsSidebar = () => {
                 is_streaming: creator.is_streaming || false,
                 is_followed: true,
                 tags: creator.tags || [],
+                activeLiveId: followedLiveMap.get(creator.id) || null,
               };
             });
 
@@ -173,53 +192,64 @@ export const ChannelsSidebar = () => {
     return count.toString();
   };
 
-  const ChannelItem = ({ channel, showName }: { channel: Channel; showName: boolean }) => (
-    <div className={`flex items-center gap-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors group ${showName ? 'px-2' : 'px-1 justify-center'}`}>
-      {/* Avatar links to profile */}
-      <Link
-        to={`/u/${channel.username}`}
-        className="relative flex-shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all">
-          <AvatarImage src={channel.avatar_url || undefined} />
-          <AvatarFallback className="bg-primary/20 text-primary text-xs">
-            {channel.display_name.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        {channel.is_streaming && (
-          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-background" />
-        )}
-      </Link>
-      {showName && (
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            {/* Name links to profile, but clicking row goes to room */}
-            <Link 
-              to={`/u/${channel.username}`}
-              className="text-sm font-medium truncate hover:text-primary transition-colors"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {channel.display_name}
-            </Link>
-            {channel.is_streaming ? (
-              <Link to={`/room/${channel.id}`} className="text-xs text-red-500 flex items-center gap-1 hover:underline">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                {formatViewerCount(channel.viewer_count)}
+  const ChannelItem = ({ channel, showName }: { channel: Channel; showName: boolean }) => {
+    // Determine link destination: if streaming and has active live, go to live page
+    const liveLink = channel.is_streaming && channel.activeLiveId 
+      ? `/live/${channel.activeLiveId}` 
+      : `/room/${channel.id}`;
+    
+    return (
+      <div className={`flex items-center gap-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors group ${showName ? 'px-2' : 'px-1 justify-center'}`}>
+        {/* Avatar links to live if streaming, otherwise to profile */}
+        <Link
+          to={channel.is_streaming && channel.activeLiveId ? liveLink : `/u/${channel.username}`}
+          className="relative flex-shrink-0"
+        >
+          <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all">
+            <AvatarImage src={channel.avatar_url || undefined} />
+            <AvatarFallback className="bg-primary/20 text-primary text-xs">
+              {channel.display_name.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {channel.is_streaming && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-background" />
+          )}
+        </Link>
+        {showName && (
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              {/* Name links to profile */}
+              <Link 
+                to={`/u/${channel.username}`}
+                className="text-sm font-medium truncate hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {channel.display_name}
               </Link>
-            ) : (
-              <span className="text-xs text-muted-foreground">Offline</span>
+              {channel.is_streaming && channel.activeLiveId ? (
+                <Link to={liveLink} className="text-xs text-red-500 flex items-center gap-1 hover:underline">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  {formatViewerCount(channel.viewer_count)}
+                </Link>
+              ) : channel.is_streaming ? (
+                <span className="text-xs text-red-500 flex items-center gap-1">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  {formatViewerCount(channel.viewer_count)}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">Offline</span>
+              )}
+            </div>
+            {channel.tags && channel.tags.length > 0 && (
+              <span className="text-xs text-muted-foreground truncate block">
+                {channel.tags[0]}
+              </span>
             )}
           </div>
-          {channel.tags && channel.tags.length > 0 && (
-            <span className="text-xs text-muted-foreground truncate block">
-              {channel.tags[0]}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   // Placeholder slot for empty state
   const PlaceholderSlot = ({ showName, index }: { showName: boolean; index: number }) => (
