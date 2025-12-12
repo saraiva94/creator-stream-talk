@@ -1,6 +1,6 @@
+import { AppLayout } from "@/components/AppLayout";
 import ActiveLivesTable from "@/components/live-monitor/ActiveLivesTable";
 import LiveAlertsPanel from "@/components/live-monitor/LiveAlertsPanel";
-import LiveStatusBadge from "@/components/live-monitor/LiveStatusBadge";
 import RecentLivesTable from "@/components/live-monitor/RecentLivesTable";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,7 +33,7 @@ const LiveMonitorDashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
@@ -106,7 +106,7 @@ const LiveMonitorDashboard = () => {
           </CardContent>
         </Card>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 
