@@ -764,15 +764,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         <span className="text-white/60 text-xs">• {isStreaming ? "Ao Vivo" : "Preview"}</span>
       </div>
 
-      {/* Hidden video element for PiP - always rendered to keep ref available */}
-      <video
-        ref={pipVideoRef}
-        autoPlay
-        playsInline
-        muted
-        className="hidden"
-      />
-      
+
       {/* PiP secondary camera - visible container - LIMPO sem labels */}
       {pipEnabled && pipStream && (
         <div
@@ -785,25 +777,21 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
           style={{
             width: `${pipWidth}px`,
             height: `${pipHeight}px`,
-            left: pipPosition.x,
-            top: pipPosition.y,
-            zIndex: 50,
+            left: Math.max(8, Math.min(pipPosition.x, window.innerWidth - pipWidth - 8)),
+            top: Math.max(80, Math.min(pipPosition.y, window.innerHeight - pipHeight - 150)),
+            zIndex: 100,
             transition: isDragging ? 'none' : 'width 0.2s, height 0.2s',
           }}
           onMouseDown={handleDragStart}
           onTouchStart={handleDragStart}
         >
-          {/* Video da segunda câmera */}
+          {/* Video da segunda câmera - usando ref persistente */}
           <video
+            ref={pipVideoRef}
             autoPlay
             playsInline
             muted
             className="w-full h-full object-cover"
-            ref={(el) => {
-              if (el && pipStream) {
-                el.srcObject = pipStream;
-              }
-            }}
           />
         </div>
       )}
