@@ -82,6 +82,7 @@ const LiveViewer: React.FC = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Refs for heartbeat
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -116,21 +117,40 @@ const LiveViewer: React.FC = () => {
     };
   }, []);
 
-  // Check auth state
+  // Check auth state and admin role
   useEffect(() => {
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       setIsAuthenticated(Boolean(data.session));
       setCurrentUserId(data.session?.user?.id || null);
       setCurrentUser(data.session?.user || null);
+      
+      // Check admin role
+      if (data.session?.user?.id) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id);
+        setIsAdmin(roles?.some(r => r.role === "admin") || false);
+      }
     };
     
     checkAuth();
     
-    const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_, session) => {
       setIsAuthenticated(Boolean(session));
       setCurrentUserId(session?.user?.id || null);
       setCurrentUser(session?.user || null);
+      
+      if (session?.user?.id) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id);
+        setIsAdmin(roles?.some(r => r.role === "admin") || false);
+      } else {
+        setIsAdmin(false);
+      }
     });
 
     return () => {
@@ -474,7 +494,7 @@ const LiveViewer: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar user={currentUser} />
+        <Navbar user={currentUser} isAdmin={isAdmin} />
         <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)]">
           <div className="flex-1 bg-black flex items-center justify-center">
             <Skeleton className="w-full h-full" />
@@ -491,7 +511,7 @@ const LiveViewer: React.FC = () => {
   if (error || !liveData) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar user={currentUser} />
+        <Navbar user={currentUser} isAdmin={isAdmin} />
         <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-4">
           <AlertCircle className="h-16 w-16 text-destructive mb-4" />
           <h2 className="text-2xl font-bold mb-2">{t.liveViewer?.notFound || "Live não encontrada"}</h2>
@@ -511,7 +531,7 @@ const LiveViewer: React.FC = () => {
   if (!liveData.is_active && liveData.status === "ended") {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar user={currentUser} />
+        <Navbar user={currentUser} isAdmin={isAdmin} />
         <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-4">
           <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">{t.liveViewer?.liveEnded || "Transmissão encerrada"}</h2>
@@ -563,7 +583,7 @@ const LiveViewer: React.FC = () => {
   // Desktop: Twitch-style layout
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <Navbar user={currentUser} />
+      <Navbar user={currentUser} isAdmin={isAdmin} />
       
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content - Video + Info */}
