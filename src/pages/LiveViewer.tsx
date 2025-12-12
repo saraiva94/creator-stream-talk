@@ -461,7 +461,7 @@ const LiveViewer: React.FC = () => {
   };
 
   const showPaywall = Boolean(paywallReason);
-  const showCountdown = isPreviewing && !hasExpired && !showPaywall && !hasEntitlement;
+  // Countdown is hidden from user - preview runs silently
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
   const canShowVideo = liveData?.room_name && (liveData.is_active || liveData.status === "live");
   const shouldMuteAndBlur = showPaywall;
@@ -548,10 +548,6 @@ const LiveViewer: React.FC = () => {
         priceLabel="R$ 5,00"
         onPurchase={handlePurchaseCredits}
         localCredits={localCredits}
-        isPreviewing={isPreviewing}
-        hasExpired={hasExpired}
-        remainingMs={remainingMs}
-        durationMs={durationMs}
         showPreviewPlayer={!hasEntitlement && !showPaywall}
         isOnline={isOnline}
         muted={shouldMuteAndBlur}
@@ -581,10 +577,6 @@ const LiveViewer: React.FC = () => {
                 
                 {showCreditOverlay && (
                   <CreditRemainingOverlay creditsLeft={localCredits} />
-                )}
-
-                {showCountdown && (
-                  <PreviewCountdownOverlay remainingMs={remainingMs} totalMs={durationMs} />
                 )}
 
                 {showPaywall && (
