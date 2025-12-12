@@ -285,11 +285,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         setPipStream(null);
       }
       
-      // Encontrar câmera SECUNDÁRIA baseada em pipCameraId quando disponível,
-      // garantindo que seja diferente da principal
-      const secondaryCamera = pipCameraId
-        ? cameras.find((c) => c.deviceId === pipCameraId && c.deviceId !== mainCameraId)
-        : cameras.find((c) => c.deviceId !== mainCameraId);
+      // Encontrar câmera SECUNDÁRIA SEMPRE diferente da principal
+      // Ignoramos pipCameraId aqui para evitar casos em que ele fique igual à câmera principal
+      const secondaryCamera = cameras.find((c) => c.deviceId !== mainCameraId);
       
       if (!secondaryCamera) {
         setPipError("Câmera secundária não encontrada");
