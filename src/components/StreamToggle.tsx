@@ -23,21 +23,17 @@ export const StreamToggle = ({ isStreaming, onToggle, disabled, compact }: Strea
         onClick={() => onToggle(!isStreaming)}
         disabled={disabled}
         className={cn(
-          "px-4 py-2 rounded-full flex items-center gap-2 text-sm font-medium",
+          "w-12 h-12 rounded-full flex items-center justify-center",
           "transition-all duration-500 ease-in-out transform",
           isAnimating && "scale-105",
           disabled && "opacity-50 cursor-not-allowed",
           isStreaming 
-            ? "bg-green-500 text-white shadow-lg shadow-green-500/30" 
-            : "bg-destructive text-white shadow-lg shadow-destructive/30"
+            ? "bg-green-500 shadow-lg shadow-green-500/40" 
+            : "bg-destructive shadow-lg shadow-destructive/40"
         )}
       >
-        <span className={cn(
-          "w-2 h-2 rounded-full transition-all duration-500",
-          isStreaming ? "bg-white animate-pulse" : "bg-white/60"
-        )} />
-        <span className="transition-opacity duration-300">
-          {isStreaming ? "Online" : "Desligado"}
+        <span className="text-white text-xs font-bold uppercase">
+          {isStreaming ? "ON" : "OFF"}
         </span>
       </button>
     );
