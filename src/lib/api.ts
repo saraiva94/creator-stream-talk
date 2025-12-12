@@ -494,7 +494,7 @@ export const apiClient = {
     request<{ lives: LiveSummary[] }>('/lives/creator', { method: 'GET', auth: 'required', signal }),
 
   getLiveInfo: (liveId: string, signal?: AbortSignal) =>
-    request<LiveInfoResponse>(`/lives/${liveId}/info`, { method: 'GET', auth: 'required', signal }),
+    request<LiveInfoResponse>(`/lives/${liveId}/info`, { method: 'GET', auth: 'optional', signal }),
 
   reconnectLive: (liveId: string, signal?: AbortSignal) =>
     request<LiveReconnectResponse>(`/lives/${liveId}/reconnect`, { method: 'GET', auth: 'optional', signal }),
