@@ -14,12 +14,15 @@ interface AppLayoutProps {
 
 const AppLayoutInner = ({ children, showSidebar = true }: AppLayoutProps) => {
   const { user, isLoading, isBlocked, blockedReason, isAdmin } = useAuth();
-  const { isExpanded } = useSidebarContext();
+  const { isExpanded, isVisible } = useSidebarContext();
   const isMobile = useIsMobile();
 
-  // Force collapsed on mobile
+  // Force collapsed on mobile, and respect visibility toggle
   const effectiveExpanded = isMobile ? false : isExpanded;
-  const sidebarWidth = showSidebar ? (effectiveExpanded ? "ml-60" : "ml-14") : "";
+  const effectiveVisible = isMobile ? isVisible : true; // Desktop always visible
+  const sidebarWidth = showSidebar 
+    ? (effectiveVisible ? (effectiveExpanded ? "ml-60" : "ml-14") : "ml-0") 
+    : "";
 
   // Show blocked overlay if user is banned
   if (isBlocked && user) {

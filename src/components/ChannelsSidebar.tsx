@@ -27,15 +27,16 @@ const PLACEHOLDER_COUNT = 5;
 export const ChannelsSidebar = () => {
   const { t } = useLanguage();
   const isMobile = useIsMobile();
-  const { isExpanded, toggleExpanded } = useSidebarContext();
+  const { isExpanded, toggleExpanded, isVisible, toggleVisible } = useSidebarContext();
   const [followedChannels, setFollowedChannels] = useState<FollowedChannel[]>([]);
   const [liveChannels, setLiveChannels] = useState<Channel[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [followedVisible, setFollowedVisible] = useState(ITEMS_PER_PAGE);
   const [liveVisible, setLiveVisible] = useState(ITEMS_PER_PAGE);
 
-  // Force collapsed on mobile
+  // Force collapsed on mobile, and handle visibility
   const effectiveExpanded = isMobile ? false : isExpanded;
+  const effectiveVisible = isMobile ? isVisible : true;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -259,24 +260,49 @@ export const ChannelsSidebar = () => {
   const livePlaceholders = liveChannels.length === 0 ? Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => i) : [];
 
   return (
-    <aside
-      className={`fixed left-0 top-[57px] h-[calc(100vh-57px)] bg-card/95 backdrop-blur-sm border-r border-border z-40 transition-all duration-300 ease-in-out ${
-        effectiveExpanded ? "w-60" : "w-14"
-      }`}
-    >
-      {/* Toggle Button - hidden on mobile */}
-      {!isMobile && (
+    <>
+      {/* Mobile Toggle Button - Always visible when sidebar is hidden */}
+      {isMobile && !effectiveVisible && (
         <button
-          onClick={toggleExpanded}
-          className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1 hover:bg-accent transition-colors z-50"
+          onClick={toggleVisible}
+          className="fixed left-0 top-[72px] bg-card/90 border border-border border-l-0 rounded-r-lg p-1.5 hover:bg-accent transition-all duration-300 z-50"
+          aria-label="Abrir barra lateral"
         >
-          {effectiveExpanded ? (
-            <ChevronLeft className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
       )}
+
+      <aside
+        className={`fixed left-0 top-[57px] h-[calc(100vh-57px)] bg-card/95 backdrop-blur-sm border-r border-border z-40 transition-all duration-300 ease-in-out ${
+          effectiveVisible 
+            ? (effectiveExpanded ? "w-60 translate-x-0" : "w-14 translate-x-0") 
+            : "w-14 -translate-x-full"
+        }`}
+      >
+        {/* Desktop Toggle Button */}
+        {!isMobile && (
+          <button
+            onClick={toggleExpanded}
+            className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1 hover:bg-accent transition-colors z-50"
+          >
+            {effectiveExpanded ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        )}
+
+        {/* Mobile Hide Button - Visible at top of sidebar when expanded */}
+        {isMobile && effectiveVisible && (
+          <button
+            onClick={toggleVisible}
+            className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1.5 hover:bg-accent transition-colors z-50"
+            aria-label="Ocultar barra lateral"
+          >
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
+        )}
 
       <div className="h-full flex flex-col py-4">
         {/* Followed Channels Section - Top Half */}
@@ -348,7 +374,8 @@ export const ChannelsSidebar = () => {
             )}
           </div>
         </div>
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </>
   );
 };
