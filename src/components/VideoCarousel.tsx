@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronLeft, ChevronRight, Play, Megaphone, TrendingUp, Users, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Megaphone, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LiveSummary } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import LiveCarouselCard from "@/components/carousel/LiveCarouselCard";
 
 interface PromotionalVideo {
   id: string;
@@ -16,48 +13,28 @@ interface PromotionalVideo {
   redirect_url: string | null;
 }
 
-interface TopCreator {
-  id: string;
-  display_name: string;
-  bio: string | null;
-  viewer_count: number | null;
-  is_streaming: boolean | null;
-  avatar_url?: string | null;
-  activeLiveId?: string | null;
-}
-
 interface CarouselItem {
-  type: 'live' | 'promo' | 'creator' | 'skeleton';
-  live?: LiveSummary;
+  type: 'promo' | 'skeleton';
   promo?: PromotionalVideo;
-  creator?: TopCreator;
-  rank?: number;
 }
 
 interface VideoCarouselProps {
-  lives?: LiveSummary[];
-  onVideoClick?: (live: LiveSummary) => void;
-  onLoginRequired?: () => void;
-  isLoggedIn?: boolean;
   userId?: string | null;
 }
 
-// Maximum viewing time per promo video (20 seconds like live preview)
+// Maximum viewing time per promo video (20 seconds)
 const PROMO_VIDEO_MAX_SECONDS = 20;
 
-const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, userId }: VideoCarouselProps) => {
-  const navigate = useNavigate();
+const VideoCarousel = ({ userId }: VideoCarouselProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [promoVideos, setPromoVideos] = useState<PromotionalVideo[]>([]);
-  const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
   const [promoWatchTime, setPromoWatchTime] = useState(0);
-  const [isWatchingPromo, setIsWatchingPromo] = useState(false);
   const [maxVisibleCards, setMaxVisibleCards] = useState<number | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
 
-  // Fetch initial data - settings and online creators
+  // Fetch promotional videos and settings
   useEffect(() => {
     const fetchData = async () => {
       // Fetch carousel settings
@@ -70,11 +47,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       if (settingsData) {
         setMaxVisibleCards(settingsData.carousel_card_count);
       } else {
-        setMaxVisibleCards(7); // Default if no settings found
+        setMaxVisibleCards(7);
       }
       setSettingsLoaded(true);
 
-      // Fetch promos
+      // Fetch only promotional videos
       const { data: promoData } = await supabase
         .from('promotional_videos')
         .select('id, title, description, thumbnail_url, video_url, redirect_url')
@@ -84,132 +61,8 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         .order('position', { ascending: true });
       
       if (promoData) setPromoVideos(promoData);
-
-      // First get active lives (source of truth for online status)
-      const { data: activeLivesData } = await supabase
-        .from('lives')
-        .select('id, creator_id')
-        .eq('is_active', true)
-        .eq('status', 'live');
-
-      const activeCreatorIds = activeLivesData?.map(l => l.creator_id) || [];
-      
-      if (activeCreatorIds.length > 0) {
-        // Fetch creator profiles for those with active lives
-        const { data: creatorData } = await supabase
-          .from('creator_profiles')
-          .select('id, display_name, bio, viewer_count, is_streaming')
-          .in('id', activeCreatorIds)
-          .eq('approved_for_live', true)
-          .order('viewer_count', { ascending: false, nullsFirst: false })
-          .limit(10);
-
-        if (creatorData && creatorData.length > 0) {
-          const creatorIds = creatorData.map(c => c.id);
-          const { data: profileData } = await supabase
-            .from('public_profiles')
-            .select('id, avatar_url')
-            .in('id', creatorIds);
-
-          const avatarMap = new Map(profileData?.map(p => [p.id, p.avatar_url]) || []);
-          const liveMap = new Map(activeLivesData?.map(l => [l.creator_id, l.id]) || []);
-          
-          const creatorsWithAvatars = creatorData.map(c => ({
-            ...c,
-            is_streaming: true, // Force true since they have active live
-            avatar_url: avatarMap.get(c.id) || null,
-            activeLiveId: liveMap.get(c.id) || null
-          }));
-          
-          setTopCreators(creatorsWithAvatars);
-        } else {
-          setTopCreators([]);
-        }
-      } else {
-        setTopCreators([]);
-      }
     };
     fetchData();
-  }, []);
-
-  // Realtime subscription for lives table changes (source of truth for online status)
-  useEffect(() => {
-    const refetchCreators = async () => {
-      // Re-fetch active lives
-      const { data: activeLivesData } = await supabase
-        .from('lives')
-        .select('id, creator_id')
-        .eq('is_active', true)
-        .eq('status', 'live');
-
-      const activeCreatorIds = activeLivesData?.map(l => l.creator_id) || [];
-      
-      if (activeCreatorIds.length > 0) {
-        const { data: creatorData } = await supabase
-          .from('creator_profiles')
-          .select('id, display_name, bio, viewer_count, is_streaming')
-          .in('id', activeCreatorIds)
-          .eq('approved_for_live', true)
-          .order('viewer_count', { ascending: false, nullsFirst: false })
-          .limit(10);
-
-        if (creatorData && creatorData.length > 0) {
-          const creatorIds = creatorData.map(c => c.id);
-          const { data: profileData } = await supabase
-            .from('public_profiles')
-            .select('id, avatar_url')
-            .in('id', creatorIds);
-
-          const avatarMap = new Map(profileData?.map(p => [p.id, p.avatar_url]) || []);
-          const liveMap = new Map(activeLivesData?.map(l => [l.creator_id, l.id]) || []);
-          
-          const creatorsWithAvatars = creatorData.map(c => ({
-            ...c,
-            is_streaming: true,
-            avatar_url: avatarMap.get(c.id) || null,
-            activeLiveId: liveMap.get(c.id) || null
-          }));
-          
-          setTopCreators(creatorsWithAvatars);
-        } else {
-          setTopCreators([]);
-        }
-      } else {
-        setTopCreators([]);
-      }
-    };
-
-    const channel = supabase
-      .channel('carousel-live-updates')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'lives' },
-        () => refetchCreators()
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'creator_profiles' },
-        (payload) => {
-          const updated = payload.new as { id: string; viewer_count: number | null };
-          setTopCreators(prev => {
-            const existingIndex = prev.findIndex(c => c.id === updated.id);
-            if (existingIndex >= 0) {
-              const updatedList = prev.map(c => 
-                c.id === updated.id 
-                  ? { ...c, viewer_count: updated.viewer_count }
-                  : c
-              );
-              return [...updatedList].sort((a, b) => (b.viewer_count || 0) - (a.viewer_count || 0));
-            }
-            return prev;
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   // Record promo view analytics
@@ -227,56 +80,17 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     }
   }, [userId]);
 
-  // Build carousel items - deduplicate creators appearing in both lives and topCreators
+  // Build carousel items - only promos
   const carouselItems: CarouselItem[] = (() => {
     const items: CarouselItem[] = [];
-    let promoIndex = 0;
-    let itemCounter = 0;
 
-    // Get creator IDs from lives to avoid duplicates
-    const liveCreatorIds = new Set(lives.map(live => live.creator_id));
-
-    // Add lives first (these take priority as they are followed/current lives)
-    lives.forEach((live) => {
-      // Check if this creator is also in topCreators - if so, show with rank
-      const topRankIndex = topCreators.findIndex(c => c.id === live.creator_id);
-      if (topRankIndex >= 0) {
-        // Show as creator with rank instead of just live
-        items.push({ type: 'creator', creator: topCreators[topRankIndex], rank: topRankIndex + 1 });
-      } else {
-        items.push({ type: 'live', live });
-      }
-      itemCounter++;
-      
-      if (itemCounter % 3 === 0 && promoIndex < promoVideos.length) {
-        items.push({ type: 'promo', promo: promoVideos[promoIndex] });
-        promoIndex++;
-      }
+    promoVideos.forEach((promo) => {
+      items.push({ type: 'promo', promo });
     });
 
-    // Add remaining top creators that are NOT already shown in lives
-    topCreators.forEach((creator, index) => {
-      // Skip if already shown via lives
-      if (liveCreatorIds.has(creator.id)) return;
-      
-      items.push({ type: 'creator', creator, rank: index + 1 });
-      itemCounter++;
-      
-      if (itemCounter % 3 === 0 && promoIndex < promoVideos.length) {
-        items.push({ type: 'promo', promo: promoVideos[promoIndex] });
-        promoIndex++;
-      }
-    });
-
-    // Add remaining promos
-    while (promoIndex < promoVideos.length) {
-      items.push({ type: 'promo', promo: promoVideos[promoIndex] });
-      promoIndex++;
-    }
-
-    // Pad with skeletons to maintain minimum UI continuity based on settings
+    // Pad with skeletons if needed
     const targetCount = maxVisibleCards ?? 7;
-    while (items.length < targetCount) {
+    while (items.length < targetCount && items.length < 1) {
       items.push({ type: 'skeleton' });
     }
 
@@ -284,20 +98,17 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   })();
 
   const itemCount = carouselItems.length;
-
-  // Track if current item is a promo video
   const currentItem = carouselItems[currentIndex];
   const isCurrentPromo = currentItem?.type === 'promo';
 
   // Reset promo watch time when changing slides
   useEffect(() => {
     setPromoWatchTime(0);
-    setIsWatchingPromo(isCurrentPromo);
-  }, [currentIndex, isCurrentPromo]);
+  }, [currentIndex]);
 
-  // Promo video 20-second timer - auto advance after max viewing time
+  // Promo video 20-second timer
   useEffect(() => {
-    if (!isCurrentPromo || !isWatchingPromo) return;
+    if (!isCurrentPromo) return;
 
     const currentPromo = currentItem?.promo;
     let watchedSeconds = 0;
@@ -307,27 +118,23 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       setPromoWatchTime(watchedSeconds);
       
       if (watchedSeconds >= PROMO_VIDEO_MAX_SECONDS) {
-        // Record analytics before advancing
         if (currentPromo) {
           recordPromoView(currentPromo.id, watchedSeconds, true);
         }
-        // Auto advance to next after 20 seconds
         setCurrentIndex(prevIndex => (prevIndex + 1) % itemCount);
       }
     }, 1000);
 
     return () => {
       clearInterval(timer);
-      // Record partial view when leaving before completion
       if (currentPromo && watchedSeconds > 0 && watchedSeconds < PROMO_VIDEO_MAX_SECONDS) {
         recordPromoView(currentPromo.id, watchedSeconds, false);
       }
     };
-  }, [isCurrentPromo, isWatchingPromo, itemCount, currentItem, recordPromoView]);
+  }, [isCurrentPromo, itemCount, currentItem, recordPromoView]);
 
-  // Auto-scroll every 5 seconds for non-promo items
+  // Auto-scroll every 5 seconds for skeleton items
   useEffect(() => {
-    // Don't auto-scroll if watching promo (has its own 20s timer)
     if (!isAutoPlaying || itemCount <= 1 || isCurrentPromo) return;
 
     const interval = setInterval(() => {
@@ -351,17 +158,13 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     const diff = index - currentIndex;
     const normalizedDiff = ((diff + itemCount) % itemCount);
     
-    // Normalize to center around 0
     const adjustedDiff = normalizedDiff > itemCount / 2 
       ? normalizedDiff - itemCount 
       : normalizedDiff;
 
     const absDistance = Math.abs(adjustedDiff);
     
-    // Base spacing - reduced for edge cards to create better overlap
     const baseSpacing = isMobile ? 140 : 200;
-    
-    // Apply compression for edge cards to pull them more "inside"
     const compressionFactor = absDistance >= 2 ? 0.85 : 1;
     const spacing = baseSpacing * compressionFactor;
     
@@ -369,7 +172,6 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     const scale = Math.max(0.55, 1 - absDistance * 0.18);
     const zIndex = 10 - absDistance;
     
-    // Hide cards beyond visible range
     const maxVisibleDistance = Math.floor((maxVisibleCards ?? 7) / 2);
     const shouldHide = absDistance > maxVisibleDistance;
     
@@ -385,24 +187,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const handleVideoClick = (index: number) => {
     const item = carouselItems[index];
     
-    // Skeletons should never be clickable - only for visual display
-    if (item.type === 'skeleton') {
-      return;
-    }
+    if (item.type === 'skeleton') return;
     
     if (index === currentIndex) {
-      if (item.type === 'live' && item.live) {
-        // Navigate to live page directly - preview timer handles the 20s free
-        onVideoClick?.(item.live);
-      } else if (item.type === 'promo' && item.promo?.redirect_url) {
+      if (item.type === 'promo' && item.promo?.redirect_url) {
         window.open(item.promo.redirect_url, '_blank');
-      } else if (item.type === 'creator' && item.creator) {
-        // Navigate to creator's active live if they have one
-        if (item.creator.activeLiveId) {
-          navigate(`/live/${item.creator.activeLiveId}`);
-        } else {
-          navigate(`/room/${item.creator.id}`);
-        }
       }
     } else {
       setCurrentIndex(index);
@@ -410,7 +199,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     }
   };
 
-  // Detect if mobile for responsive sizing
+  // Detect mobile
   const [isMobile, setIsMobile] = useState(false);
   
   useEffect(() => {
@@ -420,7 +209,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Touch/swipe handling for mobile
+  // Touch/swipe handling
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
@@ -440,7 +229,6 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     const diffX = Math.abs(currentX - touchStartX.current);
     const diffY = Math.abs(currentY - touchStartY.current);
     
-    // Only consider horizontal swipes (diffX > diffY means horizontal)
     if (diffX > diffY && diffX > 10) {
       isSwiping.current = true;
     }
@@ -452,29 +240,25 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     if (touchStartX.current === null || touchEndX.current === null) return;
     
     const diff = touchStartX.current - touchEndX.current;
-    const minSwipeDistance = 50; // Minimum distance to trigger swipe
+    const minSwipeDistance = 50;
     
     if (Math.abs(diff) > minSwipeDistance && isSwiping.current) {
       if (diff > 0) {
-        // Swiped left - go to next
         goToNext();
       } else {
-        // Swiped right - go to previous
         goToPrev();
       }
     }
     
-    // Reset
     touchStartX.current = null;
     touchStartY.current = null;
     touchEndX.current = null;
     isSwiping.current = false;
   }, [goToNext, goToPrev]);
 
-  // Don't show arrows if only 1 card configured
   const showArrows = (maxVisibleCards ?? 7) > 1 && itemCount > 1;
 
-  // Don't render until settings are loaded to prevent flash
+  // Don't render until settings loaded
   if (!settingsLoaded) {
     return (
       <div className="relative w-full pt-0 pb-4 overflow-hidden">
@@ -485,10 +269,14 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     );
   }
 
+  // Don't render if no promo videos
+  if (promoVideos.length === 0) {
+    return null;
+  }
+
   return (
     <div className="relative w-full pt-0 pb-4 overflow-hidden">
-
-      {/* Navigation Arrows - hidden when only 1 card */}
+      {/* Navigation Arrows */}
       {showArrows && (
         <>
           <Button
@@ -511,7 +299,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         </>
       )}
 
-      {/* Carousel Container - Responsive height with touch support */}
+      {/* Carousel Container */}
       <div 
         className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center touch-pan-y"
         onTouchStart={handleTouchStart}
@@ -521,7 +309,6 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         {carouselItems.map((item, index) => {
           const isCenter = index === currentIndex;
 
-          // Responsive card dimensions
           const cardWidth = isMobile ? "200px" : "320px";
           const cardHeight = isCenter 
             ? (isMobile ? "140px" : "200px")
@@ -532,14 +319,9 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
               key={index}
               className={cn(
                 "absolute rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all duration-500",
-                // Only make non-skeleton items clickable
                 item.type !== 'skeleton' && "cursor-pointer",
                 isCenter 
-                  ? item.type === 'promo' 
-                    ? "border-yellow-500 shadow-[0_0_20px_hsl(45_100%_50%/0.4)] sm:shadow-[0_0_30px_hsl(45_100%_50%/0.5)]"
-                    : item.type === 'skeleton'
-                    ? "border-border/30"
-                    : "border-primary shadow-[0_0_20px_hsl(270_70%_55%/0.4)] sm:shadow-[0_0_30px_hsl(270_70%_55%/0.5)]" 
+                  ? "border-yellow-500 shadow-[0_0_20px_hsl(45_100%_50%/0.4)] sm:shadow-[0_0_30px_hsl(45_100%_50%/0.5)]"
                   : "border-border/50"
               )}
               style={{
@@ -551,10 +333,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
               onMouseEnter={() => item.type !== 'skeleton' && setIsAutoPlaying(false)}
               onMouseLeave={() => item.type !== 'skeleton' && setIsAutoPlaying(true)}
             >
-              {item.type === 'live' && item.live ? (
-                <LiveCarouselCard live={item.live} isCenter={isCenter} />
-              ) : item.type === 'promo' && item.promo ? (
-                // Promotional video card
+              {item.type === 'promo' && item.promo ? (
                 <div className="relative w-full h-full bg-card">
                   {/* Video embed or thumbnail */}
                   {isCenter && item.promo.video_url ? (
@@ -595,7 +374,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     <span className="sm:hidden">AD</span>
                   </div>
 
-                  {/* 20-second progress bar for center promo */}
+                  {/* 20-second progress bar */}
                   {isCenter && (
                     <div className="absolute top-0 left-0 right-0 h-0.5 sm:h-1 bg-black/40">
                       <div 
@@ -629,83 +408,11 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
                     </div>
                   )}
                 </div>
-              ) : item.type === 'creator' && item.creator ? (
-                // Top creator card
-                <div className="relative w-full h-full bg-card">
-                  {item.creator.avatar_url ? (
-                    <img 
-                      src={item.creator.avatar_url} 
-                      alt={item.creator.display_name} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 flex items-center justify-center">
-                      <Users className="w-8 h-8 sm:w-12 sm:h-12 text-emerald-500/50" />
-                    </div>
-                  )}
-
-                  {/* Ranking badge with smooth animation */}
-                  <div 
-                    className="absolute top-1 left-1 sm:top-2 sm:left-2 flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-emerald-500 to-cyan-500 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white transition-all duration-500 ease-out"
-                    style={{ 
-                      transform: `scale(1)`,
-                      animation: 'pulse 2s infinite'
-                    }}
-                  >
-                    <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                    <span className="transition-all duration-300">TOP {item.rank}</span>
-                  </div>
-
-                  {/* Live indicator if streaming */}
-                  {item.creator.is_streaming && (
-                    <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex items-center gap-1 sm:gap-1.5 bg-destructive px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold text-white">
-                      <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse" />
-                      <span className="hidden sm:inline">AO VIVO</span>
-                      <span className="sm:hidden">LIVE</span>
-                    </div>
-                  )}
-
-                  {/* Viewer count */}
-                  {(item.creator.viewer_count ?? 0) > 0 && !item.creator.is_streaming && (
-                    <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex items-center gap-1 bg-black/60 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs text-white">
-                      <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      {item.creator.viewer_count}
-                    </div>
-                  )}
-
-                  {/* Title overlay */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 sm:p-3">
-                    <p className="text-white font-semibold text-xs sm:text-sm truncate">{item.creator.display_name}</p>
-                    {item.creator.bio && (
-                      <p className="text-white/70 text-[10px] sm:text-xs truncate hidden sm:block">{item.creator.bio}</p>
-                    )}
-                  </div>
-
-                  {/* Hover overlay */}
-                  {isCenter && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 flex items-center justify-center">
-                        <Play className="w-5 h-5 sm:w-7 sm:h-7 text-white fill-white" />
-                      </div>
-                    </div>
-                  )}
-                </div>
               ) : (
                 // Skeleton placeholder
                 <div className="w-full h-full bg-card">
                   <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-full bg-muted-foreground/30 flex items-center justify-center">
-                      <Play className="w-5 h-5 sm:w-8 sm:h-8 text-muted-foreground/60" />
-                    </div>
-                  </div>
-
-                  {/* Skeleton badge */}
-                  <div className="absolute top-1 left-1 sm:top-2 sm:left-2 w-12 sm:w-16 h-4 sm:h-5 bg-muted-foreground/30 rounded" />
-
-                  {/* Skeleton title area */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black p-2 sm:p-3 space-y-1 sm:space-y-2">
-                    <div className="w-3/4 h-2 sm:h-3 bg-muted-foreground/40 rounded" />
-                    <div className="w-1/2 h-1.5 sm:h-2 bg-muted-foreground/30 rounded" />
+                    <Megaphone className="w-10 h-10 sm:w-16 sm:h-16 text-muted-foreground/30" />
                   </div>
                 </div>
               )}
@@ -714,16 +421,16 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         })}
       </div>
 
-      {/* Dots indicator - hidden when only 1 card */}
-      {(maxVisibleCards ?? 7) > 1 && (
+      {/* Dots indicator */}
+      {(maxVisibleCards ?? 7) > 1 && itemCount > 1 && (
         <div className="flex justify-center gap-2 mt-4">
-          {Array.from({ length: Math.min(itemCount, maxVisibleCards ?? 7) }).map((_, index) => (
+          {carouselItems.map((_, index) => (
             <button
               key={index}
               className={cn(
                 "w-2 h-2 rounded-full transition-all duration-300",
-                index === currentIndex % Math.min(itemCount, maxVisibleCards ?? 7)
-                  ? "bg-primary w-6"
+                index === currentIndex
+                  ? "bg-yellow-500 w-6"
                   : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
               )}
               onClick={() => {

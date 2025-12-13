@@ -268,15 +268,9 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Video Carousel - closer to buttons */}
+        {/* Video Carousel - promotional videos only */}
         <div className="-mt-4">
-          <VideoCarousel 
-            lives={onlineLives}
-            onVideoClick={handleVideoClick}
-            onLoginRequired={() => setShowLoginDialog(true)}
-            isLoggedIn={!!user}
-            userId={user?.id || null}
-          />
+          <VideoCarousel userId={user?.id || null} />
         </div>
 
         {/* Lives Grid Section */}
