@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { NativeVideoPreview, type VideoOrientation } from "@/components/NativeVideoPreview";
 import { DualCameraPreview } from "@/components/live/DualCameraPreview";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import { StreamToggle } from "@/components/StreamToggle";
-import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { 
   Users, 
@@ -14,12 +12,11 @@ import {
   Settings,
   Share2,
   Sparkles,
-  Video,
   RefreshCw,
-  SlidersHorizontal
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
+import type { VideoOrientation } from "@/components/NativeVideoPreview";
 
 interface ActiveSuperchat {
   id: string;
@@ -47,6 +44,7 @@ interface CreatorMobileFullscreenProps {
   pendingSuperchatCount?: number;
   liveUrl?: string;
   orientation?: VideoOrientation;
+  onFlipCamera?: () => void;
 }
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
@@ -57,7 +55,6 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   participants,
   revenue,
   selectedAudioDevice,
-  selectedVideoDevice,
   isMirrored,
   activeSuperchat,
   onSuperchatExpire,
@@ -66,6 +63,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   pendingSuperchatCount = 0,
   liveUrl,
   orientation = "vertical",
+  onFlipCamera,
 }) => {
   const { t } = useLanguage();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
@@ -93,7 +91,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-      {/* Fullscreen Video Preview - removed overflow-hidden to allow PiP visibility */}
+      {/* Fullscreen Video Preview */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 w-full h-full">
           <DualCameraPreview
@@ -104,9 +102,9 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         </div>
 
-        {/* Top overlay - status on left, viewer count center, revenue right */}
+        {/* Top overlay - status indicator (Preview only) + viewer count + revenue */}
         <div className="absolute top-4 left-0 right-0 flex items-center justify-between z-20 px-3">
-          {/* Status indicator - left edge */}
+          {/* Status indicator - shows "Preview" when not streaming, or green when live */}
           <div className={cn(
             "flex items-center gap-1.5 rounded-full px-2.5 py-1",
             isStreaming 
@@ -155,56 +153,40 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         )}
 
-        {/* Right side action buttons - all buttons stacked vertically on right edge */}
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
-          {/* Quality button - top */}
-          <button 
-            onClick={onOpenSettings}
-            className="flex flex-col items-center text-white"
-          >
-            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <SlidersHorizontal className="h-4 w-4" />
-            </div>
-          </button>
-
-          {/* Flip/Invert button */}
-          <button 
-            className="flex flex-col items-center text-white"
-          >
-            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <RefreshCw className="h-4 w-4" />
-            </div>
-          </button>
-
-          {/* Record button */}
-          <button 
-            className="flex flex-col items-center text-white"
-          >
-            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Video className="h-4 w-4" />
-            </div>
-          </button>
-
+        {/* Left side action buttons - stacked vertically */}
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
           {/* Settings button */}
           <button 
             onClick={onOpenSettings}
             className="flex flex-col items-center text-white"
           >
-            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Settings className="h-4 w-4" />
+            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Settings className="h-5 w-5" />
             </div>
           </button>
+
+          {/* Flip/Invert camera button */}
+          {onFlipCamera && (
+            <button 
+              onClick={onFlipCamera}
+              className="flex flex-col items-center text-white"
+            >
+              <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+            </button>
+          )}
 
           {/* SuperChat queue indicator */}
           <button 
             onClick={() => setShowSuperchatQueue(true)}
             className="flex flex-col items-center text-white relative"
           >
-            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Sparkles className="h-4 w-4 text-yellow-400" />
+            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Sparkles className="h-5 w-5 text-yellow-400" />
               {pendingSuperchatCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
-                  <span className="text-[10px] font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
+                <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                  <span className="text-xs font-bold text-white">{pendingSuperchatCount > 9 ? '9+' : pendingSuperchatCount}</span>
                 </div>
               )}
             </div>
@@ -215,17 +197,19 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             onClick={handleShare}
             className="flex flex-col items-center text-white"
           >
-            <div className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-              <Share2 className="h-4 w-4" />
+            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <Share2 className="h-5 w-5" />
             </div>
           </button>
 
-          {/* Stream toggle ON/OFF - bottom */}
-          <StreamToggle
-            isStreaming={isStreaming}
-            onToggle={onStreamToggle}
-            compact
-          />
+          {/* Stream toggle ON/OFF - same size as other buttons */}
+          <div className="w-12 h-12 flex items-center justify-center">
+            <StreamToggle
+              isStreaming={isStreaming}
+              onToggle={onStreamToggle}
+              compact
+            />
+          </div>
         </div>
       </div>
 

@@ -213,15 +213,25 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     }
   }, [userId]);
 
-  // Build carousel items - only online creators + promos
+  // Build carousel items - deduplicate creators appearing in both lives and topCreators
   const carouselItems: CarouselItem[] = (() => {
     const items: CarouselItem[] = [];
     let promoIndex = 0;
     let itemCounter = 0;
 
-    // Add lives first
+    // Get creator IDs from lives to avoid duplicates
+    const liveCreatorIds = new Set(lives.map(live => live.creator_id));
+
+    // Add lives first (these take priority as they are followed/current lives)
     lives.forEach((live) => {
-      items.push({ type: 'live', live });
+      // Check if this creator is also in topCreators - if so, show with rank
+      const topRankIndex = topCreators.findIndex(c => c.id === live.creator_id);
+      if (topRankIndex >= 0) {
+        // Show as creator with rank instead of just live
+        items.push({ type: 'creator', creator: topCreators[topRankIndex], rank: topRankIndex + 1 });
+      } else {
+        items.push({ type: 'live', live });
+      }
       itemCounter++;
       
       if (itemCounter % 3 === 0 && promoIndex < promoVideos.length) {
@@ -230,10 +240,12 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       }
     });
 
-    // Add online top creators with ranking
+    // Add remaining top creators that are NOT already shown in lives
     topCreators.forEach((creator, index) => {
+      // Skip if already shown via lives
+      if (liveCreatorIds.has(creator.id)) return;
+      
       items.push({ type: 'creator', creator, rank: index + 1 });
-      itemCounter++;
       itemCounter++;
       
       if (itemCounter % 3 === 0 && promoIndex < promoVideos.length) {
