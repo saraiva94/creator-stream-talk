@@ -42,8 +42,6 @@ interface VideoCarouselProps {
   userId?: string | null;
 }
 
-// Minimum cards to maintain UI continuity
-const MIN_CAROUSEL_ITEMS = 7;
 // Maximum viewing time per promo video (20 seconds like live preview)
 const PROMO_VIDEO_MAX_SECONDS = 20;
 
@@ -55,11 +53,23 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
   const [promoWatchTime, setPromoWatchTime] = useState(0);
   const [isWatchingPromo, setIsWatchingPromo] = useState(false);
+  const [maxVisibleCards, setMaxVisibleCards] = useState(7);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
 
-  // Fetch initial data - only online creators (based on active lives)
+  // Fetch initial data - settings and online creators
   useEffect(() => {
     const fetchData = async () => {
+      // Fetch carousel settings
+      const { data: settingsData } = await supabase
+        .from('homepage_settings')
+        .select('carousel_card_count')
+        .eq('id', 'default')
+        .single();
+      
+      if (settingsData) {
+        setMaxVisibleCards(settingsData.carousel_card_count);
+      }
+
       // Fetch promos
       const { data: promoData } = await supabase
         .from('promotional_videos')
@@ -260,8 +270,8 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       promoIndex++;
     }
 
-    // Pad with skeletons to maintain minimum UI continuity
-    while (items.length < MIN_CAROUSEL_ITEMS) {
+    // Pad with skeletons to maintain minimum UI continuity based on settings
+    while (items.length < maxVisibleCards) {
       items.push({ type: 'skeleton' });
     }
 
@@ -343,16 +353,26 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
 
     const absDistance = Math.abs(adjustedDiff);
     
-    // Responsive horizontal spacing
-    const spacing = isMobile ? 140 : 220;
+    // Base spacing - reduced for edge cards to create better overlap
+    const baseSpacing = isMobile ? 140 : 200;
+    
+    // Apply compression for edge cards to pull them more "inside"
+    const compressionFactor = absDistance >= 2 ? 0.85 : 1;
+    const spacing = baseSpacing * compressionFactor;
+    
     const translateX = adjustedDiff * spacing;
-    const scale = Math.max(0.6, 1 - absDistance * 0.15);
+    const scale = Math.max(0.55, 1 - absDistance * 0.18);
     const zIndex = 10 - absDistance;
+    
+    // Hide cards beyond visible range
+    const maxVisibleDistance = Math.floor(maxVisibleCards / 2);
+    const shouldHide = absDistance > maxVisibleDistance;
     
     return {
       transform: `translateX(${translateX}px) scale(${scale})`,
       zIndex,
-      opacity: 1,
+      opacity: shouldHide ? 0 : 1,
+      pointerEvents: shouldHide ? 'none' as const : 'auto' as const,
       transition: "all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)",
     };
   };
@@ -446,27 +466,34 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     isSwiping.current = false;
   }, [goToNext, goToPrev]);
 
+  // Don't show arrows if only 1 card configured
+  const showArrows = maxVisibleCards > 1 && itemCount > 1;
+
   return (
     <div className="relative w-full pt-0 pb-4 overflow-hidden">
 
-      {/* Navigation Arrows */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-8 w-8 sm:h-12 sm:w-12"
-        onClick={goToPrev}
-      >
-        <ChevronLeft className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
-      </Button>
+      {/* Navigation Arrows - hidden when only 1 card */}
+      {showArrows && (
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-8 w-8 sm:h-12 sm:w-12"
+            onClick={goToPrev}
+          >
+            <ChevronLeft className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
+          </Button>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-8 w-8 sm:h-12 sm:w-12"
-        onClick={goToNext}
-      >
-        <ChevronRight className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
-      </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 z-20 bg-background/80 hover:bg-background border border-border rounded-full h-8 w-8 sm:h-12 sm:w-12"
+            onClick={goToNext}
+          >
+            <ChevronRight className="h-4 w-4 sm:h-6 sm:w-6 text-foreground" />
+          </Button>
+        </>
+      )}
 
       {/* Carousel Container - Responsive height with touch support */}
       <div 
@@ -671,24 +698,26 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
         })}
       </div>
 
-      {/* Dots indicator */}
-      <div className="flex justify-center gap-2 mt-4">
-        {Array.from({ length: Math.min(itemCount, 7) }).map((_, index) => (
-          <button
-            key={index}
-            className={cn(
-              "w-2 h-2 rounded-full transition-all duration-300",
-              index === currentIndex % Math.min(itemCount, 7)
-                ? "bg-primary w-6"
-                : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
-            )}
-            onClick={() => {
-              setCurrentIndex(index);
-              setIsAutoPlaying(false);
-            }}
-          />
-        ))}
-      </div>
+      {/* Dots indicator - hidden when only 1 card */}
+      {maxVisibleCards > 1 && (
+        <div className="flex justify-center gap-2 mt-4">
+          {Array.from({ length: Math.min(itemCount, maxVisibleCards) }).map((_, index) => (
+            <button
+              key={index}
+              className={cn(
+                "w-2 h-2 rounded-full transition-all duration-300",
+                index === currentIndex % Math.min(itemCount, maxVisibleCards)
+                  ? "bg-primary w-6"
+                  : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
+              )}
+              onClick={() => {
+                setCurrentIndex(index);
+                setIsAutoPlaying(false);
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

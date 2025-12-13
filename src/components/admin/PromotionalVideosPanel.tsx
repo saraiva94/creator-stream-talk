@@ -40,6 +40,7 @@ const PromotionalVideosPanel = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const [carouselCardCount, setCarouselCardCount] = useState<number>(7);
   const [formData, setFormData] = useState({
     title: "",
     video_url: "",
@@ -131,7 +132,39 @@ const PromotionalVideosPanel = () => {
 
   useEffect(() => {
     fetchVideos();
+    fetchCarouselSettings();
   }, []);
+
+  const fetchCarouselSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("homepage_settings")
+        .select("carousel_card_count")
+        .eq("id", "default")
+        .single();
+
+      if (error) throw error;
+      if (data) setCarouselCardCount(data.carousel_card_count);
+    } catch (error) {
+      console.error("Error fetching carousel settings:", error);
+    }
+  };
+
+  const updateCarouselCardCount = async (count: number) => {
+    try {
+      const { error } = await supabase
+        .from("homepage_settings")
+        .update({ carousel_card_count: count, updated_at: new Date().toISOString() })
+        .eq("id", "default");
+
+      if (error) throw error;
+      setCarouselCardCount(count);
+      toast.success(`Carrossel atualizado para ${count} card${count > 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error("Error updating carousel settings:", error);
+      toast.error("Erro ao atualizar configuração do carrossel");
+    }
+  };
 
   const fetchVideos = async () => {
     try {
@@ -291,172 +324,195 @@ const PromotionalVideosPanel = () => {
 
   return (
     <Card className="border-border mb-6 sm:mb-8">
-      <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Video className="w-5 h-5 text-primary" />
-          Adicionar Vídeos Promocionais
-        </CardTitle>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openNewDialog} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Adicionar Vídeo
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>
-                {editingVideo ? "Editar Vídeo" : "Novo Vídeo Promocional"}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Título *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  required
-                  placeholder="Título do vídeo promocional"
-                />
-              </div>
-
-              {/* Video Source Type Selection */}
-              <div className="space-y-3">
-                <Label>Origem do Vídeo *</Label>
-                <RadioGroup 
-                  value={videoSourceType} 
-                  onValueChange={(value) => setVideoSourceType(value as VideoSourceType)}
-                  className="grid grid-cols-2 gap-3"
-                >
-                  <div className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${videoSourceType === 'youtube' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <RadioGroupItem value="youtube" id="youtube" />
-                    <Label htmlFor="youtube" className="flex items-center gap-2 cursor-pointer">
-                      <Youtube className="w-5 h-5 text-red-500" />
-                      YouTube
-                    </Label>
-                  </div>
-                  <div className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${videoSourceType === 'upload' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
-                    <RadioGroupItem value="upload" id="upload" />
-                    <Label htmlFor="upload" className="flex items-center gap-2 cursor-pointer">
-                      <Upload className="w-5 h-5 text-primary" />
-                      Upload (máx 20s)
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {/* YouTube URL Input */}
-              {videoSourceType === 'youtube' && (
+      <CardHeader className="flex flex-col gap-4 p-4 sm:p-6">
+        <div className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Video className="w-5 h-5 text-primary" />
+            Adicionar Vídeos Promocionais
+          </CardTitle>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openNewDialog} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Adicionar Vídeo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingVideo ? "Editar Vídeo" : "Novo Vídeo Promocional"}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="video_url">URL do YouTube *</Label>
+                  <Label htmlFor="title">Título *</Label>
                   <Input
-                    id="video_url"
-                    value={formData.video_url}
-                    onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-                    placeholder="https://youtube.com/watch?v=... ou https://youtu.be/..."
-                    required={videoSourceType === 'youtube'}
+                    id="title"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    required
+                    placeholder="Título do vídeo promocional"
                   />
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Youtube className="w-3 h-3" />
-                    O vídeo será reproduzido automaticamente no carrossel
+                </div>
+
+                {/* Video Source Type Selection */}
+                <div className="space-y-3">
+                  <Label>Origem do Vídeo *</Label>
+                  <RadioGroup 
+                    value={videoSourceType} 
+                    onValueChange={(value) => setVideoSourceType(value as VideoSourceType)}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    <div className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${videoSourceType === 'youtube' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                      <RadioGroupItem value="youtube" id="youtube" />
+                      <Label htmlFor="youtube" className="flex items-center gap-2 cursor-pointer">
+                        <Youtube className="w-5 h-5 text-red-500" />
+                        YouTube
+                      </Label>
+                    </div>
+                    <div className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${videoSourceType === 'upload' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}>
+                      <RadioGroupItem value="upload" id="upload" />
+                      <Label htmlFor="upload" className="flex items-center gap-2 cursor-pointer">
+                        <Upload className="w-5 h-5 text-primary" />
+                        Upload (máx 20s)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* YouTube URL Input */}
+                {videoSourceType === 'youtube' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="video_url">URL do YouTube *</Label>
+                    <Input
+                      id="video_url"
+                      value={formData.video_url}
+                      onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                      placeholder="https://youtube.com/watch?v=... ou https://youtu.be/..."
+                      required={videoSourceType === 'youtube'}
+                    />
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Youtube className="w-3 h-3" />
+                      O vídeo será reproduzido automaticamente no carrossel
+                    </p>
+                  </div>
+                )}
+
+                {/* Video Upload Input */}
+                {videoSourceType === 'upload' && (
+                  <div className="space-y-2">
+                    <Label>Upload de Vídeo (máx 20 segundos) *</Label>
+                    <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+                      <input
+                        ref={videoInputRef}
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoFileChange}
+                        className="hidden"
+                        id="video-upload"
+                      />
+                      <label htmlFor="video-upload" className="cursor-pointer block">
+                        {videoFile ? (
+                          <div className="space-y-2">
+                            <Video className="w-10 h-10 mx-auto text-primary" />
+                            <p className="text-sm font-medium">{videoFile.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Duração: {videoDuration}s • {(videoFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Upload className="w-10 h-10 mx-auto text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">
+                              Clique para selecionar um vídeo
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Máximo: 20 segundos, 50MB
+                            </p>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                    {videoDuration && videoDuration <= 20 && (
+                      <p className="text-xs text-green-500 flex items-center gap-1">
+                        ✓ Duração válida: {videoDuration} segundos
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Alert about 20s limit */}
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                  <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-yellow-500">
+                    <strong>Lógica do Carrossel:</strong> Usuários podem assistir até 20 segundos de cada vídeo promocional. Após isso, o carrossel avança automaticamente.
                   </p>
                 </div>
-              )}
 
-              {/* Video Upload Input */}
-              {videoSourceType === 'upload' && (
                 <div className="space-y-2">
-                  <Label>Upload de Vídeo (máx 20 segundos) *</Label>
-                  <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
-                    <input
-                      ref={videoInputRef}
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoFileChange}
-                      className="hidden"
-                      id="video-upload"
-                    />
-                    <label htmlFor="video-upload" className="cursor-pointer block">
-                      {videoFile ? (
-                        <div className="space-y-2">
-                          <Video className="w-10 h-10 mx-auto text-primary" />
-                          <p className="text-sm font-medium">{videoFile.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Duração: {videoDuration}s • {(videoFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <Upload className="w-10 h-10 mx-auto text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">
-                            Clique para selecionar um vídeo
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Máximo: 20 segundos, 50MB
-                          </p>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                  {videoDuration && videoDuration <= 20 && (
-                    <p className="text-xs text-green-500 flex items-center gap-1">
-                      ✓ Duração válida: {videoDuration} segundos
-                    </p>
-                  )}
+                  <Label htmlFor="redirect_url">URL de Redirecionamento (ao clicar)</Label>
+                  <Input
+                    id="redirect_url"
+                    value={formData.redirect_url}
+                    onChange={(e) => setFormData({ ...formData, redirect_url: e.target.value })}
+                    placeholder="https://exemplo.com/landing-page"
+                  />
                 </div>
-              )}
 
-              {/* Alert about 20s limit */}
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-yellow-500">
-                  <strong>Lógica do Carrossel:</strong> Usuários podem assistir até 20 segundos de cada vídeo promocional. Após isso, o carrossel avança automaticamente.
-                </p>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position">Posição na Grade</Label>
+                  <Input
+                    id="position"
+                    type="number"
+                    min="0"
+                    value={formData.position}
+                    onChange={(e) => setFormData({ ...formData, position: parseInt(e.target.value) || 0 })}
+                  />
+                  <p className="text-xs text-muted-foreground">Menor número = maior prioridade</p>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="redirect_url">URL de Redirecionamento (ao clicar)</Label>
-                <Input
-                  id="redirect_url"
-                  value={formData.redirect_url}
-                  onChange={(e) => setFormData({ ...formData, redirect_url: e.target.value })}
-                  placeholder="https://exemplo.com/landing-page"
-                />
-              </div>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="is_active"
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                  />
+                  <Label htmlFor="is_active">Ativo</Label>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="position">Posição na Grade</Label>
-                <Input
-                  id="position"
-                  type="number"
-                  min="0"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: parseInt(e.target.value) || 0 })}
-                />
-                <p className="text-xs text-muted-foreground">Menor número = maior prioridade</p>
-              </div>
+                <div className="flex gap-3 pt-4">
+                  <Button type="submit" className="flex-1" disabled={uploadingVideo}>
+                    {uploadingVideo ? "Enviando..." : editingVideo ? "Salvar Alterações" : "Adicionar Vídeo"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                />
-                <Label htmlFor="is_active">Ativo</Label>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <Button type="submit" className="flex-1" disabled={uploadingVideo}>
-                  {uploadingVideo ? "Enviando..." : editingVideo ? "Salvar Alterações" : "Adicionar Vídeo"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancelar
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* Carousel Card Count Selector */}
+        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">
+          <Label className="text-sm font-medium whitespace-nowrap">Cards no Carrossel:</Label>
+          <div className="flex gap-2">
+            {[1, 3, 5, 7].map((count) => (
+              <Button
+                key={count}
+                variant={carouselCardCount === count ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateCarouselCardCount(count)}
+                className="w-10"
+              >
+                {count}
+              </Button>
+            ))}
+          </div>
+          <span className="text-xs text-muted-foreground ml-2">
+            {carouselCardCount === 1 && "(setas ficam ocultas)"}
+          </span>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
