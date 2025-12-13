@@ -53,7 +53,8 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   const [topCreators, setTopCreators] = useState<TopCreator[]>([]);
   const [promoWatchTime, setPromoWatchTime] = useState(0);
   const [isWatchingPromo, setIsWatchingPromo] = useState(false);
-  const [maxVisibleCards, setMaxVisibleCards] = useState(7);
+  const [maxVisibleCards, setMaxVisibleCards] = useState<number | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const sessionIdRef = useRef<string>(crypto.randomUUID());
 
   // Fetch initial data - settings and online creators
@@ -68,7 +69,10 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       
       if (settingsData) {
         setMaxVisibleCards(settingsData.carousel_card_count);
+      } else {
+        setMaxVisibleCards(7); // Default if no settings found
       }
+      setSettingsLoaded(true);
 
       // Fetch promos
       const { data: promoData } = await supabase
@@ -271,7 +275,8 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     }
 
     // Pad with skeletons to maintain minimum UI continuity based on settings
-    while (items.length < maxVisibleCards) {
+    const targetCount = maxVisibleCards ?? 7;
+    while (items.length < targetCount) {
       items.push({ type: 'skeleton' });
     }
 
@@ -365,7 +370,7 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
     const zIndex = 10 - absDistance;
     
     // Hide cards beyond visible range
-    const maxVisibleDistance = Math.floor(maxVisibleCards / 2);
+    const maxVisibleDistance = Math.floor((maxVisibleCards ?? 7) / 2);
     const shouldHide = absDistance > maxVisibleDistance;
     
     return {
@@ -467,7 +472,18 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
   }, [goToNext, goToPrev]);
 
   // Don't show arrows if only 1 card configured
-  const showArrows = maxVisibleCards > 1 && itemCount > 1;
+  const showArrows = (maxVisibleCards ?? 7) > 1 && itemCount > 1;
+
+  // Don't render until settings are loaded to prevent flash
+  if (!settingsLoaded) {
+    return (
+      <div className="relative w-full pt-0 pb-4 overflow-hidden">
+        <div className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center">
+          <div className="animate-pulse bg-muted rounded-xl w-[200px] sm:w-[320px] h-[140px] sm:h-[200px]" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full pt-0 pb-4 overflow-hidden">
@@ -699,14 +715,14 @@ const VideoCarousel = ({ lives = [], onVideoClick, onLoginRequired, isLoggedIn, 
       </div>
 
       {/* Dots indicator - hidden when only 1 card */}
-      {maxVisibleCards > 1 && (
+      {(maxVisibleCards ?? 7) > 1 && (
         <div className="flex justify-center gap-2 mt-4">
-          {Array.from({ length: Math.min(itemCount, maxVisibleCards) }).map((_, index) => (
+          {Array.from({ length: Math.min(itemCount, maxVisibleCards ?? 7) }).map((_, index) => (
             <button
               key={index}
               className={cn(
                 "w-2 h-2 rounded-full transition-all duration-300",
-                index === currentIndex % Math.min(itemCount, maxVisibleCards)
+                index === currentIndex % Math.min(itemCount, maxVisibleCards ?? 7)
                   ? "bg-primary w-6"
                   : "bg-muted-foreground/40 hover:bg-muted-foreground/60"
               )}
