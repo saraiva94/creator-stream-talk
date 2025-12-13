@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Pencil, Trash2, Video, ExternalLink, GripVertical, Upload, Youtube, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Video, ExternalLink, GripVertical, Upload, Youtube, AlertCircle, Eye, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/hooks/useLanguage";
+import VideoCarousel from "@/components/VideoCarousel";
 
 interface PromotionalVideo {
   id: string;
@@ -39,7 +40,12 @@ const PromotionalVideosPanel = () => {
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewKey, setPreviewKey] = useState(0);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [carouselCardCount, setCarouselCardCount] = useState<number>(7);
   const [formData, setFormData] = useState({
     title: "",
@@ -130,6 +136,47 @@ const PromotionalVideosPanel = () => {
     return urlData.publicUrl;
   };
 
+  // Upload thumbnail to Supabase storage
+  const uploadThumbnailFile = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `thumbnail_${crypto.randomUUID()}.${fileExt}`;
+    const filePath = `promotional/${fileName}`;
+
+    const { error } = await supabase.storage
+      .from('chat-media')
+      .upload(filePath, file);
+
+    if (error) {
+      console.error('Thumbnail upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('chat-media')
+      .getPublicUrl(filePath);
+
+    return urlData.publicUrl;
+  };
+
+  // Handle thumbnail file selection
+  const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione uma imagem válida');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem é muito grande. Máximo: 5MB');
+      return;
+    }
+
+    setThumbnailFile(file);
+    setThumbnailPreview(URL.createObjectURL(file));
+  };
+
   useEffect(() => {
     fetchVideos();
     fetchCarouselSettings();
@@ -214,6 +261,14 @@ const PromotionalVideosPanel = () => {
         }
         videoUrl = uploadedUrl;
         setUploadingVideo(false);
+      }
+
+      // Upload custom thumbnail if provided
+      if (thumbnailFile) {
+        const uploadedThumbUrl = await uploadThumbnailFile(thumbnailFile);
+        if (uploadedThumbUrl) {
+          thumbnailUrl = uploadedThumbUrl;
+        }
       }
 
       const payload = {
@@ -307,7 +362,10 @@ const PromotionalVideosPanel = () => {
     setVideoSourceType('youtube');
     setVideoFile(null);
     setVideoDuration(null);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
     if (videoInputRef.current) videoInputRef.current.value = '';
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
     setFormData({
       title: "",
       video_url: "",
@@ -315,6 +373,10 @@ const PromotionalVideosPanel = () => {
       position: videos.length,
       is_active: true,
     });
+  };
+
+  const refreshPreview = () => {
+    setPreviewKey(prev => prev + 1);
   };
 
   const openNewDialog = () => {
@@ -325,18 +387,27 @@ const PromotionalVideosPanel = () => {
   return (
     <Card className="border-border mb-6 sm:mb-8">
       <CardHeader className="flex flex-col gap-4 p-4 sm:p-6">
-        <div className="flex flex-row items-center justify-between">
+        <div className="flex flex-row items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Video className="w-5 h-5 text-primary" />
-            Adicionar Vídeos Promocionais
+            Vídeos Promocionais
           </CardTitle>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openNewDialog} className="gap-2">
-                <Plus className="w-4 h-4" />
-                Adicionar Vídeo
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => { setShowPreview(!showPreview); if (!showPreview) refreshPreview(); }}
+              className="gap-2"
+            >
+              <Eye className="w-4 h-4" />
+              {showPreview ? "Ocultar Preview" : "Ver Preview"}
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openNewDialog} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Adicionar Vídeo
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
@@ -449,6 +520,45 @@ const PromotionalVideosPanel = () => {
                   </p>
                 </div>
 
+                {/* Custom Thumbnail Upload */}
+                <div className="space-y-2">
+                  <Label>Thumbnail Personalizada (opcional)</Label>
+                  <div className="border-2 border-dashed border-border rounded-lg p-3">
+                    <input
+                      ref={thumbnailInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleThumbnailFileChange}
+                      className="hidden"
+                      id="thumbnail-upload"
+                    />
+                    <label htmlFor="thumbnail-upload" className="cursor-pointer block">
+                      {thumbnailPreview ? (
+                        <div className="space-y-2">
+                          <img 
+                            src={thumbnailPreview} 
+                            alt="Thumbnail preview" 
+                            className="w-full h-24 object-cover rounded"
+                          />
+                          <p className="text-xs text-muted-foreground text-center">
+                            Clique para trocar
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2 py-2">
+                          <ImagePlus className="w-5 h-5 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            Adicionar thumbnail
+                          </span>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Se não enviada, será usada a thumbnail do YouTube (se aplicável)
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="redirect_url">URL de Redirecionamento (ao clicar)</Label>
                   <Input
@@ -491,7 +601,24 @@ const PromotionalVideosPanel = () => {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
+
+        {/* Preview Section */}
+        {showPreview && (
+          <div className="border border-border rounded-lg p-4 bg-background/50">
+            <div className="flex items-center justify-between mb-3">
+              <Label className="text-sm font-medium">Preview do Carrossel na Homepage</Label>
+              <Button variant="ghost" size="sm" onClick={refreshPreview} className="gap-1">
+                <Eye className="w-3 h-3" />
+                Atualizar
+              </Button>
+            </div>
+            <div className="bg-background rounded-lg overflow-hidden border border-border/50">
+              <VideoCarousel key={previewKey} />
+            </div>
+          </div>
+        )}
 
         {/* Carousel Card Count Selector */}
         <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg border border-border">

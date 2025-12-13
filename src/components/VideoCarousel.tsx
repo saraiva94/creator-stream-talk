@@ -269,9 +269,19 @@ const VideoCarousel = ({ userId }: VideoCarouselProps) => {
     );
   }
 
-  // Don't render if no promo videos
+  // Don't render if no promo videos (show placeholder in admin preview mode)
   if (promoVideos.length === 0) {
-    return null;
+    return (
+      <div className="relative w-full pt-0 pb-4 overflow-hidden">
+        <div className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <Megaphone className="w-12 h-12 opacity-30" />
+            <p className="text-sm">Nenhum vídeo promocional ativo</p>
+            <p className="text-xs opacity-70">Adicione vídeos no painel de administração</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
