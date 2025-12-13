@@ -610,6 +610,27 @@ export type Database = {
         }
         Relationships: []
       }
+      homepage_settings: {
+        Row: {
+          carousel_card_count: number
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          carousel_card_count?: number
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          carousel_card_count?: number
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       live_access: {
         Row: {
           granted_at: string | null
