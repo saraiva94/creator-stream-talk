@@ -5,7 +5,7 @@ import { BlockedUserOverlay } from "./BlockedUserOverlay";
 import { GlobalChatButton } from "./GlobalChatButton";
 import { useAuth } from "@/hooks/useAuth";
 import { SidebarProvider, useSidebarContext } from "@/contexts/SidebarContext";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -15,11 +15,11 @@ interface AppLayoutProps {
 const AppLayoutInner = ({ children, showSidebar = true }: AppLayoutProps) => {
   const { user, isLoading, isBlocked, blockedReason, isAdmin } = useAuth();
   const { isExpanded, isVisible } = useSidebarContext();
-  const isMobile = useIsMobile();
+  const isMobileOrTablet = useIsMobileOrTablet();
 
-  // Force collapsed on mobile, and respect visibility toggle
-  const effectiveExpanded = isMobile ? false : isExpanded;
-  const effectiveVisible = isMobile ? isVisible : true; // Desktop always visible
+  // Force collapsed on mobile/tablet, and respect visibility toggle
+  const effectiveExpanded = isMobileOrTablet ? false : isExpanded;
+  const effectiveVisible = isMobileOrTablet ? isVisible : true; // Desktop always visible
   const sidebarWidth = showSidebar 
     ? (effectiveVisible ? (effectiveExpanded ? "ml-60" : "ml-14") : "ml-0") 
     : "";

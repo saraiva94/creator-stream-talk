@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/hooks/useLanguage";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 import { useSidebarContext } from "@/contexts/SidebarContext";
 
 interface Channel {
@@ -27,7 +27,7 @@ const PLACEHOLDER_COUNT = 5;
 
 export const ChannelsSidebar = () => {
   const { t } = useLanguage();
-  const isMobile = useIsMobile();
+  const isMobileOrTablet = useIsMobileOrTablet();
   const { isExpanded, toggleExpanded, isVisible, toggleVisible } = useSidebarContext();
   const [followedChannels, setFollowedChannels] = useState<FollowedChannel[]>([]);
   const [liveChannels, setLiveChannels] = useState<Channel[]>([]);
@@ -35,9 +35,9 @@ export const ChannelsSidebar = () => {
   const [followedVisible, setFollowedVisible] = useState(ITEMS_PER_PAGE);
   const [liveVisible, setLiveVisible] = useState(ITEMS_PER_PAGE);
 
-  // Force collapsed on mobile, and handle visibility
-  const effectiveExpanded = isMobile ? false : isExpanded;
-  const effectiveVisible = isMobile ? isVisible : true;
+  // Force collapsed on mobile/tablet, and handle visibility
+  const effectiveExpanded = isMobileOrTablet ? false : isExpanded;
+  const effectiveVisible = isMobileOrTablet ? isVisible : true;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -294,8 +294,8 @@ export const ChannelsSidebar = () => {
 
   return (
     <>
-      {/* Mobile Toggle Button - Always visible when sidebar is hidden */}
-      {isMobile && !effectiveVisible && (
+      {/* Mobile/Tablet Toggle Button - Always visible when sidebar is hidden */}
+      {isMobileOrTablet && !effectiveVisible && (
         <button
           onClick={toggleVisible}
           className="fixed left-0 top-[120px] bg-card/90 border border-border border-l-0 rounded-r-lg p-1.5 hover:bg-accent transition-all duration-300 z-50"
@@ -313,7 +313,7 @@ export const ChannelsSidebar = () => {
         }`}
       >
         {/* Desktop Toggle Button */}
-        {!isMobile && (
+        {!isMobileOrTablet && (
           <button
             onClick={toggleExpanded}
             className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1 hover:bg-accent transition-colors z-50"
@@ -326,8 +326,8 @@ export const ChannelsSidebar = () => {
           </button>
         )}
 
-        {/* Mobile Hide Button - Visible at top of sidebar when expanded */}
-        {isMobile && effectiveVisible && (
+        {/* Mobile/Tablet Hide Button - Visible at top of sidebar when expanded */}
+        {isMobileOrTablet && effectiveVisible && (
           <button
             onClick={toggleVisible}
             className="absolute -right-3 top-4 bg-card border border-border rounded-full p-1.5 hover:bg-accent transition-colors z-50"
