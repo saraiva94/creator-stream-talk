@@ -56,20 +56,19 @@ const Home = () => {
     fetchLives();
   }, []);
 
-  // Realtime subscription for creator_profiles changes (streaming status)
+  // Realtime subscription for creator_profiles and lives changes
   useEffect(() => {
     const channel = supabase
-      .channel('creator-streaming-status')
+      .channel('home-live-updates')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'creator_profiles',
-          filter: 'is_streaming=eq.true'
+          table: 'creator_profiles'
         },
-        () => {
-          // Refresh lives when streaming status changes
+        (payload) => {
+          console.debug('[Home] creator_profiles change:', payload.eventType);
           fetchLives();
         }
       )
@@ -80,12 +79,14 @@ const Home = () => {
           schema: 'public',
           table: 'lives'
         },
-        () => {
-          // Refresh lives when lives table changes
+        (payload) => {
+          console.debug('[Home] lives change:', payload.eventType);
           fetchLives();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.debug('[Home] Realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
