@@ -67,10 +67,7 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
   }, [live.id]);
 
   const handleEnter = () => {
-    if (!isLoggedIn) {
-      onLoginRequired();
-      return;
-    }
+    // Sempre navegar para a live - o preview de 20s e paywall são gerenciados lá
     navigate(`/live/${live.id}`);
   };
 

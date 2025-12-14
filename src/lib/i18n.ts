@@ -569,6 +569,8 @@ export const translations = {
       login: "Login",
       register: "Register",
       firstTimeBonus: "Register and get a welcome bonus!",
+      credits: "credits",
+      minutes: "minutes",
     },
     live: {
       title: "Live Title",
@@ -1319,6 +1321,8 @@ export const translations = {
       login: "Iniciar Sesión",
       register: "Registrarse",
       firstTimeBonus: "¡Regístrate y obtén un bono de bienvenida!",
+      credits: "créditos",
+      minutes: "minutos",
     },
     live: {
       title: "Título de la Live",
@@ -2069,6 +2073,8 @@ export const translations = {
       login: "Fazer Login",
       register: "Cadastrar-se",
       firstTimeBonus: "Cadastre-se e ganhe bônus de boas-vindas!",
+      credits: "créditos",
+      minutes: "minutos",
     },
     live: {
       title: "Título da Live",
