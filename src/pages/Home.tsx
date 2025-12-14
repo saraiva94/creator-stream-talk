@@ -13,7 +13,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-import { api, LiveSummary } from "@/lib/api";
+import type { LiveSummary } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -58,6 +58,8 @@ const Home = () => {
 
   // Realtime subscription for creator_profiles and lives changes
   useEffect(() => {
+    console.log('[Home] Setting up realtime subscriptions...');
+    
     const channel = supabase
       .channel('home-live-updates')
       .on(
@@ -68,7 +70,7 @@ const Home = () => {
           table: 'creator_profiles'
         },
         (payload) => {
-          console.debug('[Home] creator_profiles change:', payload.eventType);
+          console.log('[Home] 🔴 creator_profiles REALTIME change:', payload.eventType, payload);
           fetchLives();
         }
       )
@@ -80,15 +82,16 @@ const Home = () => {
           table: 'lives'
         },
         (payload) => {
-          console.debug('[Home] lives change:', payload.eventType);
+          console.log('[Home] 🟢 lives REALTIME change:', payload.eventType, payload);
           fetchLives();
         }
       )
       .subscribe((status) => {
-        console.debug('[Home] Realtime subscription status:', status);
+        console.log('[Home] Realtime subscription status:', status);
       });
 
     return () => {
+      console.log('[Home] Removing realtime channel');
       supabase.removeChannel(channel);
     };
   }, []);
@@ -143,7 +146,7 @@ const Home = () => {
     fetchReferralCode();
   }, [user?.id]);
 
-  // Intersection Observer for infinite scroll - loads more from API
+  // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -153,22 +156,12 @@ const Home = () => {
           if (displayedCount < limits.max) {
             setIsLoadingMore(true);
             
-            // Load more from API with pagination
             const loadMore = async () => {
               try {
-                const response = await api.lives.getPublic();
-                const allLives = response.lives ?? [];
-                
-                // Update lives if we got new data
-                if (allLives.length > lives.length) {
-                  setLives(allLives);
-                }
-                
-                // Increase display count
+                // Increase display count based on current lives
                 setDisplayedCount(prev => {
                   const newCount = Math.min(prev + limits.step, limits.max);
-                  // Check if we've reached the end (either max display or no more lives)
-                  if (newCount >= limits.max || newCount >= allLives.length) {
+                  if (newCount >= limits.max || newCount >= lives.length) {
                     setHasReachedEnd(true);
                   }
                   return newCount;
@@ -181,7 +174,6 @@ const Home = () => {
               }
             };
             
-            // Small delay for smooth animation
             setTimeout(loadMore, 400);
           } else {
             setHasReachedEnd(true);
@@ -199,11 +191,74 @@ const Home = () => {
   }, [displayedCount, isLoadingMore, hasReachedEnd, loading, lives.length, getDisplayLimits]);
 
   const fetchLives = async () => {
+    console.log('[Home] 📡 Fetching lives from Supabase...');
     try {
-      const response = await api.lives.getPublic();
-      setLives(response.lives ?? []);
+      // Fetch ACTIVE lives directly from Supabase (same as sidebar for consistency)
+      const { data: activeLives, error: activeError } = await supabase
+        .from('lives')
+        .select(`
+          id, 
+          creator_id, 
+          title, 
+          description, 
+          price, 
+          status, 
+          is_active, 
+          room_name, 
+          creator_percent, 
+          affiliate_percent, 
+          platform_percent, 
+          created_at, 
+          ended_at,
+          thumbnail_url
+        `)
+        .or('and(is_active.eq.true,status.eq.live),status.eq.ended')
+        .order('created_at', { ascending: false });
+
+      if (activeError) {
+        console.error('[Home] Error fetching lives:', activeError);
+        setLives([]);
+        return;
+      }
+
+      // Get creator usernames and avatars
+      const creatorIds = [...new Set(activeLives?.map((l: any) => l.creator_id) || [])];
+      let profileMap = new Map<string, { username: string; avatar_url: string | null; display_name: string | null }>();
+      
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', creatorIds);
+
+        const { data: creatorProfiles } = await supabase
+          .from('creator_profiles')
+          .select('id, display_name')
+          .in('id', creatorIds);
+
+        const displayNameMap = new Map(creatorProfiles?.map((c: any) => [c.id, c.display_name]) || []);
+        
+        profiles?.forEach((p: any) => {
+          profileMap.set(p.id, {
+            username: p.username,
+            avatar_url: p.avatar_url,
+            display_name: displayNameMap.get(p.id) || null
+          });
+        });
+      }
+
+      // Enrich lives with creator info
+      const enrichedLives = (activeLives || []).map((live: any) => ({
+        ...live,
+        creator_username: profileMap.get(live.creator_id)?.username || null,
+        creator_avatar_url: profileMap.get(live.creator_id)?.avatar_url || null,
+        creator_display_name: profileMap.get(live.creator_id)?.display_name || null
+      }));
+
+      console.log('[Home] ✅ Fetched lives:', enrichedLives.length, 'online:', enrichedLives.filter((l: any) => l.is_active && l.status === 'live').length);
+      setLives(enrichedLives);
     } catch (err: unknown) {
-      console.error("Error fetching lives:", err);
+      console.error("[Home] Error fetching lives:", err);
       setLives([]);
     } finally {
       setLoading(false);
