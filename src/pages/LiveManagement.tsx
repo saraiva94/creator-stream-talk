@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
 import { NativeVideoPreview } from "@/components/NativeVideoPreview";
-import { StreamToggle } from "@/components/StreamToggle";
+import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
@@ -30,6 +30,11 @@ type TransactionRow = {
 
 type CreatorStatus = "loading" | "not_creator" | "pending_approval" | "approved";
 
+// Two-step streaming flow:
+// 1. "preparing" - Creator opens camera/mic, Jitsi room created but NOT visible to viewers
+// 2. "live" - Creator confirms ready, live marked active and visible to viewers
+type StreamPhase = "idle" | "preparing" | "live";
+
 const LiveManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -38,6 +43,7 @@ const LiveManagement = () => {
   const [user, setUser] = useState<User | null>(null);
   const [creatorStatus, setCreatorStatus] = useState<CreatorStatus>("loading");
   const [room, setRoom] = useState<RoomRecord | null>(null);
+  const [streamPhase, setStreamPhase] = useState<StreamPhase>("idle");
   const [isStreaming, setIsStreaming] = useState(false);
   const [participants, setParticipants] = useState(0);
   const [revenue, setRevenue] = useState({ total: 0, superchats: 0 });
@@ -102,34 +108,32 @@ const LiveManagement = () => {
 
       if (existingRoom) {
         setRoom(existingRoom);
-        setIsStreaming(true);
-        logger.creator.info("Active room found", { roomId: existingRoom.id });
-      } else if (creatorProfile.is_streaming) {
-        // Out of sync - create a new room since we're marked as streaming
-        const roomName = `stream-${session.user.id}-${Date.now()}`;
-        const { data: newRoom, error: newRoomError } = await supabase
-          .from("rooms")
-          .insert({
-            creator_id: session.user.id,
-            title: "Live Stream",
-            is_active: true,
-            daily_room_name: roomName,
-          })
-          .select()
-          .single();
-
-        if (!newRoomError && newRoom) {
-          setRoom(newRoom);
+        // Check if there's an active live to determine phase
+        const { data: activeLive } = await supabase
+          .from("lives")
+          .select("id")
+          .eq("creator_id", session.user.id)
+          .eq("is_active", true)
+          .maybeSingle();
+        
+        if (activeLive) {
+          setStreamPhase("live");
           setIsStreaming(true);
-          await supabase.from("chat_settings").insert({ room_id: newRoom.id });
-          logger.creator.info("Created sync room", { roomId: newRoom.id });
+          setCurrentLiveId(activeLive.id);
         } else {
-          // Reset streaming flag since we couldn't create a room
-          await supabase.from("creator_profiles").update({ is_streaming: false }).eq("id", session.user.id);
+          // Room exists but no active live = preparing phase
+          setStreamPhase("preparing");
           setIsStreaming(false);
         }
+        logger.creator.info("Active room found", { roomId: existingRoom.id });
+      } else if (creatorProfile.is_streaming) {
+        // Out of sync - reset streaming flag
+        await supabase.from("creator_profiles").update({ is_streaming: false }).eq("id", session.user.id);
+        setStreamPhase("idle");
+        setIsStreaming(false);
       } else {
         setRoom(null);
+        setStreamPhase("idle");
         setIsStreaming(false);
       }
 
@@ -139,112 +143,163 @@ const LiveManagement = () => {
     checkAuth();
   }, [navigate, toast]);
 
-  const handleStreamToggle = async (streaming: boolean) => {
+  // Step 1: Prepare transmission - create room, open camera, but NOT visible to viewers
+  const handlePrepareStream = async () => {
     if (!user) return;
 
     try {
-      if (streaming) {
-        // First, clean up any stale rooms
-        await supabase
-          .from("rooms")
-          .update({ is_active: false, ended_at: new Date().toISOString() })
-          .eq("creator_id", user.id)
-          .eq("is_active", true);
+      // Clean up any stale rooms first
+      await supabase
+        .from("rooms")
+        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq("creator_id", user.id)
+        .eq("is_active", true);
 
-        // Create new room
-        const roomName = `stream-${user.id}-${Date.now()}`;
-        const { data: newRoom, error: roomError } = await supabase
-          .from("rooms")
-          .insert({
-            creator_id: user.id,
-            title: liveTitle || "Live Stream",
-            is_active: true,
-            daily_room_name: roomName,
-          })
-          .select()
-          .single();
-
-        if (roomError) throw roomError;
-        
-        setRoom(newRoom);
-
-        // Create chat settings for the room
-        await supabase.from("chat_settings").insert({
-          room_id: newRoom.id,
-        });
-
-        // Create live entry with active status
-        const { data: liveData, error: liveError } = await supabase.from("lives").insert({
+      // Create new room (but don't create live entry yet)
+      const roomName = `stream-${user.id}-${Date.now()}`;
+      const { data: newRoom, error: roomError } = await supabase
+        .from("rooms")
+        .insert({
           creator_id: user.id,
           title: liveTitle || "Live Stream",
-          status: "live",
           is_active: true,
-          room_name: newRoom.id,
-          thumbnail_url: thumbnailUrl,
-        }).select().single();
+          daily_room_name: roomName,
+        })
+        .select()
+        .single();
 
-        if (liveError) {
-          console.error("Error creating live:", liveError);
-        } else if (liveData) {
-          setCurrentLiveId(liveData.id);
-        }
+      if (roomError) throw roomError;
+      
+      setRoom(newRoom);
 
-        // Update creator profile
-        await supabase
-          .from("creator_profiles")
-          .update({ 
-            is_streaming: true,
-            daily_room_url: newRoom.id,
-          })
-          .eq("id", user.id);
+      // Create chat settings for the room
+      await supabase.from("chat_settings").insert({
+        room_id: newRoom.id,
+      });
 
-        setIsStreaming(true);
-        logger.live.info("Stream started", { roomId: newRoom.id });
-        toast({
-          title: t.liveManagement?.streamStarted || "Stream started!",
-          description: t.liveManagement?.youAreLiveNow || "You are live now",
-        });
-      } else {
-        // End streaming
-        if (room?.id) {
-          await supabase
-            .from("rooms")
-            .update({ is_active: false, ended_at: new Date().toISOString() })
-            .eq("id", room.id);
-        }
-
-        await supabase
-          .from("lives")
-          .update({ 
-            is_active: false, 
-            status: "ended",
-            ended_at: new Date().toISOString() 
-          })
-          .eq("creator_id", user.id)
-          .eq("is_active", true);
-
-        await supabase
-          .from("creator_profiles")
-          .update({ is_streaming: false, daily_room_url: null })
-          .eq("id", user.id);
-
-        setIsStreaming(false);
-        setRoom(null);
-        setCurrentLiveId(null);
-        logger.live.info("Stream ended");
-        toast({
-          title: t.liveManagement?.streamEnded || "Stream ended",
-          description: t.liveManagement?.youAreOfflineNow || "You are offline now",
-        });
-      }
+      setStreamPhase("preparing");
+      logger.live.info("Preparing stream - room created, waiting for creator to go live", { roomId: newRoom.id });
+      toast({
+        title: t.liveManagement?.preparingStream || "Preparando transmissão",
+        description: t.liveManagement?.cameraReady || "Sua câmera está pronta. Clique em 'Ficar Online' quando estiver pronto.",
+      });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : (t.liveManagement?.toggleError || "Error changing stream");
-      logger.live.error("Stream toggle error", { error: message });
+      const message = error instanceof Error ? error.message : "Erro ao preparar transmissão";
+      logger.live.error("Prepare stream error", { error: message });
       toast({
         title: t.common?.error || "Error",
         description: message,
         variant: "destructive",
       });
+    }
+  };
+
+  // Step 2: Go live - mark the live as active, visible to viewers
+  const handleGoLive = async () => {
+    if (!user || !room) return;
+
+    try {
+      // Create live entry with active status - NOW visible to viewers
+      const { data: liveData, error: liveError } = await supabase.from("lives").insert({
+        creator_id: user.id,
+        title: liveTitle || "Live Stream",
+        status: "live",
+        is_active: true,
+        room_name: room.id,
+        thumbnail_url: thumbnailUrl,
+      }).select().single();
+
+      if (liveError) {
+        console.error("Error creating live:", liveError);
+        throw liveError;
+      }
+      
+      setCurrentLiveId(liveData.id);
+
+      // Update creator profile to show as streaming
+      await supabase
+        .from("creator_profiles")
+        .update({ 
+          is_streaming: true,
+          daily_room_url: room.id,
+        })
+        .eq("id", user.id);
+
+      setStreamPhase("live");
+      setIsStreaming(true);
+      logger.live.info("Stream is now LIVE and visible to viewers", { roomId: room.id, liveId: liveData.id });
+      toast({
+        title: t.liveManagement?.streamStarted || "Você está ao vivo!",
+        description: t.liveManagement?.youAreLiveNow || "Sua transmissão está visível para todos.",
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao iniciar transmissão";
+      logger.live.error("Go live error", { error: message });
+      toast({
+        title: t.common?.error || "Error",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // End streaming
+  const handleEndStream = async () => {
+    if (!user) return;
+
+    try {
+      if (room?.id) {
+        await supabase
+          .from("rooms")
+          .update({ is_active: false, ended_at: new Date().toISOString() })
+          .eq("id", room.id);
+      }
+
+      await supabase
+        .from("lives")
+        .update({ 
+          is_active: false, 
+          status: "ended",
+          ended_at: new Date().toISOString() 
+        })
+        .eq("creator_id", user.id)
+        .eq("is_active", true);
+
+      await supabase
+        .from("creator_profiles")
+        .update({ is_streaming: false, daily_room_url: null })
+        .eq("id", user.id);
+
+      setStreamPhase("idle");
+      setIsStreaming(false);
+      setRoom(null);
+      setCurrentLiveId(null);
+      logger.live.info("Stream ended");
+      toast({
+        title: t.liveManagement?.streamEnded || "Transmissão encerrada",
+        description: t.liveManagement?.youAreOfflineNow || "Você está offline agora",
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : (t.liveManagement?.toggleError || "Error changing stream");
+      logger.live.error("Stream end error", { error: message });
+      toast({
+        title: t.common?.error || "Error",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Legacy toggle handler for StreamToggle component
+  const handleStreamToggle = async (streaming: boolean) => {
+    if (streaming) {
+      if (streamPhase === "idle") {
+        await handlePrepareStream();
+      } else if (streamPhase === "preparing") {
+        await handleGoLive();
+      }
+    } else {
+      await handleEndStream();
     }
   };
 
@@ -534,11 +589,13 @@ const LiveManagement = () => {
   return (
     <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-6">
-        {/* Header with toggle and stats */}
+        {/* Header with two-step stream control and stats */}
         <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-          <StreamToggle
-            isStreaming={isStreaming}
-            onToggle={handleStreamToggle}
+          <TwoStepStreamControl
+            streamPhase={streamPhase}
+            onPrepare={handlePrepareStream}
+            onGoLive={handleGoLive}
+            onEndStream={handleEndStream}
           />
 
           <div className="flex gap-4">
@@ -582,16 +639,16 @@ const LiveManagement = () => {
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
         <div className="lg:hidden space-y-4">
-          {/* Video Preview */}
+          {/* Video Preview - Show camera in preparing AND live phases */}
           <Card className="border-border overflow-hidden relative">
             <NativeVideoPreview
               audioDeviceId={selectedAudioDevice}
               videoDeviceId={selectedVideoDevice}
-              isStreaming={isStreaming}
+              isStreaming={streamPhase === "preparing" || streamPhase === "live"}
               isMirrored={isMirrored}
               liveId={currentLiveId}
               creatorId={user?.id || ""}
-              autoCaptureThumbnail={isStreaming}
+              autoCaptureThumbnail={streamPhase === "live"}
             />
             {activeSuperchat && (
               <div className="absolute bottom-4 left-4 right-4 z-10">
@@ -652,16 +709,16 @@ const LiveManagement = () => {
         <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Native Video Preview */}
+            {/* Native Video Preview - Show camera in preparing AND live phases */}
             <Card className="border-border overflow-hidden relative">
               <NativeVideoPreview
                 audioDeviceId={selectedAudioDevice}
                 videoDeviceId={selectedVideoDevice}
-                isStreaming={isStreaming}
+                isStreaming={streamPhase === "preparing" || streamPhase === "live"}
                 isMirrored={isMirrored}
                 liveId={currentLiveId}
                 creatorId={user?.id || ""}
-                autoCaptureThumbnail={isStreaming}
+                autoCaptureThumbnail={streamPhase === "live"}
               />
               {activeSuperchat && (
                 <div className="absolute bottom-4 left-4 right-4 z-10">
