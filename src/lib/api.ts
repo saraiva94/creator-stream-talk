@@ -226,6 +226,8 @@ export interface LiveSummary {
   id: string;
   creator_id: string;
   creator_username?: string | null;
+  creator_avatar_url?: string | null;
+  creator_display_name?: string | null;
   title: string | null;
   description: string | null;
   price: number | null;
@@ -237,6 +239,7 @@ export interface LiveSummary {
   platform_percent: number | null;
   created_at: string | null;
   ended_at: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface StartLiveResponse {
@@ -463,13 +466,12 @@ export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
 // Public API surface
 export const apiClient = {
   fetchPublicLives: async (signal?: AbortSignal) => {
-    // Always try direct Supabase first for reliability in preview environments
-    // Backend routes may not be available in Lovable preview
+    // Fetch lives matching same criteria as sidebar for consistency
     try {
       console.debug('[api] Fetching public lives from Supabase');
       
-      // Fetch active lives with creator info
-      const { data: livesData, error: livesError } = await supabase
+      // Fetch ACTIVE lives (is_active = true, status = 'live') - same as sidebar
+      const { data: activeLives, error: activeError } = await supabase
         .from('lives')
         .select(`
           id, 
@@ -487,33 +489,72 @@ export const apiClient = {
           ended_at,
           thumbnail_url
         `)
-        .in('status', ['scheduled', 'waiting_for_host', 'live', 'inactive', 'ending'])
+        .eq('is_active', true)
+        .eq('status', 'live')
         .order('created_at', { ascending: false });
 
-      if (livesError) {
-        console.warn('[api] Supabase query failed:', livesError);
-        return { lives: [] };
+      // Also fetch recent ended lives for the "offline" section
+      const { data: recentLives, error: recentError } = await supabase
+        .from('lives')
+        .select(`
+          id, 
+          creator_id, 
+          title, 
+          description, 
+          price, 
+          status, 
+          is_active, 
+          room_name, 
+          creator_percent, 
+          affiliate_percent, 
+          platform_percent, 
+          created_at, 
+          ended_at,
+          thumbnail_url
+        `)
+        .eq('status', 'ended')
+        .order('ended_at', { ascending: false })
+        .limit(20);
+
+      if (activeError) {
+        console.warn('[api] Active lives query failed:', activeError);
       }
 
-      // Enrich with creator usernames
-      const creatorIds = livesData?.map(l => l.creator_id) || [];
-      let usernameMap = new Map<string, string>();
+      // Combine active and recent ended lives
+      const allLives = [...(activeLives || []), ...(recentLives || [])];
+
+      // Enrich with creator usernames and avatar
+      const creatorIds = [...new Set(allLives.map(l => l.creator_id))];
+      let profileMap = new Map<string, { username: string; avatar_url: string | null; display_name: string }>();
       
       if (creatorIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, username')
+          .select('id, username, avatar_url')
           .in('id', creatorIds);
         
-        profiles?.forEach(p => usernameMap.set(p.id, p.username));
+        const { data: creatorProfiles } = await supabase
+          .from('creator_profiles')
+          .select('id, display_name')
+          .in('id', creatorIds);
+        
+        const displayNameMap = new Map(creatorProfiles?.map(c => [c.id, c.display_name]) || []);
+        
+        profiles?.forEach(p => profileMap.set(p.id, {
+          username: p.username,
+          avatar_url: p.avatar_url,
+          display_name: displayNameMap.get(p.id) || p.username
+        }));
       }
 
-      const enrichedLives = (livesData || []).map(l => ({
+      const enrichedLives = allLives.map(l => ({
         ...l,
-        creator_username: usernameMap.get(l.creator_id) || null
+        creator_username: profileMap.get(l.creator_id)?.username || null,
+        creator_avatar_url: profileMap.get(l.creator_id)?.avatar_url || null,
+        creator_display_name: profileMap.get(l.creator_id)?.display_name || null
       })) as LiveSummary[];
 
-      console.debug('[api] Fetched', enrichedLives.length, 'lives');
+      console.debug('[api] Fetched', enrichedLives.length, 'lives (', activeLives?.length || 0, 'active,', recentLives?.length || 0, 'recent)');
       return { lives: enrichedLives };
     } catch (error) {
       console.warn('[api] Failed to fetch lives:', error);

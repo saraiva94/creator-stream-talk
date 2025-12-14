@@ -210,8 +210,10 @@ const Home = () => {
     }
   };
 
-  const onlineLives = lives.filter((live) => live.status !== "ended");
-  const offlineLives = lives.filter((live) => live.status === "ended");
+  // Online lives: is_active = true AND status = 'live'
+  const onlineLives = lives.filter((live) => live.is_active === true && live.status === 'live');
+  // Offline lives: status = 'ended' or is_active = false
+  const offlineLives = lives.filter((live) => live.status === 'ended' || live.is_active === false);
 
   // Open profile dialog instead of navigating
   const handleUserSelect = (selectedUser: { id: string; username: string }) => {
