@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
-import { NativeVideoPreview } from "@/components/NativeVideoPreview";
+import { CreatorJitsiEmbed } from "@/components/CreatorJitsiEmbed";
 import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -21,6 +21,7 @@ import { logger } from "@/lib/logger";
 
 type RoomRecord = {
   id: string;
+  daily_room_name: string | null;
 };
 
 type TransactionRow = {
@@ -199,13 +200,17 @@ const LiveManagement = () => {
     if (!user || !room) return;
 
     try {
+      // Use the daily_room_name as the Jitsi room name
+      const jitsiRoomName = room.daily_room_name || room.id;
+
       // Create live entry with active status - NOW visible to viewers
+      // IMPORTANT: room_name must match the Jitsi room name the creator joined
       const { data: liveData, error: liveError } = await supabase.from("lives").insert({
         creator_id: user.id,
         title: liveTitle || "Live Stream",
         status: "live",
         is_active: true,
-        room_name: room.id,
+        room_name: jitsiRoomName, // Use the actual Jitsi room name
         thumbnail_url: thumbnailUrl,
       }).select().single();
 
@@ -525,21 +530,20 @@ const LiveManagement = () => {
       <>
         <CreatorMobileFullscreen
           roomId={room?.id || null}
+          jitsiRoomName={room?.daily_room_name || null}
           creatorId={user?.id || ""}
+          creatorDisplayName={user?.email?.split("@")[0] || "Criador"}
           isStreaming={isStreaming}
           onStreamToggle={handleStreamToggle}
           participants={participants}
           revenue={revenue}
-          selectedAudioDevice={selectedAudioDevice}
-          selectedVideoDevice={selectedVideoDevice}
-          isMirrored={isMirrored}
           activeSuperchat={activeSuperchat}
           onSuperchatExpire={() => setActiveSuperchat(null)}
           onOpenSettings={() => setShowSettingsSheet(true)}
           onSelectSuperchat={(superchat) => setActiveSuperchat(superchat)}
           pendingSuperchatCount={pendingSuperchatCount}
-          liveUrl={room ? `${window.location.origin}/live/${room.id}` : undefined}
-          orientation={videoOrientation}
+          liveUrl={room ? `${window.location.origin}/live/${currentLiveId || room.id}` : undefined}
+          streamPhase={streamPhase}
         />
 
         {/* Settings Sheet for mobile */}
@@ -639,17 +643,20 @@ const LiveManagement = () => {
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
         <div className="lg:hidden space-y-4">
-          {/* Video Preview - Show camera in preparing AND live phases */}
-          <Card className="border-border overflow-hidden relative">
-            <NativeVideoPreview
-              audioDeviceId={selectedAudioDevice}
-              videoDeviceId={selectedVideoDevice}
-              isStreaming={streamPhase === "preparing" || streamPhase === "live"}
-              isMirrored={isMirrored}
-              liveId={currentLiveId}
-              creatorId={user?.id || ""}
-              autoCaptureThumbnail={streamPhase === "live"}
-            />
+          {/* Video Preview - Creator enters Jitsi room in preparing AND live phases */}
+          <Card className="border-border overflow-hidden relative aspect-video">
+            {(streamPhase === "preparing" || streamPhase === "live") && room?.daily_room_name ? (
+              <CreatorJitsiEmbed
+                roomName={room.daily_room_name}
+                displayName={user?.email?.split("@")[0] || "Criador"}
+                onReady={() => console.log("[LiveManagement] Creator joined Jitsi room:", room.daily_room_name)}
+              />
+            ) : (
+              <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
+                <p className="text-lg">Transmissão desligada</p>
+                <p className="text-sm">Clique em "Preparar Transmissão" para iniciar</p>
+              </div>
+            )}
             {activeSuperchat && (
               <div className="absolute bottom-4 left-4 right-4 z-10">
                 <SuperChatDisplay
@@ -709,17 +716,20 @@ const LiveManagement = () => {
         <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Native Video Preview - Show camera in preparing AND live phases */}
-            <Card className="border-border overflow-hidden relative">
-              <NativeVideoPreview
-                audioDeviceId={selectedAudioDevice}
-                videoDeviceId={selectedVideoDevice}
-                isStreaming={streamPhase === "preparing" || streamPhase === "live"}
-                isMirrored={isMirrored}
-                liveId={currentLiveId}
-                creatorId={user?.id || ""}
-                autoCaptureThumbnail={streamPhase === "live"}
-              />
+            {/* Creator Jitsi Embed - Creator enters Jitsi room in preparing AND live phases */}
+            <Card className="border-border overflow-hidden relative aspect-video">
+              {(streamPhase === "preparing" || streamPhase === "live") && room?.daily_room_name ? (
+                <CreatorJitsiEmbed
+                  roomName={room.daily_room_name}
+                  displayName={user?.email?.split("@")[0] || "Criador"}
+                  onReady={() => console.log("[LiveManagement] Creator joined Jitsi room:", room.daily_room_name)}
+                />
+              ) : (
+                <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
+                  <p className="text-lg">Transmissão desligada</p>
+                  <p className="text-sm">Clique em "Preparar Transmissão" para iniciar</p>
+                </div>
+              )}
               {activeSuperchat && (
                 <div className="absolute bottom-4 left-4 right-4 z-10">
                   <SuperChatDisplay
