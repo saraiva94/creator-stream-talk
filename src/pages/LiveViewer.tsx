@@ -209,7 +209,7 @@ const LiveViewer: React.FC = () => {
         const { data: room } = await supabase
           .from("rooms")
           .select("id")
-          .eq("daily_room_name", live.room_name)
+          .eq("id", live.room_name)
           .maybeSingle();
         
         if (room) {

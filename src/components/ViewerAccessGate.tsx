@@ -234,7 +234,7 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
       const { data } = await supabase
         .from('rooms')
         .select('id')
-        .eq('daily_room_name', liveInfo.roomName)
+        .eq('id', liveInfo.roomName)
         .maybeSingle();
       
       if (data) {
