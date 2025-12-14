@@ -188,6 +188,9 @@ export const translations = {
       liveEnded: "Live ended",
       liveEndedDesc: "This stream has already ended.",
       ended: "OFF",
+      creditConsumptionStarted: "Credit consumption started",
+      watchingLive: "You are watching the live of",
+      creditsBeingConsumed: "Your credits are being consumed.",
     },
     report: {
       title: "Report stream",
@@ -562,6 +565,10 @@ export const translations = {
       buyNow: "Buy Credits Now",
       instantCredits: "Credits are added instantly after payment",
       preview: "Preview",
+      loginToWatch: "To continue watching, please login or register.",
+      login: "Login",
+      register: "Register",
+      firstTimeBonus: "Register and get a welcome bonus!",
     },
     live: {
       title: "Live Title",
@@ -931,6 +938,9 @@ export const translations = {
       liveEnded: "Live terminada",
       liveEndedDesc: "Esta transmisión ya ha terminado.",
       ended: "OFF",
+      creditConsumptionStarted: "Consumo de créditos iniciado",
+      watchingLive: "Estás viendo el live de",
+      creditsBeingConsumed: "Tus créditos se están consumiendo.",
     },
     report: {
       title: "Denunciar transmisión",
@@ -1305,6 +1315,10 @@ export const translations = {
       buyNow: "Comprar Créditos Ahora",
       instantCredits: "Los créditos se agregan instantáneamente después del pago",
       preview: "Vista Previa",
+      loginToWatch: "Para continuar viendo, inicia sesión o regístrate.",
+      login: "Iniciar Sesión",
+      register: "Registrarse",
+      firstTimeBonus: "¡Regístrate y obtén un bono de bienvenida!",
     },
     live: {
       title: "Título de la Live",
@@ -1674,6 +1688,9 @@ export const translations = {
       liveEnded: "Live encerrada",
       liveEndedDesc: "Esta transmissão já foi encerrada.",
       ended: "OFF",
+      creditConsumptionStarted: "Consumo de créditos iniciado",
+      watchingLive: "Você está assistindo a live de",
+      creditsBeingConsumed: "Seus créditos estão sendo consumidos.",
     },
     report: {
       title: "Denunciar transmissão",
@@ -2048,6 +2065,10 @@ export const translations = {
       buyNow: "Comprar Créditos Agora",
       instantCredits: "Os créditos são adicionados instantaneamente após o pagamento",
       preview: "Prévia",
+      loginToWatch: "Para continuar assistindo, faça login ou cadastre-se.",
+      login: "Fazer Login",
+      register: "Cadastrar-se",
+      firstTimeBonus: "Cadastre-se e ganhe bônus de boas-vindas!",
     },
     live: {
       title: "Título da Live",

@@ -161,6 +161,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             onPurchase={onPurchase}
             reason={paywallReason ?? 'preview'}
             remainingCredits={localCredits}
+            isAuthenticated={isAuthenticated}
           />
         )}
 

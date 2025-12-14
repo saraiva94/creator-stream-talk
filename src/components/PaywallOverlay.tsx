@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Clock, Coins, VolumeX, MessageSquareOff } from "lucide-react";
+import { CreditCard, Clock, Coins, VolumeX, MessageSquareOff, LogIn, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/hooks/useLanguage";
 
@@ -9,21 +9,23 @@ interface PaywallOverlayProps {
   onPurchase?: () => void;
   reason?: 'preview' | 'credits';
   remainingCredits?: number;
+  isAuthenticated?: boolean;
 }
 
 const PaywallOverlay: React.FC<PaywallOverlayProps> = ({ 
   priceLabel, 
   onPurchase, 
   reason = 'preview', 
-  remainingCredits 
+  remainingCredits,
+  isAuthenticated = true,
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
   const headline =
     reason === 'credits'
-      ? (t.paywall?.creditsEnded || 'Your credits ran out!')
-      : (t.paywall?.previewEnded || 'Preview ended!');
+      ? (t.paywall?.creditsEnded || 'Seus créditos acabaram!')
+      : (t.paywall?.previewEnded || 'Preview encerrado!');
 
   const Icon = reason === 'credits' ? Coins : Clock;
 
@@ -35,6 +37,85 @@ const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
     }
   };
 
+  const handleLogin = () => {
+    navigate('/auth');
+  };
+
+  const handleSignup = () => {
+    navigate('/subscribe');
+  };
+
+  // Usuário NÃO autenticado - mostrar opções de login/cadastro
+  if (!isAuthenticated) {
+    return (
+      <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-6 text-center">
+        <div className="w-full max-w-lg space-y-6 rounded-2xl border-2 border-primary/30 bg-card/95 p-8 shadow-2xl">
+          {/* Header */}
+          <div className="flex items-center justify-center gap-3 text-2xl font-bold text-primary">
+            <Clock className="h-8 w-8 animate-pulse" />
+            <span>{t.paywall?.previewEnded || "Preview encerrado!"}</span>
+          </div>
+          
+          {/* Main message */}
+          <div className="space-y-3">
+            <p className="text-lg text-foreground">
+              {t.paywall?.loginToWatch || "Para continuar assistindo, faça login ou cadastre-se."}
+            </p>
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <VolumeX className="h-4 w-4 text-destructive" />
+                <span>{t.paywall?.audioMuted || "Áudio mutado"}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <MessageSquareOff className="h-4 w-4 text-destructive" />
+                <span>{t.paywall?.chatBlocked || "Chat bloqueado"}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Credits info box */}
+          <div className="rounded-xl bg-primary/10 border border-primary/20 p-4 space-y-2">
+            <div className="flex items-center justify-center gap-2 text-primary font-semibold">
+              <Coins className="h-5 w-5" />
+              <span>{t.paywall?.minPackage || "Pacote mínimo: 180 créditos"}</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">R$ 5,00</p>
+            <p className="text-xs text-muted-foreground">
+              {t.paywall?.viewingTime || "30 minutos de visualização"}
+            </p>
+          </div>
+          
+          {/* CTA Buttons - Login and Register */}
+          <div className="flex flex-col gap-3">
+            <Button 
+              onClick={handleLogin} 
+              size="lg" 
+              className="w-full gap-2 text-lg py-6 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+            >
+              <LogIn className="h-6 w-6" />
+              {t.paywall?.login || "Fazer Login"}
+            </Button>
+            
+            <Button 
+              onClick={handleSignup} 
+              size="lg" 
+              variant="outline"
+              className="w-full gap-2 text-lg py-6 border-primary/50 hover:bg-primary/10"
+            >
+              <UserPlus className="h-6 w-6" />
+              {t.paywall?.register || "Cadastrar-se"}
+            </Button>
+          </div>
+          
+          <p className="text-xs text-muted-foreground">
+            {t.paywall?.firstTimeBonus || "Cadastre-se e ganhe bônus de boas-vindas!"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Usuário autenticado - mostrar opção de comprar créditos
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-6 text-center">
       <div className="w-full max-w-lg space-y-6 rounded-2xl border-2 border-primary/30 bg-card/95 p-8 shadow-2xl">
@@ -47,16 +128,16 @@ const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
         {/* Main message */}
         <div className="space-y-3">
           <p className="text-lg text-foreground">
-            {t.paywall?.needCredits || "To continue watching, you need to buy credits."}
+            {t.paywall?.needCredits || "Para continuar assistindo, você precisa comprar créditos."}
           </p>
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <VolumeX className="h-4 w-4 text-destructive" />
-              <span>{t.paywall?.audioMuted || "Audio muted"}</span>
+              <span>{t.paywall?.audioMuted || "Áudio mutado"}</span>
             </div>
             <div className="flex items-center gap-1">
               <MessageSquareOff className="h-4 w-4 text-destructive" />
-              <span>{t.paywall?.chatBlocked || "Chat blocked"}</span>
+              <span>{t.paywall?.chatBlocked || "Chat bloqueado"}</span>
             </div>
           </div>
         </div>
@@ -65,11 +146,11 @@ const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
         <div className="rounded-xl bg-primary/10 border border-primary/20 p-4 space-y-2">
           <div className="flex items-center justify-center gap-2 text-primary font-semibold">
             <Coins className="h-5 w-5" />
-            <span>{t.paywall?.minPackage || "Minimum package: 180 credits"}</span>
+            <span>{t.paywall?.minPackage || "Pacote mínimo: 180 créditos"}</span>
           </div>
           <p className="text-2xl font-bold text-foreground">R$ 5,00</p>
           <p className="text-xs text-muted-foreground">
-            {t.paywall?.viewingTime || "30 minutes of viewing"}
+            {t.paywall?.viewingTime || "30 minutos de visualização"}
           </p>
         </div>
         
@@ -77,7 +158,7 @@ const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
         {typeof remainingCredits === 'number' && remainingCredits <= 0 && (
           <div className="flex items-center justify-center gap-2 text-sm text-destructive">
             <Coins className="h-4 w-4" />
-            <span>{t.paywall?.noCreditsLeft || "You have no credits left"}</span>
+            <span>{t.paywall?.noCreditsLeft || "Você não tem mais créditos"}</span>
           </div>
         )}
         
@@ -88,11 +169,11 @@ const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
           className="w-full gap-2 text-lg py-6 bg-gradient-to-r from-primary to-accent hover:opacity-90"
         >
           <CreditCard className="h-6 w-6" />
-          {t.paywall?.buyNow || "Buy Credits Now"}
+          {t.paywall?.buyNow || "Comprar Créditos Agora"}
         </Button>
         
         <p className="text-xs text-muted-foreground">
-          {t.paywall?.instantCredits || "Credits are added instantly after payment"}
+          {t.paywall?.instantCredits || "Créditos são adicionados instantaneamente após o pagamento"}
         </p>
       </div>
     </div>

@@ -282,6 +282,9 @@ const LiveViewer: React.FC = () => {
     }
   }, [creditBalance, localCredits, hasEntitlement]);
 
+  // Track if we've shown the consumption notification
+  const consumptionNotifiedRef = useRef(false);
+
   // Heartbeat mechanism - consume credits while watching
   useEffect(() => {
     if (!hasEntitlement || !liveId || !currentUserId || paywallReason === "credits") {
@@ -299,6 +302,26 @@ const LiveViewer: React.FC = () => {
         ? crypto.randomUUID() 
         : fallback;
       return sessionTokenRef.current;
+    };
+
+    // Create discrete notification for credit consumption start
+    const notifyConsumptionStarted = async () => {
+      if (consumptionNotifiedRef.current) return;
+      consumptionNotifiedRef.current = true;
+      
+      try {
+        // Add notification to database for bell icon
+        await supabase.from("notifications").insert({
+          user_id: currentUserId,
+          type: "credit_consumption",
+          title: t.notifications?.creditConsumptionStarted || "Consumo de créditos iniciado",
+          message: `${t.notifications?.watchingLive || "Você está assistindo a live de"} ${creatorData?.display_name || "criador"}. ${t.notifications?.creditsBeingConsumed || "Seus créditos estão sendo consumidos."}`,
+        });
+        
+        console.debug("[LiveViewer] Consumption notification created");
+      } catch (error) {
+        console.debug("[LiveViewer] Failed to create consumption notification:", error);
+      }
     };
 
     const sendHeartbeat = async () => {
@@ -333,8 +356,9 @@ const LiveViewer: React.FC = () => {
       }
     };
 
-    // Send initial heartbeat
+    // Send initial heartbeat and notify about consumption
     sendHeartbeat();
+    notifyConsumptionStarted();
 
     // Set up interval
     heartbeatIntervalRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
@@ -345,7 +369,7 @@ const LiveViewer: React.FC = () => {
         heartbeatIntervalRef.current = null;
       }
     };
-  }, [hasEntitlement, liveId, currentUserId, paywallReason, setCredits]);
+  }, [hasEntitlement, liveId, currentUserId, paywallReason, setCredits, creatorData?.display_name, t]);
 
   // Handle preview timer
   useEffect(() => {
@@ -610,6 +634,7 @@ const LiveViewer: React.FC = () => {
                     onPurchase={handlePurchaseCredits}
                     reason={paywallReason ?? "preview"}
                     remainingCredits={localCredits}
+                    isAuthenticated={isAuthenticated}
                   />
                 )}
 
