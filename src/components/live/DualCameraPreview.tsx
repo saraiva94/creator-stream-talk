@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useImperativeHandle } from "react";
 import { RefreshCw, Video, Circle, Square, Download, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -19,6 +19,22 @@ interface DualCameraPreviewProps {
   isStreaming: boolean;
   isMirrored?: boolean;
   orientation?: VideoOrientation;
+  hideControls?: boolean; // Hide built-in controls for external management
+  onRecordingStateChange?: (isRecording: boolean, recordingUrl: string | null) => void;
+  externalControlsRef?: React.RefObject<DualCameraControlsRef | null>;
+}
+
+export interface DualCameraControlsRef {
+  startRecording: () => void;
+  stopRecording: () => void;
+  downloadRecording: () => void;
+  switchCamera: () => void;
+  isRecording: boolean;
+  recordedVideoUrl: string | null;
+  recordingDuration: number;
+  recordingQuality: RecordingQuality;
+  setRecordingQuality: (q: RecordingQuality) => void;
+  hasTwoCameras: boolean;
 }
 
 interface CameraInfo {
@@ -39,6 +55,9 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
   isStreaming,
   isMirrored = false,
   orientation = "vertical",
+  hideControls = false,
+  onRecordingStateChange,
+  externalControlsRef,
 }) => {
   const mainVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -287,6 +306,27 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
     };
   }, [isRecording]);
 
+  // Notify parent of recording state changes
+  useEffect(() => {
+    if (onRecordingStateChange) {
+      onRecordingStateChange(isRecording, recordedVideoUrl);
+    }
+  }, [isRecording, recordedVideoUrl, onRecordingStateChange]);
+
+  // Expose controls via ref for external management
+  useImperativeHandle(externalControlsRef, () => ({
+    startRecording,
+    stopRecording,
+    downloadRecording,
+    switchCamera: handleSwitchCamera,
+    isRecording,
+    recordedVideoUrl,
+    recordingDuration,
+    recordingQuality,
+    setRecordingQuality,
+    hasTwoCameras: cameras.length >= 2,
+  }), [startRecording, stopRecording, downloadRecording, handleSwitchCamera, isRecording, recordedVideoUrl, recordingDuration, recordingQuality, cameras.length]);
+
   return (
     <div className="relative w-full h-full bg-black">
       {/* Hidden canvas for recording */}
@@ -314,23 +354,7 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         </div>
       )}
 
-      {/* Status indicator */}
-      <div className="absolute top-4 left-4 z-20">
-        <div className={cn(
-          "px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 backdrop-blur-sm",
-          isStreaming 
-            ? "bg-green-500/80 text-white" 
-            : "bg-black/60 text-white/80"
-        )}>
-          <span className={cn(
-            "w-2 h-2 rounded-full",
-            isStreaming ? "bg-white animate-pulse" : "bg-white/60"
-          )} />
-          {isStreaming ? "Ao Vivo" : "Preview"}
-        </div>
-      </div>
-
-      {/* Recording indicator */}
+      {/* Recording indicator - always show when recording, regardless of hideControls */}
       {isRecording && (
         <div className="absolute top-4 right-4 z-20">
           <div className="px-3 py-1.5 rounded-full bg-red-500/80 text-white text-xs font-medium flex items-center gap-2 backdrop-blur-sm animate-pulse">
@@ -340,81 +364,102 @@ export const DualCameraPreview: React.FC<DualCameraPreviewProps> = ({
         </div>
       )}
 
-      {/* Bottom controls */}
-      <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center gap-4 z-20 px-4">
-        {/* Quality selector (only when not recording) */}
-        {!isRecording && showQualitySelector && (
-          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-lg p-2">
-            <Select
-              value={recordingQuality}
-              onValueChange={(v) => {
-                setRecordingQuality(v as RecordingQuality);
-                setShowQualitySelector(false);
-              }}
-            >
-              <SelectTrigger className="w-[140px] bg-transparent border-white/20 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(QUALITY_SETTINGS).map(([key, val]) => (
-                  <SelectItem key={key} value={key}>
-                    {val.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Built-in controls - only show when hideControls is false */}
+      {!hideControls && (
+        <>
+          {/* Status indicator */}
+          <div className="absolute top-4 left-4 z-20">
+            <div className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 backdrop-blur-sm",
+              isStreaming 
+                ? "bg-green-500/80 text-white" 
+                : "bg-black/60 text-white/80"
+            )}>
+              <span className={cn(
+                "w-2 h-2 rounded-full",
+                isStreaming ? "bg-white animate-pulse" : "bg-white/60"
+              )} />
+              {isStreaming ? "Ao Vivo" : "Preview"}
+            </div>
           </div>
-        )}
 
-        {/* Settings button (quality) */}
-        {!isRecording && (
-          <button
-            onClick={() => setShowQualitySelector(!showQualitySelector)}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90"
-          >
-            <Settings2 className="w-5 h-5 text-white" />
-          </button>
-        )}
-
-        {/* Record button */}
-        {!recordedVideoUrl && (
-          <button
-            onClick={isRecording ? stopRecording : startRecording}
-            className={cn(
-              "w-16 h-16 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90",
-              isRecording 
-                ? "bg-red-500/80 backdrop-blur-sm" 
-                : "bg-white/20 backdrop-blur-sm border-4 border-white"
+          {/* Bottom controls */}
+          <div className="absolute bottom-6 left-0 right-0 flex justify-center items-center gap-4 z-20 px-4">
+            {/* Quality selector (only when not recording) */}
+            {!isRecording && showQualitySelector && (
+              <div className="absolute bottom-16 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-lg p-2">
+                <Select
+                  value={recordingQuality}
+                  onValueChange={(v) => {
+                    setRecordingQuality(v as RecordingQuality);
+                    setShowQualitySelector(false);
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] bg-transparent border-white/20 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(QUALITY_SETTINGS).map(([key, val]) => (
+                      <SelectItem key={key} value={key}>
+                        {val.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
-          >
-            {isRecording ? (
-              <Square className="w-6 h-6 text-white fill-white" />
-            ) : (
-              <Circle className="w-8 h-8 text-red-500 fill-red-500" />
+
+            {/* Settings button (quality) */}
+            {!isRecording && (
+              <button
+                onClick={() => setShowQualitySelector(!showQualitySelector)}
+                className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90"
+              >
+                <Settings2 className="w-5 h-5 text-white" />
+              </button>
             )}
-          </button>
-        )}
 
-        {/* Download button (after recording) */}
-        {recordedVideoUrl && (
-          <button
-            onClick={downloadRecording}
-            className="w-16 h-16 rounded-full bg-green-500/80 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90"
-          >
-            <Download className="w-7 h-7 text-white" />
-          </button>
-        )}
+            {/* Record button */}
+            {!recordedVideoUrl && (
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={cn(
+                  "w-16 h-16 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90",
+                  isRecording 
+                    ? "bg-red-500/80 backdrop-blur-sm" 
+                    : "bg-white/20 backdrop-blur-sm border-4 border-white"
+                )}
+              >
+                {isRecording ? (
+                  <Square className="w-6 h-6 text-white fill-white" />
+                ) : (
+                  <Circle className="w-8 h-8 text-red-500 fill-red-500" />
+                )}
+              </button>
+            )}
 
-        {/* Switch camera button */}
-        {cameras.length >= 2 && (
-          <button
-            onClick={handleSwitchCamera}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90"
-          >
-            <RefreshCw className="w-5 h-5 text-white" />
-          </button>
-        )}
-      </div>
+            {/* Download button (after recording) */}
+            {recordedVideoUrl && (
+              <button
+                onClick={downloadRecording}
+                className="w-16 h-16 rounded-full bg-green-500/80 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90"
+              >
+                <Download className="w-7 h-7 text-white" />
+              </button>
+            )}
+
+            {/* Switch camera button */}
+            {cameras.length >= 2 && (
+              <button
+                onClick={handleSwitchCamera}
+                className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90"
+              >
+                <RefreshCw className="w-5 h-5 text-white" />
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 };
