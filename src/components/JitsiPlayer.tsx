@@ -73,9 +73,9 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean,
   const baseUrl = `https://meet.jit.si/${encodeURIComponent(trimmedRoom)}`;
   const paramString = params.toString();
 
-  // Build final URL: jwt (if any) as query string, config overrides in hash
-  const baseWithToken = token ? `${baseUrl}?jwt=${encodeURIComponent(token)}` : baseUrl;
-  return paramString ? `${baseWithToken}#${paramString}` : baseWithToken;
+  // For now we don't use JWT-based moderation; keep rooms fully open
+  // so any viewer can join automatically without waiting for a host.
+  return paramString ? `${baseUrl}#${paramString}` : baseUrl;
 };
 
 /**
