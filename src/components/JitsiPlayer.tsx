@@ -30,6 +30,9 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean,
   params.set("config.disableModeratorIndicator", "true");
   params.set("config.enableNoAudioDetection", "false");
   params.set("config.enableNoisyMicDetection", "false");
+  // Disable pre-join screen for everyone (creator and viewers)
+  params.set("config.prejoinConfig.enabled", "false");
+  params.set("config.prejoinPageEnabled", "false");
   
   // Viewer-only mode: disable all device prompts and UI, just watch
   if (viewerOnly) {
