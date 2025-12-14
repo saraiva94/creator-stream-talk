@@ -741,21 +741,19 @@ const LiveViewer: React.FC = () => {
 
           {/* Chat Content */}
           <div className="flex-1 overflow-hidden">
-            {roomId && currentUserId ? (
+            {roomId ? (
               <ChatBox
                 roomId={roomId}
                 currentUserId={currentUserId}
                 creatorId={liveData.creator_id}
                 isCreator={false}
-                disabled={showPaywall || !isAuthenticated}
+                disabled={showPaywall}
+                readOnly={!isAuthenticated}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p className="text-center px-4">
-                  {!isAuthenticated 
-                    ? t.liveViewer?.loginToChat || "Faça login para participar do chat"
-                    : t.common?.loading || "Carregando..."
-                  }
+                  {t.common?.loading || "Carregando..."}
                 </p>
               </div>
             )}

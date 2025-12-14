@@ -22,6 +22,15 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean,
     params.set("jwt", token);
   }
   
+  // Core settings for all users - allow joining even without moderator
+  params.set("config.enableWelcomePage", "false");
+  params.set("config.requireDisplayName", "false");
+  params.set("config.enableLobby", "false");
+  params.set("config.enableClosePage", "false");
+  params.set("config.disableModeratorIndicator", "true");
+  params.set("config.enableNoAudioDetection", "false");
+  params.set("config.enableNoisyMicDetection", "false");
+  
   // Viewer-only mode: disable all device prompts and UI, just watch
   if (viewerOnly) {
     // Start with devices muted/disabled - viewer doesn't broadcast
@@ -30,21 +39,28 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean,
     // Disable pre-join screen completely
     params.set("config.prejoinConfig.enabled", "false");
     params.set("config.prejoinPageEnabled", "false");
+    // Viewer doesn't need to request permissions
+    params.set("config.startSilent", "true");
     // Hide toolbar buttons viewers don't need
     params.set("config.toolbarButtons", "[]");
     // Disable all prompts
     params.set("config.disableDeepLinking", "true");
     params.set("config.disableInviteFunctions", "true");
+    params.set("config.disableJoinLeaveSounds", "true");
     // Filmstrip off - just show main video
     params.set("config.filmstrip.disabled", "true");
     // No notifications
     params.set("config.notifications", "[]");
+    // Join as hidden participant (viewer mode)
+    params.set("config.hiddenDomain", "true");
     // Interface config for cleaner viewer experience
     params.set("interfaceConfig.TOOLBAR_BUTTONS", "[]");
     params.set("interfaceConfig.FILM_STRIP_MAX_HEIGHT", "0");
     params.set("interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS", "true");
     params.set("interfaceConfig.HIDE_INVITE_MORE_HEADER", "true");
     params.set("interfaceConfig.SHOW_CHROME_EXTENSION_BANNER", "false");
+    params.set("interfaceConfig.MOBILE_APP_PROMO", "false");
+    params.set("interfaceConfig.DISABLE_VIDEO_BACKGROUND", "true");
   } else if (muted) {
     // Creator mode but muted
     params.set("config.startWithAudioMuted", "true");
