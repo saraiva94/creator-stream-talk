@@ -70,7 +70,7 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
           profiles:user_id (username)
         `)
         .eq("room_id", roomId)
-        .eq("status", "paid")
+        .in("status", ["paid", "pending", "displaying"]) // Include all active statuses
         .gt("expires_at", now)
         .order("amount", { ascending: false })
         .order("created_at", { ascending: true });
@@ -109,7 +109,8 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
         async (payload) => {
           const newSc = payload.new as any;
           
-          if (newSc.status !== "paid") return;
+          // Accept paid, pending, or displaying status
+          if (!["paid", "pending", "displaying"].includes(newSc.status)) return;
 
           const { data: profileData } = await supabase
             .from("profiles")
