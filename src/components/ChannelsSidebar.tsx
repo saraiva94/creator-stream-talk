@@ -168,22 +168,40 @@ export const ChannelsSidebar = () => {
 
     fetchChannels();
 
-    // Subscribe to realtime updates for creator_profiles and lives
+    // Subscribe to realtime updates for lives table specifically
+    const handleChange = (payload: any) => {
+      console.log('[Sidebar] 🔄 Realtime change detected:', payload.eventType, payload);
+      fetchChannels();
+    };
+
     const channel = supabase
-      .channel("sidebar-channels")
+      .channel("sidebar-channels-v2")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "creator_profiles" },
-        () => fetchChannels()
+        { event: "INSERT", schema: "public", table: "lives" },
+        handleChange
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "lives" },
-        () => fetchChannels()
+        { event: "UPDATE", schema: "public", table: "lives" },
+        handleChange
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "lives" },
+        handleChange
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "creator_profiles" },
+        handleChange
+      )
+      .subscribe((status, err) => {
+        console.log('[Sidebar] 📡 Realtime subscription status:', status, err || '');
+      });
 
     return () => {
+      console.log('[Sidebar] 🔌 Removing realtime channel');
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);
