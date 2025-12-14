@@ -56,42 +56,80 @@ const Home = () => {
     fetchLives();
   }, []);
 
-  // Realtime subscription for creator_profiles and lives changes
+  // Realtime subscription for lives changes - CRITICAL for live updates
   useEffect(() => {
-    console.log('[Home] Setting up realtime subscriptions...');
+    console.log('[Home] 🚀 Setting up realtime subscriptions...');
+    
+    const handleLivesChange = (payload: any) => {
+      console.log('[Home] 🟢 LIVES REALTIME EVENT:', payload.eventType, payload.new, payload.old);
+      // Immediate refresh on any lives table change
+      fetchLives();
+    };
+
+    const handleCreatorProfilesChange = (payload: any) => {
+      console.log('[Home] 🔵 CREATOR_PROFILES REALTIME EVENT:', payload.eventType, payload.new, payload.old);
+      // Immediate refresh on any creator_profiles table change
+      fetchLives();
+    };
     
     const channel = supabase
-      .channel('home-live-updates')
+      .channel('home-live-updates-v2')
       .on(
         'postgres_changes',
         {
-          event: '*',
-          schema: 'public',
-          table: 'creator_profiles'
-        },
-        (payload) => {
-          console.log('[Home] 🔴 creator_profiles REALTIME change:', payload.eventType, payload);
-          fetchLives();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'lives'
         },
-        (payload) => {
-          console.log('[Home] 🟢 lives REALTIME change:', payload.eventType, payload);
-          fetchLives();
-        }
+        handleLivesChange
       )
-      .subscribe((status) => {
-        console.log('[Home] Realtime subscription status:', status);
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'lives'
+        },
+        handleLivesChange
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'lives'
+        },
+        handleLivesChange
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'creator_profiles'
+        },
+        handleCreatorProfilesChange
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'creator_profiles'
+        },
+        handleCreatorProfilesChange
+      )
+      .subscribe((status, err) => {
+        console.log('[Home] 📡 Realtime subscription status:', status, err || '');
+        if (status === 'SUBSCRIBED') {
+          console.log('[Home] ✅ Realtime SUBSCRIBED successfully!');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Home] ❌ Realtime CHANNEL_ERROR:', err);
+        }
       });
 
     return () => {
-      console.log('[Home] Removing realtime channel');
+      console.log('[Home] 🔌 Removing realtime channel');
       supabase.removeChannel(channel);
     };
   }, []);
