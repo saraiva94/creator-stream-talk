@@ -142,16 +142,31 @@ const PaywallOverlay: React.FC<PaywallOverlayProps> = ({
           </div>
         </div>
         
-        {/* Credits info box */}
-        <div className="rounded-xl bg-primary/10 border border-primary/20 p-4 space-y-2">
-          <div className="flex items-center justify-center gap-2 text-primary font-semibold">
-            <Coins className="h-5 w-5" />
-            <span>{t.paywall?.minPackage || "Pacote mínimo: 180 créditos"}</span>
+        {/* Credit packages - Two options */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Package 1: 180 credits - R$5 */}
+          <div className="rounded-xl bg-primary/10 border border-primary/20 p-4 space-y-2">
+            <div className="flex items-center justify-center gap-2 text-primary font-semibold">
+              <Coins className="h-5 w-5" />
+              <span>180 {t.paywall?.credits || "créditos"}</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">R$ 5,00</p>
+            <p className="text-xs text-muted-foreground">
+              30 {t.paywall?.minutes || "minutos"}
+            </p>
           </div>
-          <p className="text-2xl font-bold text-foreground">R$ 5,00</p>
-          <p className="text-xs text-muted-foreground">
-            {t.paywall?.viewingTime || "30 minutos de visualização"}
-          </p>
+          
+          {/* Package 2: 360 credits - R$9 */}
+          <div className="rounded-xl bg-accent/10 border border-accent/20 p-4 space-y-2">
+            <div className="flex items-center justify-center gap-2 text-accent font-semibold">
+              <Coins className="h-5 w-5" />
+              <span>360 {t.paywall?.credits || "créditos"}</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">R$ 9,00</p>
+            <p className="text-xs text-muted-foreground">
+              60 {t.paywall?.minutes || "minutos"}
+            </p>
+          </div>
         </div>
         
         {/* Remaining credits if any */}
