@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { DualCameraPreview } from "@/components/live/DualCameraPreview";
+import { DualCameraPreview, DualCameraControlsRef, RecordingQuality } from "@/components/live/DualCameraPreview";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -13,10 +13,21 @@ import {
   Share2,
   Sparkles,
   RefreshCw,
+  Settings2,
+  Circle,
+  Square,
+  Download,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
 import type { VideoOrientation } from "@/components/NativeVideoPreview";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const QUALITY_LABELS: Record<RecordingQuality, string> = {
+  high: "Alta (1080p)",
+  medium: "Média (720p)",
+  low: "Baixa (480p)",
+};
 
 interface ActiveSuperchat {
   id: string;
@@ -63,10 +74,32 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   pendingSuperchatCount = 0,
   liveUrl,
   orientation = "vertical",
-  onFlipCamera,
 }) => {
   const { t } = useLanguage();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
+  const [showQualitySelector, setShowQualitySelector] = useState(false);
+  
+  // Ref for camera controls
+  const cameraControlsRef = useRef<DualCameraControlsRef | null>(null);
+  
+  // Local state synced from camera controls
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>("medium");
+  const [hasTwoCameras, setHasTwoCameras] = useState(false);
+
+  // Sync state from camera controls ref
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (cameraControlsRef.current) {
+        setIsRecording(cameraControlsRef.current.isRecording);
+        setRecordedVideoUrl(cameraControlsRef.current.recordedVideoUrl);
+        setRecordingQuality(cameraControlsRef.current.recordingQuality);
+        setHasTwoCameras(cameraControlsRef.current.hasTwoCameras);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleShare = async () => {
     const shareUrl = liveUrl || window.location.href;
@@ -89,6 +122,35 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
     }
   };
 
+  const handleToggleRecording = () => {
+    if (!cameraControlsRef.current) return;
+    
+    if (cameraControlsRef.current.isRecording) {
+      cameraControlsRef.current.stopRecording();
+    } else {
+      cameraControlsRef.current.startRecording();
+    }
+  };
+
+  const handleDownload = () => {
+    if (cameraControlsRef.current) {
+      cameraControlsRef.current.downloadRecording();
+    }
+  };
+
+  const handleSwitchCamera = () => {
+    if (cameraControlsRef.current) {
+      cameraControlsRef.current.switchCamera();
+    }
+  };
+
+  const handleQualityChange = (quality: RecordingQuality) => {
+    if (cameraControlsRef.current) {
+      cameraControlsRef.current.setRecordingQuality(quality);
+    }
+    setShowQualitySelector(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Fullscreen Video Preview */}
@@ -99,10 +161,12 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             isStreaming={isStreaming}
             isMirrored={isMirrored}
             orientation={orientation}
+            hideControls={true}
+            externalControlsRef={cameraControlsRef}
           />
         </div>
 
-        {/* Top overlay - status indicator (Preview only) + viewer count + revenue */}
+        {/* Top overlay - status indicator + viewer count + revenue */}
         <div className="absolute top-4 left-0 right-0 flex items-center justify-between z-20 px-3">
           {/* Status indicator - shows "Preview" when not streaming, or green when live */}
           <div className={cn(
@@ -165,18 +229,6 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             </div>
           </button>
 
-          {/* Flip/Invert camera button */}
-          {onFlipCamera && (
-            <button 
-              onClick={onFlipCamera}
-              className="flex flex-col items-center text-white"
-            >
-              <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
-                <RefreshCw className="h-5 w-5" />
-              </div>
-            </button>
-          )}
-
           {/* SuperChat queue indicator */}
           <button 
             onClick={() => setShowSuperchatQueue(true)}
@@ -210,6 +262,86 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               compact
             />
           </div>
+        </div>
+
+        {/* Right side action buttons - quality, camera flip, recording */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
+          {/* Quality selector button (only when not recording) */}
+          {!isRecording && (
+            <div className="relative">
+              <button 
+                onClick={() => setShowQualitySelector(!showQualitySelector)}
+                className="flex flex-col items-center text-white"
+              >
+                <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+                  <Settings2 className="h-5 w-5" />
+                </div>
+              </button>
+              
+              {/* Quality dropdown */}
+              {showQualitySelector && (
+                <div className="absolute right-14 top-0 bg-black/90 backdrop-blur-sm rounded-lg p-2 min-w-[140px]">
+                  {(["high", "medium", "low"] as RecordingQuality[]).map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleQualityChange(q)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded text-sm text-white hover:bg-white/20 transition-colors",
+                        recordingQuality === q && "bg-primary/30"
+                      )}
+                    >
+                      {QUALITY_LABELS[q]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Flip/Switch camera button */}
+          {hasTwoCameras && (
+            <button 
+              onClick={handleSwitchCamera}
+              className="flex flex-col items-center text-white"
+            >
+              <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+                <RefreshCw className="h-5 w-5" />
+              </div>
+            </button>
+          )}
+
+          {/* Record button */}
+          {!recordedVideoUrl && (
+            <button 
+              onClick={handleToggleRecording}
+              className="flex flex-col items-center text-white"
+            >
+              <div className={cn(
+                "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90",
+                isRecording 
+                  ? "bg-red-500/80 backdrop-blur-sm" 
+                  : "bg-black/40 backdrop-blur-sm border-2 border-red-500"
+              )}>
+                {isRecording ? (
+                  <Square className="h-5 w-5 text-white fill-white" />
+                ) : (
+                  <Circle className="h-5 w-5 text-red-500 fill-red-500" />
+                )}
+              </div>
+            </button>
+          )}
+
+          {/* Download button (after recording stopped) */}
+          {recordedVideoUrl && (
+            <button 
+              onClick={handleDownload}
+              className="flex flex-col items-center text-white"
+            >
+              <div className="w-12 h-12 rounded-full bg-green-500/80 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+                <Download className="h-5 w-5" />
+              </div>
+            </button>
+          )}
         </div>
       </div>
 
