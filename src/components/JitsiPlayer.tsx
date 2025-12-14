@@ -18,9 +18,9 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean,
   const trimmedRoom = roomName.trim();
   const params = new URLSearchParams();
   
-  if (token) {
-    params.set("jwt", token);
-  }
+  // JWT token must be passed as query parameter, not hash fragment
+  // We'll append it separately from the config/interface parameters
+  // (see URL construction below).
   
   // Core settings for all users - allow joining even without moderator
   params.set("config.enableWelcomePage", "false");
@@ -72,8 +72,10 @@ const buildJitsiUrl = (roomName: string, token?: string | null, muted?: boolean,
   
   const baseUrl = `https://meet.jit.si/${encodeURIComponent(trimmedRoom)}`;
   const paramString = params.toString();
-  
-  return paramString ? `${baseUrl}#${paramString}` : baseUrl;
+
+  // Build final URL: jwt (if any) as query string, config overrides in hash
+  const baseWithToken = token ? `${baseUrl}?jwt=${encodeURIComponent(token)}` : baseUrl;
+  return paramString ? `${baseWithToken}#${paramString}` : baseWithToken;
 };
 
 /**
