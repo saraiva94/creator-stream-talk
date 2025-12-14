@@ -463,27 +463,61 @@ export interface CreditPurchaseResponse extends PaymentPreferenceResponse {
 // Public API surface
 export const apiClient = {
   fetchPublicLives: async (signal?: AbortSignal) => {
-    // Try backend first, fallback to direct Supabase query
+    // Always try direct Supabase first for reliability in preview environments
+    // Backend routes may not be available in Lovable preview
     try {
-      return await withFallback(
-        () => request<{ lives: LiveSummary[] }>('/lives/public', { method: 'GET', auth: 'optional', signal }),
-        () => request<{ lives: LiveSummary[] }>('/lives', { method: 'GET', auth: 'optional', signal }),
-      );
-    } catch (error) {
-      // Direct Supabase fallback when backend is unavailable
-      console.debug('[api] Backend unavailable, using direct Supabase query');
-      const { data, error: dbError } = await supabase
+      console.debug('[api] Fetching public lives from Supabase');
+      
+      // Fetch active lives with creator info
+      const { data: livesData, error: livesError } = await supabase
         .from('lives')
-        .select('id, creator_id, title, description, price, status, is_active, room_name, creator_percent, affiliate_percent, platform_percent, created_at, ended_at')
+        .select(`
+          id, 
+          creator_id, 
+          title, 
+          description, 
+          price, 
+          status, 
+          is_active, 
+          room_name, 
+          creator_percent, 
+          affiliate_percent, 
+          platform_percent, 
+          created_at, 
+          ended_at,
+          thumbnail_url
+        `)
         .in('status', ['scheduled', 'waiting_for_host', 'live', 'inactive', 'ending'])
         .order('created_at', { ascending: false });
 
-      if (dbError) {
-        console.warn('[api] Supabase fallback failed:', dbError);
+      if (livesError) {
+        console.warn('[api] Supabase query failed:', livesError);
         return { lives: [] };
       }
 
-      return { lives: (data ?? []) as LiveSummary[] };
+      // Enrich with creator usernames
+      const creatorIds = livesData?.map(l => l.creator_id) || [];
+      let usernameMap = new Map<string, string>();
+      
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', creatorIds);
+        
+        profiles?.forEach(p => usernameMap.set(p.id, p.username));
+      }
+
+      const enrichedLives = (livesData || []).map(l => ({
+        ...l,
+        creator_username: usernameMap.get(l.creator_id) || null
+      })) as LiveSummary[];
+
+      console.debug('[api] Fetched', enrichedLives.length, 'lives');
+      return { lives: enrichedLives };
+    } catch (error) {
+      console.warn('[api] Failed to fetch lives:', error);
+      return { lives: [] };
     }
   },
 

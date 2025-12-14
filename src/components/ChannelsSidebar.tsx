@@ -197,15 +197,16 @@ export const ChannelsSidebar = () => {
 
   const ChannelItem = ({ channel, showName }: { channel: Channel; showName: boolean }) => {
     // Determine link destination: if streaming and has active live, go to live page
-    const liveLink = channel.is_streaming && channel.activeLiveId 
+    // If streaming but no liveId found, go to profile page
+    const destinationLink = channel.is_streaming && channel.activeLiveId 
       ? `/live/${channel.activeLiveId}` 
-      : `/room/${channel.id}`;
+      : `/u/${channel.username}`;
     
     return (
       <div className={`flex items-center gap-3 py-1.5 hover:bg-accent/50 rounded-md transition-colors group ${showName ? 'px-2' : 'px-1 justify-center'}`}>
         {/* Avatar links to live if streaming, otherwise to profile */}
         <Link
-          to={channel.is_streaming && channel.activeLiveId ? liveLink : `/u/${channel.username}`}
+          to={destinationLink}
           className="relative flex-shrink-0"
         >
           <Avatar className="h-8 w-8 hover:ring-2 hover:ring-primary transition-all">
@@ -230,7 +231,7 @@ export const ChannelsSidebar = () => {
                 {channel.display_name}
               </Link>
               {channel.is_streaming && channel.activeLiveId ? (
-                <Link to={liveLink} className="text-xs text-red-500 flex items-center gap-1 hover:underline">
+                <Link to={destinationLink} className="text-xs text-red-500 flex items-center gap-1 hover:underline">
                   <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                   {formatViewerCount(channel.viewer_count)}
                 </Link>
