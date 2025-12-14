@@ -626,6 +626,7 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
                     height="600px" 
                     muted={shouldMuteAndBlur}
                     blurred={shouldMuteAndBlur}
+                    viewerOnly={true}
                   />
                 )}
 
@@ -754,7 +755,7 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
 
       {/* Chat - Below video on mobile/tablet, right side on desktop */}
       <div className="lg:col-span-1 order-2 lg:order-none">
-        {roomId && currentUserId && creatorId ? (
+        {roomId && creatorId ? (
           <div className="h-[400px] lg:h-[600px] lg:sticky lg:top-24">
             <ChatBox
               roomId={roomId}
@@ -762,16 +763,13 @@ const ViewerAccessGate: React.FC<ViewerAccessGateProps> = ({ liveId }) => {
               creatorId={creatorId}
               isCreator={false}
               disabled={showPaywall}
+              readOnly={!isAuthenticated}
             />
           </div>
         ) : (
           <Card className="h-[600px] flex items-center justify-center">
             <CardContent className="text-center text-muted-foreground">
-              {!isAuthenticated ? (
-                <p>Faça login para participar do chat</p>
-              ) : (
-                <p>Carregando chat...</p>
-              )}
+              <p>Carregando chat...</p>
             </CardContent>
           </Card>
         )}
