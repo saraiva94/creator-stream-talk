@@ -37,10 +37,11 @@ interface ActiveSuperchat {
 
 interface ChatBoxProps {
   roomId: string;
-  currentUserId: string;
+  currentUserId?: string | null;
   creatorId: string;
   isCreator?: boolean;
   disabled?: boolean;
+  readOnly?: boolean; // For unauthenticated viewers - can see messages but not send
 }
 
 interface TypingUser {
@@ -48,7 +49,7 @@ interface TypingUser {
   username: string;
 }
 
-const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled = false }: ChatBoxProps) => {
+const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled = false, readOnly = false }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,6 +67,8 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
 
   // Fetch current user's username
   useEffect(() => {
+    if (!currentUserId) return;
+    
     const fetchUsername = async () => {
       const { data } = await supabase
         .from("profiles")
@@ -79,7 +82,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
 
   // Setup presence channel for typing indicator
   useEffect(() => {
-    if (!currentUsername || disabled) return;
+    if (!currentUsername || disabled || readOnly || !currentUserId) return;
 
     const channel = supabase.channel(`typing:${roomId}`, {
       config: { presence: { key: currentUserId } }
@@ -457,7 +460,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             <ChatMessage 
               key={message.id} 
               message={message} 
-              currentUserId={currentUserId}
+              currentUserId={currentUserId || ""}
             />
           ))}
         </div>
@@ -489,7 +492,13 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
       />
 
       <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
-        {disabled ? (
+        {readOnly ? (
+          <div className="text-center py-4 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {t.liveViewer?.loginToChat || "Faça login para participar do chat"}
+            </p>
+          </div>
+        ) : disabled ? (
           <div className="text-center py-4 space-y-2">
             <p className="text-sm text-muted-foreground">
               {t.chat?.chatBlocked || "Chat bloqueado"}
@@ -576,7 +585,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
         open={showSuperChat}
         onOpenChange={setShowSuperChat}
         creatorId={creatorId}
-        userId={currentUserId}
+        userId={currentUserId || ""}
         roomId={roomId}
       />
     </div>
