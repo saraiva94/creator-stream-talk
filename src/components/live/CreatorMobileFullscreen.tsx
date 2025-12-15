@@ -5,7 +5,8 @@ import { WebRTCPublisher } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
-import { StreamToggle } from "@/components/StreamToggle";
+import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
+import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { 
   Users, 
@@ -43,6 +44,8 @@ interface CreatorMobileFullscreenProps {
   creatorDisplayName?: string;
   isStreaming: boolean;
   onStreamToggle: (streaming: boolean) => void;
+  onGoLive?: () => void;       // For LiveKit single-step
+  onEndStream?: () => void;    // For LiveKit single-step
   participants: number;
   revenue: { total: number; superchats: number };
   activeSuperchat: ActiveSuperchat | null;
@@ -63,6 +66,8 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   creatorDisplayName = "Criador",
   isStreaming,
   onStreamToggle,
+  onGoLive,
+  onEndStream,
   participants,
   revenue,
   activeSuperchat,
@@ -98,8 +103,10 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
     }
   };
 
+  // For LiveKit: single-step (only "live" phase shows video)
+  // For Daily: two-step (show video in "preparing" and "live")
   const showDaily = !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom;
-  const showLiveKit = USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && liveId;
+  const showLiveKit = USE_LIVEKIT && streamPhase === "live" && liveId;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -123,7 +130,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           ) : (
             <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
               <p className="text-lg">Transmissão desligada</p>
-              <p className="text-sm">Clique em "Preparar Transmissão" para iniciar</p>
+              <p className="text-sm">Clique em "Ficar Online" para iniciar</p>
             </div>
           )}
         </div>
@@ -222,13 +229,24 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             </div>
           </button>
 
-          {/* Stream toggle */}
+          {/* Stream control - different for LiveKit vs Daily */}
           <div className="w-12 h-12 flex items-center justify-center">
-            <StreamToggle
-              isStreaming={isStreaming}
-              onToggle={onStreamToggle}
-              compact
-            />
+            {USE_LIVEKIT && onGoLive && onEndStream ? (
+              <SingleStepStreamControl
+                isLive={streamPhase === "live"}
+                onGoLive={onGoLive}
+                onEndStream={onEndStream}
+                compact
+              />
+            ) : (
+              <TwoStepStreamControl
+                streamPhase={streamPhase}
+                onPrepare={() => onStreamToggle(true)}
+                onGoLive={() => onStreamToggle(true)}
+                onEndStream={() => onStreamToggle(false)}
+                compact
+              />
+            )}
           </div>
         </div>
       </div>
