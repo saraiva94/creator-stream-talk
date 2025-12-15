@@ -718,6 +718,7 @@ export const translations = {
       goLive: "Go Live",
       endStream: "End Stream",
       preview: "Preview",
+      streamControl: "Stream Control",
     },
     pixWithdrawals: {
       title: "PIX Withdrawals",
@@ -1476,6 +1477,7 @@ export const translations = {
       goLive: "Ir en Vivo",
       endStream: "Finalizar Transmisión",
       preview: "Vista previa",
+      streamControl: "Control de Transmisión",
     },
     pixWithdrawals: {
       title: "Retiros PIX",
@@ -2234,6 +2236,7 @@ export const translations = {
       goLive: "Ficar Online",
       endStream: "Encerrar Transmissão",
       preview: "Prévia",
+      streamControl: "Controle da Transmissão",
     },
     pixWithdrawals: {
       title: "Saques PIX",

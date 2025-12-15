@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import ViewerAccessGate from "@/components/ViewerAccessGate";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -214,25 +214,30 @@ const CreatorRoom: React.FC = () => {
 
         {/* Live Content or Offline Message */}
         {activeLive ? (
-          <>
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>{activeLive.title || "Live Stream"}</CardTitle>
-                {activeLive.description && (
-                  <p className="text-sm text-muted-foreground">{activeLive.description}</p>
-                )}
-                {activeLive.price != null && activeLive.price > 0 && (
-                  <p className="text-sm text-primary font-medium">
-                    {new Intl.NumberFormat("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    }).format(activeLive.price)} / minuto
-                  </p>
-                )}
-              </CardHeader>
-            </Card>
-            <ViewerAccessGate liveId={activeLive.id} />
-          </>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>{activeLive.title || "Live Stream"}</CardTitle>
+              {activeLive.description && (
+                <p className="text-sm text-muted-foreground">{activeLive.description}</p>
+              )}
+              {activeLive.price != null && activeLive.price > 0 && (
+                <p className="text-sm text-primary font-medium">
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(activeLive.price)} / minuto
+                </p>
+              )}
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => navigate(`/live/${activeLive.id}`)}
+                className="w-full"
+              >
+                {t.liveViewer?.live || "Watch Live"}
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <CardContent className="py-12 text-center">
