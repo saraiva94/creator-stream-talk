@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
-import { JitsiPlayer } from "@/components/JitsiPlayer";
+import { DailyPlayer } from "@/components/DailyPlayer";
 import ChatBox from "@/components/ChatBox";
 import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
 import PaywallOverlay from "@/components/PaywallOverlay";
@@ -616,12 +616,11 @@ const LiveViewer: React.FC = () => {
           <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1">
             {canShowVideo && liveData.room_name ? (
               <>
-                <JitsiPlayer
-                  roomName={liveData.room_name}
+                <DailyPlayer
+                  roomUrl={liveData.room_name}
                   height="100%"
                   muted={shouldMuteAndBlur}
                   blurred={shouldMuteAndBlur}
-                  viewerOnly={true}
                 />
                 
                 {showCreditOverlay && (

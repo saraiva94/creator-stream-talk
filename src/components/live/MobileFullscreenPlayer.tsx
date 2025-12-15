@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowLeft, Heart, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { JitsiPlayer } from "@/components/JitsiPlayer";
+import { DailyPlayer } from "@/components/DailyPlayer";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 // PreviewCountdownOverlay removed - countdown is hidden from viewers
 import PaywallOverlay from "@/components/PaywallOverlay";
@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 interface MobileFullscreenPlayerProps {
-  roomName: string;
+  roomName: string; // This is now the Daily room URL
   creatorName?: string | null;
   creatorAvatar?: string | null;
   title?: string | null;
@@ -55,21 +55,19 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   const [liked, setLiked] = React.useState(false);
   
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-  const canRenderJitsi = Boolean(roomName && (hasEntitlement || showPreviewPlayer || showPaywall));
+  const canRenderDaily = Boolean(roomName && (hasEntitlement || showPreviewPlayer || showPaywall));
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Video container - fullscreen vertical */}
       <div className="relative flex-1 w-full">
-        {canRenderJitsi && (
-          <JitsiPlayer 
-            roomName={roomName} 
+        {canRenderDaily && (
+          <DailyPlayer 
+            roomUrl={roomName}
             width="100%"
             height="100%"
-            className="absolute inset-0 object-cover"
             muted={muted || blurred}
             blurred={blurred}
-            viewerOnly={true}
           />
         )}
 
