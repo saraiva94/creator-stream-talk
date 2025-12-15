@@ -10,6 +10,7 @@ interface SingleStepStreamControlProps {
   onEndStream: () => void;
   disabled?: boolean;
   compact?: boolean;
+  docked?: boolean;
 }
 
 /**
@@ -22,6 +23,7 @@ export const SingleStepStreamControl = ({
   onEndStream,
   disabled,
   compact,
+  docked,
 }: SingleStepStreamControlProps) => {
   const { t } = useLanguage();
   const [isAnimating, setIsAnimating] = useState(false);
@@ -32,21 +34,46 @@ export const SingleStepStreamControl = ({
     return () => clearTimeout(timer);
   }, [isLive]);
 
+  const goLiveLabel = (t.liveManagement as any)?.goLive || "Ficar Online";
+  const endLabel = (t.liveManagement as any)?.endStream || "Encerrar Transmissão";
+
+  if (docked) {
+    return !isLive ? (
+      <Button
+        onClick={onGoLive}
+        disabled={disabled}
+        size="lg"
+        className={cn("w-full gap-2", isAnimating && "scale-[1.01]")}
+      >
+        <Play className="h-4 w-4" />
+        {goLiveLabel}
+      </Button>
+    ) : (
+      <Button
+        onClick={onEndStream}
+        disabled={disabled}
+        size="lg"
+        variant="destructive"
+        className={cn("w-full gap-2", isAnimating && "scale-[1.01]")}
+      >
+        <Square className="h-4 w-4" />
+        {endLabel}
+      </Button>
+    );
+  }
+
   if (compact) {
-    // Compact mode for mobile
+    // Compact mode for small surfaces
     if (!isLive) {
       return (
         <Button
           onClick={onGoLive}
           disabled={disabled}
           size="sm"
-          className={cn(
-            "gap-2 bg-green-600 hover:bg-green-700 text-white transition-all duration-300",
-            isAnimating && "scale-105"
-          )}
+          className={cn("gap-2 transition-all duration-300", isAnimating && "scale-105")}
         >
           <Play className="h-4 w-4" />
-          {(t.liveManagement as any)?.goLive || "Ficar Online"}
+          {goLiveLabel}
         </Button>
       );
     }
@@ -57,10 +84,7 @@ export const SingleStepStreamControl = ({
         disabled={disabled}
         size="sm"
         variant="destructive"
-        className={cn(
-          "gap-2 transition-all duration-300",
-          isAnimating && "scale-105"
-        )}
+        className={cn("gap-2 transition-all duration-300", isAnimating && "scale-105")}
       >
         <Square className="h-4 w-4" />
         {(t.liveManagement as any)?.endStream || "Encerrar"}
@@ -80,9 +104,9 @@ export const SingleStepStreamControl = ({
           </>
         ) : (
           <>
-            <Wifi className="h-4 w-4 text-green-500" />
-            <span className="text-sm text-green-500 font-medium flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <Wifi className="h-4 w-4 text-primary" />
+            <span className="text-sm text-primary font-medium flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
               Ao Vivo
             </span>
           </>
@@ -94,26 +118,20 @@ export const SingleStepStreamControl = ({
         <Button
           onClick={onGoLive}
           disabled={disabled}
-          className={cn(
-            "gap-2 bg-green-600 hover:bg-green-700 text-white transition-all duration-300",
-            isAnimating && "scale-105"
-          )}
+          className={cn("gap-2 transition-all duration-300", isAnimating && "scale-105")}
         >
           <Play className="h-4 w-4" />
-          {(t.liveManagement as any)?.goLive || "Ficar Online"}
+          {goLiveLabel}
         </Button>
       ) : (
         <Button
           onClick={onEndStream}
           disabled={disabled}
           variant="destructive"
-          className={cn(
-            "gap-2 transition-all duration-300",
-            isAnimating && "scale-105"
-          )}
+          className={cn("gap-2 transition-all duration-300", isAnimating && "scale-105")}
         >
           <Square className="h-4 w-4" />
-          {(t.liveManagement as any)?.endStream || "Encerrar Transmissão"}
+          {endLabel}
         </Button>
       )}
     </div>

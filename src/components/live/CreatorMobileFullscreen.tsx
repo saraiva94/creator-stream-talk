@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { cn } from "@/lib/utils";
-import { CreatorDailyEmbed } from "@/components/CreatorDailyEmbed";
 import { WebRTCPublisher } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
@@ -8,9 +7,10 @@ import SuperChatQueue from "@/components/SuperChatQueue";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
 import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { 
-  Users, 
-  DollarSign, 
+import { Badge } from "@/components/ui/badge";
+import {
+  Users,
+  DollarSign,
   Settings,
   Share2,
   Sparkles,
@@ -21,6 +21,10 @@ import type { VideoOrientation } from "@/components/NativeVideoPreview";
 
 // Feature flag for LiveKit WebRTC
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
+
+const CreatorDailyEmbedLazy = !USE_LIVEKIT
+  ? lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })))
+  : null;
 
 interface ActiveSuperchat {
   id: string;
@@ -108,6 +112,10 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   const showDaily = !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom;
   const showLiveKit = USE_LIVEKIT && streamPhase === "live" && liveId;
 
+  const uiPhase = USE_LIVEKIT
+    ? (streamPhase === "live" ? "live" : "idle")
+    : streamPhase;
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Fullscreen Video Preview */}
@@ -120,13 +128,15 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               onError={(err) => console.error("[CreatorMobileFullscreen] WebRTC error:", err)}
               className="w-full h-full"
             />
-          ) : showDaily ? (
-            <CreatorDailyEmbed
-              roomUrl={dailyRoom!.roomUrl}
-              token={dailyRoom!.ownerToken}
-              onReady={() => console.log("[CreatorMobileFullscreen] Creator joined Daily")}
-              className="w-full h-full"
-            />
+          ) : showDaily && CreatorDailyEmbedLazy ? (
+            <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
+              <CreatorDailyEmbedLazy
+                roomUrl={dailyRoom!.roomUrl}
+                token={dailyRoom!.ownerToken}
+                onReady={() => console.log("[CreatorMobileFullscreen] Creator joined Daily")}
+                className="w-full h-full"
+              />
+            </Suspense>
           ) : (
             <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
               <p className="text-lg">Transmissão desligada</p>
@@ -140,25 +150,28 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           {/* Status indicator */}
           <div className={cn(
             "flex items-center gap-1.5 rounded-full px-2.5 py-1",
-            streamPhase === "live" 
+            uiPhase === "live" 
               ? "bg-green-500/20 border border-green-500" 
-              : streamPhase === "preparing"
+              : uiPhase === "preparing"
               ? "bg-yellow-500/20 border border-yellow-500"
               : "bg-black/60 backdrop-blur-sm"
           )}>
             <span className={cn(
               "w-2 h-2 rounded-full",
-              streamPhase === "live" ? "bg-green-500 animate-pulse" : 
-              streamPhase === "preparing" ? "bg-yellow-500 animate-pulse" : 
+              uiPhase === "live" ? "bg-green-500 animate-pulse" : 
+              uiPhase === "preparing" ? "bg-yellow-500 animate-pulse" : 
               "bg-muted-foreground"
             )} />
             <span className="text-xs font-medium text-white">
-              {streamPhase === "live" ? "Ao Vivo" : 
-               streamPhase === "preparing" ? "Preparando" : 
+              {uiPhase === "live" ? "Ao Vivo" : 
+               uiPhase === "preparing" ? "Preparando" : 
                "Offline"}
             </span>
           </div>
 
+          <Badge variant="secondary" className="shrink-0">
+            MODE: {USE_LIVEKIT ? "LIVEKIT" : "DAILY"}
+          </Badge>
           {/* Viewer count */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
