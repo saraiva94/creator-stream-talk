@@ -249,8 +249,8 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           />
         )}
 
-        {/* Left side action buttons */}
-        <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
+        {/* Left side action buttons - positioned below status indicator */}
+        <div className="absolute left-2 top-20 z-20 flex flex-col items-center gap-3">
           {/* Camera switch button */}
           <button 
             onClick={handleCameraSwitch}
