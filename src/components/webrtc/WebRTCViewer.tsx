@@ -83,22 +83,41 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
 
       const { token, roomName, livekitUrl: rawLivekitUrl } = data;
       
+      console.log('[WebRTCViewer] Edge function response:', { 
+        hasToken: !!token, 
+        tokenLength: token?.length,
+        roomName, 
+        rawLivekitUrl 
+      });
+      
       // Validate and normalize LiveKit URL
       if (!rawLivekitUrl || typeof rawLivekitUrl !== 'string') {
         throw new Error('LiveKit URL inválida (wsUrl vazio)');
       }
       
-      // Normalize URL to ensure wss:// protocol
+      // Normalize URL to ensure wss:// protocol (NEVER ws:// on https:// sites)
       let livekitUrl = rawLivekitUrl.trim();
+      if (!livekitUrl) {
+        throw new Error('LiveKit URL está vazia após trim');
+      }
+      
+      // Always force wss:// in production (https:// site)
+      const isSecureSite = typeof window !== 'undefined' && window.location.protocol === 'https:';
+      
       if (livekitUrl.startsWith('https://')) {
         livekitUrl = livekitUrl.replace('https://', 'wss://');
       } else if (livekitUrl.startsWith('http://')) {
-        livekitUrl = livekitUrl.replace('http://', 'ws://');
+        livekitUrl = isSecureSite 
+          ? livekitUrl.replace('http://', 'wss://') // Force wss on https site
+          : livekitUrl.replace('http://', 'ws://');
+      } else if (livekitUrl.startsWith('ws://') && isSecureSite) {
+        // ws:// on https:// site will fail - force wss://
+        livekitUrl = livekitUrl.replace('ws://', 'wss://');
       } else if (!livekitUrl.startsWith('wss://') && !livekitUrl.startsWith('ws://')) {
         livekitUrl = `wss://${livekitUrl}`;
       }
       
-      console.log('[WebRTCViewer] wsUrl=', livekitUrl, 'room=', roomName);
+      console.log('[WebRTCViewer] wsUrl=', livekitUrl, 'room=', roomName, 'isSecureSite=', isSecureSite);
 
       // Import LiveKit client dynamically
       const livekit = await import('livekit-client');
@@ -171,7 +190,16 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       });
 
     } catch (err: any) {
-      console.error('[WebRTCViewer] Connection error:', err);
+      // Detailed error logging for debugging
+      console.error('[WebRTCViewer] Connection error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+        wsUrl: 'check previous log',
+        tokenLength: 'check previous log'
+      });
+      console.error('[WebRTCViewer] Full error object:', err);
+      
       setConnectionState('error');
       setErrorMessage(err.message);
       onError?.(err.message);

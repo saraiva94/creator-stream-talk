@@ -109,6 +109,57 @@ serve(async (req) => {
     const { action, liveId } = await req.json();
     console.log(`[livekit-room] Action: ${action}, LiveId: ${liveId}`);
 
+    // Debug action - returns URL info and reachability test
+    if (action === 'debug') {
+      console.log('[livekit-room] Running debug diagnostics...');
+      
+      const rawLivekitUrl = LIVEKIT_URL_RAW;
+      const normalizedWsUrl = LIVEKIT_URL;
+      
+      // Convert to HTTP for reachability test
+      let normalizedHttpUrl = normalizedWsUrl
+        .replace('wss://', 'https://')
+        .replace('ws://', 'http://');
+      
+      let reachabilityResult: { ok: boolean; status?: number; errorMessage?: string };
+      
+      try {
+        console.log('[livekit-room] Testing reachability:', normalizedHttpUrl);
+        const testResponse = await fetch(normalizedHttpUrl, { 
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000)
+        });
+        reachabilityResult = { 
+          ok: testResponse.ok, 
+          status: testResponse.status 
+        };
+        console.log('[livekit-room] Reachability result:', reachabilityResult);
+      } catch (fetchError: any) {
+        reachabilityResult = { 
+          ok: false, 
+          errorMessage: fetchError.message || String(fetchError)
+        };
+        console.error('[livekit-room] Reachability error:', fetchError);
+      }
+      
+      const debugInfo = {
+        rawLivekitUrl,
+        normalizedWsUrl,
+        normalizedHttpUrl,
+        reachability: reachabilityResult,
+        apiKeyPresent: !!LIVEKIT_API_KEY,
+        apiSecretPresent: !!LIVEKIT_API_SECRET,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.log('[livekit-room] Debug info:', JSON.stringify(debugInfo, null, 2));
+      
+      return new Response(
+        JSON.stringify(debugInfo),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (!action || !liveId) {
       return new Response(
         JSON.stringify({ error: 'Missing action or liveId' }),
