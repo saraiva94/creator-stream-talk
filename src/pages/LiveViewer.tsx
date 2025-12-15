@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
-import { DailyPlayer } from "@/components/DailyPlayer";
+// DailyPlayer is lazy-loaded only when USE_LIVEKIT is false
 import { WebRTCViewer } from "@/components/webrtc";
 import ChatBox from "@/components/ChatBox";
 import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
