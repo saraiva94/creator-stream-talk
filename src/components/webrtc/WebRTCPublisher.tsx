@@ -245,13 +245,13 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
 
   return (
     <div className={`relative w-full h-full bg-black rounded-lg overflow-hidden ${className}`}>
-      {/* Local video preview */}
+      {/* Local video preview - contained to prevent layout distortion */}
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain"
       />
 
       {/* Connection status overlay */}
@@ -281,11 +281,11 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
         </div>
       )}
 
-      {/* Connected indicator */}
+      {/* Connected indicator - clean, no debug text */}
       {connectionState === 'connected' && (
         <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/50 px-2 py-1 rounded-full">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-xs text-white">LiveKit</span>
+          <span className="text-xs text-white">Ao Vivo</span>
         </div>
       )}
     </div>

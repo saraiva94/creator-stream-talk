@@ -1,11 +1,10 @@
-import React from "react";
-import { ArrowLeft, Heart, Share2 } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowLeft, Heart, Share2, Volume2, VolumeX } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { WebRTCViewer } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -49,14 +48,18 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   localCredits,
   showPreviewPlayer,
   isOnline,
-  muted = false,
+  muted: initialMuted = false,
   blurred = false,
 }) => {
   const navigate = useNavigate();
-  const [liked, setLiked] = React.useState(false);
+  const [liked, setLiked] = useState(false);
+  const [isMuted, setIsMuted] = useState(initialMuted);
   
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
   const canRenderLiveKit = Boolean(liveId && (hasEntitlement || showPreviewPlayer || showPaywall));
+
+  // Derive effective muted state
+  const effectiveMuted = isMuted || blurred;
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -65,7 +68,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
         {canRenderLiveKit && liveId ? (
           <WebRTCViewer
             liveId={liveId}
-            muted={muted || blurred}
+            muted={effectiveMuted}
             blurred={blurred}
             onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
             className="w-full h-full"
@@ -101,10 +104,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
                 </div>
               </div>
             </div>
-
-            <Badge variant="secondary" className="shrink-0">
-              MODE: LIVEKIT
-            </Badge>
           </div>
           {title && (
             <p className="text-white/90 text-sm mt-2 line-clamp-2 px-2">
@@ -113,8 +112,25 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
           )}
         </div>
 
-        {/* Right side actions - Instagram style */}
+        {/* Right side actions - vertical menu */}
         <div className="absolute right-3 bottom-[28vh] z-20 flex flex-col items-center gap-5">
+          {/* Mute/Unmute button */}
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className="flex flex-col items-center gap-1"
+          >
+            <div className={cn(
+              "w-11 h-11 rounded-full flex items-center justify-center transition-all",
+              isMuted ? "bg-destructive/80" : "bg-black/40"
+            )}>
+              {isMuted ? (
+                <VolumeX className="h-5 w-5 text-white" />
+              ) : (
+                <Volume2 className="h-5 w-5 text-white" />
+              )}
+            </div>
+          </button>
+
           <button
             onClick={() => setLiked(!liked)}
             className="flex flex-col items-center gap-1"

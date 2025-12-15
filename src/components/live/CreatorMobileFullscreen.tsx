@@ -1,18 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { WebRTCPublisher } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import {
   Users,
   DollarSign,
   Settings,
   Share2,
   Sparkles,
+  SwitchCamera,
+  FlipHorizontal,
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
@@ -67,6 +67,68 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 }) => {
   const { t } = useLanguage();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
+  const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [isMirrored, setIsMirrored] = useState(false);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Auto-open camera preview on mount
+  useEffect(() => {
+    const startPreview = async () => {
+      try {
+        // Stop existing stream
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+          audio: true,
+        });
+        
+        setStream(mediaStream);
+        setPreviewError(null);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      } catch (err) {
+        console.error("[CreatorMobile] Camera access error:", err);
+        setPreviewError("Não foi possível acessar a câmera");
+      }
+    };
+
+    // Only start preview if not live (preview mode)
+    if (streamPhase === "idle") {
+      startPreview();
+    }
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [facingMode, streamPhase]);
+
+  // Update video element when stream changes
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  const handleCameraSwitch = useCallback(async () => {
+    setFacingMode(prev => prev === "user" ? "environment" : "user");
+    toast({
+      title: "Câmera alternada",
+      description: facingMode === "user" ? "Usando câmera traseira" : "Usando câmera frontal",
+    });
+  }, [facingMode]);
+
+  const handleMirrorToggle = useCallback(() => {
+    setIsMirrored(prev => !prev);
+  }, []);
 
   const handleShare = async () => {
     const shareUrl = liveUrl || window.location.href;
@@ -89,25 +151,50 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
     }
   };
 
-  const showLiveKit = streamPhase === "live" && liveId;
+  const handleRetryCamera = async () => {
+    setPreviewError(null);
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode },
+        audio: true,
+      });
+      setStream(mediaStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+    } catch (err) {
+      setPreviewError("Não foi possível acessar a câmera");
+    }
+  };
+
+  const isLive = streamPhase === "live";
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Fullscreen Video Preview */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 w-full h-full">
-          {showLiveKit && liveId ? (
-            <WebRTCPublisher
-              liveId={liveId}
-              onReady={() => console.log("[CreatorMobileFullscreen] WebRTC Publisher ready")}
-              onError={(err) => console.error("[CreatorMobileFullscreen] WebRTC error:", err)}
-              className="w-full h-full"
-            />
-          ) : (
-            <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
-              <p className="text-lg">Transmissão desligada</p>
-              <p className="text-sm">Clique em "Ficar Online" para iniciar</p>
+          {previewError ? (
+            <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground gap-4">
+              <p className="text-lg">{previewError}</p>
+              <button
+                onClick={handleRetryCamera}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg"
+              >
+                Tentar novamente
+              </button>
             </div>
+          ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={cn(
+                "w-full h-full object-cover",
+                isMirrored && "scale-x-[-1]"
+              )}
+            />
           )}
         </div>
 
@@ -116,22 +203,19 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           {/* Status indicator */}
           <div className={cn(
             "flex items-center gap-1.5 rounded-full px-2.5 py-1",
-            streamPhase === "live" 
+            isLive 
               ? "bg-green-500/20 border border-green-500" 
               : "bg-black/60 backdrop-blur-sm"
           )}>
             <span className={cn(
               "w-2 h-2 rounded-full",
-              streamPhase === "live" ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
+              isLive ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
             )} />
             <span className="text-xs font-medium text-white">
-              {streamPhase === "live" ? "Ao Vivo" : "Offline"}
+              {isLive ? "Ao Vivo" : "Preview"}
             </span>
           </div>
 
-          <Badge variant="secondary" className="shrink-0">
-            MODE: LIVEKIT
-          </Badge>
           {/* Viewer count */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
@@ -167,6 +251,29 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
 
         {/* Left side action buttons */}
         <div className="absolute left-2 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3">
+          {/* Camera switch button */}
+          <button 
+            onClick={handleCameraSwitch}
+            className="flex flex-col items-center text-white"
+          >
+            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90">
+              <SwitchCamera className="h-5 w-5" />
+            </div>
+          </button>
+
+          {/* Mirror toggle */}
+          <button 
+            onClick={handleMirrorToggle}
+            className="flex flex-col items-center text-white"
+          >
+            <div className={cn(
+              "w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-transform duration-200 active:scale-90",
+              isMirrored ? "bg-primary/60" : "bg-black/40"
+            )}>
+              <FlipHorizontal className="h-5 w-5" />
+            </div>
+          </button>
+
           {/* Settings button */}
           <button 
             onClick={onOpenSettings}
@@ -212,7 +319,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
         <div className="px-4 py-3">
           {onGoLive && onEndStream ? (
             <SingleStepStreamControl
-              isLive={streamPhase === "live"}
+              isLive={isLive}
               onGoLive={onGoLive}
               onEndStream={onEndStream}
               fullWidth
