@@ -693,12 +693,16 @@ export type Database = {
       }
       lives: {
         Row: {
+          actual_viewer_count: number | null
           affiliate_percent: number | null
+          chat_room_id: string | null
           created_at: string | null
           creator_id: string
           creator_percent: number | null
           description: string | null
           ended_at: string | null
+          host_joined_at: string | null
+          host_last_heartbeat: string | null
           id: string
           is_active: boolean | null
           platform_percent: number | null
@@ -707,14 +711,19 @@ export type Database = {
           status: string | null
           thumbnail_url: string | null
           title: string | null
+          webrtc_room_name: string | null
         }
         Insert: {
+          actual_viewer_count?: number | null
           affiliate_percent?: number | null
+          chat_room_id?: string | null
           created_at?: string | null
           creator_id: string
           creator_percent?: number | null
           description?: string | null
           ended_at?: string | null
+          host_joined_at?: string | null
+          host_last_heartbeat?: string | null
           id?: string
           is_active?: boolean | null
           platform_percent?: number | null
@@ -723,14 +732,19 @@ export type Database = {
           status?: string | null
           thumbnail_url?: string | null
           title?: string | null
+          webrtc_room_name?: string | null
         }
         Update: {
+          actual_viewer_count?: number | null
           affiliate_percent?: number | null
+          chat_room_id?: string | null
           created_at?: string | null
           creator_id?: string
           creator_percent?: number | null
           description?: string | null
           ended_at?: string | null
+          host_joined_at?: string | null
+          host_last_heartbeat?: string | null
           id?: string
           is_active?: boolean | null
           platform_percent?: number | null
@@ -739,8 +753,30 @@ export type Database = {
           status?: string | null
           thumbnail_url?: string | null
           title?: string | null
+          webrtc_room_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "lives_chat_room_id_fkey"
+            columns: ["chat_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lives_chat_room_id_fkey"
+            columns: ["chat_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lives_chat_room_id_fkey"
+            columns: ["chat_room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms_safe"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lives_creator_id_fkey"
             columns: ["creator_id"]
