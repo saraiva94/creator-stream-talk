@@ -80,20 +80,31 @@ serve(async (req) => {
   }
 
   try {
-    const LIVEKIT_URL = Deno.env.get('LIVEKIT_URL');
+    const LIVEKIT_URL_RAW = Deno.env.get('LIVEKIT_URL');
     const LIVEKIT_API_KEY = Deno.env.get('LIVEKIT_API_KEY');
     const LIVEKIT_API_SECRET = Deno.env.get('LIVEKIT_API_SECRET');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+    if (!LIVEKIT_URL_RAW || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
       console.error('[livekit-room] Missing LiveKit configuration');
       return new Response(
         JSON.stringify({ error: 'LiveKit not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Normalize LiveKit URL to always use wss:// protocol
+    let LIVEKIT_URL = LIVEKIT_URL_RAW.trim();
+    if (LIVEKIT_URL.startsWith('https://')) {
+      LIVEKIT_URL = LIVEKIT_URL.replace('https://', 'wss://');
+    } else if (LIVEKIT_URL.startsWith('http://')) {
+      LIVEKIT_URL = LIVEKIT_URL.replace('http://', 'ws://');
+    } else if (!LIVEKIT_URL.startsWith('wss://') && !LIVEKIT_URL.startsWith('ws://')) {
+      LIVEKIT_URL = `wss://${LIVEKIT_URL}`;
+    }
+    console.log('[livekit-room] Normalized LIVEKIT_URL:', LIVEKIT_URL);
 
     const { action, liveId } = await req.json();
     console.log(`[livekit-room] Action: ${action}, LiveId: ${liveId}`);

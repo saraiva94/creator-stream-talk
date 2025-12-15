@@ -81,8 +81,24 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
         throw new Error(errMsg);
       }
 
-      const { token, roomName, livekitUrl } = data;
-      console.log('[WebRTCViewer] Got token for room:', roomName);
+      const { token, roomName, livekitUrl: rawLivekitUrl } = data;
+      
+      // Validate and normalize LiveKit URL
+      if (!rawLivekitUrl || typeof rawLivekitUrl !== 'string') {
+        throw new Error('LiveKit URL inválida (wsUrl vazio)');
+      }
+      
+      // Normalize URL to ensure wss:// protocol
+      let livekitUrl = rawLivekitUrl.trim();
+      if (livekitUrl.startsWith('https://')) {
+        livekitUrl = livekitUrl.replace('https://', 'wss://');
+      } else if (livekitUrl.startsWith('http://')) {
+        livekitUrl = livekitUrl.replace('http://', 'ws://');
+      } else if (!livekitUrl.startsWith('wss://') && !livekitUrl.startsWith('ws://')) {
+        livekitUrl = `wss://${livekitUrl}`;
+      }
+      
+      console.log('[WebRTCViewer] wsUrl=', livekitUrl, 'room=', roomName);
 
       // Import LiveKit client dynamically
       const livekit = await import('livekit-client');
