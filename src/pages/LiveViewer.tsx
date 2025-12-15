@@ -274,6 +274,33 @@ const LiveViewer: React.FC = () => {
     fetchLiveData();
   }, [fetchLiveData]);
 
+  // Realtime subscription for live status changes
+  useEffect(() => {
+    if (!liveId) return;
+
+    const channel = supabase
+      .channel(`live-status-${liveId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'lives',
+          filter: `id=eq.${liveId}`,
+        },
+        (payload) => {
+          console.log('[LiveViewer] Live status update received:', payload.new);
+          const newData = payload.new as Partial<LiveData>;
+          setLiveData(prev => prev ? { ...prev, ...newData } : null);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [liveId]);
+
   // Update credits from context
   useEffect(() => {
     if (creditBalance !== localCredits) {
