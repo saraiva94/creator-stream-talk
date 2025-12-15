@@ -44,8 +44,8 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   currentUserId,
   isAuthenticated,
   disabled = false,
-  maxVisibleMessages = 8,
-  messageFadeDelay = 10000, // 10 seconds
+  maxVisibleMessages = 30, // Buffer limit for performance
+  messageFadeDelay = 8000, // 8 seconds for faster fade
 }) => {
   const [messages, setMessages] = useState<FloatingMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -340,14 +340,13 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   };
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" style={{ height: '30vh' }}>
-      {/* Gradient mask for fading effect at top */}
+    <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" style={{ height: '25vh' }}>
+      {/* Gradient mask for smooth fade-out at top (25% height) */}
       <div 
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'linear-gradient(to bottom, transparent 0%, transparent 100%)',
-          maskImage: 'linear-gradient(to bottom, transparent 0%, black 40%, black 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 40%, black 100%)',
+          maskImage: 'linear-gradient(to bottom, transparent 0%, transparent 15%, black 40%, black 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, transparent 15%, black 40%, black 100%)',
         }}
       />
       

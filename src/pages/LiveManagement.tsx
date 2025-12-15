@@ -458,14 +458,11 @@ const LiveManagement = () => {
   return (
     <AppLayout>
       <main className="container mx-auto px-4 py-6">
-        {/* Header with MODE badge and Stream Control */}
+        {/* Header with Stream Control */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Video className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold">{t.liveManagement?.streamControl || "Live Management"}</h1>
-            <Badge variant="secondary" className="ml-2">
-              MODE: LIVEKIT
-            </Badge>
           </div>
           <SingleStepStreamControl
             isLive={streamPhase === "live"}
@@ -517,8 +514,8 @@ const LiveManagement = () => {
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
           <div className="lg:hidden space-y-4">
-            {/* Video Preview - Only show when live */}
-            <Card className="border-border overflow-hidden relative aspect-video">
+            {/* Video Preview */}
+            <Card className="border-border overflow-hidden relative aspect-video max-h-[40vh]">
               {streamPhase === "live" && currentLiveId ? (
                 <WebRTCPublisher
                   liveId={currentLiveId}
@@ -589,8 +586,8 @@ const LiveManagement = () => {
         <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Creator Embed - Only show when live */}
-            <Card className="border-border overflow-hidden relative aspect-video">
+            {/* Creator Embed - responsive with max dimensions */}
+            <Card className="border-border overflow-hidden relative w-full" style={{ aspectRatio: '16/9', maxHeight: '60vh' }}>
               {streamPhase === "live" && currentLiveId ? (
                 <WebRTCPublisher
                   liveId={currentLiveId}
