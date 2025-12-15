@@ -5,8 +5,9 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
 ## 1) Stack & Arquitetura
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui (`src/`), roteado em `src/App.tsx`, cliente Supabase em `src/integrations/supabase/client.ts`.
 - **Backend:** Node/Express + TypeScript (`backend/`), Supabase Auth via middleware `requireAuth`, rotas em `backend/src/routes/`, serviços em `backend/src/services/`.
-- **Supabase:** Postgres com RLS, migrações SQL em `supabase/migrations/`, Edge Function `monitor-lives` (cron em `supabase/config.toml`), funções auxiliares (create-payment, mercadopago-webhook).
+- **Supabase:** Postgres com RLS, migrações SQL em `supabase/migrations/`, Edge Function `monitor-lives` (cron em `supabase/config.toml`), funções auxiliares (create-payment, mercadopago-webhook, livekit-room).
 - **Mercado Pago:** Checkout preference + webhook (`/payments/webhook`) para creditar acessos, créditos e afiliados.
+- **LiveKit:** Video streaming via WebRTC, Edge Function `livekit-room` gera tokens JWT, components em `src/components/webrtc/`.
 - **Créditos:** Armazenados como inteiros em `credits_wallet`; ledger em `credit_purchases`; consumo por sessão em `live_consumption`; earnings em `creator_earnings`; wallets em `creator_wallet`.
 
 ## 2) Setup Local (passo a passo)
@@ -26,6 +27,7 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
      - `VITE_SUPABASE_URL`
      - `VITE_SUPABASE_PUBLISHABLE_KEY`
      - `VITE_SUPABASE_PROJECT_ID`
+     - `VITE_USE_LIVEKIT=true`
      - `SUPABASE_URL`
      - `SUPABASE_SERVICE_ROLE_KEY`
      - `BACKEND_PORT`
@@ -85,14 +87,20 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
   - Atualiza `live_consumption` e debita créditos por ticks de 10s; corta acesso ao zerar saldo.
   - Ao encerrar live, chama settlement → `creator_earnings` + crédito em `creator_wallet`.
 
-## 7) Rotas Principais da Trilha B
+## 7) Video Streaming (LiveKit WebRTC)
+- **Edge Function:** `supabase/functions/livekit-room/index.ts` gera tokens JWT
+- **Componentes:** `WebRTCPublisher` (criador) e `WebRTCViewer` (viewer) em `src/components/webrtc/`
+- **Secrets necessários (Supabase):** `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
+- **Frontend:** `VITE_USE_LIVEKIT=true` ativa modo LiveKit
+
+## 8) Rotas Principais da Trilha B
 - `GET /credits/balance` (auth) → saldo de créditos.
 - `POST /withdrawals/request`, `GET /withdrawals/wallet-summary` (creator auth).
 - `GET /creator/earnings` (creator auth).
 - `/affiliate/overview`, `/affiliate/history`, `/affiliate/link` (auth).
 - `/admin/payouts/*` (admin), `/admin/creators/*` (admin).
 
-## 8) Checklist de Testes Manuais
+## 9) Checklist de Testes Manuais
 1. Compra créditos via Mercado Pago; webhook recebido; `credits_wallet` aumenta.
 2. Entrar em live ativa; créditos consumidos com o tempo.
 3. Ao zerar créditos, acesso cortado (live_access removido, sessão finalizada).
@@ -103,8 +111,8 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
 8. Admin rejeita saque; valor volta para `balance_cents`.
 9. Afiliado gera link; novo usuário registra pelo link; comissão aparece no painel de afiliado.
 10. Criador não aprovado tenta iniciar live → 403.
-11. Criador aprovado inicia live normalmente.
+11. Criador aprovado inicia live normalmente (câmera/mic via WebRTC).
 12. Affiliate overview mostra total ganho, saldo disponível e total de indicados.
 13. Pagamento de registro com `purchaseType: 'registration'` gera transações `affiliate` nível 1/2 e credita saldo.
-14. “Atualizar” nos painéis (wallet/affiliate/earnings) refaz chamadas e exibe novos valores.
+14. "Atualizar" nos painéis (wallet/affiliate/earnings) refaz chamadas e exibe novos valores.
 15. monitor-lives manual (chamada HTTP) não quebra e mantém estados consistentes.

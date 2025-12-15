@@ -6,7 +6,7 @@
 - **State & data**: React Query (`src/App.tsx`) provides async caching; React Router defines page routing in the same file; a custom `LanguageProvider` inside `src/hooks/useLanguage.tsx` handles localization context.
 - **Integrations**:
   - Supabase client factory lives in `src/integrations/supabase/client.ts` and expects URL + anon key env vars.
-  - Video streaming uses **Jitsi** - utilities defined in `src/lib/jitsiPlayerService.ts`.
+  - Video streaming uses **LiveKit** via WebRTC - components in `src/components/webrtc/`.
   - Payment hooks are collected in `src/lib/payments.ts`.
 - **Backend integrations**:
   - `/backend` fronts Mercado Pago: `POST /payments/create-preference` creates checkout preferences with `liveId`/`userId` metadata, while `POST /payments/webhook` validates notifications, fetches the payment status from Mercado Pago, and records approved purchases in Supabase so the viewer token service can grant access later on. Configure this integration with `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_PUBLIC_KEY`, `SUPABASE_URL`, and `SUPABASE_SERVICE_ROLE_KEY`.
@@ -17,9 +17,10 @@
 ```
 src/
 ├─ components/        # shadcn/ui wrappers, shared widgets, and layout primitives
+│  └─ webrtc/         # WebRTCPublisher and WebRTCViewer components for LiveKit
 ├─ hooks/             # React hooks (language, auth helpers, etc.)
 ├─ integrations/      # Supabase types + client factory
-├─ lib/               # Cross-cutting utilities (Jitsi, payments, formatting, i18n, logger)
+├─ lib/               # Cross-cutting utilities (payments, formatting, i18n, logger)
 ├─ pages/             # Top-level routed screens (Home, Auth, Room, Dashboard, etc.)
 ├─ App.tsx            # App shell with providers and router wiring
 └─ main.tsx           # Vite entry point that renders <App />
@@ -30,7 +31,7 @@ backend/
 ├─ src/
 │  ├─ controllers/   # Express handlers orchestrating between routes & services
 │  ├─ routes/        # HTTP route definitions (e.g., GET /status)
-│  ├─ services/      # Business logic and integrations (Mercado Pago, Jitsi, etc.)
+│  ├─ services/      # Business logic and integrations (Mercado Pago, etc.)
 │  └─ lib/           # Cross-cutting helpers (environment loader, logging, etc.)
 ├─ index.ts          # App entry point that mounts middleware + routes
 └─ tsconfig.json     # Backend-specific TypeScript configuration
@@ -49,11 +50,12 @@ backend/
 3. **Security review pending** – Supabase policies/functions under `supabase/` were not audited yet; confirm row-level security before exposing write APIs.
 4. **NPM vulnerabilities** – `npm install` reports 3 moderate issues; run `npm audit fix` (or review manually) prior to production hardening.
 
-## Video Streaming (Jitsi)
-- Video streaming uses Jitsi Meet embedded via iframe
-- Room names are generated as `streamstar-{userId}-{timestamp}`
-- No external API keys required - uses public Jitsi servers
-- Room URLs stored in `creator_profiles.daily_room_url` (legacy column name)
+## Video Streaming (LiveKit WebRTC)
+- Video streaming uses LiveKit Cloud via native WebRTC
+- Edge function `livekit-room` generates JWT tokens for host/viewer access
+- Room names stored in `lives.webrtc_room_name`
+- Host tokens require authentication; viewer tokens allow spectator access
+- Required secrets: `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
 
 ## Authentication & Email
 - All authentication handled by Supabase Auth natively

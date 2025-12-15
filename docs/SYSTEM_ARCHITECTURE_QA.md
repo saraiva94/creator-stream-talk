@@ -7,10 +7,10 @@
 | Tabela | Descrição | Colunas Chave |
 |--------|-----------|---------------|
 | `profiles` | Perfis de usuários | id, username, email, referral_code, affiliate_earnings, status, referrer_direct, referrer_root |
-| `creator_profiles` | Perfis de criadores | id, display_name, bio, approved_for_live, is_streaming, daily_room_name (stores Jitsi room) |
+| `creator_profiles` | Perfis de criadores | id, display_name, bio, approved_for_live, is_streaming |
 | `credits_wallet` | Carteira de créditos do viewer | id, user_id, profile_id, balance_credits |
 | `creator_wallet` | Carteira do criador (em centavos) | creator_id, balance_cents, pending_cents, total_earned_cents |
-| `lives` | Lives criadas | id, creator_id, title, status, room_name, price, is_active |
+| `lives` | Lives criadas | id, creator_id, title, status, room_name, webrtc_room_name, price, is_active |
 | `live_access` | Acesso concedido a lives | live_id, user_id, status, granted_at |
 | `live_consumption` | Consumo de créditos em lives | live_id, user_id, seconds_watched, credits_consumed, session_token |
 | `creator_earnings` | Ganhos dos criadores por live | live_id, creator_id, credits_consumed, creator_amount_cents, platform_amount_cents |
@@ -156,7 +156,6 @@
 | `creatorEarningsService.ts` | Settlement de ganhos do criador |
 | `creatorWithdrawalsService.ts` | Gestão de saques |
 | `liveConsumptionService.ts` | Consumo de créditos em lives |
-| `jitsiService.ts` | Integração Jitsi (video streaming) |
 
 ---
 
@@ -166,14 +165,17 @@
 ```
 VITE_SUPABASE_URL          # URL do Supabase
 VITE_SUPABASE_PUBLISHABLE_KEY  # Anon key
+VITE_USE_LIVEKIT=true      # Ativa LiveKit WebRTC
 MERCADOPAGO_ACCESS_TOKEN   # Token de acesso MP
 MERCADOPAGO_PUBLIC_KEY     # Chave pública MP
 MERCADOPAGO_WEBHOOK_SECRET # Secret do webhook
 ```
 
-### Opcionais
+### LiveKit (Supabase Secrets)
 ```
-MERCADOPAGO_WEBHOOK_URL    # URL para notificações
+LIVEKIT_URL                # URL do LiveKit Cloud
+LIVEKIT_API_KEY            # API Key LiveKit
+LIVEKIT_API_SECRET         # API Secret LiveKit
 ```
 
 ---
@@ -191,10 +193,11 @@ MERCADOPAGO_WEBHOOK_URL    # URL para notificações
 - **Webhooks**: Notificação de pagamentos aprovados
 - **Tipos**: REGISTRATION, CREDITS_PURCHASE, LIVE_ACCESS
 
-### 3. Jitsi Meet
-- **Video Streaming**: WebRTC via iframe
-- **Salas**: Criação automática de rooms públicas
-- **Sem API Key**: Usa servidores públicos do Jitsi
+### 3. LiveKit (WebRTC)
+- **Video Streaming**: WebRTC via LiveKit Cloud
+- **Edge Function**: `livekit-room` gera tokens JWT
+- **Salas**: Criadas automaticamente ao host conectar
+- **Secrets**: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
 
 ---
 
@@ -257,10 +260,10 @@ Plataforma = Restante (R$ 3,50 ou R$ 4,00)
 - [ ] Webhook credita créditos
 - [ ] Histórico de compras registrado
 
-### Lives (Jitsi)
+### Lives (LiveKit WebRTC)
 - [ ] Lista pública funciona sem auth
-- [ ] Criador pode iniciar live
-- [ ] Viewer pode solicitar acesso
+- [ ] Criador pode iniciar live (solicita câmera/mic)
+- [ ] Viewer pode assistir após paywall
 - [ ] Heartbeat debita créditos
 - [ ] Encerramento calcula settlement
 
