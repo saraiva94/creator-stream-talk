@@ -19,12 +19,13 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
 import type { VideoOrientation } from "@/components/NativeVideoPreview";
 
-// Feature flag for LiveKit WebRTC
+// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
 
-const CreatorDailyEmbedLazy = !USE_LIVEKIT
-  ? lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })))
-  : null;
+// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
+const CreatorDailyEmbedLazy = USE_LIVEKIT
+  ? null
+  : lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })));
 
 interface ActiveSuperchat {
   id: string;
@@ -241,26 +242,31 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               <Share2 className="h-5 w-5" />
             </div>
           </button>
+        </div>
+      </div>
 
-          {/* Stream control - different for LiveKit vs Daily */}
-          <div className="w-12 h-12 flex items-center justify-center">
-            {USE_LIVEKIT && onGoLive && onEndStream ? (
-              <SingleStepStreamControl
-                isLive={streamPhase === "live"}
-                onGoLive={onGoLive}
-                onEndStream={onEndStream}
-                compact
-              />
-            ) : (
-              <TwoStepStreamControl
-                streamPhase={streamPhase}
-                onPrepare={() => onStreamToggle(true)}
-                onGoLive={() => onStreamToggle(true)}
-                onEndStream={() => onStreamToggle(false)}
-                compact
-              />
-            )}
-          </div>
+      {/* Fixed footer CTA - Stream control with safe-area */}
+      <div 
+        className="w-full bg-black/80 backdrop-blur-sm border-t border-border/30 z-30"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="px-4 py-3">
+          {USE_LIVEKIT && onGoLive && onEndStream ? (
+            <SingleStepStreamControl
+              isLive={streamPhase === "live"}
+              onGoLive={onGoLive}
+              onEndStream={onEndStream}
+              fullWidth
+            />
+          ) : (
+            <TwoStepStreamControl
+              streamPhase={streamPhase}
+              onPrepare={() => onStreamToggle(true)}
+              onGoLive={() => onStreamToggle(true)}
+              onEndStream={() => onStreamToggle(false)}
+              fullWidth
+            />
+          )}
         </div>
       </div>
 

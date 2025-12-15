@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-// Feature flag for LiveKit WebRTC
+// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
 
-const DailyPlayerLazy = !USE_LIVEKIT
-  ? lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })))
-  : null;
+// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
+const DailyPlayerLazy = USE_LIVEKIT
+  ? null
+  : lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })));
 
 interface MobileFullscreenPlayerProps {
   roomName: string; // This is now the Daily room URL
