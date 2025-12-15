@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
-import { CreatorDailyEmbed } from "@/components/CreatorDailyEmbed";
 import { WebRTCPublisher } from "@/components/webrtc";
 import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
@@ -13,6 +12,7 @@ import SuperChatDisplay from "@/components/SuperChatDisplay";
 import { CreatorMobileFullscreen } from "@/components/live/CreatorMobileFullscreen";
 import { useIsMobileOrTablet } from "@/hooks/useDeviceType";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,10 @@ import { logger } from "@/lib/logger";
 
 // Feature flag for LiveKit WebRTC
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
+
+const CreatorDailyEmbedLazy = !USE_LIVEKIT
+  ? lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })))
+  : null;
 
 type RoomRecord = {
   id: string;
@@ -705,21 +709,23 @@ const LiveManagement = () => {
       <main className="container mx-auto px-4 py-6">
         {/* Header with stream control and stats */}
         <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-          {USE_LIVEKIT ? (
-            <SingleStepStreamControl
-              isLive={streamPhase === "live"}
-              onGoLive={handleLiveKitGoLive}
-              onEndStream={handleEndStream}
-            />
-          ) : (
-            <TwoStepStreamControl
-              streamPhase={streamPhase}
-              onPrepare={handlePrepareStream}
-              onGoLive={handleGoLive}
-              onEndStream={handleEndStream}
-            />
-          )}
-
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary">MODE: {USE_LIVEKIT ? "LIVEKIT" : "DAILY"}</Badge>
+            {USE_LIVEKIT ? (
+              <SingleStepStreamControl
+                isLive={streamPhase === "live"}
+                onGoLive={handleLiveKitGoLive}
+                onEndStream={handleEndStream}
+              />
+            ) : (
+              <TwoStepStreamControl
+                streamPhase={streamPhase}
+                onPrepare={handlePrepareStream}
+                onGoLive={handleGoLive}
+                onEndStream={handleEndStream}
+              />
+            )}
+          </div>
           <div className="flex gap-4">
             <Card className="border-border">
               <CardContent className="pt-4 pb-3 px-4">
@@ -760,37 +766,38 @@ const LiveManagement = () => {
         </div>
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
-        <div className="lg:hidden space-y-4">
-          {/* Video Preview - For LiveKit: only show when live; For Daily: show in preparing + live */}
-          <Card className="border-border overflow-hidden relative aspect-video">
-            {USE_LIVEKIT && streamPhase === "live" && currentLiveId ? (
-              <WebRTCPublisher
-                liveId={currentLiveId}
-                onReady={() => console.log("[LiveManagement] WebRTC Publisher ready")}
-                onError={(err) => console.error("[LiveManagement] WebRTC error:", err)}
-              />
-            ) : !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom ? (
-              <CreatorDailyEmbed
-                roomUrl={dailyRoom.roomUrl}
-                token={dailyRoom.ownerToken}
-                onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
-              />
-            ) : (
-              <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
-                <p className="text-lg">Transmissão desligada</p>
-                <p className="text-sm">Clique em "Ficar Online" para iniciar</p>
-              </div>
-            )}
-            {activeSuperchat && (
-              <div className="absolute bottom-4 left-4 right-4 z-10">
-                <SuperChatDisplay
-                  superchat={activeSuperchat}
-                  onExpire={() => setActiveSuperchat(null)}
+          <div className="lg:hidden space-y-4">
+            {/* Video Preview - For LiveKit: only show when live; For Daily: show in preparing + live */}
+            <Card className="border-border overflow-hidden relative aspect-video">
+              {USE_LIVEKIT && streamPhase === "live" && currentLiveId ? (
+                <WebRTCPublisher
+                  liveId={currentLiveId}
+                  onReady={() => console.log("[LiveManagement] WebRTC Publisher ready")}
+                  onError={(err) => console.error("[LiveManagement] WebRTC error:", err)}
                 />
-              </div>
-            )}
-          </Card>
-
+              ) : !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom && CreatorDailyEmbedLazy ? (
+                <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
+                  <CreatorDailyEmbedLazy
+                    roomUrl={dailyRoom.roomUrl}
+                    token={dailyRoom.ownerToken}
+                    onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
+                  />
+                </Suspense>
+              ) : (
+                <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
+                  <p className="text-lg">Transmissão desligada</p>
+                  <p className="text-sm">Clique em "Ficar Online" para iniciar</p>
+                </div>
+              )}
+              {activeSuperchat && (
+                <div className="absolute bottom-4 left-4 right-4 z-10">
+                  <SuperChatDisplay
+                    superchat={activeSuperchat}
+                    onExpire={() => setActiveSuperchat(null)}
+                  />
+                </div>
+              )}
+            </Card>
           {/* Chat immediately below video on mobile */}
           <div className="h-[350px]">
             {room && user ? (
@@ -848,12 +855,14 @@ const LiveManagement = () => {
                   onReady={() => console.log("[LiveManagement] WebRTC Publisher ready (desktop)")}
                   onError={(err) => console.error("[LiveManagement] WebRTC error:", err)}
                 />
-              ) : !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom ? (
-                <CreatorDailyEmbed
-                  roomUrl={dailyRoom.roomUrl}
-                  token={dailyRoom.ownerToken}
-                  onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
-                />
+              ) : !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom && CreatorDailyEmbedLazy ? (
+                <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
+                  <CreatorDailyEmbedLazy
+                    roomUrl={dailyRoom.roomUrl}
+                    token={dailyRoom.ownerToken}
+                    onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
+                  />
+                </Suspense>
               ) : (
                 <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
                   <p className="text-lg">Transmissão desligada</p>
@@ -869,7 +878,6 @@ const LiveManagement = () => {
                 </div>
               )}
             </Card>
-
             {/* SuperChat Queue for creator */}
             {room && user && (
               <SuperChatQueue

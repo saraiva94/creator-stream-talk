@@ -41,6 +41,10 @@ import { toast } from "@/hooks/use-toast";
 // Feature flag for LiveKit WebRTC
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
 
+const DailyPlayerLazy = !USE_LIVEKIT
+  ? lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })))
+  : null;
+
 interface LiveData {
   id: string;
   title: string | null;
@@ -634,15 +638,17 @@ const LiveViewer: React.FC = () => {
                     onHostNotReady={() => console.log("[LiveViewer] Waiting for host...")}
                     className="w-full h-full"
                   />
-                ) : (
-                  <DailyPlayer
-                    roomUrl={liveData.room_name || ""}
-                    height="100%"
-                    muted={shouldMuteAndBlur}
-                    blurred={shouldMuteAndBlur}
-                  />
-                )}
-                
+                ) : DailyPlayerLazy ? (
+                  <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
+                    <DailyPlayerLazy
+                      roomUrl={liveData.room_name || ""}
+                      height="100%"
+                      muted={shouldMuteAndBlur}
+                      blurred={shouldMuteAndBlur}
+                    />
+                  </Suspense>
+                ) : null}
+
                 {showCreditOverlay && (
                   <CreditRemainingOverlay creditsLeft={localCredits} />
                 )}

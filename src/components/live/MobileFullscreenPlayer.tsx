@@ -1,18 +1,22 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { ArrowLeft, Heart, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { DailyPlayer } from "@/components/DailyPlayer";
 import { WebRTCViewer } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 // PreviewCountdownOverlay removed - countdown is hidden from viewers
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 // Feature flag for LiveKit WebRTC
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
+
+const DailyPlayerLazy = !USE_LIVEKIT
+  ? lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })))
+  : null;
 
 interface MobileFullscreenPlayerProps {
   roomName: string; // This is now the Daily room URL
@@ -76,14 +80,18 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
             className="w-full h-full"
           />
-        ) : canRenderDaily ? (
-          <DailyPlayer 
-            roomUrl={roomName}
-            width="100%"
-            height="100%"
-            muted={muted || blurred}
-            blurred={blurred}
-          />
+        ) : canRenderDaily && DailyPlayerLazy ? (
+          <Suspense
+            fallback={<div className="w-full h-full bg-secondary/50" />}
+          >
+            <DailyPlayerLazy 
+              roomUrl={roomName}
+              width="100%"
+              height="100%"
+              muted={muted || blurred}
+              blurred={blurred}
+            />
+          </Suspense>
         ) : null}
 
         {/* Top overlay - back button and creator info */}
@@ -115,8 +123,11 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
                 </div>
               </div>
             </div>
+
+            <Badge variant="secondary" className="shrink-0">
+              MODE: {USE_LIVEKIT ? "LIVEKIT" : "DAILY"}
+            </Badge>
           </div>
-          
           {title && (
             <p className="text-white/90 text-sm mt-2 line-clamp-2 px-2">
               {title}
