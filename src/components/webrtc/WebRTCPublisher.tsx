@@ -76,8 +76,24 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
         throw new Error(error?.message || data?.error || 'Failed to get token');
       }
 
-      const { token, roomName, livekitUrl } = data;
-      console.log('[WebRTCPublisher] Got token for room:', roomName);
+      const { token, roomName, livekitUrl: rawLivekitUrl } = data;
+      
+      // Validate and normalize LiveKit URL
+      if (!rawLivekitUrl || typeof rawLivekitUrl !== 'string') {
+        throw new Error('LiveKit URL inválida (wsUrl vazio)');
+      }
+      
+      // Normalize URL to ensure wss:// protocol
+      let livekitUrl = rawLivekitUrl.trim();
+      if (livekitUrl.startsWith('https://')) {
+        livekitUrl = livekitUrl.replace('https://', 'wss://');
+      } else if (livekitUrl.startsWith('http://')) {
+        livekitUrl = livekitUrl.replace('http://', 'ws://');
+      } else if (!livekitUrl.startsWith('wss://') && !livekitUrl.startsWith('ws://')) {
+        livekitUrl = `wss://${livekitUrl}`;
+      }
+      
+      console.log('[WebRTCPublisher] wsUrl=', livekitUrl, 'room=', roomName);
 
       // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({
