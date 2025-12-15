@@ -116,7 +116,7 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
             .from("profiles")
             .select("username")
             .eq("id", newSc.user_id)
-            .single();
+            .maybeSingle();
 
           const formatted: ActiveSuperchat = {
             id: newSc.id,
@@ -253,7 +253,7 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
             .from("profiles")
             .select("username")
             .eq("id", newMsg.user_id)
-            .single();
+            .maybeSingle();
 
           const formattedMsg: FloatingMessage = {
             id: newMsg.id,

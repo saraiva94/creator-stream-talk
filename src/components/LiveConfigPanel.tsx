@@ -145,17 +145,21 @@ export const LiveConfigPanel = ({
     if (!roomId) return;
 
     const loadChatSettings = async () => {
-      const { data } = await supabase
-        .from("chat_settings")
-        .select("*")
-        .eq("room_id", roomId)
-        .single();
+      try {
+        const { data } = await supabase
+          .from("chat_settings")
+          .select("*")
+          .eq("room_id", roomId)
+          .maybeSingle();
 
-      if (data) {
-        setSlowModeEnabled(data.slow_mode_enabled || false);
-        setSlowModeDuration(data.slow_mode_duration || 5);
-        setSubscribersOnly(data.subscribers_only || false);
-        setBannedWords(data.banned_words || []);
+        if (data) {
+          setSlowModeEnabled(data.slow_mode_enabled || false);
+          setSlowModeDuration(data.slow_mode_duration || 5);
+          setSubscribersOnly(data.subscribers_only || false);
+          setBannedWords(data.banned_words || []);
+        }
+      } catch (err) {
+        console.error("[LiveConfigPanel] Error loading chat settings:", err);
       }
     };
 

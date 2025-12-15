@@ -63,7 +63,7 @@ const PublicProfile = () => {
         .from("public_profiles")
         .select("id, username, avatar_url, bio, youtube_handle, instagram_handle, tiktok_handle, facebook_handle, kwai_handle, website")
         .ilike("username", username)
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         setNotFound(true);
@@ -86,7 +86,7 @@ const PublicProfile = () => {
         .from("creator_profiles")
         .select("is_streaming")
         .eq("id", data.id)
-        .single();
+        .maybeSingle();
       
       if (creatorData) {
         setIsLive(creatorData.is_streaming || false);

@@ -25,25 +25,34 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
 
   useEffect(() => {
     const fetchCreatorInfo = async () => {
-      // Try to get from creator_profiles first
-      const { data: creatorProfile } = await supabase
-        .from("creator_profiles")
-        .select("display_name")
-        .eq("id", live.creator_id)
-        .single();
+      try {
+        // Try to get from creator_profiles first
+        const { data: creatorProfile } = await supabase
+          .from("creator_profiles")
+          .select("display_name")
+          .eq("id", live.creator_id)
+          .maybeSingle();
 
-      // Get avatar from profiles
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("avatar_url, username")
-        .eq("id", live.creator_id)
-        .single();
+        // Get avatar from profiles
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("avatar_url, username")
+          .eq("id", live.creator_id)
+          .maybeSingle();
 
-      setCreatorInfo({
-        display_name: creatorProfile?.display_name || profile?.username || live.creator_username || "Criador",
-        username: profile?.username || live.creator_username || "user",
-        avatar_url: profile?.avatar_url || null,
-      });
+        setCreatorInfo({
+          display_name: creatorProfile?.display_name || profile?.username || live.creator_username || "Criador",
+          username: profile?.username || live.creator_username || "user",
+          avatar_url: profile?.avatar_url || null,
+        });
+      } catch (err) {
+        console.error("[LivePreviewCard] Error fetching creator info:", err);
+        setCreatorInfo({
+          display_name: live.creator_username || "Criador",
+          username: live.creator_username || "user",
+          avatar_url: null,
+        });
+      }
     };
 
     fetchCreatorInfo();
@@ -52,14 +61,18 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
   // Fetch thumbnail from lives table
   useEffect(() => {
     const fetchThumbnail = async () => {
-      const { data } = await supabase
-        .from("lives")
-        .select("thumbnail_url")
-        .eq("id", live.id)
-        .single();
+      try {
+        const { data } = await supabase
+          .from("lives")
+          .select("thumbnail_url")
+          .eq("id", live.id)
+          .maybeSingle();
 
-      if (data?.thumbnail_url) {
-        setThumbnailUrl(data.thumbnail_url);
+        if (data?.thumbnail_url) {
+          setThumbnailUrl(data.thumbnail_url);
+        }
+      } catch (err) {
+        console.error("[LivePreviewCard] Error fetching thumbnail:", err);
       }
     };
 

@@ -267,7 +267,7 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     if (activeLive) {
       navigate(`/live/${activeLive.id}`);
