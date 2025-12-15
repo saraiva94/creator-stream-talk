@@ -1,11 +1,10 @@
-import { useState, lazy, Suspense } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { WebRTCPublisher } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
-import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,15 +16,6 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
-import type { VideoOrientation } from "@/components/NativeVideoPreview";
-
-// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
-const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
-
-// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
-const CreatorDailyEmbedLazy = USE_LIVEKIT
-  ? null
-  : lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })));
 
 interface ActiveSuperchat {
   id: string;
@@ -36,21 +26,14 @@ interface ActiveSuperchat {
   expires_at: string;
 }
 
-interface DailyRoomData {
-  roomName: string;
-  roomUrl: string;
-  ownerToken: string;
-}
-
 interface CreatorMobileFullscreenProps {
   roomId: string | null;
-  dailyRoom: DailyRoomData | null;
   creatorId: string;
   creatorDisplayName?: string;
   isStreaming: boolean;
   onStreamToggle: (streaming: boolean) => void;
-  onGoLive?: () => void;       // For LiveKit single-step
-  onEndStream?: () => void;    // For LiveKit single-step
+  onGoLive?: () => void;
+  onEndStream?: () => void;
   participants: number;
   revenue: { total: number; superchats: number };
   activeSuperchat: ActiveSuperchat | null;
@@ -59,14 +42,12 @@ interface CreatorMobileFullscreenProps {
   onSelectSuperchat: (superchat: ActiveSuperchat) => void;
   pendingSuperchatCount?: number;
   liveUrl?: string;
-  orientation?: VideoOrientation;
-  streamPhase?: "idle" | "preparing" | "live";
-  liveId?: string | null; // For WebRTC
+  streamPhase?: "idle" | "live";
+  liveId?: string | null;
 }
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
   roomId,
-  dailyRoom,
   creatorId,
   creatorDisplayName = "Criador",
   isStreaming,
@@ -108,14 +89,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
     }
   };
 
-  // For LiveKit: single-step (only "live" phase shows video)
-  // For Daily: two-step (show video in "preparing" and "live")
-  const showDaily = !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom;
-  const showLiveKit = USE_LIVEKIT && streamPhase === "live" && liveId;
-
-  const uiPhase = USE_LIVEKIT
-    ? (streamPhase === "live" ? "live" : "idle")
-    : streamPhase;
+  const showLiveKit = streamPhase === "live" && liveId;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -129,15 +103,6 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               onError={(err) => console.error("[CreatorMobileFullscreen] WebRTC error:", err)}
               className="w-full h-full"
             />
-          ) : showDaily && CreatorDailyEmbedLazy ? (
-            <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
-              <CreatorDailyEmbedLazy
-                roomUrl={dailyRoom!.roomUrl}
-                token={dailyRoom!.ownerToken}
-                onReady={() => console.log("[CreatorMobileFullscreen] Creator joined Daily")}
-                className="w-full h-full"
-              />
-            </Suspense>
           ) : (
             <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
               <p className="text-lg">Transmissão desligada</p>
@@ -151,27 +116,21 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           {/* Status indicator */}
           <div className={cn(
             "flex items-center gap-1.5 rounded-full px-2.5 py-1",
-            uiPhase === "live" 
+            streamPhase === "live" 
               ? "bg-green-500/20 border border-green-500" 
-              : uiPhase === "preparing"
-              ? "bg-yellow-500/20 border border-yellow-500"
               : "bg-black/60 backdrop-blur-sm"
           )}>
             <span className={cn(
               "w-2 h-2 rounded-full",
-              uiPhase === "live" ? "bg-green-500 animate-pulse" : 
-              uiPhase === "preparing" ? "bg-yellow-500 animate-pulse" : 
-              "bg-muted-foreground"
+              streamPhase === "live" ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
             )} />
             <span className="text-xs font-medium text-white">
-              {uiPhase === "live" ? "Ao Vivo" : 
-               uiPhase === "preparing" ? "Preparando" : 
-               "Offline"}
+              {streamPhase === "live" ? "Ao Vivo" : "Offline"}
             </span>
           </div>
 
           <Badge variant="secondary" className="shrink-0">
-            MODE: {USE_LIVEKIT ? "LIVEKIT" : "DAILY"}
+            MODE: LIVEKIT
           </Badge>
           {/* Viewer count */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
@@ -251,22 +210,14 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="px-4 py-3">
-          {USE_LIVEKIT && onGoLive && onEndStream ? (
+          {onGoLive && onEndStream ? (
             <SingleStepStreamControl
               isLive={streamPhase === "live"}
               onGoLive={onGoLive}
               onEndStream={onEndStream}
               fullWidth
             />
-          ) : (
-            <TwoStepStreamControl
-              streamPhase={streamPhase}
-              onPrepare={() => onStreamToggle(true)}
-              onGoLive={() => onStreamToggle(true)}
-              onEndStream={() => onStreamToggle(false)}
-              fullWidth
-            />
-          )}
+          ) : null}
         </div>
       </div>
 

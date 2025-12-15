@@ -1,10 +1,9 @@
-import { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
 import { WebRTCPublisher } from "@/components/webrtc";
-import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
 import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -21,18 +20,8 @@ import { Users, DollarSign, TrendingUp, Video, UserPlus } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 
-// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
-const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
-
-// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
-const CreatorDailyEmbedLazy = USE_LIVEKIT
-  ? null
-  : lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })));
-
 type RoomRecord = {
   id: string;
-  daily_room_name: string | null;
-  daily_room_url?: string | null;
 };
 
 type TransactionRow = {
@@ -42,16 +31,8 @@ type TransactionRow = {
 
 type CreatorStatus = "loading" | "not_creator" | "pending_approval" | "approved";
 
-// For Daily: Two-step streaming flow (preparing -> live)
-// For LiveKit: Single-step flow (idle -> live) - no prepare phase needed
-type StreamPhase = "idle" | "preparing" | "live";
-
-// Daily room data from edge function
-type DailyRoomData = {
-  roomName: string;
-  roomUrl: string;
-  ownerToken: string;
-};
+// LiveKit single-step flow: idle -> live (no preparing phase)
+type StreamPhase = "idle" | "live";
 
 const LiveManagement = () => {
   const navigate = useNavigate();
@@ -61,7 +42,6 @@ const LiveManagement = () => {
   const [user, setUser] = useState<User | null>(null);
   const [creatorStatus, setCreatorStatus] = useState<CreatorStatus>("loading");
   const [room, setRoom] = useState<RoomRecord | null>(null);
-  const [dailyRoom, setDailyRoom] = useState<DailyRoomData | null>(null);
   const [streamPhase, setStreamPhase] = useState<StreamPhase>("idle");
   const [isStreaming, setIsStreaming] = useState(false);
   const [participants, setParticipants] = useState(0);
@@ -140,10 +120,8 @@ const LiveManagement = () => {
           setIsStreaming(true);
           setCurrentLiveId(activeLive.id);
         } else {
-          // Room exists but no active live
-          // For LiveKit: single-step means we go back to idle (no "preparing" state)
-          // For Daily: two-step allows preparing phase
-          setStreamPhase(USE_LIVEKIT ? "idle" : "preparing");
+          // Room exists but no active live - go back to idle
+          setStreamPhase("idle");
           setIsStreaming(false);
         }
         logger.creator.info("Active room found", { roomId: existingRoom.id });
@@ -164,8 +142,8 @@ const LiveManagement = () => {
     checkAuth();
   }, [navigate, toast]);
 
-  // For LiveKit: Single-step "Go Live" - create room and go live immediately
-  const handleLiveKitGoLive = async () => {
+  // Single-step "Go Live" - create room and go live immediately
+  const handleGoLive = async () => {
     if (!user) return;
 
     try {
@@ -219,124 +197,7 @@ const LiveManagement = () => {
       setStreamPhase("live");
       setIsStreaming(true);
 
-      logger.live.info("Stream is now LIVE (LiveKit single-step)", { roomId: newRoom.id, liveId: liveData.id });
-      toast({
-        title: t.liveManagement?.streamStarted || "Você está ao vivo!",
-        description: t.liveManagement?.youAreLiveNow || "Sua transmissão está visível para todos.",
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erro ao iniciar transmissão";
-      logger.live.error("LiveKit go live error", { error: message });
-      toast({
-        title: t.common?.error || "Error",
-        description: message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // For Daily: Step 1 - Prepare transmission (create room, open camera, but NOT visible)
-  const handlePrepareStream = async () => {
-    if (!user) return;
-
-    try {
-      // Clean up any stale rooms first
-      await supabase
-        .from("rooms")
-        .update({ is_active: false, ended_at: new Date().toISOString() })
-        .eq("creator_id", user.id)
-        .eq("is_active", true);
-
-      // Create local room record first
-      const { data: newRoom, error: roomError } = await supabase
-        .from("rooms")
-        .insert({
-          creator_id: user.id,
-          title: liveTitle || "Live Stream",
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (roomError) throw roomError;
-
-      // Create chat settings for the room
-      await supabase.from("chat_settings").insert({
-        room_id: newRoom.id,
-      });
-
-      // Create Daily room via edge function
-      const { data: session } = await supabase.auth.getSession();
-      if (!session.session) throw new Error("Not authenticated");
-
-      const dailyResponse = await supabase.functions.invoke("daily-room", {
-        body: { action: "create" },
-      });
-
-      if (dailyResponse.error) {
-        throw new Error(dailyResponse.error.message || "Failed to create Daily room");
-      }
-
-      const dailyData = dailyResponse.data as DailyRoomData;
-      setDailyRoom(dailyData);
-
-      // Update room with daily room name
-      await supabase
-        .from("rooms")
-        .update({ daily_room_name: dailyData.roomName })
-        .eq("id", newRoom.id);
-      
-      setRoom({ ...newRoom, daily_room_url: dailyData.roomUrl });
-      setStreamPhase("preparing");
-      
-      logger.live.info("Preparing stream - Daily room created", { roomName: dailyData.roomName, roomUrl: dailyData.roomUrl });
-      toast({
-        title: t.liveManagement?.preparingStream || "Preparando transmissão",
-        description: t.liveManagement?.cameraReady || "Sua câmera está pronta. Clique em 'Ficar Online' quando estiver pronto.",
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Erro ao preparar transmissão";
-      logger.live.error("Prepare stream error", { error: message });
-      toast({
-        title: t.common?.error || "Error",
-        description: message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // For Daily: Step 2 - Go live (mark active, visible to viewers)
-  const handleGoLive = async () => {
-    if (!user || !room || !dailyRoom) return;
-
-    try {
-      const { data: liveData, error: liveError } = await supabase.from("lives").insert({
-        creator_id: user.id,
-        title: liveTitle || "Live Stream",
-        status: "live",
-        is_active: true,
-        room_name: dailyRoom.roomUrl,
-        chat_room_id: room.id,
-        thumbnail_url: thumbnailUrl,
-      }).select().single();
-
-      if (liveError) throw liveError;
-      
-      setCurrentLiveId(liveData.id);
-
-      // Update creator profile to show as streaming
-      await supabase
-        .from("creator_profiles")
-        .update({ 
-          is_streaming: true,
-          daily_room_url: dailyRoom.roomUrl,
-        })
-        .eq("id", user.id);
-
-      setStreamPhase("live");
-      setIsStreaming(true);
-      logger.live.info("Stream is now LIVE (Daily)", { roomId: room.id, liveId: liveData.id, dailyUrl: dailyRoom.roomUrl });
-
+      logger.live.info("Stream is now LIVE", { roomId: newRoom.id, liveId: liveData.id });
       toast({
         title: t.liveManagement?.streamStarted || "Você está ao vivo!",
         description: t.liveManagement?.youAreLiveNow || "Sua transmissão está visível para todos.",
@@ -357,13 +218,6 @@ const LiveManagement = () => {
     if (!user) return;
 
     try {
-      // Delete Daily room via edge function
-      if (dailyRoom?.roomName) {
-        await supabase.functions.invoke("daily-room", {
-          body: { action: "delete", roomName: dailyRoom.roomName },
-        });
-      }
-
       if (room?.id) {
         await supabase
           .from("rooms")
@@ -383,13 +237,12 @@ const LiveManagement = () => {
 
       await supabase
         .from("creator_profiles")
-        .update({ is_streaming: false, daily_room_url: null })
+        .update({ is_streaming: false })
         .eq("id", user.id);
 
       setStreamPhase("idle");
       setIsStreaming(false);
       setRoom(null);
-      setDailyRoom(null);
       setCurrentLiveId(null);
       logger.live.info("Stream ended");
       toast({
@@ -404,21 +257,6 @@ const LiveManagement = () => {
         description: message,
         variant: "destructive",
       });
-    }
-  };
-
-  // Legacy toggle handler for StreamToggle component (Daily only)
-  const handleStreamToggle = async (streaming: boolean) => {
-    if (streaming) {
-      if (USE_LIVEKIT) {
-        await handleLiveKitGoLive();
-      } else if (streamPhase === "idle") {
-        await handlePrepareStream();
-      } else if (streamPhase === "preparing") {
-        await handleGoLive();
-      }
-    } else {
-      await handleEndStream();
     }
   };
 
@@ -499,27 +337,22 @@ const LiveManagement = () => {
 
   // Fetch pending superchat count
   useEffect(() => {
-    if (!room?.id) {
-      setPendingSuperchatCount(0);
-      return;
-    }
+    if (!room?.id || !user?.id) return;
 
     const fetchPendingCount = async () => {
-      const { data, error } = await supabase
+      const { count } = await supabase
         .from("superchats")
-        .select("id")
+        .select("*", { count: "exact", head: true })
         .eq("room_id", room.id)
         .eq("status", "pending");
-
-      if (!error && data) {
-        setPendingSuperchatCount(data.length);
-      }
+      
+      setPendingSuperchatCount(count || 0);
     };
 
     fetchPendingCount();
 
     const channel = supabase
-      .channel(`superchat_count:${room.id}`)
+      .channel(`superchats_count:${room.id}`)
       .on(
         "postgres_changes",
         {
@@ -535,201 +368,114 @@ const LiveManagement = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [room?.id]);
-
-  const handleDevicesChange = useCallback((audioId: string, videoId: string) => {
-    setSelectedAudioDevice(audioId);
-    setSelectedVideoDevice(videoId);
-  }, []);
+  }, [room?.id, user?.id]);
 
   const handleTitleChange = useCallback((title: string) => {
     setLiveTitle(title);
+  }, []);
+
+  const handleDevicesChange = useCallback((audioId: string | null, videoId: string | null) => {
+    setSelectedAudioDevice(audioId);
+    setSelectedVideoDevice(videoId);
   }, []);
 
   const handleMirrorChange = useCallback((mirrored: boolean) => {
     setIsMirrored(mirrored);
   }, []);
 
-  const handleThumbnailChange = useCallback((url: string) => {
+  const handleThumbnailChange = useCallback((url: string | null) => {
     setThumbnailUrl(url);
-  }, []);
-
-  const handleOrientationChange = useCallback((orientation: VideoOrientation) => {
-    setVideoOrientation(orientation);
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">{t.common?.loading || "Loading..."}</div>
-      </div>
-    );
-  }
-
-  // Show overlay if user is not a creator or not approved
-  if (creatorStatus === "not_creator" || creatorStatus === "pending_approval") {
-    return (
-      <AppLayout showSidebar={false}>
-        <div className="relative">
-          {/* Blurred background content placeholder */}
-          <div className="container mx-auto px-4 py-6 blur-sm pointer-events-none opacity-30">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <Card className="border-border h-[400px] bg-muted/20" />
-                <Card className="border-border h-[200px] bg-muted/20" />
-              </div>
-              <div className="lg:col-span-1">
-                <Card className="border-border h-[500px] bg-muted/20" />
-              </div>
-            </div>
-          </div>
-
-          {/* Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50">
-            <Card className="max-w-md mx-4 border-primary/20 shadow-2xl">
-              <CardContent className="pt-8 pb-6 px-6 text-center space-y-6">
-                {/* REC indicator */}
-                <div className="flex items-center justify-center gap-3">
-                  <span 
-                    className="w-4 h-4 bg-destructive rounded-full"
-                    style={{
-                      animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
-                    }}
-                  />
-                  <div className="flex items-center gap-2 text-destructive font-bold text-lg">
-                    <Video className="h-6 w-6" />
-                    <span>REC</span>
-                  </div>
-                </div>
-
-                {/* Message */}
-                <div className="space-y-2">
-                  <h2 className="text-xl font-semibold text-foreground">
-                    {creatorStatus === "not_creator" 
-                      ? (t.liveManagement?.notCreator || "You're not a creator yet")
-                      : (t.liveManagement?.awaitingApproval || "Awaiting approval")
-                    }
-                  </h2>
-                  <p className="text-muted-foreground">
-                    {creatorStatus === "not_creator"
-                      ? (t.liveManagement?.notCreatorDesc || "To broadcast live, you need to request a creator account.")
-                      : (t.liveManagement?.awaitingApprovalDesc || "Your request is being reviewed. You will be notified when approved.")
-                    }
-                  </p>
-                </div>
-
-                {/* CTA Button */}
-                <Button 
-                  onClick={() => navigate("/profile")}
-                  className="w-full gap-2"
-                  size="lg"
-                >
-                  <UserPlus className="h-5 w-5" />
-                  {creatorStatus === "not_creator"
-                    ? (t.liveManagement?.requestCreatorAccount || "Request creator account")
-                    : (t.liveManagement?.goToProfile || "Go to profile")
-                  }
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <p className="text-muted-foreground animate-pulse">{t.common?.loading || "Loading..."}</p>
         </div>
       </AppLayout>
     );
   }
 
-  // Mobile/Tablet: Fullscreen TikTok-style layout
-  if (isMobileOrTablet && creatorStatus === "approved") {
+  if (creatorStatus === "not_creator") {
     return (
-      <>
-        <CreatorMobileFullscreen
-          roomId={room?.id || null}
-          dailyRoom={dailyRoom}
-          creatorId={user?.id || ""}
-          creatorDisplayName={user?.email?.split("@")[0] || "Criador"}
-          isStreaming={isStreaming}
-          onStreamToggle={handleStreamToggle}
-          onGoLive={USE_LIVEKIT ? handleLiveKitGoLive : undefined}
-          onEndStream={USE_LIVEKIT ? handleEndStream : undefined}
-          participants={participants}
-          revenue={revenue}
-          activeSuperchat={activeSuperchat}
-          onSuperchatExpire={() => setActiveSuperchat(null)}
-          onOpenSettings={() => setShowSettingsSheet(true)}
-          onSelectSuperchat={(superchat) => setActiveSuperchat(superchat)}
-          pendingSuperchatCount={pendingSuperchatCount}
-          liveUrl={room ? `${window.location.origin}/live/${currentLiveId || room.id}` : undefined}
-          streamPhase={streamPhase}
-          liveId={currentLiveId}
-        />
-
-        {/* Settings Sheet for mobile */}
-        <Sheet open={showSettingsSheet} onOpenChange={setShowSettingsSheet}>
-          <SheetContent side="bottom" className="h-[85vh] overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Configurações da Live</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4 space-y-4">
-              <LiveConfigPanel
-                roomId={room?.id || null}
-                creatorId={user?.id || ""}
-                onTitleChange={handleTitleChange}
-                onDevicesChange={handleDevicesChange}
-                onMirrorChange={handleMirrorChange}
-                onThumbnailChange={handleThumbnailChange}
-                onOrientationChange={handleOrientationChange}
-                currentOrientation={videoOrientation}
-              />
-              
-              {/* SuperChat Queue in settings */}
-              {room && user && (
-                <SuperChatQueue
-                  roomId={room.id}
-                  creatorId={user.id}
-                  onSelectSuperchat={(sc) => {
-                    setActiveSuperchat({
-                      id: sc.id,
-                      message: sc.message,
-                      tier: sc.tier,
-                      duration_seconds: sc.duration_seconds,
-                      username: sc.username || "Usuário",
-                      expires_at: (sc as { expires_at?: string }).expires_at || new Date(Date.now() + sc.duration_seconds * 1000).toISOString(),
-                    });
-                    setShowSettingsSheet(false);
-                  }}
-                />
-              )}
-            </div>
-          </SheetContent>
-        </Sheet>
-      </>
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+          <Video className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-2xl font-bold">{t.liveManagement?.notCreator || "Creator Access Only"}</h2>
+          <p className="text-muted-foreground max-w-md">
+            {t.liveManagement?.notCreatorDesc || "Activate your creator profile to start streaming."}
+          </p>
+          <Button onClick={() => navigate("/profile")}>
+            {t.liveManagement?.goToProfile || "Go to Profile"}
+          </Button>
+        </div>
+      </AppLayout>
     );
   }
 
-  // Desktop layout
+  if (creatorStatus === "pending_approval") {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+          <UserPlus className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-2xl font-bold">{t.liveManagement?.awaitingApproval || "Pending Approval"}</h2>
+          <p className="text-muted-foreground max-w-md">
+            {t.liveManagement?.awaitingApprovalDesc || "Your creator account is awaiting approval. You'll be able to stream once approved."}
+          </p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Mobile/Tablet: Fullscreen vertical layout
+  if (isMobileOrTablet) {
+    return (
+      <CreatorMobileFullscreen
+        roomId={room?.id || null}
+        creatorId={user?.id || ""}
+        creatorDisplayName={user?.user_metadata?.display_name}
+        isStreaming={isStreaming}
+        onStreamToggle={() => {}}
+        onGoLive={handleGoLive}
+        onEndStream={handleEndStream}
+        participants={participants}
+        revenue={revenue}
+        activeSuperchat={activeSuperchat}
+        onSuperchatExpire={() => setActiveSuperchat(null)}
+        onOpenSettings={() => setShowSettingsSheet(true)}
+        onSelectSuperchat={(sc) => setActiveSuperchat(sc)}
+        pendingSuperchatCount={pendingSuperchatCount}
+        liveUrl={currentLiveId ? `${window.location.origin}/live/${currentLiveId}` : undefined}
+        streamPhase={streamPhase}
+        liveId={currentLiveId}
+      />
+    );
+  }
+
+  // Desktop Layout
   return (
-    <AppLayout showSidebar={false}>
+    <AppLayout>
       <main className="container mx-auto px-4 py-6">
-        {/* Header with stream control and stats */}
-        <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+        {/* Header with MODE badge and Stream Control */}
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Badge variant="secondary">MODE: {USE_LIVEKIT ? "LIVEKIT" : "DAILY"}</Badge>
-            {USE_LIVEKIT ? (
-              <SingleStepStreamControl
-                isLive={streamPhase === "live"}
-                onGoLive={handleLiveKitGoLive}
-                onEndStream={handleEndStream}
-              />
-            ) : (
-              <TwoStepStreamControl
-                streamPhase={streamPhase}
-                onPrepare={handlePrepareStream}
-                onGoLive={handleGoLive}
-                onEndStream={handleEndStream}
-              />
-            )}
+            <Video className="h-8 w-8 text-primary" />
+            <h1 className="text-2xl font-bold">{t.liveManagement?.streamControl || "Live Management"}</h1>
+            <Badge variant="secondary" className="ml-2">
+              MODE: LIVEKIT
+            </Badge>
           </div>
-          <div className="flex gap-4">
+          <SingleStepStreamControl
+            isLive={streamPhase === "live"}
+            onGoLive={handleGoLive}
+            onEndStream={handleEndStream}
+          />
+        </div>
+
+        {/* Stats Cards */}
+        <div className="mb-6">
+          <div className="grid grid-cols-3 gap-4">
             <Card className="border-border">
               <CardContent className="pt-4 pb-3 px-4">
                 <div className="flex items-center gap-2">
@@ -770,22 +516,14 @@ const LiveManagement = () => {
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
           <div className="lg:hidden space-y-4">
-            {/* Video Preview - For LiveKit: only show when live; For Daily: show in preparing + live */}
+            {/* Video Preview - Only show when live */}
             <Card className="border-border overflow-hidden relative aspect-video">
-              {USE_LIVEKIT && streamPhase === "live" && currentLiveId ? (
+              {streamPhase === "live" && currentLiveId ? (
                 <WebRTCPublisher
                   liveId={currentLiveId}
                   onReady={() => console.log("[LiveManagement] WebRTC Publisher ready")}
                   onError={(err) => console.error("[LiveManagement] WebRTC error:", err)}
                 />
-              ) : !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom && CreatorDailyEmbedLazy ? (
-                <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
-                  <CreatorDailyEmbedLazy
-                    roomUrl={dailyRoom.roomUrl}
-                    token={dailyRoom.ownerToken}
-                    onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
-                  />
-                </Suspense>
               ) : (
                 <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
                   <p className="text-lg">Transmissão desligada</p>
@@ -850,22 +588,14 @@ const LiveManagement = () => {
         <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Creator Embed - For LiveKit: only show when live; For Daily: show in preparing + live */}
+            {/* Creator Embed - Only show when live */}
             <Card className="border-border overflow-hidden relative aspect-video">
-              {USE_LIVEKIT && streamPhase === "live" && currentLiveId ? (
+              {streamPhase === "live" && currentLiveId ? (
                 <WebRTCPublisher
                   liveId={currentLiveId}
                   onReady={() => console.log("[LiveManagement] WebRTC Publisher ready (desktop)")}
                   onError={(err) => console.error("[LiveManagement] WebRTC error:", err)}
                 />
-              ) : !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom && CreatorDailyEmbedLazy ? (
-                <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
-                  <CreatorDailyEmbedLazy
-                    roomUrl={dailyRoom.roomUrl}
-                    token={dailyRoom.ownerToken}
-                    onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
-                  />
-                </Suspense>
               ) : (
                 <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
                   <p className="text-lg">Transmissão desligada</p>
