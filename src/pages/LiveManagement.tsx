@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
-import { CreatorJitsiEmbed } from "@/components/CreatorJitsiEmbed";
+import { CreatorDailyEmbed } from "@/components/CreatorDailyEmbed";
 import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
 import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -22,6 +22,7 @@ import { logger } from "@/lib/logger";
 type RoomRecord = {
   id: string;
   daily_room_name: string | null;
+  daily_room_url?: string | null;
 };
 
 type TransactionRow = {
@@ -32,9 +33,16 @@ type TransactionRow = {
 type CreatorStatus = "loading" | "not_creator" | "pending_approval" | "approved";
 
 // Two-step streaming flow:
-// 1. "preparing" - Creator opens camera/mic, Jitsi room created but NOT visible to viewers
+// 1. "preparing" - Creator opens camera/mic, Daily room created but NOT visible to viewers
 // 2. "live" - Creator confirms ready, live marked active and visible to viewers
 type StreamPhase = "idle" | "preparing" | "live";
+
+// Daily room data from edge function
+type DailyRoomData = {
+  roomName: string;
+  roomUrl: string;
+  ownerToken: string;
+};
 
 const LiveManagement = () => {
   const navigate = useNavigate();
@@ -44,6 +52,7 @@ const LiveManagement = () => {
   const [user, setUser] = useState<User | null>(null);
   const [creatorStatus, setCreatorStatus] = useState<CreatorStatus>("loading");
   const [room, setRoom] = useState<RoomRecord | null>(null);
+  const [dailyRoom, setDailyRoom] = useState<DailyRoomData | null>(null);
   const [streamPhase, setStreamPhase] = useState<StreamPhase>("idle");
   const [isStreaming, setIsStreaming] = useState(false);
   const [participants, setParticipants] = useState(0);
@@ -144,7 +153,7 @@ const LiveManagement = () => {
     checkAuth();
   }, [navigate, toast]);
 
-  // Step 1: Prepare transmission - create room, open camera, but NOT visible to viewers
+  // Step 1: Prepare transmission - create Daily room, open camera, but NOT visible to viewers
   const handlePrepareStream = async () => {
     if (!user) return;
 
@@ -156,22 +165,36 @@ const LiveManagement = () => {
         .eq("creator_id", user.id)
         .eq("is_active", true);
 
-      // Create new room (but don't create live entry yet)
-      const roomName = `stream-${user.id}-${Date.now()}`;
+      // Create Daily room via edge function
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error("Not authenticated");
+
+      const dailyResponse = await supabase.functions.invoke("daily-room", {
+        body: { action: "create" },
+      });
+
+      if (dailyResponse.error) {
+        throw new Error(dailyResponse.error.message || "Failed to create Daily room");
+      }
+
+      const dailyData = dailyResponse.data as DailyRoomData;
+      setDailyRoom(dailyData);
+
+      // Create local room record
       const { data: newRoom, error: roomError } = await supabase
         .from("rooms")
         .insert({
           creator_id: user.id,
           title: liveTitle || "Live Stream",
           is_active: true,
-          daily_room_name: roomName,
+          daily_room_name: dailyData.roomName,
         })
         .select()
         .single();
 
       if (roomError) throw roomError;
       
-      setRoom(newRoom);
+      setRoom({ ...newRoom, daily_room_url: dailyData.roomUrl });
 
       // Create chat settings for the room
       await supabase.from("chat_settings").insert({
@@ -179,7 +202,7 @@ const LiveManagement = () => {
       });
 
       setStreamPhase("preparing");
-      logger.live.info("Preparing stream - room created, waiting for creator to go live", { roomId: newRoom.id });
+      logger.live.info("Preparing stream - Daily room created", { roomName: dailyData.roomName, roomUrl: dailyData.roomUrl });
       toast({
         title: t.liveManagement?.preparingStream || "Preparando transmissão",
         description: t.liveManagement?.cameraReady || "Sua câmera está pronta. Clique em 'Ficar Online' quando estiver pronto.",
@@ -197,20 +220,17 @@ const LiveManagement = () => {
 
   // Step 2: Go live - mark the live as active, visible to viewers
   const handleGoLive = async () => {
-    if (!user || !room) return;
+    if (!user || !room || !dailyRoom) return;
 
     try {
-      // Use the daily_room_name as the Jitsi room name
-      const jitsiRoomName = room.daily_room_name || room.id;
-
       // Create live entry with active status - NOW visible to viewers
-      // IMPORTANT: room_name must match the Jitsi room name the creator joined
+      // Store Daily room URL for viewers to access
       const { data: liveData, error: liveError } = await supabase.from("lives").insert({
         creator_id: user.id,
         title: liveTitle || "Live Stream",
         status: "live",
         is_active: true,
-        room_name: jitsiRoomName, // Use the actual Jitsi room name
+        room_name: dailyRoom.roomUrl, // Store the Daily room URL for viewers
         thumbnail_url: thumbnailUrl,
       }).select().single();
 
@@ -226,13 +246,13 @@ const LiveManagement = () => {
         .from("creator_profiles")
         .update({ 
           is_streaming: true,
-          daily_room_url: room.id,
+          daily_room_url: dailyRoom.roomUrl,
         })
         .eq("id", user.id);
 
       setStreamPhase("live");
       setIsStreaming(true);
-      logger.live.info("Stream is now LIVE and visible to viewers", { roomId: room.id, liveId: liveData.id });
+      logger.live.info("Stream is now LIVE and visible to viewers", { roomId: room.id, liveId: liveData.id, dailyUrl: dailyRoom.roomUrl });
       toast({
         title: t.liveManagement?.streamStarted || "Você está ao vivo!",
         description: t.liveManagement?.youAreLiveNow || "Sua transmissão está visível para todos.",
@@ -253,6 +273,13 @@ const LiveManagement = () => {
     if (!user) return;
 
     try {
+      // Delete Daily room via edge function
+      if (dailyRoom?.roomName) {
+        await supabase.functions.invoke("daily-room", {
+          body: { action: "delete", roomName: dailyRoom.roomName },
+        });
+      }
+
       if (room?.id) {
         await supabase
           .from("rooms")
@@ -278,6 +305,7 @@ const LiveManagement = () => {
       setStreamPhase("idle");
       setIsStreaming(false);
       setRoom(null);
+      setDailyRoom(null);
       setCurrentLiveId(null);
       logger.live.info("Stream ended");
       toast({
@@ -530,7 +558,7 @@ const LiveManagement = () => {
       <>
         <CreatorMobileFullscreen
           roomId={room?.id || null}
-          jitsiRoomName={room?.daily_room_name || null}
+          dailyRoom={dailyRoom}
           creatorId={user?.id || ""}
           creatorDisplayName={user?.email?.split("@")[0] || "Criador"}
           isStreaming={isStreaming}
@@ -643,13 +671,13 @@ const LiveManagement = () => {
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
         <div className="lg:hidden space-y-4">
-          {/* Video Preview - Creator enters Jitsi room in preparing AND live phases */}
+          {/* Video Preview - Creator enters Daily room in preparing AND live phases */}
           <Card className="border-border overflow-hidden relative aspect-video">
-            {(streamPhase === "preparing" || streamPhase === "live") && room?.daily_room_name ? (
-              <CreatorJitsiEmbed
-                roomName={room.daily_room_name}
-                displayName={user?.email?.split("@")[0] || "Criador"}
-                onReady={() => console.log("[LiveManagement] Creator joined Jitsi room:", room.daily_room_name)}
+            {(streamPhase === "preparing" || streamPhase === "live") && dailyRoom ? (
+              <CreatorDailyEmbed
+                roomUrl={dailyRoom.roomUrl}
+                token={dailyRoom.ownerToken}
+                onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
               />
             ) : (
               <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
@@ -716,13 +744,13 @@ const LiveManagement = () => {
         <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Creator Jitsi Embed - Creator enters Jitsi room in preparing AND live phases */}
+            {/* Creator Daily Embed - Creator enters Daily room in preparing AND live phases */}
             <Card className="border-border overflow-hidden relative aspect-video">
-              {(streamPhase === "preparing" || streamPhase === "live") && room?.daily_room_name ? (
-                <CreatorJitsiEmbed
-                  roomName={room.daily_room_name}
-                  displayName={user?.email?.split("@")[0] || "Criador"}
-                  onReady={() => console.log("[LiveManagement] Creator joined Jitsi room:", room.daily_room_name)}
+              {(streamPhase === "preparing" || streamPhase === "live") && dailyRoom ? (
+                <CreatorDailyEmbed
+                  roomUrl={dailyRoom.roomUrl}
+                  token={dailyRoom.ownerToken}
+                  onReady={() => console.log("[LiveManagement] Creator joined Daily room:", dailyRoom.roomName)}
                 />
               ) : (
                 <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">

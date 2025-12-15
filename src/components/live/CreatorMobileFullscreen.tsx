@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { CreatorJitsiEmbed } from "@/components/CreatorJitsiEmbed";
+import { CreatorDailyEmbed } from "@/components/CreatorDailyEmbed";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -26,9 +26,15 @@ interface ActiveSuperchat {
   expires_at: string;
 }
 
+interface DailyRoomData {
+  roomName: string;
+  roomUrl: string;
+  ownerToken: string;
+}
+
 interface CreatorMobileFullscreenProps {
   roomId: string | null;
-  jitsiRoomName: string | null;
+  dailyRoom: DailyRoomData | null;
   creatorId: string;
   creatorDisplayName?: string;
   isStreaming: boolean;
@@ -47,7 +53,7 @@ interface CreatorMobileFullscreenProps {
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
   roomId,
-  jitsiRoomName,
+  dailyRoom,
   creatorId,
   creatorDisplayName = "Criador",
   isStreaming,
@@ -86,18 +92,18 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
     }
   };
 
-  const showJitsi = (streamPhase === "preparing" || streamPhase === "live") && jitsiRoomName;
+  const showDaily = (streamPhase === "preparing" || streamPhase === "live") && dailyRoom;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Fullscreen Video Preview */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 w-full h-full">
-          {showJitsi ? (
-            <CreatorJitsiEmbed
-              roomName={jitsiRoomName}
-              displayName={creatorDisplayName}
-              onReady={() => console.log("[CreatorMobileFullscreen] Creator joined Jitsi")}
+          {showDaily ? (
+            <CreatorDailyEmbed
+              roomUrl={dailyRoom.roomUrl}
+              token={dailyRoom.ownerToken}
+              onReady={() => console.log("[CreatorMobileFullscreen] Creator joined Daily")}
               className="w-full h-full"
             />
           ) : (
