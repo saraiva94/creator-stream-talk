@@ -1,9 +1,8 @@
-import React, { lazy, Suspense } from "react";
+import React from "react";
 import { ArrowLeft, Heart, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { WebRTCViewer } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
-// PreviewCountdownOverlay removed - countdown is hidden from viewers
 import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
 import { Badge } from "@/components/ui/badge";
@@ -11,17 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
-const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
-
-// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
-const DailyPlayerLazy = USE_LIVEKIT
-  ? null
-  : lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })));
-
 interface MobileFullscreenPlayerProps {
-  roomName: string; // This is now the Daily room URL
-  liveId?: string; // For WebRTC
+  roomName: string;
+  liveId?: string;
   creatorName?: string | null;
   creatorAvatar?: string | null;
   title?: string | null;
@@ -39,7 +30,6 @@ interface MobileFullscreenPlayerProps {
   isOnline: boolean;
   muted?: boolean;
   blurred?: boolean;
-  // Removed: isPreviewing, hasExpired, remainingMs, durationMs - countdown is hidden
 }
 
 const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
@@ -66,8 +56,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   const [liked, setLiked] = React.useState(false);
   
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-  const canRenderDaily = !USE_LIVEKIT && Boolean(roomName && (hasEntitlement || showPreviewPlayer || showPaywall));
-  const canRenderLiveKit = USE_LIVEKIT && Boolean(liveId && (hasEntitlement || showPreviewPlayer || showPaywall));
+  const canRenderLiveKit = Boolean(liveId && (hasEntitlement || showPreviewPlayer || showPaywall));
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -81,18 +70,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
             className="w-full h-full"
           />
-        ) : canRenderDaily && DailyPlayerLazy ? (
-          <Suspense
-            fallback={<div className="w-full h-full bg-secondary/50" />}
-          >
-            <DailyPlayerLazy 
-              roomUrl={roomName}
-              width="100%"
-              height="100%"
-              muted={muted || blurred}
-              blurred={blurred}
-            />
-          </Suspense>
         ) : null}
 
         {/* Top overlay - back button and creator info */}
@@ -126,7 +103,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             </div>
 
             <Badge variant="secondary" className="shrink-0">
-              MODE: {USE_LIVEKIT ? "LIVEKIT" : "DAILY"}
+              MODE: LIVEKIT
             </Badge>
           </div>
           {title && (
@@ -176,8 +153,6 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             <CreditRemainingOverlay creditsLeft={localCredits} />
           </div>
         )}
-
-        {/* Preview countdown hidden - runs silently */}
 
         {/* Paywall */}
         {showPaywall && (

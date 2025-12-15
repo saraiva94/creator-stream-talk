@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -6,7 +6,6 @@ import { WebRTCViewer } from "@/components/webrtc";
 import ChatBox from "@/components/ChatBox";
 import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
 import PaywallOverlay from "@/components/PaywallOverlay";
-import PreviewCountdownOverlay from "@/components/PreviewCountdownOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
 import { ReportStreamDialog } from "@/components/live/ReportStreamDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,14 +35,6 @@ import {
   Flag
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-
-// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
-const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
-
-// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
-const DailyPlayerLazy = USE_LIVEKIT
-  ? null
-  : lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })));
 
 interface LiveData {
   id: string;
@@ -498,46 +489,43 @@ const LiveViewer: React.FC = () => {
         toast({ title: t.liveViewer?.followed || "Seguindo!" });
       }
     } catch (error) {
-      console.error("Error toggling follow:", error);
+      console.error("[LiveViewer] Follow error:", error);
     }
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
+    const shareUrl = window.location.href;
+    
     if (navigator.share) {
       try {
         await navigator.share({
           title: liveData?.title || "Live Stream",
-          url,
+          url: shareUrl,
         });
-      } catch (err) {
+      } catch {
         // User cancelled
       }
     } else {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(shareUrl);
       toast({ title: t.common?.copied || "Link copiado!" });
     }
   };
-
-  const showPaywall = Boolean(paywallReason);
-  // Countdown is hidden from user - preview runs silently
-  const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-  const canShowVideo = USE_LIVEKIT 
-    ? (liveData?.webrtc_room_name && liveData.is_active && liveData.status === "live")
-    : (liveData?.room_name && (liveData.is_active || liveData.status === "live"));
-  const shouldMuteAndBlur = showPaywall;
 
   // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar user={currentUser} isAdmin={isAdmin} />
-        <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)]">
-          <div className="flex-1 bg-black flex items-center justify-center">
-            <Skeleton className="w-full h-full" />
-          </div>
-          <div className="w-full lg:w-80 xl:w-96 border-l border-border">
-            <Skeleton className="h-full" />
+        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+          <div className="space-y-4 w-full max-w-4xl p-4">
+            <Skeleton className="aspect-video w-full" />
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-12 w-12 rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -549,49 +537,27 @@ const LiveViewer: React.FC = () => {
     return (
       <div className="min-h-screen bg-background">
         <Navbar user={currentUser} isAdmin={isAdmin} />
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-4">
-          <AlertCircle className="h-16 w-16 text-destructive mb-4" />
-          <h2 className="text-2xl font-bold mb-2">{t.liveViewer?.notFound || "Live não encontrada"}</h2>
-          <p className="text-muted-foreground mb-6 text-center">
-            {error || t.liveViewer?.notFoundDesc || "Esta transmissão pode ter sido encerrada ou não existe."}
-          </p>
-          <Button onClick={() => navigate("/")} variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            {t.common?.backToHome || "Voltar ao início"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Live ended state
-  if (!liveData.is_active && liveData.status === "ended") {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar user={currentUser} isAdmin={isAdmin} />
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] p-4">
-          <AlertCircle className="h-16 w-16 text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-bold mb-2">{t.liveViewer?.liveEnded || "Transmissão encerrada"}</h2>
-          <p className="text-muted-foreground mb-6 text-center">
-            {t.liveViewer?.liveEndedDesc || "Esta transmissão já foi finalizada."}
-          </p>
-          <div className="flex gap-3">
+        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+          <div className="text-center space-y-4">
+            <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto" />
+            <h2 className="text-xl font-semibold">{error || t.liveViewer?.notFound || "Live não encontrada"}</h2>
             <Button onClick={() => navigate("/")} variant="outline">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              {t.common?.backToHome || "Voltar ao início"}
+              {t.common?.backToHome || "Voltar"}
             </Button>
-            {creatorData && (
-              <Button onClick={() => navigate(`/profile/${liveData.creator_id}`)} variant="default">
-                {t.liveViewer?.viewProfile || "Ver perfil"}
-              </Button>
-            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // Mobile/Tablet: TikTok/Instagram style fullscreen
+  // Determine if we should show content
+  const showPaywall = Boolean(paywallReason);
+  const shouldMuteAndBlur = showPaywall || (isPreviewing && !hasEntitlement);
+  const canShowVideo = liveData.is_active && liveData.status === "live";
+  const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
+
+  // Mobile: Fullscreen vertical layout
   if (isMobileOrTablet) {
     return (
       <MobileFullscreenPlayer
@@ -630,24 +596,13 @@ const LiveViewer: React.FC = () => {
           <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1">
             {canShowVideo ? (
               <>
-                {USE_LIVEKIT ? (
-                  <WebRTCViewer
-                    liveId={liveData.id}
-                    muted={shouldMuteAndBlur}
-                    blurred={shouldMuteAndBlur}
-                    onHostNotReady={() => console.log("[LiveViewer] Waiting for host...")}
-                    className="w-full h-full"
-                  />
-                ) : DailyPlayerLazy ? (
-                  <Suspense fallback={<div className="w-full h-full bg-secondary/50" />}>
-                    <DailyPlayerLazy
-                      roomUrl={liveData.room_name || ""}
-                      height="100%"
-                      muted={shouldMuteAndBlur}
-                      blurred={shouldMuteAndBlur}
-                    />
-                  </Suspense>
-                ) : null}
+                <WebRTCViewer
+                  liveId={liveData.id}
+                  muted={shouldMuteAndBlur}
+                  blurred={shouldMuteAndBlur}
+                  onHostNotReady={() => console.log("[LiveViewer] Waiting for host...")}
+                  className="w-full h-full"
+                />
 
                 {showCreditOverlay && (
                   <CreditRemainingOverlay creditsLeft={localCredits} />
@@ -682,6 +637,11 @@ const LiveViewer: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* MODE badge */}
+            <div className="absolute top-4 right-4 z-10">
+              <Badge variant="secondary">MODE: LIVEKIT</Badge>
+            </div>
           </div>
 
           {/* Stream Info Bar */}

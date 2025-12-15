@@ -44,6 +44,3 @@ verify_jwt = false
 
 [functions.livekit-room]
 verify_jwt = false
-
-[functions.daily-room]
-verify_jwt = false

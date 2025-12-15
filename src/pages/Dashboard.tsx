@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import JitsiPlayer from "@/components/JitsiPlayer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,11 +35,11 @@ const Dashboard = () => {
   const [bio, setBio] = useState("");
   const [tags, setTags] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [jitsiRoomUrl, setJitsiRoomUrl] = useState<string | null>(null);
   const [showGoLiveDialog, setShowGoLiveDialog] = useState(false);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [approvedForLive, setApprovedForLive] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+
   useEffect(() => {
     const checkAuth = async () => {
       logger.auth.info("Dashboard checkAuth started");
@@ -83,8 +82,6 @@ const Dashboard = () => {
         setBio(creatorData.bio || "");
         setTags(creatorData.tags?.join(", ") || "");
         setIsStreaming(creatorData.is_streaming);
-        // Use daily_room_url from DB (legacy column name, but stores Jitsi room)
-        setJitsiRoomUrl(creatorData.daily_room_url);
         setApprovedForLive(Boolean((creatorData as Record<string, unknown>).approved_for_live ?? false));
 
         // Get current room if streaming
@@ -177,54 +174,6 @@ const Dashboard = () => {
 
     setLoading(true);
     try {
-      let roomUrl = jitsiRoomUrl;
-
-      // Create Jitsi room if going live and no room exists
-      if (checked && !roomUrl) {
-        // Generate a unique room name for Jitsi
-        const jitsiRoomName = `streamstar-${user?.id?.slice(0, 8)}-${Date.now().toString(36)}`;
-        roomUrl = jitsiRoomName;
-        setJitsiRoomUrl(roomUrl);
-        logger.creator.info("Generated Jitsi room", { jitsiRoomName });
-
-        // Update creator profile with room name (using legacy column names)
-        await supabase
-          .from("creator_profiles")
-          .update({ daily_room_url: roomUrl, daily_room_name: jitsiRoomName })
-          .eq("id", user?.id);
-
-        // Create room record
-        const { data: newRoom, error: roomError } = await supabase
-          .from("rooms")
-          .insert({
-            creator_id: user?.id,
-            title: displayName,
-            daily_room_name: jitsiRoomName,
-            is_active: true,
-          })
-          .select()
-          .single();
-
-        if (roomError) {
-          logger.creator.error("Room creation error", { error: roomError.message });
-        }
-
-        if (newRoom) {
-          setCurrentRoomId(newRoom.id);
-          logger.creator.info("Room created", { roomId: newRoom.id });
-        }
-      }
-
-      const { error } = await supabase
-        .from("creator_profiles")
-        .update({ is_streaming: checked })
-        .eq("id", user?.id);
-
-      if (error) throw error;
-
-      setIsStreaming(checked);
-      logger.creator.info("Streaming status updated", { isStreaming: checked });
-      
       if (checked) {
         toast({
           title: "Transmissão ativada!",
@@ -236,6 +185,13 @@ const Dashboard = () => {
           navigate("/live-management");
         }, 1000);
       } else {
+        // End streaming
+        await supabase
+          .from("creator_profiles")
+          .update({ is_streaming: false })
+          .eq("id", user?.id);
+        
+        setIsStreaming(false);
         toast({
           title: "Transmissão desativada",
           description: "Você ficou offline",
@@ -382,53 +338,8 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {isStreaming && jitsiRoomUrl && currentRoomId && (
-              <>
-                <Card className="border-border shadow-card bg-gradient-card">
-                  <CardHeader>
-                    <CardTitle>Sua Transmissão</CardTitle>
-                    <CardDescription>
-                      Controle sua câmera, microfone e compartilhamento de tela
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="aspect-video bg-secondary rounded-lg overflow-hidden">
-                      <JitsiPlayer roomName={jitsiRoomUrl} />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <ChatModerationPanel roomId={currentRoomId} creatorId={user.id} />
-
-                <Card className="border-border shadow-card">
-                  <CardHeader>
-                    <CardTitle>Compartilhe sua Sala</CardTitle>
-                    <CardDescription>
-                      Envie este link para seus espectadores
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={`${window.location.origin}/room/${user.id}`}
-                        readOnly
-                      />
-                      <Button
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${window.location.origin}/room/${user.id}`
-                          );
-                          toast({
-                            title: "Link copiado!",
-                          });
-                        }}
-                      >
-                        Copiar
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
+            {currentRoomId && (
+              <ChatModerationPanel roomId={currentRoomId} creatorId={user?.id || ""} />
             )}
           </div>
         )}
