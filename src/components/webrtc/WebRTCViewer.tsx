@@ -90,16 +90,35 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
         rawLivekitUrl 
       });
       
-      // Validate and normalize LiveKit URL
+      // === URL SANITIZATION ===
+      console.log('[WebRTCViewer] rawLivekitUrl:', JSON.stringify(rawLivekitUrl));
+      
       if (!rawLivekitUrl || typeof rawLivekitUrl !== 'string') {
         throw new Error('LiveKit URL inválida (wsUrl vazio)');
       }
       
-      // Normalize URL to ensure wss:// protocol (NEVER ws:// on https:// sites)
       let livekitUrl = rawLivekitUrl.trim();
       if (!livekitUrl) {
         throw new Error('LiveKit URL está vazia após trim');
       }
+      
+      // Check for invalid characters BEFORE any processing
+      const hasInternalSpace = livekitUrl.includes(' ');
+      const hasEquals = livekitUrl.includes('=');
+      const protocolMatches = livekitUrl.match(/:\/\//g) || [];
+      const hasMultipleProtocols = protocolMatches.length > 1;
+      
+      if (hasInternalSpace || hasEquals || hasMultipleProtocols) {
+        const displayValue = livekitUrl.substring(0, 60).replace(/./g, (c) => c === ' ' ? '␣' : c);
+        throw new Error(`LIVEKIT_URL inválida (chars: space=${hasInternalSpace}, equals=${hasEquals}, multiProto=${hasMultipleProtocols}): ${displayValue}`);
+      }
+      
+      // Remove duplicate protocol prefixes
+      livekitUrl = livekitUrl
+        .replace(/^(wss:\/\/)+/g, 'wss://')
+        .replace(/^(ws:\/\/)+/g, 'ws://')
+        .replace(/^(https:\/\/)+/g, 'https://')
+        .replace(/^(http:\/\/)+/g, 'http://');
       
       // Always force wss:// in production (https:// site)
       const isSecureSite = typeof window !== 'undefined' && window.location.protocol === 'https:';
@@ -108,16 +127,15 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
         livekitUrl = livekitUrl.replace('https://', 'wss://');
       } else if (livekitUrl.startsWith('http://')) {
         livekitUrl = isSecureSite 
-          ? livekitUrl.replace('http://', 'wss://') // Force wss on https site
+          ? livekitUrl.replace('http://', 'wss://') 
           : livekitUrl.replace('http://', 'ws://');
       } else if (livekitUrl.startsWith('ws://') && isSecureSite) {
-        // ws:// on https:// site will fail - force wss://
         livekitUrl = livekitUrl.replace('ws://', 'wss://');
       } else if (!livekitUrl.startsWith('wss://') && !livekitUrl.startsWith('ws://')) {
         livekitUrl = `wss://${livekitUrl}`;
       }
       
-      console.log('[WebRTCViewer] wsUrl=', livekitUrl, 'room=', roomName, 'isSecureSite=', isSecureSite);
+      console.log('[WebRTCViewer] sanitizedLivekitUrl:', livekitUrl, 'room:', roomName, 'isSecureSite:', isSecureSite);
 
       // Import LiveKit client dynamically
       const livekit = await import('livekit-client');

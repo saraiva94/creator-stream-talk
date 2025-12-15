@@ -87,6 +87,51 @@ serve(async (req) => {
     const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+    // === LIVEKIT_URL SANITIZER ===
+    const sanitizeLivekitUrl = (raw: string | undefined): { sanitized: string; error?: string } => {
+      console.log('[livekit-room] rawLivekitUrl:', JSON.stringify(raw));
+      
+      if (!raw || typeof raw !== 'string') {
+        return { sanitized: '', error: 'LIVEKIT_URL não configurada' };
+      }
+      
+      let sanitized = raw.trim();
+      
+      // Check for invalid characters BEFORE any processing
+      const hasInternalSpace = sanitized.includes(' ');
+      const hasEquals = sanitized.includes('=');
+      const protocolMatches = sanitized.match(/:\/\//g) || [];
+      const hasMultipleProtocols = protocolMatches.length > 1;
+      
+      if (hasInternalSpace || hasEquals || hasMultipleProtocols) {
+        const displayValue = sanitized.substring(0, 60).replace(/./g, (c) => c === ' ' ? '␣' : c);
+        return { 
+          sanitized: '', 
+          error: `LIVEKIT_URL inválida (chars: space=${hasInternalSpace}, equals=${hasEquals}, multiProto=${hasMultipleProtocols}): ${displayValue}` 
+        };
+      }
+      
+      // Remove duplicate protocol prefixes (wss://wss://, etc)
+      sanitized = sanitized
+        .replace(/^(wss:\/\/)+/g, 'wss://')
+        .replace(/^(ws:\/\/)+/g, 'ws://')
+        .replace(/^(https:\/\/)+/g, 'https://')
+        .replace(/^(http:\/\/)+/g, 'http://');
+      
+      // Normalize to wss://
+      if (sanitized.startsWith('https://')) {
+        sanitized = sanitized.replace('https://', 'wss://');
+      } else if (sanitized.startsWith('http://')) {
+        sanitized = sanitized.replace('http://', 'ws://');
+      } else if (!sanitized.startsWith('wss://') && !sanitized.startsWith('ws://')) {
+        sanitized = `wss://${sanitized}`;
+      }
+      
+      console.log('[livekit-room] sanitizedLivekitUrl:', sanitized);
+      return { sanitized };
+    };
+
+    // Validate configuration
     if (!LIVEKIT_URL_RAW || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
       console.error('[livekit-room] Missing LiveKit configuration');
       return new Response(
@@ -95,16 +140,16 @@ serve(async (req) => {
       );
     }
 
-    // Normalize LiveKit URL to always use wss:// protocol
-    let LIVEKIT_URL = LIVEKIT_URL_RAW.trim();
-    if (LIVEKIT_URL.startsWith('https://')) {
-      LIVEKIT_URL = LIVEKIT_URL.replace('https://', 'wss://');
-    } else if (LIVEKIT_URL.startsWith('http://')) {
-      LIVEKIT_URL = LIVEKIT_URL.replace('http://', 'ws://');
-    } else if (!LIVEKIT_URL.startsWith('wss://') && !LIVEKIT_URL.startsWith('ws://')) {
-      LIVEKIT_URL = `wss://${LIVEKIT_URL}`;
+    // Sanitize URL
+    const urlResult = sanitizeLivekitUrl(LIVEKIT_URL_RAW);
+    if (urlResult.error) {
+      console.error('[livekit-room] URL validation failed:', urlResult.error);
+      return new Response(
+        JSON.stringify({ error: urlResult.error }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-    console.log('[livekit-room] Normalized LIVEKIT_URL:', LIVEKIT_URL);
+    const LIVEKIT_URL = urlResult.sanitized;
 
     const { action, liveId } = await req.json();
     console.log(`[livekit-room] Action: ${action}, LiveId: ${liveId}`);
@@ -113,39 +158,45 @@ serve(async (req) => {
     if (action === 'debug') {
       console.log('[livekit-room] Running debug diagnostics...');
       
-      const rawLivekitUrl = LIVEKIT_URL_RAW;
-      const normalizedWsUrl = LIVEKIT_URL;
+      // Re-run sanitizer to get full details for debug
+      const debugUrlResult = sanitizeLivekitUrl(LIVEKIT_URL_RAW);
       
       // Convert to HTTP for reachability test
-      let normalizedHttpUrl = normalizedWsUrl
-        .replace('wss://', 'https://')
-        .replace('ws://', 'http://');
+      let normalizedHttpUrl = '';
+      if (debugUrlResult.sanitized) {
+        normalizedHttpUrl = debugUrlResult.sanitized
+          .replace('wss://', 'https://')
+          .replace('ws://', 'http://');
+      }
       
-      let reachabilityResult: { ok: boolean; status?: number; errorMessage?: string };
+      let reachabilityResult: { ok: boolean; status?: number; errorMessage?: string } = { ok: false };
       
-      try {
-        console.log('[livekit-room] Testing reachability:', normalizedHttpUrl);
-        const testResponse = await fetch(normalizedHttpUrl, { 
-          method: 'HEAD',
-          signal: AbortSignal.timeout(5000)
-        });
-        reachabilityResult = { 
-          ok: testResponse.ok, 
-          status: testResponse.status 
-        };
-        console.log('[livekit-room] Reachability result:', reachabilityResult);
-      } catch (fetchError: any) {
-        reachabilityResult = { 
-          ok: false, 
-          errorMessage: fetchError.message || String(fetchError)
-        };
-        console.error('[livekit-room] Reachability error:', fetchError);
+      if (normalizedHttpUrl) {
+        try {
+          console.log('[livekit-room] Testing reachability:', normalizedHttpUrl);
+          const testResponse = await fetch(normalizedHttpUrl, { 
+            method: 'HEAD',
+            signal: AbortSignal.timeout(5000)
+          });
+          reachabilityResult = { 
+            ok: testResponse.ok, 
+            status: testResponse.status 
+          };
+          console.log('[livekit-room] Reachability result:', reachabilityResult);
+        } catch (fetchError: any) {
+          reachabilityResult = { 
+            ok: false, 
+            errorMessage: fetchError.message || String(fetchError)
+          };
+          console.error('[livekit-room] Reachability error:', fetchError);
+        }
       }
       
       const debugInfo = {
-        rawLivekitUrl,
-        normalizedWsUrl,
-        normalizedHttpUrl,
+        rawLivekitUrl: LIVEKIT_URL_RAW || '(not set)',
+        sanitizedLivekitUrl: debugUrlResult.sanitized || '(failed)',
+        sanitizeError: debugUrlResult.error || null,
+        normalizedHttpUrl: normalizedHttpUrl || '(n/a)',
         reachability: reachabilityResult,
         apiKeyPresent: !!LIVEKIT_API_KEY,
         apiSecretPresent: !!LIVEKIT_API_SECRET,
