@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import ChatBox from "@/components/ChatBox";
 import { WebRTCPublisher } from "@/components/webrtc";
+import { LiveKitDebugPanel } from "@/components/webrtc/LiveKitDebugPanel";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
 import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -659,6 +660,9 @@ const LiveManagement = () => {
           </div>
         </div>
       </main>
+      
+      {/* LiveKit Debug Panel - only shows in DEV mode */}
+      <LiveKitDebugPanel />
     </AppLayout>
   );
 };
