@@ -6,6 +6,7 @@ import ChatBox from "@/components/ChatBox";
 import { CreatorDailyEmbed } from "@/components/CreatorDailyEmbed";
 import { WebRTCPublisher } from "@/components/webrtc";
 import { TwoStepStreamControl } from "@/components/TwoStepStreamControl";
+import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
 import { LiveConfigPanel, type VideoOrientation } from "@/components/LiveConfigPanel";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
@@ -36,9 +37,8 @@ type TransactionRow = {
 
 type CreatorStatus = "loading" | "not_creator" | "pending_approval" | "approved";
 
-// Two-step streaming flow:
-// 1. "preparing" - Creator opens camera/mic, Daily room created but NOT visible to viewers
-// 2. "live" - Creator confirms ready, live marked active and visible to viewers
+// For Daily: Two-step streaming flow (preparing -> live)
+// For LiveKit: Single-step flow (idle -> live) - no prepare phase needed
 type StreamPhase = "idle" | "preparing" | "live";
 
 // Daily room data from edge function
@@ -157,7 +157,78 @@ const LiveManagement = () => {
     checkAuth();
   }, [navigate, toast]);
 
-  // Step 1: Prepare transmission - create room, open camera, but NOT visible to viewers
+  // For LiveKit: Single-step "Go Live" - create room and go live immediately
+  const handleLiveKitGoLive = async () => {
+    if (!user) return;
+
+    try {
+      // Clean up any stale rooms first
+      await supabase
+        .from("rooms")
+        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq("creator_id", user.id)
+        .eq("is_active", true);
+
+      // Create local room record first (for chat)
+      const { data: newRoom, error: roomError } = await supabase
+        .from("rooms")
+        .insert({
+          creator_id: user.id,
+          title: liveTitle || "Live Stream",
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (roomError) throw roomError;
+
+      // Create chat settings for the room
+      await supabase.from("chat_settings").insert({
+        room_id: newRoom.id,
+      });
+
+      // Create live entry immediately as "live" (active)
+      const { data: liveData, error: liveError } = await supabase.from("lives").insert({
+        creator_id: user.id,
+        title: liveTitle || "Live Stream",
+        status: "live",
+        is_active: true,
+        chat_room_id: newRoom.id,
+        thumbnail_url: thumbnailUrl,
+        host_joined_at: new Date().toISOString(),
+        host_last_heartbeat: new Date().toISOString(),
+      }).select().single();
+
+      if (liveError) throw liveError;
+
+      // Update creator profile to show as streaming
+      await supabase
+        .from("creator_profiles")
+        .update({ is_streaming: true })
+        .eq("id", user.id);
+
+      setCurrentLiveId(liveData.id);
+      setRoom(newRoom);
+      setStreamPhase("live");
+      setIsStreaming(true);
+
+      logger.live.info("Stream is now LIVE (LiveKit single-step)", { roomId: newRoom.id, liveId: liveData.id });
+      toast({
+        title: t.liveManagement?.streamStarted || "Você está ao vivo!",
+        description: t.liveManagement?.youAreLiveNow || "Sua transmissão está visível para todos.",
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao iniciar transmissão";
+      logger.live.error("LiveKit go live error", { error: message });
+      toast({
+        title: t.common?.error || "Error",
+        description: message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // For Daily: Step 1 - Prepare transmission (create room, open camera, but NOT visible)
   const handlePrepareStream = async () => {
     if (!user) return;
 
@@ -187,60 +258,35 @@ const LiveManagement = () => {
         room_id: newRoom.id,
       });
 
-      if (USE_LIVEKIT) {
-        // For LiveKit: Create the live entry immediately in "preparing" status
-        // This allows the WebRTCPublisher to get a token
-        const { data: liveData, error: liveError } = await supabase.from("lives").insert({
-          creator_id: user.id,
-          title: liveTitle || "Live Stream",
-          status: "preparing", // Not yet visible to viewers
-          is_active: false, // Not visible until "Go Live"
-          chat_room_id: newRoom.id,
-          thumbnail_url: thumbnailUrl,
-        }).select().single();
+      // Create Daily room via edge function
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) throw new Error("Not authenticated");
 
-        if (liveError) throw liveError;
+      const dailyResponse = await supabase.functions.invoke("daily-room", {
+        body: { action: "create" },
+      });
 
-        setCurrentLiveId(liveData.id);
-        setRoom(newRoom);
-        setStreamPhase("preparing");
-        
-        logger.live.info("Preparing stream (LiveKit)", { roomId: newRoom.id, liveId: liveData.id });
-        toast({
-          title: t.liveManagement?.preparingStream || "Preparando transmissão",
-          description: t.liveManagement?.cameraReady || "Sua câmera está pronta. Clique em 'Ficar Online' quando estiver pronto.",
-        });
-      } else {
-        // For Daily: Create Daily room via edge function
-        const { data: session } = await supabase.auth.getSession();
-        if (!session.session) throw new Error("Not authenticated");
-
-        const dailyResponse = await supabase.functions.invoke("daily-room", {
-          body: { action: "create" },
-        });
-
-        if (dailyResponse.error) {
-          throw new Error(dailyResponse.error.message || "Failed to create Daily room");
-        }
-
-        const dailyData = dailyResponse.data as DailyRoomData;
-        setDailyRoom(dailyData);
-
-        // Update room with daily room name
-        await supabase
-          .from("rooms")
-          .update({ daily_room_name: dailyData.roomName })
-          .eq("id", newRoom.id);
-        
-        setRoom({ ...newRoom, daily_room_url: dailyData.roomUrl });
-        setStreamPhase("preparing");
-        
-        logger.live.info("Preparing stream - Daily room created", { roomName: dailyData.roomName, roomUrl: dailyData.roomUrl });
-        toast({
-          title: t.liveManagement?.preparingStream || "Preparando transmissão",
-          description: t.liveManagement?.cameraReady || "Sua câmera está pronta. Clique em 'Ficar Online' quando estiver pronto.",
-        });
+      if (dailyResponse.error) {
+        throw new Error(dailyResponse.error.message || "Failed to create Daily room");
       }
+
+      const dailyData = dailyResponse.data as DailyRoomData;
+      setDailyRoom(dailyData);
+
+      // Update room with daily room name
+      await supabase
+        .from("rooms")
+        .update({ daily_room_name: dailyData.roomName })
+        .eq("id", newRoom.id);
+      
+      setRoom({ ...newRoom, daily_room_url: dailyData.roomUrl });
+      setStreamPhase("preparing");
+      
+      logger.live.info("Preparing stream - Daily room created", { roomName: dailyData.roomName, roomUrl: dailyData.roomUrl });
+      toast({
+        title: t.liveManagement?.preparingStream || "Preparando transmissão",
+        description: t.liveManagement?.cameraReady || "Sua câmera está pronta. Clique em 'Ficar Online' quando estiver pronto.",
+      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Erro ao preparar transmissão";
       logger.live.error("Prepare stream error", { error: message });
@@ -252,65 +298,37 @@ const LiveManagement = () => {
     }
   };
 
-  // Step 2: Go live - mark the live as active, visible to viewers
+  // For Daily: Step 2 - Go live (mark active, visible to viewers)
   const handleGoLive = async () => {
-    if (!user || !room) return;
+    if (!user || !room || !dailyRoom) return;
 
     try {
-      if (USE_LIVEKIT && currentLiveId) {
-        // For LiveKit: Update existing live to active
-        const { error: updateError } = await supabase
-          .from("lives")
-          .update({
-            status: "live",
-            is_active: true,
-            host_joined_at: new Date().toISOString(),
-            host_last_heartbeat: new Date().toISOString(),
-          })
-          .eq("id", currentLiveId);
+      const { data: liveData, error: liveError } = await supabase.from("lives").insert({
+        creator_id: user.id,
+        title: liveTitle || "Live Stream",
+        status: "live",
+        is_active: true,
+        room_name: dailyRoom.roomUrl,
+        chat_room_id: room.id,
+        thumbnail_url: thumbnailUrl,
+      }).select().single();
 
-        if (updateError) throw updateError;
+      if (liveError) throw liveError;
+      
+      setCurrentLiveId(liveData.id);
 
-        // Update creator profile to show as streaming
-        await supabase
-          .from("creator_profiles")
-          .update({ is_streaming: true })
-          .eq("id", user.id);
+      // Update creator profile to show as streaming
+      await supabase
+        .from("creator_profiles")
+        .update({ 
+          is_streaming: true,
+          daily_room_url: dailyRoom.roomUrl,
+        })
+        .eq("id", user.id);
 
-        setStreamPhase("live");
-        setIsStreaming(true);
-        logger.live.info("Stream is now LIVE (LiveKit)", { roomId: room.id, liveId: currentLiveId });
-      } else {
-        // For Daily: Create new live entry
-        if (!dailyRoom) return;
-
-        const { data: liveData, error: liveError } = await supabase.from("lives").insert({
-          creator_id: user.id,
-          title: liveTitle || "Live Stream",
-          status: "live",
-          is_active: true,
-          room_name: dailyRoom.roomUrl,
-          chat_room_id: room.id,
-          thumbnail_url: thumbnailUrl,
-        }).select().single();
-
-        if (liveError) throw liveError;
-        
-        setCurrentLiveId(liveData.id);
-
-        // Update creator profile to show as streaming
-        await supabase
-          .from("creator_profiles")
-          .update({ 
-            is_streaming: true,
-            daily_room_url: dailyRoom.roomUrl,
-          })
-          .eq("id", user.id);
-
-        setStreamPhase("live");
-        setIsStreaming(true);
-        logger.live.info("Stream is now LIVE (Daily)", { roomId: room.id, liveId: liveData.id, dailyUrl: dailyRoom.roomUrl });
-      }
+      setStreamPhase("live");
+      setIsStreaming(true);
+      logger.live.info("Stream is now LIVE (Daily)", { roomId: room.id, liveId: liveData.id, dailyUrl: dailyRoom.roomUrl });
 
       toast({
         title: t.liveManagement?.streamStarted || "Você está ao vivo!",
@@ -382,10 +400,12 @@ const LiveManagement = () => {
     }
   };
 
-  // Legacy toggle handler for StreamToggle component
+  // Legacy toggle handler for StreamToggle component (Daily only)
   const handleStreamToggle = async (streaming: boolean) => {
     if (streaming) {
-      if (streamPhase === "idle") {
+      if (USE_LIVEKIT) {
+        await handleLiveKitGoLive();
+      } else if (streamPhase === "idle") {
         await handlePrepareStream();
       } else if (streamPhase === "preparing") {
         await handleGoLive();
@@ -622,6 +642,8 @@ const LiveManagement = () => {
           creatorDisplayName={user?.email?.split("@")[0] || "Criador"}
           isStreaming={isStreaming}
           onStreamToggle={handleStreamToggle}
+          onGoLive={USE_LIVEKIT ? handleLiveKitGoLive : undefined}
+          onEndStream={USE_LIVEKIT ? handleEndStream : undefined}
           participants={participants}
           revenue={revenue}
           activeSuperchat={activeSuperchat}
@@ -681,14 +703,22 @@ const LiveManagement = () => {
   return (
     <AppLayout showSidebar={false}>
       <main className="container mx-auto px-4 py-6">
-        {/* Header with two-step stream control and stats */}
+        {/* Header with stream control and stats */}
         <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-          <TwoStepStreamControl
-            streamPhase={streamPhase}
-            onPrepare={handlePrepareStream}
-            onGoLive={handleGoLive}
-            onEndStream={handleEndStream}
-          />
+          {USE_LIVEKIT ? (
+            <SingleStepStreamControl
+              isLive={streamPhase === "live"}
+              onGoLive={handleLiveKitGoLive}
+              onEndStream={handleEndStream}
+            />
+          ) : (
+            <TwoStepStreamControl
+              streamPhase={streamPhase}
+              onPrepare={handlePrepareStream}
+              onGoLive={handleGoLive}
+              onEndStream={handleEndStream}
+            />
+          )}
 
           <div className="flex gap-4">
             <Card className="border-border">
@@ -731,9 +761,9 @@ const LiveManagement = () => {
 
         {/* Mobile Layout: Video + Chat stacked, Config below */}
         <div className="lg:hidden space-y-4">
-          {/* Video Preview - Creator enters room in preparing AND live phases */}
+          {/* Video Preview - For LiveKit: only show when live; For Daily: show in preparing + live */}
           <Card className="border-border overflow-hidden relative aspect-video">
-            {USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && currentLiveId ? (
+            {USE_LIVEKIT && streamPhase === "live" && currentLiveId ? (
               <WebRTCPublisher
                 liveId={currentLiveId}
                 onReady={() => console.log("[LiveManagement] WebRTC Publisher ready")}
@@ -748,7 +778,7 @@ const LiveManagement = () => {
             ) : (
               <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
                 <p className="text-lg">Transmissão desligada</p>
-                <p className="text-sm">Clique em "Preparar Transmissão" para iniciar</p>
+                <p className="text-sm">Clique em "Ficar Online" para iniciar</p>
               </div>
             )}
             {activeSuperchat && (
@@ -810,9 +840,9 @@ const LiveManagement = () => {
         <div className="hidden lg:grid lg:grid-cols-3 gap-6">
           {/* Left side: Video + Config */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Creator Embed - Creator enters room in preparing AND live phases */}
+            {/* Creator Embed - For LiveKit: only show when live; For Daily: show in preparing + live */}
             <Card className="border-border overflow-hidden relative aspect-video">
-              {USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && currentLiveId ? (
+              {USE_LIVEKIT && streamPhase === "live" && currentLiveId ? (
                 <WebRTCPublisher
                   liveId={currentLiveId}
                   onReady={() => console.log("[LiveManagement] WebRTC Publisher ready (desktop)")}
@@ -827,7 +857,7 @@ const LiveManagement = () => {
               ) : (
                 <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground">
                   <p className="text-lg">Transmissão desligada</p>
-                  <p className="text-sm">Clique em "Preparar Transmissão" para iniciar</p>
+                  <p className="text-sm">Clique em "Ficar Online" para iniciar</p>
                 </div>
               )}
               {activeSuperchat && (
