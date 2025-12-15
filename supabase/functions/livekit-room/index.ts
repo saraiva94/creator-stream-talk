@@ -1,0 +1,289 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// JWT helper for LiveKit token generation
+function base64UrlEncode(data: Uint8Array): string {
+  return btoa(String.fromCharCode(...data))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+async function createLiveKitToken(
+  apiKey: string,
+  apiSecret: string,
+  roomName: string,
+  participantIdentity: string,
+  participantName: string,
+  grants: {
+    roomJoin: boolean;
+    room: string;
+    canPublish: boolean;
+    canSubscribe: boolean;
+    canPublishData?: boolean;
+  }
+): Promise<string> {
+  const encoder = new TextEncoder();
+  
+  // JWT Header
+  const header = {
+    alg: 'HS256',
+    typ: 'JWT'
+  };
+  
+  // JWT Payload with LiveKit claims
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: apiKey,
+    sub: participantIdentity,
+    name: participantName,
+    iat: now,
+    nbf: now,
+    exp: now + 3600, // 1 hour expiry
+    video: {
+      roomJoin: grants.roomJoin,
+      room: grants.room,
+      canPublish: grants.canPublish,
+      canSubscribe: grants.canSubscribe,
+      canPublishData: grants.canPublishData ?? true,
+    }
+  };
+  
+  const headerB64 = base64UrlEncode(encoder.encode(JSON.stringify(header)));
+  const payloadB64 = base64UrlEncode(encoder.encode(JSON.stringify(payload)));
+  const message = `${headerB64}.${payloadB64}`;
+  
+  // Sign with HMAC-SHA256
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(apiSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  const signatureB64 = base64UrlEncode(new Uint8Array(signature));
+  
+  return `${message}.${signatureB64}`;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const LIVEKIT_URL = Deno.env.get('LIVEKIT_URL');
+    const LIVEKIT_API_KEY = Deno.env.get('LIVEKIT_API_KEY');
+    const LIVEKIT_API_SECRET = Deno.env.get('LIVEKIT_API_SECRET');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+      console.error('[livekit-room] Missing LiveKit configuration');
+      return new Response(
+        JSON.stringify({ error: 'LiveKit not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { action, liveId } = await req.json();
+    console.log(`[livekit-room] Action: ${action}, LiveId: ${liveId}`);
+
+    if (!action || !liveId) {
+      return new Response(
+        JSON.stringify({ error: 'Missing action or liveId' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create Supabase client with auth from request
+    const authHeader = req.headers.get('Authorization');
+    const supabaseClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      global: { headers: { Authorization: authHeader || '' } }
+    });
+
+    // Service role client for updates
+    const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // Get current user (may be null for anonymous viewers)
+    const { data: { user } } = await supabaseClient.auth.getUser();
+
+    // Fetch the live
+    const { data: live, error: liveError } = await supabaseAdmin
+      .from('lives')
+      .select('id, creator_id, status, is_active, webrtc_room_name, title')
+      .eq('id', liveId)
+      .single();
+
+    if (liveError || !live) {
+      console.error('[livekit-room] Live not found:', liveError);
+      return new Response(
+        JSON.stringify({ error: 'Live not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Generate room name if not exists
+    const roomName = live.webrtc_room_name || `live-${liveId}`;
+
+    if (action === 'host-token') {
+      // Host token: must be authenticated and be the creator
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (user.id !== live.creator_id) {
+        console.warn(`[livekit-room] Unauthorized host attempt: ${user.id} vs ${live.creator_id}`);
+        return new Response(
+          JSON.stringify({ error: 'Not authorized as host' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Fetch creator profile for display name
+      const { data: profile } = await supabaseAdmin
+        .from('creator_profiles')
+        .select('display_name')
+        .eq('id', user.id)
+        .single();
+
+      const participantName = profile?.display_name || 'Host';
+
+      // Generate host token with publish permissions
+      const token = await createLiveKitToken(
+        LIVEKIT_API_KEY,
+        LIVEKIT_API_SECRET,
+        roomName,
+        user.id,
+        participantName,
+        {
+          roomJoin: true,
+          room: roomName,
+          canPublish: true,
+          canSubscribe: true,
+          canPublishData: true,
+        }
+      );
+
+      // Update live with room name and host joined timestamp
+      await supabaseAdmin
+        .from('lives')
+        .update({
+          webrtc_room_name: roomName,
+          host_joined_at: new Date().toISOString(),
+          host_last_heartbeat: new Date().toISOString(),
+        })
+        .eq('id', liveId);
+
+      console.log(`[livekit-room] Host token generated for ${user.id} in room ${roomName}`);
+
+      return new Response(
+        JSON.stringify({
+          token,
+          roomName,
+          livekitUrl: LIVEKIT_URL,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'viewer-token') {
+      // Viewer token: live must be active
+      if (live.status !== 'live' || !live.is_active) {
+        console.warn(`[livekit-room] Live not active: status=${live.status}, is_active=${live.is_active}`);
+        return new Response(
+          JSON.stringify({ error: 'Live is not active', status: live.status }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Generate participant identity (user id or anonymous)
+      const participantIdentity = user?.id || `anon-${crypto.randomUUID().slice(0, 8)}`;
+      
+      // Get viewer name
+      let participantName = 'Viewer';
+      if (user) {
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+        participantName = profile?.username || 'Viewer';
+      }
+
+      // Generate viewer token (subscribe only)
+      const token = await createLiveKitToken(
+        LIVEKIT_API_KEY,
+        LIVEKIT_API_SECRET,
+        roomName,
+        participantIdentity,
+        participantName,
+        {
+          roomJoin: true,
+          room: roomName,
+          canPublish: false,
+          canSubscribe: true,
+          canPublishData: false,
+        }
+      );
+
+      console.log(`[livekit-room] Viewer token generated for ${participantIdentity} in room ${roomName}`);
+
+      return new Response(
+        JSON.stringify({
+          token,
+          roomName,
+          livekitUrl: LIVEKIT_URL,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'heartbeat') {
+      // Host heartbeat to keep session alive
+      if (!user || user.id !== live.creator_id) {
+        return new Response(
+          JSON.stringify({ error: 'Not authorized' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      await supabaseAdmin
+        .from('lives')
+        .update({ host_last_heartbeat: new Date().toISOString() })
+        .eq('id', liveId);
+
+      console.log(`[livekit-room] Heartbeat updated for live ${liveId}`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ error: 'Invalid action' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('[livekit-room] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
