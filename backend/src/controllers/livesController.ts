@@ -12,7 +12,6 @@ import {
 } from '../services/supabaseService';
 import { parseWithZod } from '../validation/utils';
 import { liveIdentifierSchema } from '../validation/livesSchemas';
-import { createPrivateRoom, generateAccessLink } from '../services/jitsiService';
 import { supabase } from '../lib/supabaseClient';
 import { createLiveConsumptionService } from '../services/liveConsumptionService';
 
@@ -71,14 +70,15 @@ export const startLiveController = async (req: Request, res: Response, next: Nex
       return respondError(res, 409, 'This live has already ended');
     }
 
-    const { roomName } = await createPrivateRoom(creatorId);
+    // LiveKit: room is created automatically when host joins via livekit-room edge function
+    // Just update status - the frontend will call the edge function to get the token
+    const roomName = `live-${liveId}`;
     await saveLiveRoomName(liveId, roomName);
     await updateLiveLifecycleStatus(liveId, 'waiting_for_host');
 
-    const accessUrl = generateAccessLink(roomName);
-    logger.info({ event: 'jitsi.live.started', liveId, creatorId });
+    logger.info({ event: 'livekit.live.started', liveId, creatorId });
 
-    return respondSuccess(res, 201, { liveId, roomName, accessUrl });
+    return respondSuccess(res, 201, { liveId, roomName, accessUrl: null });
   } catch (error) {
     next(error);
   }
@@ -86,7 +86,6 @@ export const startLiveController = async (req: Request, res: Response, next: Nex
 
 export const getLiveInfoController = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Basic auth is enforced by requireAuth middleware; we only need the live data here
     const rawLiveId = req.params?.liveId ?? req.body?.liveId ?? req.query?.liveId;
     const { liveId } = parseWithZod(liveIdentifierSchema, { liveId: rawLiveId });
     const live = await getLiveWithCreator(liveId);
@@ -96,14 +95,12 @@ export const getLiveInfoController = async (req: Request, res: Response, next: N
     }
 
     const roomName = live.room_name ?? null;
-    const jitsiUrl = roomName ? generateAccessLink(roomName) : null;
 
     return respondSuccess(res, 200, {
       liveId: live.id,
       title: live.title,
       status: live.status,
       roomName,
-      jitsiUrl,
     });
   } catch (error) {
     next(error);
@@ -132,10 +129,10 @@ export const requestViewerAccessController = async (req: Request, res: Response,
       return respondError(res, 409, 'Live is no longer active');
     }
 
-    const accessUrl = generateAccessLink(live.room_name);
-    logger.info({ event: 'jitsi.viewer.access_granted', liveId, viewerId: profileId });
+    // LiveKit: viewer gets token from livekit-room edge function
+    logger.info({ event: 'livekit.viewer.access_granted', liveId, viewerId: profileId });
 
-    return respondSuccess(res, 200, { liveId, accessUrl });
+    return respondSuccess(res, 200, { liveId, accessUrl: null });
   } catch (error) {
     next(error);
   }

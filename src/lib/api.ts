@@ -253,7 +253,6 @@ export interface LiveInfoResponse {
   title: string | null;
   status: LiveLifecycleStatus | null;
   roomName: string | null;
-  jitsiUrl: string | null;
   description?: string | null;
   price?: number | null;
   currency?: string | null;
@@ -271,14 +270,12 @@ export interface LiveReconnectResponse {
   credits: number;
   remaining_preview_seconds: number;
   roomName?: string | null;
-  jitsiUrl?: string | null;
 }
 
 export interface LiveAccessResponse {
   liveId: string;
   accessUrl: string;
   roomName?: string | null;
-  jitsiUrl?: string | null;
   grantedAt?: string | null;
   credit_balance?: number;
   credits_consumed?: number;
@@ -408,7 +405,7 @@ export interface DiagnosticsSnapshot {
     blockedOrigins: string[];
     includesPublicBase?: boolean;
   };
-  jitsi: { mode: string; sampleRoomUrl: string };
+  livekit: { enabled: boolean };
   publicBaseUrl: {
     url: string | null;
     source: string;
