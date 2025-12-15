@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { CreatorDailyEmbed } from "@/components/CreatorDailyEmbed";
+import { WebRTCPublisher } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
@@ -16,6 +17,9 @@ import {
 import { useLanguage } from "@/hooks/useLanguage";
 import { toast } from "@/hooks/use-toast";
 import type { VideoOrientation } from "@/components/NativeVideoPreview";
+
+// Feature flag for LiveKit WebRTC
+const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
 
 interface ActiveSuperchat {
   id: string;
@@ -49,6 +53,7 @@ interface CreatorMobileFullscreenProps {
   liveUrl?: string;
   orientation?: VideoOrientation;
   streamPhase?: "idle" | "preparing" | "live";
+  liveId?: string | null; // For WebRTC
 }
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
@@ -67,6 +72,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   pendingSuperchatCount = 0,
   liveUrl,
   streamPhase = "idle",
+  liveId,
 }) => {
   const { t } = useLanguage();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
@@ -92,17 +98,25 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
     }
   };
 
-  const showDaily = (streamPhase === "preparing" || streamPhase === "live") && dailyRoom;
+  const showDaily = !USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && dailyRoom;
+  const showLiveKit = USE_LIVEKIT && (streamPhase === "preparing" || streamPhase === "live") && liveId;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Fullscreen Video Preview */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 w-full h-full">
-          {showDaily ? (
+          {showLiveKit && liveId ? (
+            <WebRTCPublisher
+              liveId={liveId}
+              onReady={() => console.log("[CreatorMobileFullscreen] WebRTC Publisher ready")}
+              onError={(err) => console.error("[CreatorMobileFullscreen] WebRTC error:", err)}
+              className="w-full h-full"
+            />
+          ) : showDaily ? (
             <CreatorDailyEmbed
-              roomUrl={dailyRoom.roomUrl}
-              token={dailyRoom.ownerToken}
+              roomUrl={dailyRoom!.roomUrl}
+              token={dailyRoom!.ownerToken}
               onReady={() => console.log("[CreatorMobileFullscreen] Creator joined Daily")}
               className="w-full h-full"
             />

@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowLeft, Heart, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DailyPlayer } from "@/components/DailyPlayer";
+import { WebRTCViewer } from "@/components/webrtc";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 // PreviewCountdownOverlay removed - countdown is hidden from viewers
 import PaywallOverlay from "@/components/PaywallOverlay";
@@ -10,8 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
+// Feature flag for LiveKit WebRTC
+const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
+
 interface MobileFullscreenPlayerProps {
   roomName: string; // This is now the Daily room URL
+  liveId?: string; // For WebRTC
   creatorName?: string | null;
   creatorAvatar?: string | null;
   title?: string | null;
@@ -34,6 +39,7 @@ interface MobileFullscreenPlayerProps {
 
 const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   roomName,
+  liveId,
   creatorName,
   creatorAvatar,
   title,
@@ -55,13 +61,22 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   const [liked, setLiked] = React.useState(false);
   
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-  const canRenderDaily = Boolean(roomName && (hasEntitlement || showPreviewPlayer || showPaywall));
+  const canRenderDaily = !USE_LIVEKIT && Boolean(roomName && (hasEntitlement || showPreviewPlayer || showPaywall));
+  const canRenderLiveKit = USE_LIVEKIT && Boolean(liveId && (hasEntitlement || showPreviewPlayer || showPaywall));
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Video container - fullscreen vertical */}
       <div className="relative flex-1 w-full">
-        {canRenderDaily && (
+        {canRenderLiveKit && liveId ? (
+          <WebRTCViewer
+            liveId={liveId}
+            muted={muted || blurred}
+            blurred={blurred}
+            onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
+            className="w-full h-full"
+          />
+        ) : canRenderDaily ? (
           <DailyPlayer 
             roomUrl={roomName}
             width="100%"
@@ -69,7 +84,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             muted={muted || blurred}
             blurred={blurred}
           />
-        )}
+        ) : null}
 
         {/* Top overlay - back button and creator info */}
         <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent p-4 safe-area-inset-top">
