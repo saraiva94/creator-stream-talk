@@ -11,6 +11,7 @@ interface SingleStepStreamControlProps {
   disabled?: boolean;
   compact?: boolean;
   docked?: boolean;
+  fullWidth?: boolean;
 }
 
 /**
@@ -24,6 +25,7 @@ export const SingleStepStreamControl = ({
   disabled,
   compact,
   docked,
+  fullWidth,
 }: SingleStepStreamControlProps) => {
   const { t } = useLanguage();
   const [isAnimating, setIsAnimating] = useState(false);
@@ -37,7 +39,8 @@ export const SingleStepStreamControl = ({
   const goLiveLabel = (t.liveManagement as any)?.goLive || "Ficar Online";
   const endLabel = (t.liveManagement as any)?.endStream || "Encerrar Transmissão";
 
-  if (docked) {
+  // Docked or fullWidth mode - full width buttons
+  if (docked || fullWidth) {
     return !isLive ? (
       <Button
         onClick={onGoLive}

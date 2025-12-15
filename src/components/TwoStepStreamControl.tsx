@@ -13,6 +13,7 @@ interface TwoStepStreamControlProps {
   onEndStream: () => void;
   disabled?: boolean;
   compact?: boolean;
+  fullWidth?: boolean;
 }
 
 export const TwoStepStreamControl = ({
@@ -22,6 +23,7 @@ export const TwoStepStreamControl = ({
   onEndStream,
   disabled,
   compact,
+  fullWidth,
 }: TwoStepStreamControlProps) => {
   const { t } = useLanguage();
   const [isAnimating, setIsAnimating] = useState(false);
@@ -31,6 +33,62 @@ export const TwoStepStreamControl = ({
     const timer = setTimeout(() => setIsAnimating(false), 500);
     return () => clearTimeout(timer);
   }, [streamPhase]);
+
+  // fullWidth mode - full width buttons for mobile footer
+  if (fullWidth) {
+    if (streamPhase === "idle") {
+      return (
+        <Button
+          onClick={onPrepare}
+          disabled={disabled}
+          size="lg"
+          className={cn("w-full gap-2", isAnimating && "scale-[1.01]")}
+        >
+          <Video className="h-4 w-4" />
+          {t.liveManagement?.prepareStream || "Preparar Transmissão"}
+        </Button>
+      );
+    }
+
+    if (streamPhase === "preparing") {
+      return (
+        <div className="flex gap-2 w-full">
+          <Button
+            onClick={onGoLive}
+            disabled={disabled}
+            size="lg"
+            className={cn("flex-1 gap-2 bg-green-600 hover:bg-green-700", isAnimating && "scale-[1.01]")}
+          >
+            <Play className="h-4 w-4" />
+            {t.liveManagement?.goLive || "Ficar Online"}
+          </Button>
+          <Button
+            onClick={onEndStream}
+            disabled={disabled}
+            size="lg"
+            variant="outline"
+            className="gap-2"
+          >
+            <Square className="h-4 w-4" />
+          </Button>
+        </div>
+      );
+    }
+
+    // Live phase
+    return (
+      <Button
+        onClick={onEndStream}
+        disabled={disabled}
+        size="lg"
+        variant="destructive"
+        className={cn("w-full gap-2", isAnimating && "scale-[1.01]")}
+      >
+        <Square className="h-4 w-4" />
+        {t.liveManagement?.endStream || "Encerrar Transmissão"}
+      </Button>
+    );
+  }
 
   if (compact) {
     // Compact mode for mobile

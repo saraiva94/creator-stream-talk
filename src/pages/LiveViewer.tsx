@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 
 import type { User } from "@supabase/supabase-js";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
-// DailyPlayer is lazy-loaded only when USE_LIVEKIT is false
 import { WebRTCViewer } from "@/components/webrtc";
 import ChatBox from "@/components/ChatBox";
 import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
@@ -38,12 +37,13 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
-// Feature flag for LiveKit WebRTC
+// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
 
-const DailyPlayerLazy = !USE_LIVEKIT
-  ? lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })))
-  : null;
+// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
+const DailyPlayerLazy = USE_LIVEKIT
+  ? null
+  : lazy(() => import("@/components/DailyPlayer").then((m) => ({ default: m.DailyPlayer })));
 
 interface LiveData {
   id: string;

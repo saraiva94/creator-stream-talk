@@ -21,12 +21,13 @@ import { Users, DollarSign, TrendingUp, Video, UserPlus } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { logger } from "@/lib/logger";
 
-// Feature flag for LiveKit WebRTC
+// Feature flag for LiveKit WebRTC - KILL SWITCH: when true, zero Daily code loads
 const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
 
-const CreatorDailyEmbedLazy = !USE_LIVEKIT
-  ? lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })))
-  : null;
+// Conditional lazy import: Daily only loads when USE_LIVEKIT is false
+const CreatorDailyEmbedLazy = USE_LIVEKIT
+  ? null
+  : lazy(() => import("@/components/CreatorDailyEmbed").then((m) => ({ default: m.CreatorDailyEmbed })));
 
 type RoomRecord = {
   id: string;
@@ -139,8 +140,10 @@ const LiveManagement = () => {
           setIsStreaming(true);
           setCurrentLiveId(activeLive.id);
         } else {
-          // Room exists but no active live = preparing phase
-          setStreamPhase("preparing");
+          // Room exists but no active live
+          // For LiveKit: single-step means we go back to idle (no "preparing" state)
+          // For Daily: two-step allows preparing phase
+          setStreamPhase(USE_LIVEKIT ? "idle" : "preparing");
           setIsStreaming(false);
         }
         logger.creator.info("Active room found", { roomId: existingRoom.id });
