@@ -3,6 +3,7 @@ import type { User } from "@supabase/supabase-js";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { DailyPlayer } from "@/components/DailyPlayer";
+import { WebRTCViewer } from "@/components/webrtc";
 import ChatBox from "@/components/ChatBox";
 import MobileFullscreenPlayer from "@/components/live/MobileFullscreenPlayer";
 import PaywallOverlay from "@/components/PaywallOverlay";
@@ -37,6 +38,9 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
+// Feature flag for LiveKit WebRTC
+const USE_LIVEKIT = import.meta.env.VITE_USE_LIVEKIT === "true";
+
 interface LiveData {
   id: string;
   title: string | null;
@@ -44,6 +48,8 @@ interface LiveData {
   status: string | null;
   is_active: boolean;
   room_name: string | null;
+  webrtc_room_name: string | null;
+  chat_room_id: string | null;
   creator_id: string;
   price: number | null;
   thumbnail_url: string | null;
@@ -169,7 +175,7 @@ const LiveViewer: React.FC = () => {
       // Fetch live data from Supabase
       const { data: live, error: liveError } = await supabase
         .from("lives")
-        .select("id, title, description, status, is_active, room_name, creator_id, price, thumbnail_url")
+        .select("id, title, description, status, is_active, room_name, webrtc_room_name, chat_room_id, creator_id, price, thumbnail_url")
         .eq("id", liveId)
         .maybeSingle();
 
@@ -204,12 +210,13 @@ const LiveViewer: React.FC = () => {
         setViewerCount(creator.viewer_count || 0);
       }
 
-      // Fetch room ID for chat
-      if (live.room_name) {
+      // Fetch room ID for chat - prefer chat_room_id if available
+      const chatRoomSource = live.chat_room_id || live.room_name;
+      if (chatRoomSource) {
         const { data: room } = await supabase
           .from("rooms")
           .select("id")
-          .eq("id", live.room_name)
+          .eq("id", chatRoomSource)
           .maybeSingle();
         
         if (room) {
@@ -511,7 +518,9 @@ const LiveViewer: React.FC = () => {
   const showPaywall = Boolean(paywallReason);
   // Countdown is hidden from user - preview runs silently
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-  const canShowVideo = liveData?.room_name && (liveData.is_active || liveData.status === "live");
+  const canShowVideo = USE_LIVEKIT 
+    ? (liveData?.webrtc_room_name && liveData.is_active && liveData.status === "live")
+    : (liveData?.room_name && (liveData.is_active || liveData.status === "live"));
   const shouldMuteAndBlur = showPaywall;
 
   // Loading state
@@ -583,6 +592,7 @@ const LiveViewer: React.FC = () => {
     return (
       <MobileFullscreenPlayer
         roomName={liveData.room_name || ""}
+        liveId={liveData.id}
         creatorName={creatorData?.display_name}
         creatorAvatar={creatorData?.avatar_url}
         title={liveData.title}
@@ -614,14 +624,24 @@ const LiveViewer: React.FC = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Video Player */}
           <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1">
-            {canShowVideo && liveData.room_name ? (
+            {canShowVideo ? (
               <>
-                <DailyPlayer
-                  roomUrl={liveData.room_name}
-                  height="100%"
-                  muted={shouldMuteAndBlur}
-                  blurred={shouldMuteAndBlur}
-                />
+                {USE_LIVEKIT ? (
+                  <WebRTCViewer
+                    liveId={liveData.id}
+                    muted={shouldMuteAndBlur}
+                    blurred={shouldMuteAndBlur}
+                    onHostNotReady={() => console.log("[LiveViewer] Waiting for host...")}
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <DailyPlayer
+                    roomUrl={liveData.room_name || ""}
+                    height="100%"
+                    muted={shouldMuteAndBlur}
+                    blurred={shouldMuteAndBlur}
+                  />
+                )}
                 
                 {showCreditOverlay && (
                   <CreditRemainingOverlay creditsLeft={localCredits} />
