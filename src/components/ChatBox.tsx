@@ -70,12 +70,16 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
     if (!currentUserId) return;
     
     const fetchUsername = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", currentUserId)
-        .single();
-      if (data) setCurrentUsername(data.username);
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", currentUserId)
+          .maybeSingle();
+        if (data) setCurrentUsername(data.username);
+      } catch (err) {
+        console.error("[ChatBox] Error fetching username:", err);
+      }
     };
     fetchUsername();
   }, [currentUserId]);
@@ -264,7 +268,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             .from("profiles")
             .select("username")
             .eq("id", newMsg.user_id)
-            .single();
+            .maybeSingle();
 
           setMessages((prev) => [
             ...prev,

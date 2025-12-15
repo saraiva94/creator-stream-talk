@@ -42,7 +42,7 @@ const VideoCarousel = ({ userId }: VideoCarouselProps) => {
         .from('homepage_settings')
         .select('carousel_card_count')
         .eq('id', 'default')
-        .single();
+        .maybeSingle();
       
       if (settingsData) {
         setMaxVisibleCards(settingsData.carousel_card_count);

@@ -34,15 +34,19 @@ const ChatModerationPanel = ({ roomId, creatorId }: ChatModerationPanelProps) =>
 
   useEffect(() => {
     const loadChatSettings = async () => {
-      const { data } = await supabase.from("chat_settings").select("*").eq("room_id", roomId).single();
+      try {
+        const { data } = await supabase.from("chat_settings").select("*").eq("room_id", roomId).maybeSingle();
 
-      if (data) {
-        setSettings({
-          subscribers_only: data.subscribers_only || false,
-          slow_mode_enabled: data.slow_mode_enabled || false,
-          slow_mode_duration: data.slow_mode_duration || 5,
-          banned_words: data.banned_words || [],
-        });
+        if (data) {
+          setSettings({
+            subscribers_only: data.subscribers_only || false,
+            slow_mode_enabled: data.slow_mode_enabled || false,
+            slow_mode_duration: data.slow_mode_duration || 5,
+            banned_words: data.banned_words || [],
+          });
+        }
+      } catch (err) {
+        console.error("[ChatModerationPanel] Error loading chat settings:", err);
       }
     };
 

@@ -77,9 +77,12 @@ export const PublicProfileDialog = ({
         .from("public_profiles")
         .select("*")
         .eq("id", userId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!profileData) {
+        throw new Error("Profile not found");
+      }
 
       const { data: creatorData } = await supabase
         .from("creator_profiles")

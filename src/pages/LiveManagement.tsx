@@ -168,10 +168,10 @@ const LiveManagement = () => {
 
       if (roomError) throw roomError;
 
-      // Create chat settings for the room
-      await supabase.from("chat_settings").insert({
+      // Create chat settings for the room (upsert to avoid 409 conflict)
+      await supabase.from("chat_settings").upsert({
         room_id: newRoom.id,
-      });
+      }, { onConflict: 'room_id' });
 
       // Create live entry immediately as "live" (active)
       const { data: liveData, error: liveError } = await supabase.from("lives").insert({

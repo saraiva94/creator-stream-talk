@@ -188,7 +188,7 @@ const PromotionalVideosPanel = () => {
         .from("homepage_settings")
         .select("carousel_card_count")
         .eq("id", "default")
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       if (data) setCarouselCardCount(data.carousel_card_count);
