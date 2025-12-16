@@ -46,9 +46,93 @@ interface FloatingLiveChatProps {
 
 // Tier colors and priority (higher = more priority)
 const TIER_CONFIG = {
-  red: { bg: "bg-red-500/90", text: "text-white", priority: 3, glow: "shadow-red-500/50" },
-  yellow: { bg: "bg-yellow-500/90", text: "text-black", priority: 2, glow: "shadow-yellow-500/50" },
-  blue: { bg: "bg-blue-500/90", text: "text-white", priority: 1, glow: "shadow-blue-500/50" },
+  red: { bg: "bg-red-500/90", text: "text-white", priority: 3, glow: "shadow-red-500/50", progressBg: "bg-red-300/30", progressFill: "bg-red-200" },
+  yellow: { bg: "bg-amber-500/90", text: "text-black", priority: 2, glow: "shadow-amber-500/50", progressBg: "bg-amber-300/30", progressFill: "bg-amber-200" },
+  blue: { bg: "bg-blue-500/90", text: "text-white", priority: 1, glow: "shadow-blue-500/50", progressBg: "bg-blue-300/30", progressFill: "bg-blue-200" },
+};
+
+// Tier durations in seconds
+const TIER_DURATIONS = {
+  blue: 60,
+  yellow: 120,
+  red: 180,
+};
+
+// Pinned SuperChat component with progress bar
+const PinnedSuperchatDisplay: React.FC<{ 
+  superchat: ActiveSuperchat; 
+  queueLength: number;
+}> = ({ superchat, queueLength }) => {
+  const [progress, setProgress] = useState(100);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const tier = TIER_CONFIG[superchat.tier];
+  const totalDuration = TIER_DURATIONS[superchat.tier];
+
+  useEffect(() => {
+    const expiresAt = new Date(superchat.expires_at).getTime();
+    
+    const updateProgress = () => {
+      const now = Date.now();
+      const remainingMs = Math.max(0, expiresAt - now);
+      const remainingSec = Math.floor(remainingMs / 1000);
+      
+      setTimeLeft(remainingSec);
+      setProgress((remainingMs / (totalDuration * 1000)) * 100);
+    };
+
+    updateProgress();
+    const interval = setInterval(updateProgress, 100);
+    return () => clearInterval(interval);
+  }, [superchat.expires_at, totalDuration]);
+
+  if (timeLeft <= 0) return null;
+
+  return (
+    <div className="mb-2 animate-in slide-in-from-bottom-2 duration-300">
+      <div 
+        className={cn(
+          "relative rounded-full overflow-hidden shadow-xl",
+          tier.bg,
+          tier.text,
+          tier.glow
+        )}
+      >
+        {/* Content */}
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          <Sparkles className="h-4 w-4 flex-shrink-0 opacity-80" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm truncate">{superchat.username}</span>
+              <span className="text-xs opacity-70 flex-shrink-0">
+                R$ {(superchat.amount / 100).toFixed(2)}
+              </span>
+              <span className="text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full flex-shrink-0">
+                {timeLeft}s
+              </span>
+            </div>
+            <p className="text-sm truncate opacity-90">{superchat.message}</p>
+          </div>
+        </div>
+
+        {/* Progress bar - subtle at bottom */}
+        <div className={cn("absolute bottom-0 left-0 right-0 h-1", tier.progressBg)}>
+          <div
+            className={cn("h-full transition-all duration-100 ease-linear", tier.progressFill)}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+      
+      {/* Queue indicator */}
+      {queueLength > 1 && (
+        <div className="mt-1 text-center">
+          <span className="text-white/70 text-xs bg-black/40 px-2 py-0.5 rounded-full">
+            +{queueLength - 1} na fila
+          </span>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
@@ -551,44 +635,12 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
 
       {/* Bottom fixed area: SuperChat + Input stacked */}
       <div className="absolute bottom-0 left-0 right-0 px-3 pb-4 pointer-events-auto">
-        {/* Pinned SuperChat - directly above input, same width */}
+        {/* Pinned SuperChat - directly above input, same width, with progress bar */}
         {activeSuperchat && (
-          <div className="mb-2">
-            <div 
-              className={cn(
-                "rounded-xl px-4 py-3 shadow-lg",
-                TIER_CONFIG[activeSuperchat.tier].bg,
-                TIER_CONFIG[activeSuperchat.tier].text,
-                "shadow-xl",
-                TIER_CONFIG[activeSuperchat.tier].glow
-              )}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="font-bold text-sm">{activeSuperchat.username}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium opacity-80">
-                    R$ {(activeSuperchat.amount / 100).toFixed(2)}
-                  </span>
-                  <span className="text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full">
-                    {getSuperchatRemainingTime(activeSuperchat.expires_at)}s
-                  </span>
-                </div>
-              </div>
-              <p className="text-sm font-medium break-words">{activeSuperchat.message}</p>
-            </div>
-            
-            {/* Queue indicator */}
-            {superchatQueue.length > 1 && (
-              <div className="mt-1 text-center">
-                <span className="text-white/70 text-xs bg-black/40 px-2 py-0.5 rounded-full">
-                  +{superchatQueue.length - 1} na fila
-                </span>
-              </div>
-            )}
-          </div>
+          <PinnedSuperchatDisplay 
+            superchat={activeSuperchat}
+            queueLength={superchatQueue.length}
+          />
         )}
 
         {/* Input area */}
