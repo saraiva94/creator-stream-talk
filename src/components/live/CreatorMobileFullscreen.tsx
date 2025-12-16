@@ -128,10 +128,11 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   }, [stream]);
 
   const handleCameraSwitch = useCallback(async () => {
-    setFacingMode(prev => prev === "user" ? "environment" : "user");
+    const newMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(newMode);
     toast({
       title: "Câmera alternada",
-      description: facingMode === "user" ? "Usando câmera traseira" : "Usando câmera frontal",
+      description: newMode === "environment" ? "Usando câmera traseira" : "Usando câmera frontal",
     });
   }, [facingMode]);
 
@@ -186,6 +187,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           {isLive && liveId ? (
             <WebRTCPublisher
               liveId={liveId}
+              facingMode={facingMode}
               className="w-full h-full rounded-none"
               onReady={() => console.log("[CreatorMobile] WebRTC Publisher ready")}
               onError={(err) => console.error("[CreatorMobile] WebRTC error:", err)}
