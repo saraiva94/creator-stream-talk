@@ -3,13 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Coins, ImagePlus, Loader2 } from "lucide-react";
+import { Send, Coins } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import SuperChatDialog, { SUPERCHAT_TIERS } from "./SuperChatDialog";
 import SuperChatDisplay from "./SuperChatDisplay";
 import { ChatMessage } from "./chat/ChatMessage";
-import { AudioRecorder } from "./chat/AudioRecorder";
 import { TypingIndicator } from "./chat/TypingIndicator";
 import { EmojiPicker } from "./chat/EmojiPicker";
 import { SuperChatSuggestions } from "./chat/SuperChatSuggestions";
@@ -54,14 +53,12 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [showSuperChat, setShowSuperChat] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"blue" | "yellow" | "red" | null>(null);
   const [activeSuperchats, setActiveSuperchats] = useState<ActiveSuperchat[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [currentUsername, setCurrentUsername] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const { toast } = useToast();
@@ -301,29 +298,6 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
     }
   }, [messages]);
 
-  // Upload file to storage
-  const uploadFile = async (file: Blob, type: "image" | "audio"): Promise<{ url: string } | null> => {
-    const extension = type === "image" ? "jpg" : "webm";
-    const filename = `${currentUserId}/${Date.now()}.${extension}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from("chat-media")
-      .upload(filename, file, {
-        contentType: type === "image" ? "image/jpeg" : "audio/webm"
-      });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      return null;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("chat-media")
-      .getPublicUrl(filename);
-
-    return { url: urlData.publicUrl };
-  };
-
   // Send text message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -351,89 +325,6 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Handle image selection
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: t.chat?.invalidFileType || "Tipo de arquivo inválido",
-        description: "Apenas imagens são permitidas",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: t.chat?.fileTooLarge || "Arquivo muito grande",
-        description: "Máximo 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setUploading(true);
-    
-    try {
-      const result = await uploadFile(file, "image");
-      if (!result) throw new Error("Upload failed");
-
-      const { error } = await supabase.from("messages").insert({
-        room_id: roomId,
-        user_id: currentUserId,
-        content: "📷 Imagem",
-        type: "image",
-        file_url: result.url,
-      });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Image upload error:", error);
-      toast({
-        title: t.chat?.sendError || "Erro ao enviar",
-        description: "Não foi possível enviar a imagem",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  // Handle audio recording complete
-  const handleAudioComplete = async (blob: Blob, duration: number) => {
-    setUploading(true);
-    
-    try {
-      const result = await uploadFile(blob, "audio");
-      if (!result) throw new Error("Upload failed");
-
-      const { error } = await supabase.from("messages").insert({
-        room_id: roomId,
-        user_id: currentUserId,
-        content: "🎤 Áudio",
-        type: "audio",
-        file_url: result.url,
-        duration: duration,
-      });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Audio upload error:", error);
-      toast({
-        title: t.chat?.sendError || "Erro ao enviar",
-        description: "Não foi possível enviar o áudio",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -488,14 +379,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
       {/* Typing indicator */}
       <TypingIndicator usernames={typingUsers.map(u => u.username)} />
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleImageSelect}
-      />
+      {/* Hidden file input - removed from live chat */}
 
       <form onSubmit={handleSendMessage} className="p-3 border-t border-border">
         {readOnly ? (
@@ -540,28 +424,11 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
                 </Button>
               )}
 
-              {/* Image attach button - hidden on mobile */}
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                title={t.chat?.attachImage || "Anexar imagem"}
-                className="shrink-0 text-muted-foreground hover:text-foreground hidden sm:flex h-8 w-8 sm:h-10 sm:w-10"
-              >
-                {uploading ? (
-                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                ) : (
-                  <ImagePlus className="h-4 w-4 sm:h-5 sm:w-5" />
-                )}
-              </Button>
-
               {/* Emoji picker - hidden on mobile */}
               <div className="hidden sm:block">
                 <EmojiPicker 
                   onEmojiSelect={handleEmojiSelect}
-                  disabled={uploading}
+                  disabled={loading}
                 />
               </div>
 
@@ -570,25 +437,16 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
                 value={newMessage}
                 onChange={handleInputChange}
                 placeholder={t.chat?.typeMessage || "Digite sua mensagem..."}
-                disabled={loading || uploading}
+                disabled={loading}
                 maxLength={500}
                 className="flex-1 border-primary/50 focus-visible:ring-primary h-8 sm:h-10 text-sm"
               />
-
-              {/* Audio recorder - always visible, especially important for mobile */}
-              <div className="shrink-0">
-                <AudioRecorder 
-                  onRecordingComplete={handleAudioComplete}
-                  disabled={uploading}
-                  maxDuration={60}
-                />
-              </div>
 
               {/* Send button */}
               <Button 
                 type="submit" 
                 size="icon" 
-                disabled={loading || uploading || !newMessage.trim()}
+                disabled={loading || !newMessage.trim()}
                 title={t.chat?.sendMessage || "Enviar mensagem"}
                 className="shrink-0 h-8 w-8 sm:h-10 sm:w-10"
               >
