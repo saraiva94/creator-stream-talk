@@ -624,14 +624,14 @@ const LiveViewer: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content - Video + Info */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Video Player */}
-          <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1">
+          {/* Video Player - centered with letterbox bars for portrait video in landscape container */}
+          <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1 flex items-center justify-center">
             <WebRTCViewer
               liveId={liveData.id}
               muted={shouldMuteAndBlur}
               blurred={shouldMuteAndBlur}
               onHostNotReady={handleHostNotReady}
-              className="w-full h-full"
+              className="max-w-full max-h-full"
             />
 
             {showCreditOverlay && (

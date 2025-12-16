@@ -333,14 +333,14 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
   }, [cleanup, connect]);
 
   return (
-    <div className={`relative w-full h-full bg-black rounded-lg overflow-hidden ${className}`}>
-      {/* Remote video - object-contain to fit without cropping on mobile */}
+    <div className={`relative w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center ${className}`}>
+      {/* Remote video - centered with letterbox for portrait content in landscape container */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={muted}
-        className={`w-full h-full object-contain transition-all duration-300 ${
+        className={`max-w-full max-h-full object-contain transition-all duration-300 ${
           blurred ? 'blur-xl scale-105' : ''
         }`}
       />
