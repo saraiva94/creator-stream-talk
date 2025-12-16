@@ -577,13 +577,28 @@ export const apiClient = {
   requestLiveAccess: (payload: LiveIdentifierPayload) =>
     request<LiveAccessResponse>('/lives/access', { method: 'POST', body: payload, auth: 'required' }),
 
-  heartbeatLive: (liveId: string, sessionToken: string) =>
-    request<LiveHeartbeatResponse>(`/lives/${liveId}/heartbeat`, {
-      method: 'POST',
-      auth: 'required',
+  heartbeatLive: async (liveId: string, sessionToken: string): Promise<LiveHeartbeatResponse> => {
+    // Use Edge Function instead of Node.js backend for heartbeat
+    const token = await resolveAccessToken();
+    if (!token) {
+      throw new ApiError('Authentication required', 401);
+    }
+
+    const { data, error } = await supabase.functions.invoke('viewer-heartbeat', {
       body: { liveId, sessionToken },
-      headers: { 'x-session-token': sessionToken },
-    }),
+    });
+
+    if (error) {
+      console.error('[api] viewer-heartbeat error:', error);
+      throw new ApiError(error.message || 'Heartbeat failed', 500);
+    }
+
+    if (data?.error) {
+      throw new ApiError(data.error, data.status || 500);
+    }
+
+    return data as LiveHeartbeatResponse;
+  },
 
   createPaymentPreference: (payload: CreatePaymentPayload) =>
     request<PaymentPreferenceResponse>('/payments/create-preference', {
