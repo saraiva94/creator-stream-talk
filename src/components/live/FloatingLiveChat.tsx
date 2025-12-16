@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SuperChatSuggestions } from "@/components/chat/SuperChatSuggestions";
+import SuperChatDialog from "@/components/SuperChatDialog";
 
 interface FloatingMessage {
   id: string;
@@ -27,6 +29,8 @@ interface FloatingLiveChatProps {
   roomId: string;
   currentUserId: string | null;
   isAuthenticated: boolean;
+  isCreator?: boolean;
+  creatorId?: string;
   disabled?: boolean;
   maxVisibleMessages?: number;
   messageFadeDelay?: number; // ms before message starts fading
@@ -43,6 +47,8 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   roomId,
   currentUserId,
   isAuthenticated,
+  isCreator = false,
+  creatorId,
   disabled = false,
   maxVisibleMessages = 30, // Buffer limit for performance
   messageFadeDelay = 8000, // 8 seconds for faster fade
@@ -52,6 +58,8 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   const [sending, setSending] = useState(false);
   const [activeSuperchat, setActiveSuperchat] = useState<ActiveSuperchat | null>(null);
   const [superchatQueue, setSuperchatQueue] = useState<ActiveSuperchat[]>([]);
+  const [showSuperChat, setShowSuperChat] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<"blue" | "yellow" | "red">("blue");
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch and subscribe to superchats
@@ -453,29 +461,41 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
 
         {/* Input area */}
         {isAuthenticated && !disabled ? (
-          <form onSubmit={handleSend}>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Input
-                  ref={inputRef}
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Comentar..."
-                  className="bg-black/40 border-white/20 text-white placeholder:text-white/60 text-sm h-10 pr-10 rounded-full backdrop-blur-sm"
-                  disabled={sending}
-                />
-                <Button
-                  type="submit"
-                  size="icon"
-                  variant="ghost"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/20 rounded-full"
-                  disabled={!newMessage.trim() || sending}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+          <div className="space-y-2">
+            {/* SuperChat Suggestions - above input for non-creators */}
+            {!isCreator && (
+              <SuperChatSuggestions 
+                onSelect={(tier) => {
+                  setSelectedTier(tier);
+                  setShowSuperChat(true);
+                }}
+              />
+            )}
+            
+            <form onSubmit={handleSend}>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    ref={inputRef}
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Comentar..."
+                    className="bg-black/40 border-white/20 text-white placeholder:text-white/60 text-sm h-10 pr-10 rounded-full backdrop-blur-sm"
+                    disabled={sending}
+                  />
+                  <Button
+                    type="submit"
+                    size="icon"
+                    variant="ghost"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                    disabled={!newMessage.trim() || sending}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
         ) : (
           <div 
             className="px-4 py-2.5 rounded-full text-white/70 text-sm"
@@ -485,6 +505,18 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
           </div>
         )}
       </div>
+
+      {/* SuperChat Dialog */}
+      {creatorId && currentUserId && (
+        <SuperChatDialog
+          open={showSuperChat}
+          onOpenChange={setShowSuperChat}
+          creatorId={creatorId}
+          userId={currentUserId}
+          roomId={roomId}
+          initialTier={selectedTier}
+        />
+      )}
     </div>
   );
 };

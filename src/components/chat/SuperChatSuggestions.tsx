@@ -13,35 +13,45 @@ const TIERS = [
 ];
 
 export const SuperChatSuggestions = ({ onSelect }: SuperChatSuggestionsProps) => {
-  const [displayIndex, setDisplayIndex] = useState<number[]>([0, 0, 0]); // Track which value to show for each tier
+  // Cycle through 3 states: 0 = amount, 1 = duration, 2 = "SuperChat"
+  const [displayIndex, setDisplayIndex] = useState<number[]>([0, 0, 0]);
 
-  // Cycle between amount and duration every 2 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      setDisplayIndex((prev) => prev.map((idx) => (idx + 1) % 2));
+      setDisplayIndex((prev) => prev.map((idx) => (idx + 1) % 3));
     }, 2000);
     return () => clearInterval(interval);
   }, []);
 
+  const getDisplayText = (tierData: typeof TIERS[0], idx: number) => {
+    switch (idx) {
+      case 0:
+        return `R$${tierData.amount}`;
+      case 1:
+        return `${tierData.duration}min`;
+      case 2:
+        return "SuperChat";
+      default:
+        return `R$${tierData.amount}`;
+    }
+  };
+
   return (
-    <div className="flex items-center gap-1.5 py-1.5">
-      {TIERS.map((tierData, i) => {
-        const showDuration = displayIndex[i] === 1;
-        return (
-          <Button
-            key={tierData.tier}
-            type="button"
-            size="sm"
-            onClick={() => onSelect(tierData.tier)}
-            className={cn(
-              "h-6 px-2 text-[10px] font-semibold text-white border transition-all duration-300",
-              tierData.color
-            )}
-          >
-            {showDuration ? `${tierData.duration}min` : `R$${tierData.amount}`}
-          </Button>
-        );
-      })}
+    <div className="flex items-center gap-1.5 py-1.5 w-full">
+      {TIERS.map((tierData, i) => (
+        <Button
+          key={tierData.tier}
+          type="button"
+          size="sm"
+          onClick={() => onSelect(tierData.tier)}
+          className={cn(
+            "flex-1 h-6 px-2 text-[10px] font-semibold text-white border transition-all duration-300",
+            tierData.color
+          )}
+        >
+          {getDisplayText(tierData, displayIndex[i])}
+        </Button>
+      ))}
     </div>
   );
 };
