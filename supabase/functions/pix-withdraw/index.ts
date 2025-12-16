@@ -66,7 +66,7 @@ serve(async (req) => {
       });
     }
 
-    const { userId, pixKey, pixKeyType, amountCents, isCreator } = await req.json();
+    const { userId, pixKey, pixKeyType, amountCents } = await req.json();
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -92,8 +92,7 @@ serve(async (req) => {
       userId, 
       pixKey: maskPixKey(pixKey), 
       pixKeyType,
-      amountCents,
-      isCreator 
+      amountCents 
     });
 
     // Validar campos obrigatórios
@@ -119,103 +118,101 @@ serve(async (req) => {
     // Detectar tipo de chave PIX
     const keyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
 
-    let availableBalanceCents = 0;
-    let balanceSource = '';
+    // Fetch both balances
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('affiliate_earnings')
+      .eq('id', userId)
+      .single();
 
-    if (isCreator) {
-      const { data: creatorWallet, error: walletError } = await supabase
-        .from('creator_wallet')
-        .select('balance_cents, pending_cents')
-        .eq('creator_id', userId)
-        .maybeSingle();
-
-      if (walletError || !creatorWallet) {
-        console.error('[pix-withdraw] Creator wallet not found:', walletError);
-        return new Response(JSON.stringify({ 
-          error: 'Carteira de criador não encontrada' 
-        }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      availableBalanceCents = creatorWallet.balance_cents || 0;
-      balanceSource = 'creator_wallet';
-    } else {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('affiliate_earnings')
-        .eq('id', userId)
-        .single();
-
-      if (profileError || !profile) {
-        console.error('[pix-withdraw] Profile not found:', profileError);
-        return new Response(JSON.stringify({ 
-          error: 'Usuário não encontrado' 
-        }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      availableBalanceCents = profile.affiliate_earnings || 0;
-      balanceSource = 'profiles';
+    if (profileError || !profile) {
+      console.error('[pix-withdraw] Profile not found:', profileError);
+      return new Response(JSON.stringify({ 
+        error: 'Usuário não encontrado' 
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
+    const { data: creatorWallet } = await supabase
+      .from('creator_wallet')
+      .select('balance_cents, pending_cents')
+      .eq('creator_id', userId)
+      .maybeSingle();
+
+    const affiliateBalanceCents = profile.affiliate_earnings || 0;
+    const creatorBalanceCents = creatorWallet?.balance_cents || 0;
+    const totalAvailableCents = affiliateBalanceCents + creatorBalanceCents;
+
+    console.log('[pix-withdraw] Balances:', { affiliateBalanceCents, creatorBalanceCents, totalAvailableCents });
+
     // Verificar saldo suficiente
-    if (availableBalanceCents < amountCents) {
+    if (totalAvailableCents < amountCents) {
       return new Response(JSON.stringify({ 
-        error: `Saldo insuficiente. Disponível: R$ ${(availableBalanceCents / 100).toFixed(2)}` 
+        error: `Saldo insuficiente. Disponível: R$ ${(totalAvailableCents / 100).toFixed(2)}` 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
+    // Calculate how much to deduct from each source
+    // Priority: first from affiliate_earnings, then from creator_wallet
+    let deductFromAffiliate = Math.min(affiliateBalanceCents, amountCents);
+    let deductFromCreator = amountCents - deductFromAffiliate;
+
+    console.log('[pix-withdraw] Deductions:', { deductFromAffiliate, deductFromCreator });
+
     // Gerar correlationId único
     const correlationId = crypto.randomUUID();
     const now = new Date().toISOString();
 
-    // Debitar saldo e criar payout_request
-    if (isCreator) {
-      const { data: wallet } = await supabase
-        .from('creator_wallet')
-        .select('balance_cents, pending_cents')
-        .eq('creator_id', userId)
-        .single();
+    // Debitar saldos
+    if (deductFromAffiliate > 0) {
+      const newAffiliateBalance = affiliateBalanceCents - deductFromAffiliate;
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          affiliate_earnings: newAffiliateBalance,
+          updated_at: now,
+        })
+        .eq('id', userId);
 
-      const newBalance = (wallet?.balance_cents || 0) - amountCents;
-      const newPending = (wallet?.pending_cents || 0) + amountCents;
+      if (updateError) {
+        console.error('[pix-withdraw] Affiliate balance update error:', updateError);
+        throw new Error('Erro ao atualizar saldo de afiliado');
+      }
+    }
+
+    if (deductFromCreator > 0) {
+      const newCreatorBalance = creatorBalanceCents - deductFromCreator;
+      const newPending = (creatorWallet?.pending_cents || 0) + deductFromCreator;
 
       const { error: updateError } = await supabase
         .from('creator_wallet')
         .update({ 
-          balance_cents: newBalance,
+          balance_cents: newCreatorBalance,
           pending_cents: newPending,
           updated_at: now,
         })
         .eq('creator_id', userId);
 
       if (updateError) {
-        console.error('[pix-withdraw] Balance update error:', updateError);
-        throw new Error('Erro ao atualizar saldo');
-      }
-    } else {
-      const newBalanceCents = availableBalanceCents - amountCents;
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          affiliate_earnings: newBalanceCents,
-          updated_at: now,
-        })
-        .eq('id', userId);
-
-      if (updateError) {
-        console.error('[pix-withdraw] Balance update error:', updateError);
-        throw new Error('Erro ao atualizar saldo');
+        console.error('[pix-withdraw] Creator balance update error:', updateError);
+        // Rollback affiliate balance if we already deducted
+        if (deductFromAffiliate > 0) {
+          await supabase
+            .from('profiles')
+            .update({ affiliate_earnings: affiliateBalanceCents })
+            .eq('id', userId);
+        }
+        throw new Error('Erro ao atualizar saldo de criador');
       }
     }
+
+    // Determine source type for payout request
+    const sourceType = deductFromCreator > 0 ? (deductFromAffiliate > 0 ? 'mixed' : 'creator') : 'affiliate';
 
     // Criar payout request
     const { data: payoutRequest, error: payoutError } = await supabase
@@ -225,7 +222,7 @@ serve(async (req) => {
         amount: amountCents,
         pix_key: pixKey,
         pix_key_type: keyType,
-        source_type: isCreator ? 'creator' : 'affiliate',
+        source_type: sourceType,
         status: 'processing',
         idempotency_key: correlationId,
         psp_transaction_id: correlationId,
@@ -236,44 +233,54 @@ serve(async (req) => {
     if (payoutError || !payoutRequest) {
       console.error('[pix-withdraw] Payout request error:', payoutError);
       
-      // Rollback balance
-      if (isCreator) {
-        const { data: wallet } = await supabase
-          .from('creator_wallet')
-          .select('balance_cents, pending_cents')
-          .eq('creator_id', userId)
-          .single();
-
+      // Rollback balances
+      if (deductFromAffiliate > 0) {
+        await supabase
+          .from('profiles')
+          .update({ affiliate_earnings: affiliateBalanceCents })
+          .eq('id', userId);
+      }
+      if (deductFromCreator > 0) {
         await supabase
           .from('creator_wallet')
           .update({ 
-            balance_cents: (wallet?.balance_cents || 0) + amountCents,
-            pending_cents: Math.max(0, (wallet?.pending_cents || 0) - amountCents),
+            balance_cents: creatorBalanceCents,
+            pending_cents: creatorWallet?.pending_cents || 0,
           })
           .eq('creator_id', userId);
-      } else {
-        await supabase
-          .from('profiles')
-          .update({ affiliate_earnings: availableBalanceCents })
-          .eq('id', userId);
       }
       
       throw new Error('Erro ao criar solicitação de saque');
     }
 
-    // Registrar hold no ledger
-    const walletType = isCreator ? 'creator' : 'affiliate';
-    await supabase.from('wallet_transactions').insert({
-      wallet_type: walletType,
-      wallet_id: userId,
-      type: 'hold',
-      amount_cents: -amountCents,
-      balance_after_cents: availableBalanceCents - amountCents,
-      reference_type: 'payout_request',
-      reference_id: payoutRequest.id,
-      description: `Saque PIX em processamento - R$ ${(amountCents / 100).toFixed(2)}`,
-      metadata: { action: 'withdrawal.hold', correlationId, psp: 'woovi' },
-    });
+    // Registrar hold no ledger (one entry for each source if mixed)
+    if (deductFromAffiliate > 0) {
+      await supabase.from('wallet_transactions').insert({
+        wallet_type: 'affiliate',
+        wallet_id: userId,
+        type: 'hold',
+        amount_cents: -deductFromAffiliate,
+        balance_after_cents: affiliateBalanceCents - deductFromAffiliate,
+        reference_type: 'payout_request',
+        reference_id: payoutRequest.id,
+        description: `Saque PIX (afiliado) - R$ ${(deductFromAffiliate / 100).toFixed(2)}`,
+        metadata: { action: 'withdrawal.hold', correlationId, psp: 'woovi', source: 'affiliate' },
+      });
+    }
+    
+    if (deductFromCreator > 0) {
+      await supabase.from('wallet_transactions').insert({
+        wallet_type: 'creator',
+        wallet_id: userId,
+        type: 'hold',
+        amount_cents: -deductFromCreator,
+        balance_after_cents: creatorBalanceCents - deductFromCreator,
+        reference_type: 'payout_request',
+        reference_id: payoutRequest.id,
+        description: `Saque PIX (criador) - R$ ${(deductFromCreator / 100).toFixed(2)}`,
+        metadata: { action: 'withdrawal.hold', correlationId, psp: 'woovi', source: 'creator' },
+      });
+    }
 
     // Chamar API da Woovi para criar pagamento PIX
     if (wooviAppId) {
@@ -303,25 +310,20 @@ serve(async (req) => {
           console.error('[pix-withdraw] Woovi API error:', wooviData);
           
           // Rollback everything
-          if (isCreator) {
-            const { data: wallet } = await supabase
-              .from('creator_wallet')
-              .select('balance_cents, pending_cents')
-              .eq('creator_id', userId)
-              .single();
-
+          if (deductFromAffiliate > 0) {
+            await supabase
+              .from('profiles')
+              .update({ affiliate_earnings: affiliateBalanceCents })
+              .eq('id', userId);
+          }
+          if (deductFromCreator > 0) {
             await supabase
               .from('creator_wallet')
               .update({ 
-                balance_cents: (wallet?.balance_cents || 0) + amountCents,
-                pending_cents: Math.max(0, (wallet?.pending_cents || 0) - amountCents),
+                balance_cents: creatorBalanceCents,
+                pending_cents: creatorWallet?.pending_cents || 0,
               })
               .eq('creator_id', userId);
-          } else {
-            await supabase
-              .from('profiles')
-              .update({ affiliate_earnings: availableBalanceCents })
-              .eq('id', userId);
           }
 
           await supabase
@@ -334,17 +336,32 @@ serve(async (req) => {
             .eq('id', payoutRequest.id);
 
           // Record refund in ledger
-          await supabase.from('wallet_transactions').insert({
-            wallet_type: walletType,
-            wallet_id: userId,
-            type: 'refund',
-            amount_cents: amountCents,
-            balance_after_cents: availableBalanceCents,
-            reference_type: 'payout_request',
-            reference_id: payoutRequest.id,
-            description: `Saque PIX falhou - valor estornado`,
-            metadata: { action: 'withdrawal.refund', correlationId, psp: 'woovi', error: wooviData.message },
-          });
+          if (deductFromAffiliate > 0) {
+            await supabase.from('wallet_transactions').insert({
+              wallet_type: 'affiliate',
+              wallet_id: userId,
+              type: 'refund',
+              amount_cents: deductFromAffiliate,
+              balance_after_cents: affiliateBalanceCents,
+              reference_type: 'payout_request',
+              reference_id: payoutRequest.id,
+              description: `Saque PIX falhou - valor estornado (afiliado)`,
+              metadata: { action: 'withdrawal.refund', correlationId, psp: 'woovi', error: wooviData.message },
+            });
+          }
+          if (deductFromCreator > 0) {
+            await supabase.from('wallet_transactions').insert({
+              wallet_type: 'creator',
+              wallet_id: userId,
+              type: 'refund',
+              amount_cents: deductFromCreator,
+              balance_after_cents: creatorBalanceCents,
+              reference_type: 'payout_request',
+              reference_id: payoutRequest.id,
+              description: `Saque PIX falhou - valor estornado (criador)`,
+              metadata: { action: 'withdrawal.refund', correlationId, psp: 'woovi', error: wooviData.message },
+            });
+          }
 
           throw new Error(wooviData.message || 'Erro ao processar PIX via Woovi');
         }
@@ -383,6 +400,8 @@ serve(async (req) => {
         pix_key_type: keyType,
         correlation_id: correlationId,
         psp: 'woovi',
+        deduct_from_affiliate: deductFromAffiliate,
+        deduct_from_creator: deductFromCreator,
       },
     });
 
@@ -420,7 +439,9 @@ serve(async (req) => {
       payoutId: payoutRequest.id, 
       correlationId,
       amountCents, 
-      balanceSource 
+      sourceType,
+      deductFromAffiliate,
+      deductFromCreator,
     });
 
     return new Response(JSON.stringify({

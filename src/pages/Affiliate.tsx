@@ -49,6 +49,7 @@ const Affiliate = () => {
   const [indirectReferrals, setIndirectReferrals] = useState(0);
   const [totalEarningsCents, setTotalEarningsCents] = useState(0);
   const [availableBalanceCents, setAvailableBalanceCents] = useState(0);
+  const [creatorBalanceCents, setCreatorBalanceCents] = useState(0);
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -58,9 +59,23 @@ const Affiliate = () => {
 
   const refreshBalance = async () => {
     if (!user) return;
-    // Use affiliate_earnings as single source of truth (in centavos)
+    
+    // Fetch affiliate earnings from profiles
     const { data: profile } = await supabase.from("profiles").select("affiliate_earnings").eq("id", user.id).single();
-    if (profile) setAvailableBalanceCents(profile.affiliate_earnings ?? 0);
+    const affiliateEarnings = profile?.affiliate_earnings ?? 0;
+    
+    // Fetch creator wallet balance (if user is a creator)
+    const { data: creatorWallet } = await supabase
+      .from("creator_wallet")
+      .select("balance_cents")
+      .eq("creator_id", user.id)
+      .maybeSingle();
+    const creatorBalance = creatorWallet?.balance_cents ?? 0;
+    
+    // Update states
+    setCreatorBalanceCents(creatorBalance);
+    // Available balance = affiliate earnings + creator wallet balance
+    setAvailableBalanceCents(affiliateEarnings + creatorBalance);
 
     const { data: withdrawals } = await supabase
       .from("transactions")
@@ -100,8 +115,18 @@ const Affiliate = () => {
         const affiliateEarningsCents = profile?.affiliate_earnings ?? 0;
         setCode(profile?.referral_code ?? "");
         setTotalEarningsCents(affiliateEarningsCents);
-        // Use affiliate_earnings as the single source of truth for available balance
-        setAvailableBalanceCents(affiliateEarningsCents);
+        
+        // Fetch creator wallet balance (if user is a creator)
+        const { data: creatorWallet } = await supabase
+          .from("creator_wallet")
+          .select("balance_cents")
+          .eq("creator_id", session.user.id)
+          .maybeSingle();
+        const creatorBalance = creatorWallet?.balance_cents ?? 0;
+        setCreatorBalanceCents(creatorBalance);
+        
+        // Available balance = affiliate earnings + creator wallet balance
+        setAvailableBalanceCents(affiliateEarningsCents + creatorBalance);
 
         // Count referrals from affiliate_logs - each log entry represents one commission event
         const userId = session.user.id;
