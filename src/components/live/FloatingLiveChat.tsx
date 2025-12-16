@@ -357,95 +357,100 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
     return Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
   };
 
+  // Calculate input area height for positioning
+  const inputAreaHeight = 56; // h-10 (40px) + pb-4 (16px)
+
   return (
-    <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" style={{ height: '25vh' }}>
-      {/* Gradient mask for smooth fade-out at top (25% height) */}
+    <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none">
+      {/* Messages container - Instagram Live style with gradient mask */}
       <div 
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          maskImage: 'linear-gradient(to bottom, transparent 0%, transparent 15%, black 40%, black 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, transparent 15%, black 40%, black 100%)',
+        className="px-3 pb-2"
+        style={{ 
+          height: '20vh',
+          marginBottom: `${inputAreaHeight + (activeSuperchat ? 80 : 0)}px`,
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
         }}
-      />
-      
-      {/* Messages container - Instagram Live style */}
-      <div className="flex flex-col justify-end h-full px-3 pb-28">
-        <div className="flex flex-col gap-1 overflow-hidden">
-          {messages.map((message, index) => {
-            const opacity = getMessageOpacity(message.created_at);
-            const positionFromBottom = messages.length - 1 - index;
-            const fadeMultiplier = positionFromBottom > 4 ? 0.3 : positionFromBottom > 2 ? 0.6 : 1;
-            
-            return (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex items-start transition-all duration-500",
-                  message.isNew && "animate-slide-in-bottom"
-                )}
-                style={{ 
-                  opacity: opacity * fadeMultiplier,
-                }}
-              >
-                <div 
-                  className="inline-flex items-baseline gap-1.5 px-3 py-1.5 rounded-2xl max-w-[80%]"
-                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+      >
+        <div className="flex flex-col justify-end h-full">
+          <div className="flex flex-col gap-1 overflow-hidden">
+            {messages.map((message, index) => {
+              const opacity = getMessageOpacity(message.created_at);
+              const positionFromBottom = messages.length - 1 - index;
+              const fadeMultiplier = positionFromBottom > 4 ? 0.3 : positionFromBottom > 2 ? 0.6 : 1;
+              
+              return (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "flex items-start transition-all duration-500",
+                    message.isNew && "animate-slide-in-bottom"
+                  )}
+                  style={{ 
+                    opacity: opacity * fadeMultiplier,
+                  }}
                 >
-                  <span className="text-primary font-bold text-sm shrink-0">
-                    {message.username}
-                  </span>
-                  <span className="text-white text-sm break-words">
-                    {message.content}
-                  </span>
+                  <div 
+                    className="inline-flex items-baseline gap-1.5 px-3 py-1.5 rounded-2xl max-w-[80%]"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
+                  >
+                    <span className="text-primary font-bold text-sm shrink-0">
+                      {message.username}
+                    </span>
+                    <span className="text-white text-sm break-words">
+                      {message.content}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Pinned SuperChat - above input */}
-      {activeSuperchat && (
-        <div className="absolute bottom-16 left-3 right-3 pointer-events-auto">
-          <div 
-            className={cn(
-              "rounded-xl px-4 py-3 shadow-lg animate-pulse-slow",
-              TIER_CONFIG[activeSuperchat.tier].bg,
-              TIER_CONFIG[activeSuperchat.tier].text,
-              "shadow-xl",
-              TIER_CONFIG[activeSuperchat.tier].glow
-            )}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                <span className="font-bold text-sm">{activeSuperchat.username}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium opacity-80">
-                  R$ {(activeSuperchat.amount / 100).toFixed(2)}
-                </span>
-                <span className="text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full">
-                  {getSuperchatRemainingTime(activeSuperchat.expires_at)}s
-                </span>
-              </div>
-            </div>
-            <p className="text-sm font-medium break-words">{activeSuperchat.message}</p>
-          </div>
-          
-          {/* Queue indicator */}
-          {superchatQueue.length > 1 && (
-            <div className="mt-1 text-center">
-              <span className="text-white/70 text-xs bg-black/40 px-2 py-0.5 rounded-full">
-                +{superchatQueue.length - 1} na fila
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Input area - fixed at bottom like Instagram */}
+      {/* Bottom fixed area: SuperChat + Input stacked */}
       <div className="absolute bottom-0 left-0 right-0 px-3 pb-4 pointer-events-auto">
+        {/* Pinned SuperChat - directly above input, same width */}
+        {activeSuperchat && (
+          <div className="mb-2">
+            <div 
+              className={cn(
+                "rounded-xl px-4 py-3 shadow-lg",
+                TIER_CONFIG[activeSuperchat.tier].bg,
+                TIER_CONFIG[activeSuperchat.tier].text,
+                "shadow-xl",
+                TIER_CONFIG[activeSuperchat.tier].glow
+              )}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  <span className="font-bold text-sm">{activeSuperchat.username}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium opacity-80">
+                    R$ {(activeSuperchat.amount / 100).toFixed(2)}
+                  </span>
+                  <span className="text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full">
+                    {getSuperchatRemainingTime(activeSuperchat.expires_at)}s
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm font-medium break-words">{activeSuperchat.message}</p>
+            </div>
+            
+            {/* Queue indicator */}
+            {superchatQueue.length > 1 && (
+              <div className="mt-1 text-center">
+                <span className="text-white/70 text-xs bg-black/40 px-2 py-0.5 rounded-full">
+                  +{superchatQueue.length - 1} na fila
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Input area */}
         {isAuthenticated && !disabled ? (
           <form onSubmit={handleSend}>
             <div className="flex items-center gap-2">
