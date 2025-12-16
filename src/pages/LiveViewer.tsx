@@ -694,10 +694,14 @@ const LiveViewer: React.FC = () => {
                   {creatorData?.display_name || t.liveViewer?.unknownCreator || "Criador"}
                 </button>
                 <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                  <Badge variant="destructive" className="animate-pulse">
-                    <span className="w-2 h-2 bg-white rounded-full mr-1.5" />
-                    LIVE
-                  </Badge>
+                  {canShowVideo ? (
+                    <Badge variant="destructive" className="animate-pulse">
+                      <span className="w-2 h-2 bg-white rounded-full mr-1.5" />
+                      LIVE
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">OFFLINE</Badge>
+                  )}
                   <span className="flex items-center gap-1">
                     <Users className="h-4 w-4" />
                     {viewerCount} {t.liveViewer?.watching || "assistindo"}
