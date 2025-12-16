@@ -151,7 +151,23 @@ serve(async (req) => {
     }
     const LIVEKIT_URL = urlResult.sanitized;
 
-    const { action, liveId } = await req.json();
+    // Parse request body with validation
+    let body: { action?: string; liveId?: string } = {};
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('[livekit-room] JSON parse error:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid JSON body', 
+          reason: 'Could not parse request body as JSON',
+          receivedContentType: req.headers.get('content-type')
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { action, liveId } = body;
     console.log(`[livekit-room] Action: ${action}, LiveId: ${liveId}`);
 
     // Debug action - returns URL info and reachability test
@@ -212,8 +228,14 @@ serve(async (req) => {
     }
 
     if (!action || !liveId) {
+      console.error('[livekit-room] Missing required fields:', { action, liveId });
       return new Response(
-        JSON.stringify({ error: 'Missing action or liveId' }),
+        JSON.stringify({ 
+          error: 'Missing action or liveId',
+          reason: 'Both action and liveId are required fields',
+          receivedAction: action || '(empty)',
+          receivedLiveId: liveId || '(empty)'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

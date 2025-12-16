@@ -201,30 +201,41 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   // Fetch recent messages
   useEffect(() => {
     const fetchMessages = async () => {
-      const { data, error } = await supabase
+      // First fetch messages
+      const { data: messagesData, error: messagesError } = await supabase
         .from("messages")
-        .select(`
-          id,
-          content,
-          created_at,
-          profiles (username)
-        `)
+        .select("id, content, created_at, user_id")
         .eq("room_id", roomId)
         .eq("type", "text")
         .order("created_at", { ascending: false })
         .limit(maxVisibleMessages);
 
-      if (error) {
-        console.error("Error fetching messages:", error);
+      if (messagesError) {
+        console.error("Error fetching messages:", messagesError);
         return;
       }
 
-      const formatted: FloatingMessage[] = (data || [])
+      // Then fetch usernames for the messages
+      const userIds = [...new Set((messagesData || []).map((m: any) => m.user_id))];
+      let profileMap = new Map<string, string>();
+      
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, username")
+          .in("id", userIds);
+        
+        (profiles || []).forEach((p: any) => {
+          profileMap.set(p.id, p.username || "Usuário");
+        });
+      }
+
+      const formatted: FloatingMessage[] = (messagesData || [])
         .reverse()
-        .map((m) => ({
+        .map((m: any) => ({
           id: m.id,
           content: m.content,
-          username: m.profiles?.username || "Usuário",
+          username: profileMap.get(m.user_id) || "Usuário",
           created_at: m.created_at,
         }));
 
