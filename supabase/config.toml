@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.livekit-room]
 verify_jwt = false
+
+[functions.viewer-heartbeat]
+verify_jwt = false
