@@ -39,6 +39,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   title,
   roomId,
   currentUserId,
+  creatorId,
   isAuthenticated,
   hasEntitlement,
   showPaywall,
@@ -159,6 +160,8 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             roomId={roomId}
             currentUserId={currentUserId}
             isAuthenticated={isAuthenticated}
+            isCreator={false}
+            creatorId={creatorId}
             disabled={showPaywall}
           />
         )}

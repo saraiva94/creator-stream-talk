@@ -247,6 +247,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
             roomId={roomId}
             currentUserId={creatorId}
             isAuthenticated={true}
+            isCreator={true}
             disabled={false}
           />
         )}
