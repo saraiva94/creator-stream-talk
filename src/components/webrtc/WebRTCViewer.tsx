@@ -43,15 +43,20 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentLiveIdRef = useRef<string>(liveId);
   const connectionAttemptRef = useRef(0);
+  const mutedRef = useRef(muted); // Track current muted state for event handlers
   
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
 
-  // Update ref when liveId changes
+  // Update refs when values change
   useEffect(() => {
     currentLiveIdRef.current = liveId;
   }, [liveId]);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   // Cleanup function - only called on real unmount or liveId change
   const cleanup = useCallback((reason?: string) => {
@@ -278,6 +283,8 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
         
         if (track.kind === Track.Kind.Audio && videoRef.current) {
           track.attach(videoRef.current);
+          // Re-apply muted state after audio track is attached using ref for current value
+          videoRef.current.muted = mutedRef.current;
         }
       });
 
