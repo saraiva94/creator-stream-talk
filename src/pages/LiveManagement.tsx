@@ -413,46 +413,106 @@ const LiveManagement = () => {
     };
   }, [room?.id]);
 
-  // Fetch revenue
+  // Fetch revenue in real-time (superchats + live_consumption via safe view)
   useEffect(() => {
     if (!user?.id) return;
 
     const fetchRevenue = async () => {
-      const { data: transactions } = await supabase
-        .from("transactions")
-        .select("amount, type")
-        .eq("creator_id", user.id)
-        .eq("status", "approved");
+      let creditsRevenue = 0;
+      let superchatRevenue = 0;
 
-      if (transactions) {
-        const total = transactions.reduce((sum: number, t: TransactionRow) => sum + Number(t.amount ?? 0), 0);
-        const superchats = transactions
-          .filter((t: TransactionRow) => t.type === "superchat")
-          .reduce((sum: number, t: TransactionRow) => sum + Number(t.amount ?? 0), 0);
-        setRevenue({ total, superchats });
+      // 1. If live is active, try to get credits consumed from live_consumption_safe view
+      if (currentLiveId) {
+        const { data: consumptionData } = await supabase
+          .from("live_consumption_safe")
+          .select("credits_consumed")
+          .eq("live_id", currentLiveId);
+
+        // Calculate revenue from credits: 180 credits = R$5.00 (500 cents)
+        // Creator gets 80% = R$4.00 (400 cents) per 180 credits
+        const totalCreditsConsumed = consumptionData?.reduce(
+          (sum, row) => sum + Number(row.credits_consumed || 0), 0
+        ) || 0;
+        
+        // Convert credits to creator revenue in reais (80% share)
+        creditsRevenue = (totalCreditsConsumed / 180) * 4;
       }
+
+      // 2. Fetch superchats for this creator (completed or in current room)
+      if (room?.id) {
+        const { data: superchatData } = await supabase
+          .from("superchats")
+          .select("amount, status")
+          .eq("room_id", room.id);
+
+        // Superchat amount is in cents, creator gets 80%
+        const totalSuperchatCents = superchatData?.reduce(
+          (sum, row) => sum + Number(row.amount || 0), 0
+        ) || 0;
+        superchatRevenue = (totalSuperchatCents * 0.8) / 100;
+      }
+
+      setRevenue({
+        total: creditsRevenue + superchatRevenue,
+        superchats: superchatRevenue
+      });
+
+      console.log('[LiveManagement] Revenue updated:', { creditsRevenue, superchatRevenue });
     };
 
     fetchRevenue();
 
-    const channel = supabase
-      .channel(`live_revenue:${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "transactions",
-          filter: `creator_id=eq.${user.id}`,
-        },
-        () => fetchRevenue()
-      )
-      .subscribe();
+    // Subscribe to live_consumption_safe changes (if live is active)
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+
+    if (currentLiveId) {
+      const consumptionChannel = supabase
+        .channel(`live_consumption:${currentLiveId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "live_consumption",
+          },
+          (payload) => {
+            console.log('[LiveManagement] Consumption change:', payload);
+            fetchRevenue();
+          }
+        )
+        .subscribe();
+      channels.push(consumptionChannel);
+    }
+
+    // Subscribe to superchats changes
+    if (room?.id) {
+      const superchatChannel = supabase
+        .channel(`superchats_revenue:${room.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "superchats",
+            filter: `room_id=eq.${room.id}`,
+          },
+          (payload) => {
+            console.log('[LiveManagement] Superchat change:', payload);
+            fetchRevenue();
+          }
+        )
+        .subscribe();
+      channels.push(superchatChannel);
+    }
+
+    // Poll every 10 seconds as backup for credits (matches heartbeat interval)
+    const pollInterval = setInterval(fetchRevenue, 10000);
 
     return () => {
-      supabase.removeChannel(channel);
+      channels.forEach(ch => supabase.removeChannel(ch));
+      clearInterval(pollInterval);
     };
-  }, [user?.id]);
+  }, [user?.id, currentLiveId, room?.id]);
 
   // Fetch pending superchat count
   useEffect(() => {
