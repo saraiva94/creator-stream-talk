@@ -538,6 +538,11 @@ const LiveViewer: React.FC = () => {
     }
   };
 
+  // MUST define all callbacks before any early returns (React hooks rules)
+  const handleHostNotReady = useCallback(() => {
+    console.log("[LiveViewer] Waiting for host...");
+  }, []);
+
   // Loading state
   if (isLoading) {
     return (
@@ -583,10 +588,6 @@ const LiveViewer: React.FC = () => {
   const shouldMuteAndBlur = showPaywall || (isPreviewing && !hasEntitlement);
   const canShowVideo = liveData.is_active && liveData.status === "live";
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
-
-  const handleHostNotReady = useCallback(() => {
-    console.log("[LiveViewer] Waiting for host...");
-  }, []);
 
   // Mobile: Fullscreen vertical layout
   if (isMobileOrTablet) {
@@ -669,10 +670,6 @@ const LiveViewer: React.FC = () => {
               </div>
             )}
 
-            {/* MODE badge */}
-            <div className="absolute top-4 right-4 z-10">
-              <Badge variant="secondary">MODE: LIVEKIT</Badge>
-            </div>
           </div>
 
           {/* Stream Info Bar */}
