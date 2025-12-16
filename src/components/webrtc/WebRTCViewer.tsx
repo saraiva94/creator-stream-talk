@@ -376,13 +376,13 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
 
   return (
     <div className={`relative w-full h-full bg-black rounded-lg overflow-hidden flex items-center justify-center ${className}`}>
-      {/* Remote video - fills height, letterbox on sides for portrait content */}
+      {/* Remote video - fills container completely */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={muted}
-        className={`h-full w-auto object-contain transition-all duration-300 ${
+        className={`w-full h-full object-cover transition-all duration-300 ${
           blurred ? 'blur-xl scale-105' : ''
         }`}
       />
