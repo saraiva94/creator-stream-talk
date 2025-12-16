@@ -214,24 +214,8 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           )}
         </div>
 
-        {/* Top overlay - status indicator + viewer count + revenue */}
-        <div className="absolute top-4 left-0 right-0 flex items-center justify-between z-20 px-3">
-          {/* Status indicator */}
-          <div className={cn(
-            "flex items-center gap-1.5 rounded-full px-2.5 py-1",
-            isLive 
-              ? "bg-green-500/20 border border-green-500" 
-              : "bg-black/60 backdrop-blur-sm"
-          )}>
-            <span className={cn(
-              "w-2 h-2 rounded-full",
-              isLive ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
-            )} />
-            <span className="text-xs font-medium text-white">
-              {isLive ? "Ao Vivo" : "Preview"}
-            </span>
-          </div>
-
+        {/* Top overlay - viewer count + revenue */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-end gap-3 z-20">
           {/* Viewer count */}
           <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5">
             <Users className="h-4 w-4 text-primary" />
