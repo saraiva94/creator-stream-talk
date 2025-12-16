@@ -7,6 +7,7 @@ import PaywallOverlay from "@/components/PaywallOverlay";
 import CreditRemainingOverlay from "@/components/CreditRemainingOverlay";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 interface MobileFullscreenPlayerProps {
@@ -59,6 +60,8 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   const navigate = useNavigate();
   const [liked, setLiked] = useState(false);
   const [isMuted, setIsMuted] = useState(initialMuted);
+  const [userVolume, setUserVolume] = useState(1);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
   const canRenderLiveKit = Boolean(liveId && (hasEntitlement || showPreviewPlayer || showPaywall));
@@ -75,6 +78,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             liveId={liveId}
             muted={effectiveMuted}
             blurred={blurred}
+            volume={userVolume}
             onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
             onViewerConnect={onViewerConnect}
             onViewerDisconnect={onViewerDisconnect}
@@ -121,22 +125,46 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
 
         {/* Right side actions - vertical menu */}
         <div className="absolute right-3 bottom-[28vh] z-20 flex flex-col items-center gap-5">
-          {/* Mute/Unmute button */}
-          <button
-            onClick={() => setIsMuted(!isMuted)}
-            className="flex flex-col items-center gap-1"
-          >
-            <div className={cn(
-              "w-11 h-11 rounded-full flex items-center justify-center transition-all",
-              isMuted ? "bg-destructive/80" : "bg-black/40"
-            )}>
-              {isMuted ? (
-                <VolumeX className="h-5 w-5 text-white" />
-              ) : (
-                <Volume2 className="h-5 w-5 text-white" />
-              )}
-            </div>
-          </button>
+          {/* Volume control with slider */}
+          <div className="flex flex-col items-center gap-2">
+            {showVolumeSlider && (
+              <div className="h-24 bg-black/60 rounded-full p-2 mb-1">
+                <Slider
+                  orientation="vertical"
+                  value={[userVolume * 100]}
+                  max={100}
+                  step={1}
+                  onValueChange={([val]) => {
+                    setUserVolume(val / 100);
+                    if (val > 0 && isMuted) setIsMuted(false);
+                  }}
+                  className="h-full"
+                />
+              </div>
+            )}
+            <button
+              onClick={() => {
+                if (showVolumeSlider) {
+                  setShowVolumeSlider(false);
+                } else {
+                  setIsMuted(!isMuted);
+                }
+              }}
+              onDoubleClick={() => setShowVolumeSlider(!showVolumeSlider)}
+              className="flex flex-col items-center gap-1"
+            >
+              <div className={cn(
+                "w-11 h-11 rounded-full flex items-center justify-center transition-all",
+                isMuted || userVolume === 0 ? "bg-destructive/80" : "bg-black/40"
+              )}>
+                {isMuted || userVolume === 0 ? (
+                  <VolumeX className="h-5 w-5 text-white" />
+                ) : (
+                  <Volume2 className="h-5 w-5 text-white" />
+                )}
+              </div>
+            </button>
+          </div>
 
           <button
             onClick={() => setLiked(!liked)}

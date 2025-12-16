@@ -338,27 +338,26 @@ const LiveManagement = () => {
     if (!user) return;
 
     try {
+      // Call Edge Function to end live AND settle earnings
+      if (currentLiveId) {
+        const { data: settlementData, error: endError } = await supabase.functions.invoke('livekit-room', {
+          body: { action: 'end-live', liveId: currentLiveId },
+        });
+        
+        if (endError) {
+          console.error('[LiveManagement] Error calling end-live:', endError);
+        } else if (settlementData?.settlement) {
+          logger.live.info("Earnings settled", settlementData.settlement);
+        }
+      }
+
+      // Also update room if exists
       if (room?.id) {
         await supabase
           .from("rooms")
           .update({ is_active: false, ended_at: new Date().toISOString() })
           .eq("id", room.id);
       }
-
-      await supabase
-        .from("lives")
-        .update({ 
-          is_active: false, 
-          status: "ended",
-          ended_at: new Date().toISOString() 
-        })
-        .eq("creator_id", user.id)
-        .eq("is_active", true);
-
-      await supabase
-        .from("creator_profiles")
-        .update({ is_streaming: false })
-        .eq("id", user.id);
 
       setStreamPhase("idle");
       setIsStreaming(false);
