@@ -11,6 +11,7 @@ import { WebhookLogsPanel } from "@/components/admin/WebhookLogsPanel";
 import PromotionalVideosPanel from "@/components/admin/PromotionalVideosPanel";
 import PromoVideoAnalyticsPanel from "@/components/admin/PromoVideoAnalyticsPanel";
 import { ContentReportsPanel } from "@/components/admin/ContentReportsPanel";
+import { QAChecklistPanel } from "@/components/admin/QAChecklistPanel";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1266,6 +1267,9 @@ const Admin = () => {
 
         {/* Content Reports Panel */}
         <ContentReportsPanel />
+
+        {/* QA Checklist Panel */}
+        <QAChecklistPanel />
 
         {/* Webhook Logs Panel */}
         <WebhookLogsPanel />
