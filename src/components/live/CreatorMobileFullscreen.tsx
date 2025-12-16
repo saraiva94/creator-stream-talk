@@ -4,6 +4,7 @@ import FloatingLiveChat from "@/components/live/FloatingLiveChat";
 import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
+import { WebRTCPublisher } from "@/components/webrtc";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import {
   Users,
@@ -106,6 +107,12 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
       startPreview();
     }
 
+    // If we transitioned to LIVE, stop the preview stream (publisher will open its own tracks)
+    if (streamPhase === "live" && stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -176,7 +183,14 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
       {/* Fullscreen Video Preview */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 w-full h-full">
-          {previewError ? (
+          {isLive && liveId ? (
+            <WebRTCPublisher
+              liveId={liveId}
+              className="w-full h-full rounded-none"
+              onReady={() => console.log("[CreatorMobile] WebRTC Publisher ready")}
+              onError={(err) => console.error("[CreatorMobile] WebRTC error:", err)}
+            />
+          ) : previewError ? (
             <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground gap-4">
               <p className="text-lg">{previewError}</p>
               <button

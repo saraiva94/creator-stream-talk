@@ -152,6 +152,8 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
+        // Prevent unwanted disconnects in embedded/iframe contexts
+        disconnectOnPageLeave: false,
         videoCaptureDefaults: {
           resolution: { width: 1280, height: 720, frameRate: 30 }
         }

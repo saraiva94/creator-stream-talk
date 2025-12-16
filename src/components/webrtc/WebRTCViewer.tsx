@@ -195,6 +195,8 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
+        // Prevent unwanted disconnects in embedded/iframe contexts
+        disconnectOnPageLeave: false,
       });
 
       roomRef.current = room;
