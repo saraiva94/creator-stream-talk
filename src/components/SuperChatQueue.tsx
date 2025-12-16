@@ -152,7 +152,7 @@ const SuperChatQueue = ({ roomId, creatorId, onSelectSuperchat }: SuperChatQueue
               )}
             >
               <Badge className={cn("shrink-0", tierColors[item.tier])}>
-                R${item.amount}
+                R${Math.floor(item.amount / 100)}
               </Badge>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate">{item.username}</p>
