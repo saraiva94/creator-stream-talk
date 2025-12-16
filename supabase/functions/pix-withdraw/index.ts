@@ -211,8 +211,8 @@ serve(async (req) => {
       }
     }
 
-    // Determine source type for payout request
-    const sourceType = deductFromCreator > 0 ? (deductFromAffiliate > 0 ? 'mixed' : 'creator') : 'affiliate';
+    // Determine source type for payout request (use 'creator' for mixed withdrawals as DB only allows 'creator' or 'affiliate')
+    const sourceType = deductFromCreator > 0 ? 'creator' : 'affiliate';
 
     // Criar payout request
     const { data: payoutRequest, error: payoutError } = await supabase
