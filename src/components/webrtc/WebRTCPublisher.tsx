@@ -189,19 +189,41 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0];
 
+      console.log('[WebRTCPublisher] Local tracks:', {
+        hasVideo: !!videoTrack,
+        hasAudio: !!audioTrack,
+        videoEnabled: videoTrack?.enabled,
+        audioEnabled: audioTrack?.enabled,
+        videoReadyState: videoTrack?.readyState,
+        audioReadyState: audioTrack?.readyState,
+      });
+
       if (videoTrack) {
+        console.log('[WebRTCPublisher] Publishing video track...');
         await room.localParticipant.publishTrack(videoTrack, {
           name: 'camera',
           source: Track.Source.Camera
         });
+        console.log('[WebRTCPublisher] Video track published');
       }
 
       if (audioTrack) {
+        console.log('[WebRTCPublisher] Publishing audio track...');
         await room.localParticipant.publishTrack(audioTrack, {
           name: 'microphone',
           source: Track.Source.Microphone
         });
+        console.log('[WebRTCPublisher] Audio track published');
       }
+
+      // Log participant publications
+      console.log('[WebRTCPublisher] Publications after publish:', 
+        Array.from(room.localParticipant.trackPublications.values()).map((p: any) => ({
+          trackSid: p.trackSid,
+          source: p.source,
+          kind: p.track?.kind,
+        }))
+      );
 
       console.log('[WebRTCPublisher] Tracks published successfully');
 
