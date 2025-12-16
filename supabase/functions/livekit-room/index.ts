@@ -290,15 +290,26 @@ serve(async (req) => {
         }
       );
 
-      // Update live with room name and host joined timestamp
+      // Update live lifecycle when host joins (authoritative: host presence == LIVE)
+      const nowIso = new Date().toISOString();
+
       await supabaseAdmin
         .from('lives')
         .update({
           webrtc_room_name: roomName,
-          host_joined_at: new Date().toISOString(),
-          host_last_heartbeat: new Date().toISOString(),
+          host_joined_at: nowIso,
+          host_last_heartbeat: nowIso,
+          status: 'live',
+          is_active: true,
+          ended_at: null,
         })
         .eq('id', liveId);
+
+      // Keep creator streaming flag in sync
+      await supabaseAdmin
+        .from('creator_profiles')
+        .update({ is_streaming: true })
+        .eq('id', user.id);
 
       console.log(`[livekit-room] Host token generated for ${user.id} in room ${roomName}`);
 
@@ -373,9 +384,17 @@ serve(async (req) => {
         );
       }
 
+      const nowIso = new Date().toISOString();
+
       await supabaseAdmin
         .from('lives')
-        .update({ host_last_heartbeat: new Date().toISOString() })
+        .update({
+          host_last_heartbeat: nowIso,
+          // Ensure the live doesn't get stuck as ended while host is actively connected
+          status: 'live',
+          is_active: true,
+          ended_at: null,
+        })
         .eq('id', liveId);
 
       console.log(`[livekit-room] Heartbeat updated for live ${liveId}`);
