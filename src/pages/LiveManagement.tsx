@@ -57,6 +57,7 @@ const LiveManagement = () => {
   const [currentLiveId, setCurrentLiveId] = useState<string | null>(null);
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
   const [pendingSuperchatCount, setPendingSuperchatCount] = useState(0);
+  const [isGoingLive, setIsGoingLive] = useState(false); // Prevent double-click
   const [activeSuperchat, setActiveSuperchat] = useState<{
     id: string;
     message: string;
@@ -145,13 +146,46 @@ const LiveManagement = () => {
 
   // Single-step "Go Live" - create room and go live immediately
   const handleGoLive = async () => {
-    if (!user) return;
+    if (!user || isGoingLive) return; // Prevent double-click
+
+    setIsGoingLive(true);
 
     try {
+      // Check for existing active live first (idempotency)
+      const { data: existingLive } = await supabase
+        .from("lives")
+        .select("id, chat_room_id")
+        .eq("creator_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (existingLive) {
+        // Reuse existing live
+        logger.live.info("Reusing existing live", { liveId: existingLive.id });
+        setCurrentLiveId(existingLive.id);
+        if (existingLive.chat_room_id) {
+          setRoom({ id: existingLive.chat_room_id });
+        }
+        setStreamPhase("live");
+        setIsStreaming(true);
+        toast({
+          title: t.liveManagement?.streamStarted || "Você está ao vivo!",
+          description: t.liveManagement?.youAreLiveNow || "Sua transmissão está visível para todos.",
+        });
+        return;
+      }
+
       // Clean up any stale rooms first
       await supabase
         .from("rooms")
         .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq("creator_id", user.id)
+        .eq("is_active", true);
+
+      // Also clean up any stale lives
+      await supabase
+        .from("lives")
+        .update({ is_active: false, status: "ended", ended_at: new Date().toISOString() })
         .eq("creator_id", user.id)
         .eq("is_active", true);
 
@@ -211,6 +245,8 @@ const LiveManagement = () => {
         description: message,
         variant: "destructive",
       });
+    } finally {
+      setIsGoingLive(false);
     }
   };
 
@@ -450,6 +486,7 @@ const LiveManagement = () => {
         liveUrl={currentLiveId ? `${window.location.origin}/live/${currentLiveId}` : undefined}
         streamPhase={streamPhase}
         liveId={currentLiveId}
+        isGoingLive={isGoingLive}
       />
     );
   }
@@ -468,6 +505,7 @@ const LiveManagement = () => {
             isLive={streamPhase === "live"}
             onGoLive={handleGoLive}
             onEndStream={handleEndStream}
+            disabled={isGoingLive}
           />
         </div>
 

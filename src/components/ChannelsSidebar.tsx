@@ -102,64 +102,62 @@ export const ChannelsSidebar = () => {
       
       setLiveChannels(liveChannelsData);
 
-      // Fetch followed channels if user is logged in - OPTIMIZED: single batch query
+      // Fetch followed channels if user is logged in - TWO-STEP FETCH (no FK join)
       if (currentUserId) {
-        const { data: followedData } = await supabase
+        // Step 1: Get subscriptions (creator_ids only)
+        const { data: subsData, error: subsError } = await supabase
           .from("subscriptions")
-          .select(`
-            creator_id,
-            creator_profiles:creator_id (
-              id,
-              display_name,
-              viewer_count,
-              is_streaming,
-              tags
-            )
-          `)
+          .select("creator_id")
           .eq("user_id", currentUserId)
           .eq("status", "active");
 
-        if (followedData && followedData.length > 0) {
-          // Batch fetch all profiles at once instead of N+1 queries
-          const creatorIds = followedData
-            .filter((sub: any) => sub.creator_profiles)
-            .map((sub: any) => (sub.creator_profiles as any).id);
-          
+        if (subsError) {
+          console.error("[ChannelsSidebar] Error fetching subscriptions:", subsError);
+        }
+
+        const creatorIds = subsData?.map((s: any) => s.creator_id).filter(Boolean) || [];
+
+        if (creatorIds.length > 0) {
+          // Step 2: Fetch creator_profiles for those IDs
+          const { data: creatorsData } = await supabase
+            .from("creator_profiles")
+            .select("id, display_name, viewer_count, is_streaming, tags")
+            .in("id", creatorIds);
+
+          // Step 3: Fetch profiles (avatar, username)
           const { data: profilesData } = await supabase
             .from("profiles")
             .select("id, avatar_url, username")
             .in("id", creatorIds);
 
-          // Fetch active lives for followed creators
+          // Step 4: Fetch active lives for followed creators
           const { data: followedLivesData } = await supabase
             .from("lives")
             .select("id, creator_id")
             .in("creator_id", creatorIds)
-            .eq("is_active", true);
+            .eq("is_active", true)
+            .eq("status", "live");
           
           const profileMap = new Map(
             profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []
           );
           const followedLiveMap = new Map(followedLivesData?.map((l: any) => [l.creator_id, l.id]) || []);
 
-          const followed: FollowedChannel[] = followedData
-            .filter((sub: any) => sub.creator_profiles)
-            .map((sub: any) => {
-              const creator = sub.creator_profiles as any;
-              const profile = profileMap.get(creator.id);
-              const hasActiveLive = followedLiveMap.has(creator.id);
-              return {
-                id: creator.id,
-                display_name: creator.display_name,
-                username: profile?.username || creator.display_name,
-                avatar_url: profile?.avatar_url || null,
-                viewer_count: creator.viewer_count || 0,
-                is_streaming: hasActiveLive, // Use active live as source of truth
-                is_followed: true,
-                tags: creator.tags || [],
-                activeLiveId: followedLiveMap.get(creator.id) || null,
-              };
-            });
+          const followed: FollowedChannel[] = (creatorsData || []).map((creator: any) => {
+            const profile = profileMap.get(creator.id);
+            const hasActiveLive = followedLiveMap.has(creator.id);
+            return {
+              id: creator.id,
+              display_name: creator.display_name,
+              username: profile?.username || creator.display_name,
+              avatar_url: profile?.avatar_url || null,
+              viewer_count: creator.viewer_count || 0,
+              is_streaming: hasActiveLive, // Use active live as source of truth
+              is_followed: true,
+              tags: creator.tags || [],
+              activeLiveId: followedLiveMap.get(creator.id) || null,
+            };
+          });
 
           // Sort: online first, then by viewer count
           followed.sort((a, b) => {
