@@ -5,9 +5,12 @@ interface WebRTCViewerProps {
   liveId: string;
   muted?: boolean;
   blurred?: boolean;
+  volume?: number; // 0-1
   onReady?: () => void;
   onError?: (error: string) => void;
   onHostNotReady?: () => void;
+  onViewerConnect?: () => void;
+  onViewerDisconnect?: () => void;
   className?: string;
 }
 
@@ -25,9 +28,12 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
   liveId,
   muted = false,
   blurred = false,
+  volume = 1,
   onReady,
   onError,
   onHostNotReady,
+  onViewerConnect,
+  onViewerDisconnect,
   className = "",
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -241,6 +247,7 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
         setConnectionState('connected');
         connectingRef.current = false;
         onReady?.();
+        onViewerConnect?.();
       });
 
       room.on(RoomEvent.Disconnected, (reason?: any) => {
@@ -251,6 +258,7 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
           setConnectionState('idle');
           roomRef.current = null;
           connectingRef.current = false;
+          onViewerDisconnect?.();
         }
       });
       
@@ -364,6 +372,13 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
       videoRef.current.muted = muted;
     }
   }, [muted]);
+
+  // Handle volume state
+  useEffect(() => {
+    if (videoRef.current && !muted) {
+      videoRef.current.volume = volume;
+    }
+  }, [volume, muted]);
 
   const handleRetry = useCallback(() => {
     cleanup('manual retry');
