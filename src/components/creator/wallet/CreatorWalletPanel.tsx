@@ -24,12 +24,14 @@ type ApiResponse<T> = {
 
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2)}`;
 
-const getAuthHeader = async () => {
+const getCreatorId = async () => {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+
+  const creatorId = session?.user?.id;
+  if (!creatorId) throw new Error("Autenticação necessária");
+  return creatorId;
 };
 
 export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: CreatorWalletPanelProps) => {
@@ -41,25 +43,29 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const backendBase = import.meta.env.VITE_BACKEND_URL ?? "";
-
   const loadSummary = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const headers = {
-        "Content-Type": "application/json",
-        ...(await getAuthHeader()),
-      };
-      const res = await fetch(`${backendBase}/withdrawals/wallet-summary`, {
-        headers,
-      });
-      const body = (await res.json()) as ApiResponse<WalletSummary>;
-      if (!res.ok || !body.success || !body.data) {
-        throw new Error(body.error || "Falha ao carregar a carteira");
+      const creatorId = await getCreatorId();
+
+      const { data, error: walletError } = await supabase
+        .from("creator_wallet")
+        .select("balance_cents, pending_cents")
+        .eq("creator_id", creatorId)
+        .maybeSingle();
+
+      if (walletError) {
+        throw new Error(walletError.message);
       }
-      setSummary(body.data);
-      onWalletUpdate?.(body.data);
+
+      const next = {
+        balance_cents: data?.balance_cents ?? 0,
+        pending_cents: data?.pending_cents ?? 0,
+      };
+
+      setSummary(next);
+      onWalletUpdate?.(next);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -93,39 +99,38 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
       return;
     }
 
-    const amount_cents = Math.round(parsed * 100);
+    const amountCents = Math.round(parsed * 100);
 
     setIsSubmitting(true);
     try {
-      const headers = {
-        "Content-Type": "application/json",
-        ...(await getAuthHeader()),
-      };
-      const res = await fetch(`${backendBase}/withdrawals/request`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ amount_cents, pix_key: pix }),
-      });
-      const body = (await res.json()) as ApiResponse<{
-        balance_cents_after: number;
-        pending_cents_after: number;
-      }>;
+      const creatorId = await getCreatorId();
 
-      if (!res.ok || !body.success || !body.data) {
-        throw new Error(body.error || "Nao foi possivel solicitar o saque");
+      const { data, error: invokeError } = await supabase.functions.invoke("pix-withdraw", {
+        body: {
+          userId: creatorId,
+          pixKey: pix,
+          amountCents,
+          isCreator: true,
+        },
+      });
+
+      if (invokeError) {
+        throw new Error(invokeError.message);
       }
 
-      const nextSummary = {
-        balance_cents: body.data.balance_cents_after,
-        pending_cents: body.data.pending_cents_after,
-      };
+      if (!data?.success) {
+        throw new Error(data?.error || "Nao foi possivel solicitar o saque");
+      }
 
-      setSummary(nextSummary);
-      onWalletUpdate?.(nextSummary);
-      onWithdrawalSuccess?.(nextSummary);
+      await loadSummary();
+      onWithdrawalSuccess?.({
+        balance_cents: (summary?.balance_cents ?? 0) - amountCents,
+        pending_cents: (summary?.pending_cents ?? 0) + amountCents,
+      });
+
       setAmountBRL("");
       setPixKey("");
-      setSuccess("Saque solicitado sem taxa. O valor integral foi reservado.");
+      setSuccess("Saque solicitado. O valor foi reservado e está em processamento.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
