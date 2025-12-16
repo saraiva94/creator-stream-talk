@@ -14,7 +14,7 @@ const corsHeaders = {
 };
 
 // Configurações
-const MIN_WITHDRAW_CENTS = 2000; // R$ 20,00
+const MIN_WITHDRAW_CENTS = 1500; // R$ 15,00
 const WOOVI_BASE_URL = Deno.env.get('WOOVI_SANDBOX') === 'true' 
   ? 'https://api.woovi-sandbox.com'
   : 'https://api.openpix.com.br';
