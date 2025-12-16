@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ interface SuperChatDialogProps {
   creatorId: string;
   userId: string;
   roomId: string;
+  initialTier?: "blue" | "yellow" | "red" | null;
 }
 
 export const SUPERCHAT_TIERS = [
@@ -34,12 +35,24 @@ const SuperChatDialog = ({
   creatorId,
   userId,
   roomId,
+  initialTier = null,
 }: SuperChatDialogProps) => {
-  const [selectedTier, setSelectedTier] = useState<typeof SUPERCHAT_TIERS[number]>(SUPERCHAT_TIERS[1]);
+  const initialTierData = initialTier 
+    ? SUPERCHAT_TIERS.find(t => t.tier === initialTier) || SUPERCHAT_TIERS[1]
+    : SUPERCHAT_TIERS[1];
+  const [selectedTier, setSelectedTier] = useState<typeof SUPERCHAT_TIERS[number]>(initialTierData);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { t } = useLanguage();
+
+  // Update selected tier when initialTier changes (e.g., from suggestion buttons)
+  useEffect(() => {
+    if (initialTier) {
+      const tier = SUPERCHAT_TIERS.find(t => t.tier === initialTier);
+      if (tier) setSelectedTier(tier);
+    }
+  }, [initialTier]);
 
   const handleSendSuperChat = async () => {
     if (!message.trim()) {
