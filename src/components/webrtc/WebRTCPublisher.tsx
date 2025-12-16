@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface WebRTCPublisherProps {
   liveId: string;
+  facingMode?: "user" | "environment";
   onReady?: () => void;
   onError?: (error: string) => void;
   onDisconnect?: () => void;
@@ -17,6 +18,7 @@ type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error' | 'disconne
  */
 export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
   liveId,
+  facingMode = "user",
   onReady,
   onError,
   onDisconnect,
@@ -134,7 +136,7 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
 
       // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, facingMode: 'user' },
+        video: { width: 1280, height: 720, facingMode },
         audio: true
       });
       
@@ -238,6 +240,76 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
     connect();
     return cleanup;
   }, []);
+
+  // Handle facingMode changes (switch camera)
+  useEffect(() => {
+    const switchCamera = async () => {
+      if (connectionState !== 'connected' || !roomRef.current || !localStream) {
+        return;
+      }
+
+      console.log('[WebRTCPublisher] Switching camera to:', facingMode);
+
+      try {
+        // Get new stream with different facingMode
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720, facingMode },
+          audio: false // Keep existing audio track
+        });
+
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        if (!newVideoTrack) {
+          console.error('[WebRTCPublisher] Failed to get new video track');
+          return;
+        }
+
+        // Stop old video track
+        const oldVideoTrack = localStream.getVideoTracks()[0];
+        if (oldVideoTrack) {
+          oldVideoTrack.stop();
+          localStream.removeTrack(oldVideoTrack);
+        }
+
+        // Add new video track to local stream
+        localStream.addTrack(newVideoTrack);
+
+        // Update local preview
+        if (videoRef.current) {
+          videoRef.current.srcObject = localStream;
+        }
+
+        // Import Track for source reference
+        const { Track } = await import('livekit-client');
+
+        // Unpublish old track and publish new one
+        const localParticipant = roomRef.current.localParticipant;
+        
+        // Find and unpublish existing camera track
+        for (const publication of localParticipant.trackPublications.values()) {
+          if (publication.source === Track.Source.Camera && publication.track) {
+            await localParticipant.unpublishTrack(publication.track);
+            break;
+          }
+        }
+
+        // Publish new camera track
+        await localParticipant.publishTrack(newVideoTrack, {
+          name: 'camera',
+          source: Track.Source.Camera
+        });
+
+        console.log('[WebRTCPublisher] Camera switched successfully');
+      } catch (err) {
+        console.error('[WebRTCPublisher] Failed to switch camera:', err);
+      }
+    };
+
+    // Only run if this is not the initial render
+    const isInitialMount = connectionState === 'idle' || connectionState === 'connecting';
+    if (!isInitialMount) {
+      switchCamera();
+    }
+  }, [facingMode, connectionState, localStream]);
 
   // Reconnect handler
   const handleReconnect = () => {

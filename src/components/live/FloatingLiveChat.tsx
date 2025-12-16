@@ -372,12 +372,13 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
           WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 100%)',
         }}
       >
-        <div className="flex flex-col justify-end h-full">
-          <div className="flex flex-col gap-1 overflow-hidden">
-            {messages.map((message, index) => {
+        <div className="flex flex-col justify-end h-full overflow-hidden">
+          {/* flex-col-reverse: newest at bottom, oldest at top (fades out) */}
+          <div className="flex flex-col-reverse gap-1 overflow-hidden">
+            {[...messages].reverse().map((message, index) => {
               const opacity = getMessageOpacity(message.created_at);
-              const positionFromBottom = messages.length - 1 - index;
-              const fadeMultiplier = positionFromBottom > 4 ? 0.3 : positionFromBottom > 2 ? 0.6 : 1;
+              // index 0 = newest (bottom), higher index = older (top)
+              const fadeMultiplier = index > 4 ? 0.3 : index > 2 ? 0.6 : 1;
               
               return (
                 <div
