@@ -584,6 +584,10 @@ const LiveViewer: React.FC = () => {
   const canShowVideo = liveData.is_active && liveData.status === "live";
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
 
+  const handleHostNotReady = useCallback(() => {
+    console.log("[LiveViewer] Waiting for host...");
+  }, []);
+
   // Mobile: Fullscreen vertical layout
   if (isMobileOrTablet) {
     return (
@@ -615,52 +619,52 @@ const LiveViewer: React.FC = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar user={currentUser} isAdmin={isAdmin} />
-      
+
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content - Video + Info */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Video Player */}
           <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1">
-            {canShowVideo ? (
-              <>
-                <WebRTCViewer
-                  liveId={liveData.id}
-                  muted={shouldMuteAndBlur}
-                  blurred={shouldMuteAndBlur}
-                  onHostNotReady={() => console.log("[LiveViewer] Waiting for host...")}
-                  className="w-full h-full"
-                />
+            <WebRTCViewer
+              liveId={liveData.id}
+              muted={shouldMuteAndBlur}
+              blurred={shouldMuteAndBlur}
+              onHostNotReady={handleHostNotReady}
+              className="w-full h-full"
+            />
 
-                {showCreditOverlay && (
-                  <CreditRemainingOverlay creditsLeft={localCredits} />
-                )}
+            {showCreditOverlay && (
+              <CreditRemainingOverlay creditsLeft={localCredits} />
+            )}
 
-                {showPaywall && (
-                  <PaywallOverlay
-                    priceLabel="R$ 5,00"
-                    onPurchase={handlePurchaseCredits}
-                    reason={paywallReason ?? "preview"}
-                    remainingCredits={localCredits}
-                    isAuthenticated={isAuthenticated}
-                  />
-                )}
+            {showPaywall && (
+              <PaywallOverlay
+                priceLabel="R$ 5,00"
+                onPurchase={handlePurchaseCredits}
+                reason={paywallReason ?? "preview"}
+                remainingCredits={localCredits}
+                isAuthenticated={isAuthenticated}
+              />
+            )}
 
-                {!isOnline && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-background/80">
-                    <div className="flex items-center gap-2 rounded-md bg-card px-4 py-2 text-sm shadow">
-                      <WifiOff className="h-4 w-4" />
-                      <span>{t.liveViewer?.connectionLost || "Conexão perdida. Reconectando..."}</span>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
+            {!canShowVideo && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                 <div className="text-center">
                   <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <p className="text-muted-foreground">
                     {t.liveViewer?.waitingForStream || "Aguardando transmissão..."}
                   </p>
+                </div>
+              </div>
+            )}
+
+            {!isOnline && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                <div className="flex items-center gap-2 rounded-md bg-card px-4 py-2 text-sm shadow">
+                  <WifiOff className="h-4 w-4" />
+                  <span>
+                    {t.liveViewer?.connectionLost || "Conexão perdida. Reconectando..."}
+                  </span>
                 </div>
               </div>
             )}

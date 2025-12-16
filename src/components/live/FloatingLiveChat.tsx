@@ -58,17 +58,12 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   useEffect(() => {
     const fetchSuperchats = async () => {
       const now = new Date().toISOString();
+
       const { data, error } = await supabase
         .from("superchats")
-        .select(`
-          id,
-          message,
-          tier,
-          amount,
-          expires_at,
-          created_at,
-          profiles:user_id (username)
-        `)
+        .select(
+          "id, message, tier, amount, expires_at, created_at, user_id, status"
+        )
         .eq("room_id", roomId)
         .in("status", ["paid", "pending", "displaying"]) // Include all active statuses
         .gt("expires_at", now)
@@ -80,10 +75,22 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
         return;
       }
 
+      const userIds = [...new Set((data || []).map((sc: any) => sc.user_id))];
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds);
+
+      if (profilesError) {
+        console.error("Error fetching superchat usernames:", profilesError);
+      }
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.username]));
+
       const formatted: ActiveSuperchat[] = (data || []).map((sc: any) => ({
         id: sc.id,
         message: sc.message,
-        username: sc.profiles?.username || "Usuário",
+        username: profileMap.get(sc.user_id) || "Usuário",
         tier: sc.tier as "blue" | "yellow" | "red",
         amount: sc.amount,
         expires_at: sc.expires_at,
