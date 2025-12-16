@@ -783,8 +783,8 @@ const LiveViewer: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content - Video + Info */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Video Player - fills height, letterbox on sides for portrait content */}
-          <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1 flex items-center justify-center group">
+          {/* Video Player - maintains 16:9 container, video letterboxes inside */}
+          <div className="relative bg-black aspect-video w-full flex items-center justify-center group">
             <WebRTCViewer
               liveId={liveData.id}
               muted={shouldMuteAndBlur || userMuted}
@@ -793,7 +793,7 @@ const LiveViewer: React.FC = () => {
               onHostNotReady={handleHostNotReady}
               onViewerConnect={handleViewerConnect}
               onViewerDisconnect={handleViewerDisconnect}
-              className="h-full w-auto"
+              className="max-w-full max-h-full"
             />
 
             {/* Volume Controls - show on hover when not paywalled */}
