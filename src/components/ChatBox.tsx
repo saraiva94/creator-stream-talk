@@ -6,12 +6,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Coins, ImagePlus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import SuperChatDialog from "./SuperChatDialog";
+import SuperChatDialog, { SUPERCHAT_TIERS } from "./SuperChatDialog";
 import SuperChatDisplay from "./SuperChatDisplay";
 import { ChatMessage } from "./chat/ChatMessage";
 import { AudioRecorder } from "./chat/AudioRecorder";
 import { TypingIndicator } from "./chat/TypingIndicator";
 import { EmojiPicker } from "./chat/EmojiPicker";
+import { SuperChatSuggestions } from "./chat/SuperChatSuggestions";
 
 interface Message {
   id: string;
@@ -55,6 +56,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showSuperChat, setShowSuperChat] = useState(false);
+  const [selectedTier, setSelectedTier] = useState<"blue" | "yellow" | "red" | null>(null);
   const [activeSuperchats, setActiveSuperchats] = useState<ActiveSuperchat[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [currentUsername, setCurrentUsername] = useState<string>("");
@@ -495,7 +497,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
         onChange={handleImageSelect}
       />
 
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
+      <form onSubmit={handleSendMessage} className="p-3 border-t border-border">
         {readOnly ? (
           <div className="text-center py-4 space-y-2">
             <p className="text-sm text-muted-foreground">
@@ -512,85 +514,101 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             </p>
           </div>
         ) : (
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* SuperChat button (non-creators only) - hidden on very small screens */}
+          <div className="space-y-2">
+            {/* SuperChat Suggestions - above input for non-creators */}
             {!isCreator && (
+              <SuperChatSuggestions 
+                onSelect={(tier) => {
+                  setSelectedTier(tier);
+                  setShowSuperChat(true);
+                }}
+              />
+            )}
+            
+            <div className="flex items-center gap-1 sm:gap-2">
+              {/* SuperChat button (non-creators only) - hidden on very small screens */}
+              {!isCreator && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShowSuperChat(true)}
+                  title="Enviar SuperChat"
+                  className="shrink-0 text-muted-foreground hover:text-yellow-500 h-8 w-8 sm:h-10 sm:w-10"
+                >
+                  <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
+                </Button>
+              )}
+
+              {/* Image attach button - hidden on mobile */}
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
-                onClick={() => setShowSuperChat(true)}
-                title="Enviar SuperChat"
-                className="shrink-0 text-muted-foreground hover:text-yellow-500 h-8 w-8 sm:h-10 sm:w-10"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                title={t.chat?.attachImage || "Anexar imagem"}
+                className="shrink-0 text-muted-foreground hover:text-foreground hidden sm:flex h-8 w-8 sm:h-10 sm:w-10"
               >
-                <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                ) : (
+                  <ImagePlus className="h-4 w-4 sm:h-5 sm:w-5" />
+                )}
               </Button>
-            )}
 
-            {/* Image attach button - hidden on mobile */}
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              title={t.chat?.attachImage || "Anexar imagem"}
-              className="shrink-0 text-muted-foreground hover:text-foreground hidden sm:flex h-8 w-8 sm:h-10 sm:w-10"
-            >
-              {uploading ? (
-                <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-              ) : (
-                <ImagePlus className="h-4 w-4 sm:h-5 sm:w-5" />
-              )}
-            </Button>
+              {/* Emoji picker - hidden on mobile */}
+              <div className="hidden sm:block">
+                <EmojiPicker 
+                  onEmojiSelect={handleEmojiSelect}
+                  disabled={uploading}
+                />
+              </div>
 
-            {/* Emoji picker - hidden on mobile */}
-            <div className="hidden sm:block">
-              <EmojiPicker 
-                onEmojiSelect={handleEmojiSelect}
-                disabled={uploading}
+              {/* Text input */}
+              <Input
+                value={newMessage}
+                onChange={handleInputChange}
+                placeholder={t.chat?.typeMessage || "Digite sua mensagem..."}
+                disabled={loading || uploading}
+                maxLength={500}
+                className="flex-1 border-primary/50 focus-visible:ring-primary h-8 sm:h-10 text-sm"
               />
+
+              {/* Audio recorder - always visible, especially important for mobile */}
+              <div className="shrink-0">
+                <AudioRecorder 
+                  onRecordingComplete={handleAudioComplete}
+                  disabled={uploading}
+                  maxDuration={60}
+                />
+              </div>
+
+              {/* Send button */}
+              <Button 
+                type="submit" 
+                size="icon" 
+                disabled={loading || uploading || !newMessage.trim()}
+                title={t.chat?.sendMessage || "Enviar mensagem"}
+                className="shrink-0 h-8 w-8 sm:h-10 sm:w-10"
+              >
+                <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </Button>
             </div>
-
-            {/* Text input */}
-            <Input
-              value={newMessage}
-              onChange={handleInputChange}
-              placeholder={t.chat?.typeMessage || "Digite sua mensagem..."}
-              disabled={loading || uploading}
-              maxLength={500}
-              className="flex-1 border-primary/50 focus-visible:ring-primary h-8 sm:h-10 text-sm"
-            />
-
-            {/* Audio recorder - always visible, especially important for mobile */}
-            <div className="shrink-0">
-              <AudioRecorder 
-                onRecordingComplete={handleAudioComplete}
-                disabled={uploading}
-                maxDuration={60}
-              />
-            </div>
-
-            {/* Send button */}
-            <Button 
-              type="submit" 
-              size="icon" 
-              disabled={loading || uploading || !newMessage.trim()}
-              title={t.chat?.sendMessage || "Enviar mensagem"}
-              className="shrink-0 h-8 w-8 sm:h-10 sm:w-10"
-            >
-              <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            </Button>
           </div>
         )}
       </form>
 
       <SuperChatDialog
         open={showSuperChat}
-        onOpenChange={setShowSuperChat}
+        onOpenChange={(open) => {
+          setShowSuperChat(open);
+          if (!open) setSelectedTier(null);
+        }}
         creatorId={creatorId}
         userId={currentUserId || ""}
         roomId={roomId}
+        initialTier={selectedTier}
       />
     </div>
   );
