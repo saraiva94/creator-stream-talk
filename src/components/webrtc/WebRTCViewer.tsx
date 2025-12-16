@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface WebRTCViewerProps {
@@ -17,10 +17,11 @@ type ConnectionState = 'idle' | 'connecting' | 'connected' | 'waiting' | 'error'
  * WebRTCViewer - LiveKit-based viewer component for spectators
  * Connects to LiveKit room and subscribes to video/audio tracks
  * 
- * CRITICAL: This component uses refs for connection state to prevent
+ * CRITICAL: This component is memoized to prevent re-renders from parent
+ * auth state changes. Uses refs for connection state to prevent
  * re-render loops and duplicate connection attempts.
  */
-export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
+const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
   liveId,
   muted = false,
   blurred = false,
@@ -35,6 +36,7 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentLiveIdRef = useRef<string>(liveId);
+  const connectionAttemptRef = useRef(0);
   
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,9 +47,9 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
     currentLiveIdRef.current = liveId;
   }, [liveId]);
 
-  // Cleanup function
-  const cleanup = useCallback(() => {
-    console.log('[WebRTCViewer] Cleaning up...');
+  // Cleanup function - only called on real unmount or liveId change
+  const cleanup = useCallback((reason?: string) => {
+    console.log('[WebRTCViewer] Cleaning up...', reason || '');
     
     // Abort any pending requests
     if (abortControllerRef.current) {
@@ -71,8 +73,14 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
   // Connect to LiveKit
   const connect = useCallback(async () => {
     // Prevent duplicate connections using ref (not state)
-    if (connectingRef.current || roomRef.current) {
-      console.log('[WebRTCViewer] Already connecting/connected, skipping');
+    if (connectingRef.current) {
+      console.log('[WebRTCViewer] Already connecting, skipping');
+      return;
+    }
+    
+    // If already connected to the same room, don't reconnect
+    if (roomRef.current && connectionState === 'connected') {
+      console.log('[WebRTCViewer] Already connected, skipping');
       return;
     }
 
@@ -82,6 +90,7 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       return;
     }
 
+    const attemptId = ++connectionAttemptRef.current;
     connectingRef.current = true;
     setConnectionState('connecting');
     setErrorMessage(null);
@@ -90,16 +99,16 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
     abortControllerRef.current = new AbortController();
 
     try {
-      console.log('[WebRTCViewer] Requesting viewer token for live:', liveId);
+      console.log('[WebRTCViewer] Requesting viewer token for live:', liveId, 'attempt:', attemptId);
       
       // Get viewer token from edge function
       const { data, error } = await supabase.functions.invoke('livekit-room', {
         body: { action: 'viewer-token', liveId }
       });
 
-      // Check if component unmounted or liveId changed during request
-      if (!mountedRef.current || currentLiveIdRef.current !== liveId) {
-        console.log('[WebRTCViewer] Component unmounted or liveId changed, aborting');
+      // Check if this attempt is still valid
+      if (!mountedRef.current || currentLiveIdRef.current !== liveId || attemptId !== connectionAttemptRef.current) {
+        console.log('[WebRTCViewer] Connection attempt invalidated, aborting');
         connectingRef.current = false;
         return;
       }
@@ -174,8 +183,8 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       console.log('[WebRTCViewer] sanitizedLivekitUrl:', livekitUrl, 'room:', roomName, 'isSecureSite:', isSecureSite);
 
       // Check again before expensive import
-      if (!mountedRef.current || currentLiveIdRef.current !== liveId) {
-        console.log('[WebRTCViewer] Component state changed, aborting before import');
+      if (!mountedRef.current || currentLiveIdRef.current !== liveId || attemptId !== connectionAttemptRef.current) {
+        console.log('[WebRTCViewer] Connection attempt invalidated before import');
         connectingRef.current = false;
         return;
       }
@@ -185,10 +194,18 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       const { Room, RoomEvent, Track } = livekit;
 
       // Final check before creating room
-      if (!mountedRef.current || currentLiveIdRef.current !== liveId) {
-        console.log('[WebRTCViewer] Component state changed, aborting before room creation');
+      if (!mountedRef.current || currentLiveIdRef.current !== liveId || attemptId !== connectionAttemptRef.current) {
+        console.log('[WebRTCViewer] Connection attempt invalidated before room creation');
         connectingRef.current = false;
         return;
+      }
+
+      // Cleanup any existing room before creating new one
+      if (roomRef.current) {
+        try {
+          roomRef.current.disconnect();
+        } catch {}
+        roomRef.current = null;
       }
 
       // Create room
@@ -203,7 +220,7 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
 
       // Set up event listeners
       room.on(RoomEvent.Connected, () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || attemptId !== connectionAttemptRef.current) return;
         console.log('[WebRTCViewer] Connected to room');
         setConnectionState('connected');
         connectingRef.current = false;
@@ -213,9 +230,12 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       room.on(RoomEvent.Disconnected, () => {
         if (!mountedRef.current) return;
         console.log('[WebRTCViewer] Disconnected from room');
-        setConnectionState('idle');
-        roomRef.current = null;
-        connectingRef.current = false;
+        // Only reset if this is the current room
+        if (roomRef.current === room) {
+          setConnectionState('idle');
+          roomRef.current = null;
+          connectingRef.current = false;
+        }
       });
 
       room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
@@ -268,7 +288,7 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       });
 
     } catch (err: any) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || attemptId !== connectionAttemptRef.current) return;
       
       // Detailed error logging for debugging
       console.error('[WebRTCViewer] Connection error details:', {
@@ -282,41 +302,42 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
       connectingRef.current = false;
       onError?.(err.message);
     }
-  }, [liveId, onReady, onError, onHostNotReady]);
+  }, [liveId, onReady, onError, onHostNotReady, connectionState]);
 
-  // Single connection effect - runs once on mount
+  // Single connection effect - runs once on mount and when liveId changes
   useEffect(() => {
     mountedRef.current = true;
+    connectionAttemptRef.current = 0;
     
     // Small delay to ensure component is stable
     const connectTimer = setTimeout(() => {
       if (mountedRef.current && liveId) {
         connect();
       }
-    }, 100);
+    }, 150);
     
     return () => {
       mountedRef.current = false;
       clearTimeout(connectTimer);
-      cleanup();
+      cleanup('unmount or liveId change');
     };
-  }, [liveId]); // Only reconnect when liveId changes
+  }, [liveId]); // Only reconnect when liveId changes - NOT when connect changes
 
   // Retry for waiting state
   useEffect(() => {
     if (connectionState === 'waiting' && mountedRef.current) {
       const retryTimer = setTimeout(() => {
         if (mountedRef.current && !connectingRef.current && !roomRef.current) {
-          console.log('[WebRTCViewer] Retrying connection...');
+          console.log('[WebRTCViewer] Retrying connection from waiting state...');
           connect();
         }
       }, 3000);
       
       return () => clearTimeout(retryTimer);
     }
-  }, [connectionState, connect]);
+  }, [connectionState]); // Remove connect from deps to prevent loop
 
-  // Handle mute state
+  // Handle mute state - separate effect to not cause reconnects
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = muted;
@@ -324,7 +345,7 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
   }, [muted]);
 
   const handleRetry = useCallback(() => {
-    cleanup();
+    cleanup('manual retry');
     setTimeout(() => {
       if (mountedRef.current) {
         connect();
@@ -402,5 +423,16 @@ export const WebRTCViewer: React.FC<WebRTCViewerProps> = ({
     </div>
   );
 };
+
+// Memoize to prevent re-renders from parent auth state changes
+export const WebRTCViewer = memo(WebRTCViewerInner, (prev, next) => {
+  // Only re-render if these props change
+  return (
+    prev.liveId === next.liveId &&
+    prev.muted === next.muted &&
+    prev.blurred === next.blurred &&
+    prev.className === next.className
+  );
+});
 
 export default WebRTCViewer;

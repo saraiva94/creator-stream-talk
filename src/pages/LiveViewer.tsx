@@ -118,39 +118,60 @@ const LiveViewer: React.FC = () => {
     };
   }, []);
 
-  // Check auth state and admin role
+  // Check auth state ONCE on mount - avoid re-renders from auth state changes
+  const authCheckedRef = useRef(false);
+  
   useEffect(() => {
+    if (authCheckedRef.current) return;
+    
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
+      
+      if (!isMountedRef.current) return;
+      
+      const userId = data.session?.user?.id || null;
       setIsAuthenticated(Boolean(data.session));
-      setCurrentUserId(data.session?.user?.id || null);
+      setCurrentUserId(userId);
       setCurrentUser(data.session?.user || null);
       
       // Check admin role
-      if (data.session?.user?.id) {
+      if (userId) {
         const { data: roles } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", data.session.user.id);
+          .eq("user_id", userId);
         setIsAdmin(roles?.some(r => r.role === "admin") || false);
       }
+      
+      authCheckedRef.current = true;
     };
     
     checkAuth();
     
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_, session) => {
-      setIsAuthenticated(Boolean(session));
-      setCurrentUserId(session?.user?.id || null);
-      setCurrentUser(session?.user || null);
-      
-      if (session?.user?.id) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id);
-        setIsAdmin(roles?.some(r => r.role === "admin") || false);
-      } else {
+    // Only listen for sign out events to update state
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only react to SIGNED_OUT - ignore redundant state changes
+      if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        setCurrentUserId(null);
+        setCurrentUser(null);
         setIsAdmin(false);
+        authCheckedRef.current = false;
+      } else if (event === 'SIGNED_IN' && !authCheckedRef.current) {
+        // Only process SIGNED_IN if we haven't checked auth yet
+        const userId = session?.user?.id || null;
+        setIsAuthenticated(Boolean(session));
+        setCurrentUserId(userId);
+        setCurrentUser(session?.user || null);
+        
+        if (userId) {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userId);
+          setIsAdmin(roles?.some(r => r.role === "admin") || false);
+        }
+        authCheckedRef.current = true;
       }
     });
 
@@ -159,120 +180,131 @@ const LiveViewer: React.FC = () => {
     };
   }, []);
 
-  // Fetch live data and check access
-  const fetchLiveData = useCallback(async () => {
-    if (!liveId) return;
+  // Fetch live data ONCE on mount (independent of auth state)
+  const liveDataFetchedRef = useRef(false);
+  
+  useEffect(() => {
+    if (!liveId || liveDataFetchedRef.current) return;
+    liveDataFetchedRef.current = true;
     
-    setIsLoading(true);
-    setError(null);
+    const fetchLiveData = async () => {
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      // Fetch live data from Supabase
-      const { data: live, error: liveError } = await supabase
-        .from("lives")
-        .select("id, title, description, status, is_active, room_name, webrtc_room_name, chat_room_id, creator_id, price, thumbnail_url")
-        .eq("id", liveId)
-        .maybeSingle();
-
-      if (liveError) throw liveError;
-      
-      if (!live) {
-        setError(t.liveViewer?.notFound || "Live não encontrada");
-        setIsLoading(false);
-        return;
-      }
-
-      setLiveData(live);
-
-      // Fetch creator data
-      const { data: creator } = await supabase
-        .from("creator_profiles")
-        .select("id, display_name, is_streaming, viewer_count")
-        .eq("id", live.creator_id)
-        .maybeSingle();
-
-      if (creator) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("avatar_url")
-          .eq("id", live.creator_id)
+      try {
+        // Fetch live data from Supabase
+        const { data: live, error: liveError } = await supabase
+          .from("lives")
+          .select("id, title, description, status, is_active, room_name, webrtc_room_name, chat_room_id, creator_id, price, thumbnail_url")
+          .eq("id", liveId)
           .maybeSingle();
 
-        setCreatorData({
-          ...creator,
-          avatar_url: profile?.avatar_url || null,
-        });
-        setViewerCount(creator.viewer_count || 0);
-      }
-
-      // Fetch room ID for chat - prefer chat_room_id if available
-      const chatRoomSource = live.chat_room_id || live.room_name;
-      if (chatRoomSource) {
-        const { data: room } = await supabase
-          .from("rooms")
-          .select("id")
-          .eq("id", chatRoomSource)
-          .maybeSingle();
+        if (liveError) throw liveError;
         
-        if (room) {
-          setRoomId(room.id);
+        if (!live) {
+          setError(t.liveViewer?.notFound || "Live não encontrada");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!isMountedRef.current) return;
+        setLiveData(live);
+
+        // Fetch creator data and room in parallel
+        const [creatorResult, profileResult] = await Promise.all([
+          supabase
+            .from("creator_profiles")
+            .select("id, display_name, is_streaming, viewer_count")
+            .eq("id", live.creator_id)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("avatar_url")
+            .eq("id", live.creator_id)
+            .maybeSingle()
+        ]);
+
+        if (!isMountedRef.current) return;
+
+        if (creatorResult.data) {
+          setCreatorData({
+            ...creatorResult.data,
+            avatar_url: profileResult.data?.avatar_url || null,
+          });
+          setViewerCount(creatorResult.data.viewer_count || 0);
+        }
+
+        // Set room ID for chat immediately
+        const chatRoomId = live.chat_room_id;
+        if (chatRoomId) {
+          setRoomId(chatRoomId);
+        }
+
+      } catch (err) {
+        console.error("[LiveViewer] Error fetching live:", err);
+        if (isMountedRef.current) {
+          setError(t.liveViewer?.loadError || "Falha ao carregar informações da transmissão.");
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
         }
       }
+    };
 
-      // Check if user has credits - this determines entitlement
-      if (currentUserId) {
-        const { data: wallet } = await supabase
-          .from("credits_wallet")
-          .select("balance_credits")
-          .eq("user_id", currentUserId)
-          .maybeSingle();
-        
-        const credits = wallet?.balance_credits ?? 0;
+    fetchLiveData();
+  }, [liveId, t]);
+
+  // Fetch user-specific data (credits, following) separately when userId becomes available
+  useEffect(() => {
+    if (!currentUserId || !liveData) return;
+    
+    const fetchUserData = async () => {
+      try {
+        // Fetch credits and subscription in parallel
+        const [walletResult, subscriptionResult] = await Promise.all([
+          supabase
+            .from("credits_wallet")
+            .select("balance_credits")
+            .eq("user_id", currentUserId)
+            .maybeSingle(),
+          supabase
+            .from("subscriptions")
+            .select("id")
+            .eq("user_id", currentUserId)
+            .eq("creator_id", liveData.creator_id)
+            .eq("status", "active")
+            .maybeSingle()
+        ]);
+
+        if (!isMountedRef.current) return;
+
+        const credits = walletResult.data?.balance_credits ?? 0;
         setLocalCredits(credits);
         setCredits(credits);
         
-        // User has entitlement if they have credits
         if (credits > 0) {
           setHasEntitlement(true);
           
-          // Try to get/create live_access
-          const { data: existingAccess } = await supabase
+          // Upsert live_access in background
+          supabase
             .from("live_access")
-            .select("id")
-            .eq("user_id", currentUserId)
-            .eq("live_id", liveId)
-            .maybeSingle();
-          
-          if (!existingAccess) {
-            await supabase
-              .from("live_access")
-              .insert({ user_id: currentUserId, live_id: liveId, status: "active" });
-          }
+            .upsert({ 
+              user_id: currentUserId, 
+              live_id: liveData.id, 
+              status: "active" 
+            }, { onConflict: 'user_id,live_id' })
+            .then(() => {});
         }
 
-        // Check if user is following
-        const { data: subscription } = await supabase
-          .from("subscriptions")
-          .select("id")
-          .eq("user_id", currentUserId)
-          .eq("creator_id", live.creator_id)
-          .eq("status", "active")
-          .maybeSingle();
-        
-        setIsFollowing(Boolean(subscription));
+        setIsFollowing(Boolean(subscriptionResult.data));
+      } catch (err) {
+        console.error("[LiveViewer] Error fetching user data:", err);
       }
+    };
 
-    } catch (err) {
-      console.error("[LiveViewer] Error fetching live:", err);
-      setError(t.liveViewer?.loadError || "Falha ao carregar informações da transmissão.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [liveId, currentUserId, t, setCredits]);
-
-  useEffect(() => {
-    fetchLiveData();
-  }, [fetchLiveData]);
+    fetchUserData();
+  }, [currentUserId, liveData?.id, liveData?.creator_id, setCredits]);
 
   // Realtime subscription for live status changes
   useEffect(() => {
