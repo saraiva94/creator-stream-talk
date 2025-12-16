@@ -203,45 +203,56 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
     };
   }, [roomId]);
 
-  // Fetch messages
+  // Fetch messages - optimized with parallel loading
+  const messagesLoadedRef = useRef(false);
+  
   useEffect(() => {
+    if (!roomId || messagesLoadedRef.current) return;
+    
     const fetchMessages = async () => {
-      const { data, error } = await supabase
-        .from("messages")
-        .select(`
-          id,
-          content,
-          type,
-          file_url,
-          duration,
-          user_id,
-          created_at,
-          profiles (username)
-        `)
-        .eq("room_id", roomId)
-        .order("created_at", { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from("messages")
+          .select(`
+            id,
+            content,
+            type,
+            file_url,
+            duration,
+            user_id,
+            created_at,
+            profiles (username)
+          `)
+          .eq("room_id", roomId)
+          .order("created_at", { ascending: true })
+          .limit(100); // Limit initial load for performance
 
-      if (error) {
-        console.error("Error fetching messages:", error);
-        return;
+        if (error) {
+          console.error("Error fetching messages:", error);
+          return;
+        }
+
+        const formattedMessages: Message[] = (data || []).map(m => ({
+          id: m.id,
+          content: m.content,
+          type: (m.type || "text") as "text" | "image" | "audio",
+          file_url: m.file_url,
+          duration: m.duration,
+          user_id: m.user_id,
+          created_at: m.created_at,
+          profiles: { username: m.profiles?.username || "Usuário" }
+        }));
+
+        setMessages(formattedMessages);
+        messagesLoadedRef.current = true;
+      } catch (err) {
+        console.error("[ChatBox] Error loading messages:", err);
       }
-
-      const formattedMessages: Message[] = (data || []).map(m => ({
-        id: m.id,
-        content: m.content,
-        type: (m.type || "text") as "text" | "image" | "audio",
-        file_url: m.file_url,
-        duration: m.duration,
-        user_id: m.user_id,
-        created_at: m.created_at,
-        profiles: { username: m.profiles?.username || "Usuário" }
-      }));
-
-      setMessages(formattedMessages);
     };
 
     fetchMessages();
 
+    // Set up realtime subscription
     const channel = supabase
       .channel(`messages:${roomId}`)
       .on(
@@ -263,6 +274,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             created_at: string;
           };
           
+          // Fetch username for new message
           const { data: profileData } = await supabase
             .from("profiles")
             .select("username")
@@ -270,7 +282,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
             .maybeSingle();
 
           setMessages((prev) => [
-            ...prev,
+            ...prev.slice(-99), // Keep only last 100 messages for performance
             {
               id: newMsg.id,
               content: newMsg.content,
@@ -288,6 +300,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
 
     return () => {
       supabase.removeChannel(channel);
+      messagesLoadedRef.current = false;
     };
   }, [roomId]);
 
