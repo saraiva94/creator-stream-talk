@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import FloatingLiveChat from "@/components/live/FloatingLiveChat";
-import SuperChatDisplay from "@/components/SuperChatDisplay";
 import SuperChatQueue from "@/components/SuperChatQueue";
 import { SingleStepStreamControl } from "@/components/SingleStepStreamControl";
 import { WebRTCPublisher } from "@/components/webrtc";
@@ -231,15 +230,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
           </div>
         </div>
 
-        {/* Active SuperChat display */}
-        {activeSuperchat && (
-          <div className="absolute bottom-[28vh] left-16 right-16 z-20">
-            <SuperChatDisplay
-              superchat={activeSuperchat}
-              onExpire={onSuperchatExpire}
-            />
-          </div>
-        )}
+        {/* SuperChat display is handled by FloatingLiveChat */}
 
         {/* Floating chat */}
         {roomId && (
