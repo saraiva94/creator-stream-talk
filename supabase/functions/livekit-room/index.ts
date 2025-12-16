@@ -591,6 +591,159 @@ serve(async (req) => {
       );
     }
 
+    if (action === 'end-live') {
+      // End live and settle earnings - must be authenticated and be the creator
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: 'Authentication required' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (user.id !== live.creator_id) {
+        return new Response(
+          JSON.stringify({ error: 'Not authorized' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // End the live
+      await supabaseAdmin
+        .from('lives')
+        .update({
+          is_active: false,
+          status: 'ended',
+          ended_at: nowIso,
+        })
+        .eq('id', liveId);
+
+      // Update creator streaming status
+      await supabaseAdmin
+        .from('creator_profiles')
+        .update({ is_streaming: false, viewer_count: 0 })
+        .eq('id', user.id);
+
+      // Settle earnings - aggregate credits consumed and distribute
+      const { data: consumptionData } = await supabaseAdmin
+        .from('live_consumption')
+        .select('credits_consumed')
+        .eq('live_id', liveId);
+
+      const totalCreditsConsumed = (consumptionData ?? []).reduce(
+        (sum, row) => sum + (row.credits_consumed ?? 0),
+        0
+      );
+
+      let settlementResult = null;
+
+      if (totalCreditsConsumed > 0) {
+        // Calculate earnings: 180 credits = R$5.00 (500 cents)
+        const grossCents = Math.floor((totalCreditsConsumed * 500) / 180);
+        const creatorCents = Math.floor((grossCents * 80) / 100); // 80% to creator
+        const platformCents = grossCents - creatorCents; // 20% to platform
+
+        // Check existing earnings
+        const { data: existingEarnings } = await supabaseAdmin
+          .from('creator_earnings')
+          .select('id, status')
+          .eq('live_id', liveId)
+          .maybeSingle();
+
+        if (existingEarnings) {
+          const status = (existingEarnings.status ?? '').toLowerCase();
+          if (status !== 'settled' && status !== 'cancelled') {
+            await supabaseAdmin
+              .from('creator_earnings')
+              .update({
+                credits_consumed: totalCreditsConsumed,
+                gross_amount_cents: grossCents,
+                creator_amount_cents: creatorCents,
+                platform_amount_cents: platformCents,
+                status: 'settled',
+                settled_at: nowIso,
+              })
+              .eq('id', existingEarnings.id);
+          }
+        } else {
+          await supabaseAdmin
+            .from('creator_earnings')
+            .insert({
+              creator_id: live.creator_id,
+              live_id: liveId,
+              credits_consumed: totalCreditsConsumed,
+              gross_amount_cents: grossCents,
+              creator_amount_cents: creatorCents,
+              platform_amount_cents: platformCents,
+              status: 'settled',
+              settled_at: nowIso,
+              created_at: nowIso,
+            });
+        }
+
+        // Update creator wallet
+        const { data: wallet } = await supabaseAdmin
+          .from('creator_wallet')
+          .select('balance_cents, total_earned_cents')
+          .eq('creator_id', live.creator_id)
+          .maybeSingle();
+
+        if (wallet) {
+          await supabaseAdmin
+            .from('creator_wallet')
+            .update({
+              balance_cents: (wallet.balance_cents || 0) + creatorCents,
+              total_earned_cents: (wallet.total_earned_cents || 0) + creatorCents,
+              updated_at: nowIso,
+            })
+            .eq('creator_id', live.creator_id);
+        } else {
+          await supabaseAdmin
+            .from('creator_wallet')
+            .insert({
+              creator_id: live.creator_id,
+              balance_cents: creatorCents,
+              total_earned_cents: creatorCents,
+            });
+        }
+
+        // Record platform revenue
+        await supabaseAdmin.from('platform_revenue').insert({
+          source_type: 'live_earnings',
+          source_id: liveId,
+          amount: platformCents,
+          user_id: live.creator_id,
+          metadata: {
+            credits_consumed: totalCreditsConsumed,
+            gross_amount: grossCents,
+            creator_amount: creatorCents,
+          },
+        });
+
+        settlementResult = {
+          totalCreditsConsumed,
+          grossCents,
+          creatorCents,
+          platformCents,
+        };
+
+        console.log(`[livekit-room] Earnings settled for live ${liveId}:`, settlementResult);
+      }
+
+      console.log(`[livekit-room] Live ${liveId} ended by creator ${user.id}`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          liveId,
+          endedAt: nowIso,
+          settlement: settlementResult,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: 'Invalid action' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
