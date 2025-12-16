@@ -585,7 +585,8 @@ const LiveViewer: React.FC = () => {
 
   // Determine if we should show content
   const showPaywall = Boolean(paywallReason);
-  const shouldMuteAndBlur = showPaywall || (isPreviewing && !hasEntitlement);
+  // Blur ONLY after preview expires (paywall shown), NOT during the 20-second free preview
+  const shouldMuteAndBlur = showPaywall;
   const canShowVideo = liveData.is_active && liveData.status === "live";
   const showCreditOverlay = hasEntitlement && !showPaywall && localCredits > 0;
 
@@ -624,14 +625,14 @@ const LiveViewer: React.FC = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content - Video + Info */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Video Player - centered with letterbox bars for portrait video in landscape container */}
+          {/* Video Player - fills height, letterbox on sides for portrait content */}
           <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1 flex items-center justify-center">
             <WebRTCViewer
               liveId={liveData.id}
               muted={shouldMuteAndBlur}
               blurred={shouldMuteAndBlur}
               onHostNotReady={handleHostNotReady}
-              className="max-w-full max-h-full"
+              className="h-full w-auto"
             />
 
             {showCreditOverlay && (
