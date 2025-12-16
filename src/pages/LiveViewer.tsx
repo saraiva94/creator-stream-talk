@@ -41,6 +41,7 @@ interface LiveData {
   title: string | null;
   description: string | null;
   status: string | null;
+  ended_at?: string | null;
   is_active: boolean;
   room_name: string | null;
   webrtc_room_name: string | null;
@@ -195,7 +196,9 @@ const LiveViewer: React.FC = () => {
         // Fetch live data from Supabase
         const { data: live, error: liveError } = await supabase
           .from("lives")
-          .select("id, title, description, status, is_active, room_name, webrtc_room_name, chat_room_id, creator_id, price, thumbnail_url")
+          .select(
+            "id, title, description, status, ended_at, is_active, room_name, webrtc_room_name, chat_room_id, creator_id, price, thumbnail_url"
+          )
           .eq("id", liveId)
           .maybeSingle();
 
@@ -313,17 +316,55 @@ const LiveViewer: React.FC = () => {
     const channel = supabase
       .channel(`live-status-${liveId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'lives',
+          event: "UPDATE",
+          schema: "public",
+          table: "lives",
           filter: `id=eq.${liveId}`,
         },
         (payload) => {
-          console.log('[LiveViewer] Live status update received:', payload.new);
-          const newData = payload.new as Partial<LiveData>;
-          setLiveData(prev => prev ? { ...prev, ...newData } : null);
+          // NOTE: lives receives frequent heartbeat updates (e.g. host_last_heartbeat).
+          // To avoid render storms, only react to fields that affect viewer UX.
+          const n = payload.new as any;
+          const patch: Partial<LiveData> = {
+            status: n.status ?? null,
+            is_active: typeof n.is_active === "boolean" ? n.is_active : (n.is_active ?? false),
+            ended_at: n.ended_at ?? null,
+            title: n.title ?? null,
+            description: n.description ?? null,
+            price: n.price ?? null,
+            thumbnail_url: n.thumbnail_url ?? null,
+            room_name: n.room_name ?? null,
+            webrtc_room_name: n.webrtc_room_name ?? null,
+            chat_room_id: n.chat_room_id ?? null,
+          };
+
+          setLiveData((prev) => {
+            if (!prev) return prev;
+
+            const changed =
+              prev.status !== patch.status ||
+              prev.is_active !== patch.is_active ||
+              prev.ended_at !== patch.ended_at ||
+              prev.title !== patch.title ||
+              prev.description !== patch.description ||
+              prev.price !== patch.price ||
+              prev.thumbnail_url !== patch.thumbnail_url ||
+              prev.room_name !== patch.room_name ||
+              prev.webrtc_room_name !== patch.webrtc_room_name ||
+              prev.chat_room_id !== patch.chat_room_id;
+
+            if (!changed) return prev;
+
+            console.log("[LiveViewer] Live status update received:", {
+              status: patch.status,
+              is_active: patch.is_active,
+              ended_at: patch.ended_at,
+            });
+
+            return { ...prev, ...patch };
+          });
         }
       )
       .subscribe();
