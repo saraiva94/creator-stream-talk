@@ -29,6 +29,8 @@ interface MobileFullscreenPlayerProps {
   isOnline: boolean;
   muted?: boolean;
   blurred?: boolean;
+  onViewerConnect?: () => void;
+  onViewerDisconnect?: () => void;
 }
 
 const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
@@ -51,6 +53,8 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
   isOnline,
   muted: initialMuted = false,
   blurred = false,
+  onViewerConnect,
+  onViewerDisconnect,
 }) => {
   const navigate = useNavigate();
   const [liked, setLiked] = useState(false);
@@ -72,6 +76,8 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             muted={effectiveMuted}
             blurred={blurred}
             onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
+            onViewerConnect={onViewerConnect}
+            onViewerDisconnect={onViewerDisconnect}
             className="w-full h-full"
           />
         ) : null}

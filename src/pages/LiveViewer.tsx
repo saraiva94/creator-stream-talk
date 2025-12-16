@@ -32,8 +32,11 @@ import {
   ArrowLeft,
   WifiOff,
   AlertCircle,
-  Flag
+  Flag,
+  Volume2,
+  VolumeX
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "@/hooks/use-toast";
 
 interface LiveData {
@@ -85,6 +88,9 @@ const LiveViewer: React.FC = () => {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userMuted, setUserMuted] = useState(false);
+  const [userVolume, setUserVolume] = useState(1);
+  const [viewerConnected, setViewerConnected] = useState(false);
 
   // Refs for heartbeat
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -616,6 +622,83 @@ const LiveViewer: React.FC = () => {
     console.log("[LiveViewer] Waiting for host...");
   }, []);
 
+  // Viewer connect/disconnect tracking
+  const handleViewerConnect = useCallback(async () => {
+    if (!liveData?.creator_id || viewerConnected) return;
+    setViewerConnected(true);
+    
+    // Increment viewer count
+    try {
+      await supabase.rpc('increment_balance', { 
+        _user_id: liveData.creator_id, 
+        _amount: 0 // We're not using this RPC for money, just trigger
+      }).then(() => {});
+      
+      // Actually increment viewer_count in creator_profiles
+      const { data: profile } = await supabase
+        .from('creator_profiles')
+        .select('viewer_count')
+        .eq('id', liveData.creator_id)
+        .maybeSingle();
+      
+      if (profile) {
+        await supabase
+          .from('creator_profiles')
+          .update({ viewer_count: (profile.viewer_count || 0) + 1 })
+          .eq('id', liveData.creator_id);
+        
+        setViewerCount((profile.viewer_count || 0) + 1);
+      }
+    } catch (err) {
+      console.error('[LiveViewer] Error tracking viewer connect:', err);
+    }
+  }, [liveData?.creator_id, viewerConnected]);
+
+  const handleViewerDisconnect = useCallback(async () => {
+    if (!liveData?.creator_id || !viewerConnected) return;
+    setViewerConnected(false);
+    
+    // Decrement viewer count
+    try {
+      const { data: profile } = await supabase
+        .from('creator_profiles')
+        .select('viewer_count')
+        .eq('id', liveData.creator_id)
+        .maybeSingle();
+      
+      if (profile && profile.viewer_count > 0) {
+        await supabase
+          .from('creator_profiles')
+          .update({ viewer_count: Math.max(0, (profile.viewer_count || 1) - 1) })
+          .eq('id', liveData.creator_id);
+      }
+    } catch (err) {
+      console.error('[LiveViewer] Error tracking viewer disconnect:', err);
+    }
+  }, [liveData?.creator_id, viewerConnected]);
+
+  // Cleanup viewer count on unmount
+  useEffect(() => {
+    return () => {
+      if (viewerConnected && liveData?.creator_id) {
+        // Fire and forget decrement on unmount
+        supabase
+          .from('creator_profiles')
+          .select('viewer_count')
+          .eq('id', liveData.creator_id)
+          .maybeSingle()
+          .then(({ data: profile }) => {
+            if (profile && profile.viewer_count > 0) {
+              supabase
+                .from('creator_profiles')
+                .update({ viewer_count: Math.max(0, (profile.viewer_count || 1) - 1) })
+                .eq('id', liveData.creator_id);
+            }
+          });
+      }
+    };
+  }, [viewerConnected, liveData?.creator_id]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -686,6 +769,8 @@ const LiveViewer: React.FC = () => {
         isOnline={isOnline}
         muted={shouldMuteAndBlur}
         blurred={shouldMuteAndBlur}
+        onViewerConnect={handleViewerConnect}
+        onViewerDisconnect={handleViewerDisconnect}
       />
     );
   }
@@ -699,14 +784,41 @@ const LiveViewer: React.FC = () => {
         {/* Main Content - Video + Info */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Video Player - fills height, letterbox on sides for portrait content */}
-          <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1 flex items-center justify-center">
+          <div className="relative bg-black aspect-video lg:aspect-auto lg:flex-1 flex items-center justify-center group">
             <WebRTCViewer
               liveId={liveData.id}
-              muted={shouldMuteAndBlur}
+              muted={shouldMuteAndBlur || userMuted}
               blurred={shouldMuteAndBlur}
+              volume={userVolume}
               onHostNotReady={handleHostNotReady}
+              onViewerConnect={handleViewerConnect}
+              onViewerDisconnect={handleViewerDisconnect}
               className="h-full w-auto"
             />
+
+            {/* Volume Controls - show on hover when not paywalled */}
+            {!showPaywall && (
+              <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-white hover:bg-white/20"
+                  onClick={() => setUserMuted(!userMuted)}
+                >
+                  {userMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+                <Slider
+                  value={[userMuted ? 0 : userVolume * 100]}
+                  onValueChange={(v) => {
+                    setUserVolume(v[0] / 100);
+                    if (v[0] > 0) setUserMuted(false);
+                  }}
+                  max={100}
+                  step={1}
+                  className="w-24"
+                />
+              </div>
+            )}
 
             {showCreditOverlay && (
               <CreditRemainingOverlay creditsLeft={localCredits} />
