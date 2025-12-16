@@ -53,8 +53,8 @@ export function validateWooviConfig(config: WooviConfig): { valid: boolean; erro
  * Constantes de valores
  */
 export const WOOVI_CONSTANTS = {
-  /** Valor mínimo para saque em centavos (R$ 20,00) */
-  MIN_WITHDRAW_CENTS: 2000,
+  /** Valor mínimo para saque em centavos (R$ 15,00) */
+  MIN_WITHDRAW_CENTS: 1500,
   
   /** Timeout para chamadas à API em ms */
   API_TIMEOUT_MS: 30000,
