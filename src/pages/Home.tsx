@@ -173,7 +173,7 @@ const Home = () => {
           .from("profiles")
           .select("referral_code")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
         if (data?.referral_code) {
           setReferralCode(data.referral_code);
         }
@@ -293,8 +293,18 @@ const Home = () => {
         creator_display_name: profileMap.get(live.creator_id)?.display_name || null
       }));
 
-      console.log('[Home] ✅ Fetched lives:', enrichedLives.length, 'online:', enrichedLives.filter((l: any) => l.is_active && l.status === 'live').length);
-      setLives(enrichedLives);
+      // DEDUPLICATE: Keep only the most recent live per creator_id
+      const seenCreators = new Set<string>();
+      const dedupedLives = enrichedLives.filter((live: any) => {
+        if (seenCreators.has(live.creator_id)) {
+          return false;
+        }
+        seenCreators.add(live.creator_id);
+        return true;
+      });
+
+      console.log('[Home] ✅ Fetched lives:', enrichedLives.length, 'deduped:', dedupedLives.length, 'online:', dedupedLives.filter((l: any) => l.is_active && l.status === 'live').length);
+      setLives(dedupedLives);
     } catch (err: unknown) {
       console.error("[Home] Error fetching lives:", err);
       setLives([]);

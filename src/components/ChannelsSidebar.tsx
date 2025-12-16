@@ -56,8 +56,16 @@ export const ChannelsSidebar = () => {
         .eq("is_active", true)
         .eq("status", "live");
 
-      // Get creator IDs from active lives
-      const activeCreatorIds = activeLivesData?.map((l: any) => l.creator_id) || [];
+      // DEDUPLICATE by creator_id: keep only first (most recent) live per creator
+      const seenCreatorIds = new Set<string>();
+      const uniqueActiveLives = (activeLivesData || []).filter((l: any) => {
+        if (seenCreatorIds.has(l.creator_id)) return false;
+        seenCreatorIds.add(l.creator_id);
+        return true;
+      });
+      
+      // Get unique creator IDs from deduplicated active lives
+      const activeCreatorIds = uniqueActiveLives.map((l: any) => l.creator_id);
       
       // Fetch creator profiles for those with active lives
       let liveChannelsData: Channel[] = [];
@@ -77,7 +85,7 @@ export const ChannelsSidebar = () => {
             .in("id", ids);
 
           const profileMap = new Map(profilesData?.map((p: any) => [p.id, { avatar_url: p.avatar_url, username: p.username }]) || []);
-          const liveMap = new Map(activeLivesData?.map((l: any) => [l.creator_id, l.id]) || []);
+          const liveMap = new Map(uniqueActiveLives.map((l: any) => [l.creator_id, l.id]));
           
           liveChannelsData = creatorData.map((c: any) => ({
             id: c.id,
