@@ -35,7 +35,7 @@ export const InstallPWAButton = () => {
     }
 
     const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
+      // Do NOT call preventDefault() to avoid noisy console warnings when user never clicks install.
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 

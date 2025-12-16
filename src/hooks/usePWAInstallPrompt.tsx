@@ -27,7 +27,9 @@ export function usePWAInstallPrompt() {
 
     // Listen for the beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
+      // Do NOT call preventDefault() here.
+      // Otherwise Chrome warns "Banner not shown..." unless we call prompt() later.
+      // We still keep the event reference to allow optional manual prompting.
       setDeferredPrompt(e);
     };
 
@@ -70,24 +72,33 @@ export function usePWAInstallPrompt() {
               size="sm"
               variant="secondary"
               className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 gap-1.5"
-              onClick={() => {
-                // Trigger install if available
-                if (deferredPrompt && "prompt" in deferredPrompt) {
-                  (deferredPrompt as BeforeInstallPromptEvent).prompt();
-                } else {
-                  // Show instructions for iOS
-                  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-                  if (isIOS) {
-                    alert(
-                      "Para instalar:\n1. Toque no botão Compartilhar (ícone de quadrado com seta)\n2. Role e toque em 'Adicionar à Tela de Início'"
-                    );
-                  } else {
-                    alert(
-                      "Para instalar:\n1. Toque no menu do navegador (3 pontos)\n2. Selecione 'Instalar aplicativo' ou 'Adicionar à tela inicial'"
-                    );
-                  }
-                }
-              }}
+               onClick={async () => {
+                 try {
+                   // Trigger install if available
+                   if (deferredPrompt && "prompt" in deferredPrompt) {
+                     await (deferredPrompt as BeforeInstallPromptEvent).prompt();
+                     // Best effort: wait userChoice if available
+                     if ("userChoice" in (deferredPrompt as any)) {
+                       await (deferredPrompt as BeforeInstallPromptEvent).userChoice;
+                     }
+                   } else {
+                     // Show instructions for iOS
+                     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                     if (isIOS) {
+                       alert(
+                         "Para instalar:\n1. Toque no botão Compartilhar (ícone de quadrado com seta)\n2. Role e toque em 'Adicionar à Tela de Início'"
+                       );
+                     } else {
+                       alert(
+                         "Para instalar:\n1. Toque no menu do navegador (3 pontos)\n2. Selecione 'Instalar aplicativo' ou 'Adicionar à tela inicial'"
+                       );
+                     }
+                   }
+                 } catch (err) {
+                   // Avoid unhandled promise rejections in the console
+                   console.debug("[PWA] install prompt failed", err);
+                 }
+               }}
             >
               <Download className="h-3.5 w-3.5" />
               Instalar
