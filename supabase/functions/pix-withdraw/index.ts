@@ -22,14 +22,25 @@ const WOOVI_BASE_URL = Deno.env.get('WOOVI_SANDBOX') === 'true'
 type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'RANDOM';
 
 /**
- * Normaliza chave PIX removendo caracteres especiais de CPF/CNPJ
+ * Normaliza chave PIX ADICIONANDO formatação a CPF/CNPJ
+ * Usuários digitam sem símbolos, sistema adiciona no padrão correto
  */
 function normalizePixKey(key: string): string {
   const trimmed = key.trim();
-  // Se parece ser CPF ou CNPJ (apenas números com pontuação), remove pontuação
-  if (/^[\d.\-\/]+$/.test(trimmed)) {
-    return trimmed.replace(/\D/g, '');
+  // Remove qualquer pontuação existente para normalizar
+  const cleanDigits = trimmed.replace(/\D/g, '');
+  
+  // Se tem 11 dígitos, formata como CPF: 123.456.789-01
+  if (cleanDigits.length === 11) {
+    return `${cleanDigits.slice(0, 3)}.${cleanDigits.slice(3, 6)}.${cleanDigits.slice(6, 9)}-${cleanDigits.slice(9, 11)}`;
   }
+  
+  // Se tem 14 dígitos, formata como CNPJ: 12.345.678/0001-99
+  if (cleanDigits.length === 14) {
+    return `${cleanDigits.slice(0, 2)}.${cleanDigits.slice(2, 5)}.${cleanDigits.slice(5, 8)}/${cleanDigits.slice(8, 12)}-${cleanDigits.slice(12, 14)}`;
+  }
+  
+  // Para outros tipos (email, telefone, chave aleatória), retorna como está
   return trimmed;
 }
 
