@@ -152,7 +152,7 @@ serve(async (req) => {
     const LIVEKIT_URL = urlResult.sanitized;
 
     // Parse request body with validation
-    let body: { action?: string; liveId?: string } = {};
+    let body: { action?: string; liveId?: string; creatorId?: string; roomId?: string } = {};
     try {
       body = await req.json();
     } catch (parseError) {
@@ -165,6 +165,53 @@ serve(async (req) => {
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Handle end-live action (from sendBeacon - no auth header)
+    if (body.action === 'end-live' && body.creatorId) {
+      console.log(`[livekit-room] End-live request from creator: ${body.creatorId}`);
+      
+      const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+      
+      try {
+        // End all active lives for this creator
+        await supabaseAdmin
+          .from('lives')
+          .update({ 
+            is_active: false, 
+            status: 'ended',
+            ended_at: new Date().toISOString() 
+          })
+          .eq('creator_id', body.creatorId)
+          .eq('is_active', true);
+
+        // Update creator profile
+        await supabaseAdmin
+          .from('creator_profiles')
+          .update({ is_streaming: false })
+          .eq('id', body.creatorId);
+
+        // End room if provided
+        if (body.roomId) {
+          await supabaseAdmin
+            .from('rooms')
+            .update({ is_active: false, ended_at: new Date().toISOString() })
+            .eq('id', body.roomId);
+        }
+
+        console.log(`[livekit-room] Live ended for creator: ${body.creatorId}`);
+        
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (endError) {
+        console.error('[livekit-room] Error ending live:', endError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to end live' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     const { action, liveId } = body;

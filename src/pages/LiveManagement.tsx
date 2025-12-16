@@ -144,6 +144,89 @@ const LiveManagement = () => {
     checkAuth();
   }, [navigate, toast]);
 
+  // Auto-end live when creator leaves the page (close tab, navigate away, reload)
+  useEffect(() => {
+    if (!user || streamPhase !== "live") return;
+
+    const endLiveOnLeave = async () => {
+      console.log('[LiveManagement] Creator leaving page - ending live...');
+      try {
+        // End the live
+        await supabase
+          .from("lives")
+          .update({ 
+            is_active: false, 
+            status: "ended",
+            ended_at: new Date().toISOString() 
+          })
+          .eq("creator_id", user.id)
+          .eq("is_active", true);
+
+        // Update creator profile
+        await supabase
+          .from("creator_profiles")
+          .update({ is_streaming: false })
+          .eq("id", user.id);
+
+        // End room
+        if (room?.id) {
+          await supabase
+            .from("rooms")
+            .update({ is_active: false, ended_at: new Date().toISOString() })
+            .eq("id", room.id);
+        }
+      } catch (e) {
+        console.error('[LiveManagement] Error ending live on leave:', e);
+      }
+    };
+
+    // Handle browser close/reload
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Fire and forget - sendBeacon for reliability
+      const payload = JSON.stringify({
+        action: 'end-live',
+        creatorId: user.id,
+        liveId: currentLiveId,
+        roomId: room?.id
+      });
+      navigator.sendBeacon?.(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-room`,
+        new Blob([payload], { type: 'application/json' })
+      );
+      
+      // Also try direct call
+      endLiveOnLeave();
+    };
+
+    // Handle mobile page hide
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Use sendBeacon for mobile reliability
+        const payload = JSON.stringify({
+          action: 'end-live',
+          creatorId: user.id,
+          liveId: currentLiveId,
+          roomId: room?.id
+        });
+        navigator.sendBeacon?.(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-room`,
+          new Blob([payload], { type: 'application/json' })
+        );
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup on unmount (navigation within app)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // End live on component unmount (navigation)
+      endLiveOnLeave();
+    };
+  }, [user, streamPhase, currentLiveId, room?.id]);
+
   // Single-step "Go Live" - create room and go live immediately
   const handleGoLive = async () => {
     if (!user || isGoingLive) return; // Prevent double-click
