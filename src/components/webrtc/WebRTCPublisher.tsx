@@ -341,13 +341,13 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
 
   return (
     <div className={`relative w-full h-full bg-black rounded-lg overflow-hidden ${className}`}>
-      {/* Local video preview - contained to prevent layout distortion */}
+      {/* Local video preview - mirrored for front camera (user sees themselves as in a mirror) */}
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="w-full h-full object-contain"
+        className={`w-full h-full object-contain ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
       />
 
       {/* Connection status overlay */}
