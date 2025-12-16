@@ -222,20 +222,41 @@ const WebRTCViewerInner: React.FC<WebRTCViewerProps> = ({
       room.on(RoomEvent.Connected, () => {
         if (!mountedRef.current || attemptId !== connectionAttemptRef.current) return;
         console.log('[WebRTCViewer] Connected to room');
+        
+        // Log room state for debugging
+        console.log('[WebRTCViewer] Room state:', {
+          numParticipants: room.remoteParticipants.size,
+          localParticipant: room.localParticipant?.identity,
+          participants: Array.from(room.remoteParticipants.values()).map((p: any) => ({
+            identity: p.identity,
+            numTracks: p.trackPublications.size,
+            tracks: Array.from(p.trackPublications.values()).map((t: any) => ({
+              kind: t.kind,
+              source: t.source,
+              isSubscribed: t.isSubscribed,
+            }))
+          }))
+        });
+        
         setConnectionState('connected');
         connectingRef.current = false;
         onReady?.();
       });
 
-      room.on(RoomEvent.Disconnected, () => {
+      room.on(RoomEvent.Disconnected, (reason?: any) => {
         if (!mountedRef.current) return;
-        console.log('[WebRTCViewer] Disconnected from room');
+        console.log('[WebRTCViewer] Disconnected from room, reason:', reason);
         // Only reset if this is the current room
         if (roomRef.current === room) {
           setConnectionState('idle');
           roomRef.current = null;
           connectingRef.current = false;
         }
+      });
+      
+      room.on(RoomEvent.ParticipantConnected, (participant: any) => {
+        console.log('[WebRTCViewer] Participant connected:', participant.identity, 
+          'numTracks:', participant.trackPublications.size);
       });
 
       room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
