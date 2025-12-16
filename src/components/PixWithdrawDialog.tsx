@@ -20,7 +20,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import { Banknote, Loader2, CheckCircle, CreditCard, QrCode } from "lucide-react";
+import { Banknote, Loader2, CheckCircle, CreditCard, QrCode, AlertCircle, ArrowLeft, User } from "lucide-react";
 
 interface PixWithdrawDialogProps {
   open: boolean;
@@ -53,6 +53,17 @@ const SUPPORTED_BANKS = [
 ];
 
 type WithdrawMethod = "pix" | "bank";
+type Step = "input" | "confirm" | "success";
+
+interface ValidationResult {
+  valid: boolean;
+  keyType?: string;
+  normalizedKey?: string;
+  holderName?: string;
+  holderDocument?: string;
+  bankName?: string;
+  error?: string;
+}
 
 const PixWithdrawDialog = ({
   open,
@@ -61,6 +72,7 @@ const PixWithdrawDialog = ({
   availableBalanceCents,
   onSuccess,
 }: PixWithdrawDialogProps) => {
+  const [step, setStep] = useState<Step>("input");
   const [method, setMethod] = useState<WithdrawMethod>("pix");
   const [pixKey, setPixKey] = useState("");
   const [bankCode, setBankCode] = useState("");
@@ -69,11 +81,12 @@ const PixWithdrawDialog = ({
   const [accountType, setAccountType] = useState("checking");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState<ValidationResult | null>(null);
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const handleWithdraw = async () => {
+  const handleValidateAndProceed = async () => {
     const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
     
     if (method === "pix") {
@@ -114,14 +127,70 @@ const PixWithdrawDialog = ({
       return;
     }
 
+    // Para PIX, validar a chave primeiro
+    if (method === "pix") {
+      setValidating(true);
+      try {
+        const response = await supabase.functions.invoke("pix-withdraw", {
+          body: {
+            action: "validate",
+            userId,
+            pixKey: pixKey.trim(),
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message || "Erro ao validar chave PIX");
+        }
+
+        const result = response.data as ValidationResult;
+        setValidation(result);
+
+        if (!result.valid) {
+          toast({
+            title: "Chave PIX inválida",
+            description: result.error || "Verifique a chave informada",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Atualizar a chave normalizada
+        if (result.normalizedKey) {
+          setPixKey(result.normalizedKey);
+        }
+
+        setStep("confirm");
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Erro ao validar chave";
+        toast({
+          title: "Erro de validação",
+          description: message,
+          variant: "destructive",
+        });
+      } finally {
+        setValidating(false);
+      }
+    } else {
+      // Para transferência bancária, ir direto para confirmação
+      const selectedBank = SUPPORTED_BANKS.find(b => b.code === bankCode);
+      setValidation({
+        valid: true,
+        holderName: "Confirme os dados bancários abaixo",
+        bankName: selectedBank?.name,
+      });
+      setStep("confirm");
+    }
+  };
+
+  const handleConfirmWithdraw = async () => {
+    const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
+    
     setLoading(true);
     try {
-      // Para transferência bancária, montamos uma chave PIX com os dados bancários
-      // Woovi/OpenPix pode processar usando os dados bancários
       let withdrawKey = pixKey.trim();
       
       if (method === "bank") {
-        // Para transferência bancária, usamos os dados como metadata
         withdrawKey = `BANK:${bankCode}:${agencyNumber}:${accountNumber}:${accountType}`;
       }
 
@@ -140,15 +209,13 @@ const PixWithdrawDialog = ({
         },
       });
 
-      // Handle edge function errors - the error message is in response.data
       if (response.error) {
-        // Try to get the error message from the response data
         const errorMessage = response.data?.error || response.error.message || "Erro ao processar saque";
         throw new Error(errorMessage);
       }
 
       if (response.data?.success) {
-        setSuccess(true);
+        setStep("success");
         toast({
           title: t.pix?.successAuto || "Saque processado!",
           description: method === "pix" 
@@ -158,7 +225,6 @@ const PixWithdrawDialog = ({
         onSuccess();
         
         setTimeout(() => {
-          setSuccess(false);
           resetForm();
           onOpenChange(false);
         }, 3000);
@@ -178,19 +244,27 @@ const PixWithdrawDialog = ({
   };
 
   const resetForm = () => {
+    setStep("input");
     setPixKey("");
     setBankCode("");
     setAccountNumber("");
     setAgencyNumber("");
     setAccountType("checking");
     setAmount("");
+    setValidation(null);
   };
 
   const handleWithdrawAll = () => {
     setAmount((availableBalanceCents / 100).toFixed(2).replace('.', ','));
   };
 
-  if (success) {
+  const handleBack = () => {
+    setStep("input");
+    setValidation(null);
+  };
+
+  // Tela de sucesso
+  if (step === "success") {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
@@ -208,6 +282,124 @@ const PixWithdrawDialog = ({
     );
   }
 
+  // Tela de confirmação
+  if (step === "confirm") {
+    const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
+    const selectedBank = SUPPORTED_BANKS.find(b => b.code === bankCode);
+    
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" />
+              Confirmar Saque
+            </DialogTitle>
+            <DialogDescription>
+              Verifique os dados antes de confirmar
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-4">
+            {/* Dados do destinatário */}
+            <div className="bg-secondary/50 p-4 rounded-lg space-y-3">
+              {method === "pix" ? (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Chave PIX:</span>
+                    <span className="font-mono text-sm">{validation?.normalizedKey || pixKey}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Tipo:</span>
+                    <span className="text-sm font-medium">{validation?.keyType || "Detectado automaticamente"}</span>
+                  </div>
+                  {validation?.holderName && (
+                    <div className="flex justify-between items-start">
+                      <span className="text-sm text-muted-foreground">Titular:</span>
+                      <span className="text-sm font-medium text-right max-w-[60%]">{validation.holderName}</span>
+                    </div>
+                  )}
+                  {validation?.bankName && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Banco:</span>
+                      <span className="text-sm">{validation.bankName}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Banco:</span>
+                    <span className="text-sm font-medium">{selectedBank?.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Agência:</span>
+                    <span className="font-mono text-sm">{agencyNumber}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Conta:</span>
+                    <span className="font-mono text-sm">{accountNumber}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Tipo:</span>
+                    <span className="text-sm">{accountType === "checking" ? "Conta Corrente" : "Poupança"}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Valor do saque */}
+            <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Valor do saque:</span>
+                <span className="text-xl font-bold text-green-500">{formatBRL(amountCents)}</span>
+              </div>
+            </div>
+
+            {/* Aviso */}
+            <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                Verifique se os dados estão corretos. Após confirmar, o saque será processado e não poderá ser cancelado.
+              </p>
+            </div>
+
+            {/* Botões */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="flex-1"
+                disabled={loading}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
+              <Button
+                onClick={handleConfirmWithdraw}
+                disabled={loading}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirmar Saque
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Tela de entrada de dados (input)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -283,6 +475,9 @@ const PixWithdrawDialog = ({
                 onChange={(e) => setPixKey(e.target.value)}
                 placeholder={t.pix?.pixKeyPlaceholder || "CPF, email, telefone ou chave aleatória"}
               />
+              <p className="text-xs text-muted-foreground">
+                Pode digitar CPF/CNPJ com ou sem pontuação - será normalizado automaticamente
+              </p>
             </div>
           )}
 
@@ -350,34 +545,34 @@ const PixWithdrawDialog = ({
               id="amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder={t.pix?.amountPlaceholder || "Ex: 5,00"}
+              placeholder={t.pix?.amountPlaceholder || "Ex: 15,00"}
               type="text"
               inputMode="decimal"
             />
           </div>
 
-          {/* Botão de saque */}
+          {/* Botão de validar e continuar */}
           <Button
-            onClick={handleWithdraw}
-            disabled={loading || availableBalanceCents <= 0}
+            onClick={handleValidateAndProceed}
+            disabled={validating || availableBalanceCents <= 0}
             className="w-full bg-green-600 hover:bg-green-700"
           >
-            {loading ? (
+            {validating ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                {t.pix?.processing || "Processando..."}
+                Validando...
               </>
             ) : (
               <>
                 <Banknote className="h-4 w-4 mr-2" />
-                {t.pix?.withdrawNow || "Sacar Agora"}
+                Validar e Continuar
               </>
             )}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
             {method === "pix" 
-              ? (t.pix?.instantProcessing || "Saques via PIX são processados instantaneamente")
+              ? (t.pix?.instantProcessing || "Saques são processados instantaneamente e automaticamente")
               : "Transferências bancárias podem levar até 1 dia útil"}
           </p>
         </div>
