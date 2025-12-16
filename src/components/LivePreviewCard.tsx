@@ -131,6 +131,8 @@ const LivePreviewCard = ({ live, isLoggedIn, onLoginRequired }: LivePreviewCardP
             src={displayImage}
             alt={creatorInfo?.display_name || "Live"}
             className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

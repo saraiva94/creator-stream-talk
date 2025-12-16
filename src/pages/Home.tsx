@@ -1,12 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import LivePreviewCard from "@/components/LivePreviewCard";
 import UserSearchAutocomplete from "@/components/UserSearchAutocomplete";
-import PublicProfileDialog from "@/components/PublicProfileDialog";
-import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
-import { InstructionsDialog } from "@/components/InstructionsDialog";
-import VideoCarousel from "@/components/VideoCarousel";
 import LivesGridSkeleton from "@/components/LivesGridSkeleton";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -16,6 +12,27 @@ import { RefreshCw } from "lucide-react";
 import type { LiveSummary } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+
+// Lazy load heavy components that are not needed for first paint
+const VideoCarousel = lazy(() => import("@/components/VideoCarousel"));
+const PublicProfileDialog = lazy(() => import("@/components/PublicProfileDialog"));
+const HowToMonetizeDialog = lazy(() => import("@/components/affiliate/HowToMonetizeDialog"));
+const InstructionsDialog = lazy(() => 
+  import("@/components/InstructionsDialog").then(mod => ({ default: mod.InstructionsDialog }))
+);
+
+// Lightweight loading placeholder for lazy components
+const ComponentLoading = () => (
+  <div className="animate-pulse bg-muted rounded-lg h-10 w-32" />
+);
+
+const CarouselLoading = () => (
+  <div className="relative w-full pt-0 pb-4 overflow-hidden">
+    <div className="relative h-[200px] sm:h-[240px] md:h-[280px] flex items-center justify-center">
+      <div className="animate-pulse bg-muted rounded-xl w-[200px] sm:w-[320px] h-[140px] sm:h-[200px]" />
+    </div>
+  </div>
+);
 
 const Home = () => {
   const [lives, setLives] = useState<LiveSummary[]>([]);
@@ -164,10 +181,12 @@ const Home = () => {
     setPullDistance(0);
   }, [isMobile, isRefreshing, pullDistance]);
 
-  // Fetch user's referral code when logged in
+  // Fetch user's referral code when logged in - deferred to after first paint
   useEffect(() => {
+    if (!user?.id) return;
+    
+    // Use requestIdleCallback for non-critical data fetch
     const fetchReferralCode = async () => {
-      if (!user?.id) return;
       try {
         const { data } = await supabase
           .from("profiles")
@@ -181,7 +200,12 @@ const Home = () => {
         console.error("Error fetching referral code:", err);
       }
     };
-    fetchReferralCode();
+    
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(fetchReferralCode);
+    } else {
+      setTimeout(fetchReferralCode, 200);
+    }
   }, [user?.id]);
 
   // Intersection Observer for infinite scroll
@@ -264,19 +288,21 @@ const Home = () => {
       let profileMap = new Map<string, { username: string; avatar_url: string | null; display_name: string | null }>();
       
       if (creatorIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url')
-          .in('id', creatorIds);
+        // Fetch profiles and creator_profiles in parallel
+        const [profilesResult, creatorProfilesResult] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', creatorIds),
+          supabase
+            .from('creator_profiles')
+            .select('id, display_name')
+            .in('id', creatorIds)
+        ]);
 
-        const { data: creatorProfiles } = await supabase
-          .from('creator_profiles')
-          .select('id, display_name')
-          .in('id', creatorIds);
-
-        const displayNameMap = new Map(creatorProfiles?.map((c: any) => [c.id, c.display_name]) || []);
+        const displayNameMap = new Map(creatorProfilesResult.data?.map((c: any) => [c.id, c.display_name]) || []);
         
-        profiles?.forEach((p: any) => {
+        profilesResult.data?.forEach((p: any) => {
           profileMap.set(p.id, {
             username: p.username,
             avatar_url: p.avatar_url,
@@ -325,10 +351,6 @@ const Home = () => {
     setProfileDialogOpen(true);
   };
 
-  const handleVideoClick = (live: LiveSummary) => {
-    navigate(`/live/${live.id}`);
-  };
-
   return (
     <AppLayout>
       <div 
@@ -362,21 +384,27 @@ const Home = () => {
               placeholder={t.home?.search || "Buscar usuários..."}
             />
             
-            {/* Action buttons */}
+            {/* Action buttons - lazy loaded */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              <HowToMonetizeDialog 
-                userId={user?.id} 
-                initialCode={referralCode} 
-                onCodeSaved={(newCode) => setReferralCode(newCode)} 
-              />
-              <InstructionsDialog />
+              <Suspense fallback={<ComponentLoading />}>
+                <HowToMonetizeDialog 
+                  userId={user?.id} 
+                  initialCode={referralCode} 
+                  onCodeSaved={(newCode) => setReferralCode(newCode)} 
+                />
+              </Suspense>
+              <Suspense fallback={<ComponentLoading />}>
+                <InstructionsDialog />
+              </Suspense>
             </div>
           </div>
         </div>
 
-        {/* Video Carousel - promotional videos only */}
+        {/* Video Carousel - promotional videos only - lazy loaded */}
         <div className="-mt-4">
-          <VideoCarousel userId={user?.id || null} />
+          <Suspense fallback={<CarouselLoading />}>
+            <VideoCarousel userId={user?.id || null} />
+          </Suspense>
         </div>
 
         {/* Lives Grid Section */}
@@ -463,13 +491,17 @@ const Home = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Public Profile Dialog */}
-        <PublicProfileDialog
-          isOpen={profileDialogOpen}
-          onClose={() => setProfileDialogOpen(false)}
-          userId={selectedUserId}
-          username={selectedUsername}
-        />
+        {/* Public Profile Dialog - lazy loaded */}
+        {profileDialogOpen && (
+          <Suspense fallback={null}>
+            <PublicProfileDialog
+              isOpen={profileDialogOpen}
+              onClose={() => setProfileDialogOpen(false)}
+              userId={selectedUserId}
+              username={selectedUsername}
+            />
+          </Suspense>
+        )}
       </div>
     </AppLayout>
   );
