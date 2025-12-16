@@ -6,6 +6,7 @@ import { Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SuperChatSuggestions } from "@/components/chat/SuperChatSuggestions";
 import SuperChatDialog from "@/components/SuperChatDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface FloatingMessage {
   id: string;
@@ -23,6 +24,13 @@ interface ActiveSuperchat {
   amount: number;
   expires_at: string;
   created_at: string;
+}
+
+interface ChatSettings {
+  slow_mode_enabled: boolean;
+  slow_mode_duration: number; // seconds
+  subscribers_only: boolean;
+  banned_words: string[];
 }
 
 interface FloatingLiveChatProps {
@@ -60,7 +68,77 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   const [superchatQueue, setSuperchatQueue] = useState<ActiveSuperchat[]>([]);
   const [showSuperChat, setShowSuperChat] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"blue" | "yellow" | "red">("blue");
+  const [chatSettings, setChatSettings] = useState<ChatSettings>({
+    slow_mode_enabled: false,
+    slow_mode_duration: 5,
+    subscribers_only: false,
+    banned_words: [],
+  });
+  const [lastMessageTime, setLastMessageTime] = useState<number>(0);
+  const [slowModeRemaining, setSlowModeRemaining] = useState<number>(0);
+  const [isSubscriber, setIsSubscriber] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  // Fetch chat settings for this room
+  useEffect(() => {
+    const fetchChatSettings = async () => {
+      const { data, error } = await supabase
+        .from("chat_settings")
+        .select("slow_mode_enabled, slow_mode_duration, subscribers_only, banned_words")
+        .eq("room_id", roomId)
+        .maybeSingle();
+
+      if (!error && data) {
+        setChatSettings({
+          slow_mode_enabled: data.slow_mode_enabled || false,
+          slow_mode_duration: data.slow_mode_duration || 5,
+          subscribers_only: data.subscribers_only || false,
+          banned_words: data.banned_words || [],
+        });
+      }
+    };
+
+    fetchChatSettings();
+  }, [roomId]);
+
+  // Check if user is subscribed to creator (for subscribers_only mode)
+  useEffect(() => {
+    if (!currentUserId || !creatorId) return;
+
+    // Creator is always considered a subscriber
+    if (currentUserId === creatorId) {
+      setIsSubscriber(true);
+      return;
+    }
+
+    const checkSubscription = async () => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .eq("creator_id", creatorId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      setIsSubscriber(!!data);
+    };
+
+    checkSubscription();
+  }, [currentUserId, creatorId]);
+
+  // Slow mode countdown timer
+  useEffect(() => {
+    if (!chatSettings.slow_mode_enabled || slowModeRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - lastMessageTime) / 1000);
+      const remaining = Math.max(0, chatSettings.slow_mode_duration - elapsed);
+      setSlowModeRemaining(remaining);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [chatSettings.slow_mode_enabled, chatSettings.slow_mode_duration, lastMessageTime, slowModeRemaining]);
 
   // Fetch and subscribe to superchats
   useEffect(() => {
@@ -327,9 +405,57 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
     return () => clearInterval(interval);
   }, [messageFadeDelay]);
 
+  // Check if message contains banned words
+  const containsBannedWords = (text: string): boolean => {
+    if (!chatSettings.banned_words || chatSettings.banned_words.length === 0) return false;
+    const lowerText = text.toLowerCase();
+    return chatSettings.banned_words.some(word => 
+      lowerText.includes(word.toLowerCase())
+    );
+  };
+
+  // Check if user can send message based on chat settings
+  const canSendMessage = (): { allowed: boolean; reason?: string } => {
+    // Creator can always send
+    if (isCreator) return { allowed: true };
+
+    // Check subscribers only mode
+    if (chatSettings.subscribers_only && !isSubscriber) {
+      return { allowed: false, reason: "Apenas assinantes podem enviar mensagens" };
+    }
+
+    // Check slow mode
+    if (chatSettings.slow_mode_enabled && slowModeRemaining > 0) {
+      return { allowed: false, reason: `Aguarde ${slowModeRemaining}s (modo lento)` };
+    }
+
+    return { allowed: true };
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !currentUserId || sending) return;
+
+    // Check chat settings
+    const sendCheck = canSendMessage();
+    if (!sendCheck.allowed) {
+      toast({
+        title: "Não permitido",
+        description: sendCheck.reason,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check banned words
+    if (containsBannedWords(newMessage)) {
+      toast({
+        title: "Mensagem bloqueada",
+        description: "Sua mensagem contém palavras não permitidas",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSending(true);
     try {
@@ -342,6 +468,12 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
 
       if (error) throw error;
       setNewMessage("");
+      
+      // Update last message time for slow mode
+      if (chatSettings.slow_mode_enabled) {
+        setLastMessageTime(Date.now());
+        setSlowModeRemaining(chatSettings.slow_mode_duration);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
     } finally {
@@ -472,6 +604,24 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
               />
             )}
             
+            {/* Slow mode indicator */}
+            {chatSettings.slow_mode_enabled && slowModeRemaining > 0 && !isCreator && (
+              <div className="text-center">
+                <span className="text-white/70 text-xs bg-black/40 px-3 py-1 rounded-full">
+                  ⏱ Modo lento: aguarde {slowModeRemaining}s
+                </span>
+              </div>
+            )}
+
+            {/* Subscribers only indicator */}
+            {chatSettings.subscribers_only && !isSubscriber && !isCreator && (
+              <div className="text-center">
+                <span className="text-yellow-400/90 text-xs bg-black/40 px-3 py-1 rounded-full">
+                  🔒 Apenas assinantes podem enviar mensagens
+                </span>
+              </div>
+            )}
+            
             <form onSubmit={handleSend}>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -479,16 +629,22 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
                     ref={inputRef}
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Comentar..."
+                    placeholder={
+                      chatSettings.subscribers_only && !isSubscriber && !isCreator
+                        ? "Somente assinantes..."
+                        : slowModeRemaining > 0 && !isCreator
+                        ? `Aguarde ${slowModeRemaining}s...`
+                        : "Comentar..."
+                    }
                     className="bg-black/40 border-white/20 text-white placeholder:text-white/60 text-sm h-10 pr-10 rounded-full backdrop-blur-sm"
-                    disabled={sending}
+                    disabled={sending || (chatSettings.subscribers_only && !isSubscriber && !isCreator)}
                   />
                   <Button
                     type="submit"
                     size="icon"
                     variant="ghost"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-white hover:bg-white/20 rounded-full"
-                    disabled={!newMessage.trim() || sending}
+                    disabled={!newMessage.trim() || sending || (!isCreator && !canSendMessage().allowed)}
                   >
                     <Send className="h-4 w-4" />
                   </Button>
