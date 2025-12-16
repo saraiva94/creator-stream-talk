@@ -370,6 +370,8 @@ const VideoCarousel = ({ userId }: VideoCarouselProps) => {
                       src={item.promo.thumbnail_url} 
                       alt={item.promo.title} 
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center">

@@ -30,6 +30,8 @@ const CreatorCard = ({ creator, onEnter }: CreatorCardProps) => {
             src={creator.profiles.avatar_url}
             alt={creator.display_name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-card">
