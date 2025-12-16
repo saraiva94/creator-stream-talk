@@ -40,14 +40,14 @@ type ApiResponse<T> = {
   error?: string;
 };
 
-const backendBase = import.meta.env.VITE_BACKEND_URL ?? "";
-
-const getAuthHeaders = async () => {
+const getCurrentUserId = async () => {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+
+  const userId = session?.user?.id;
+  if (!userId) throw new Error("Autenticação necessária");
+  return userId;
 };
 
 const CreatorPayouts = () => {
@@ -64,16 +64,43 @@ const CreatorPayouts = () => {
     setIsLoadingEarnings(true);
     setEarningsError(null);
     try {
-      const headers = {
-        "Content-Type": "application/json",
-        ...(await getAuthHeaders()),
-      };
-      const res = await fetch(`${backendBase}/creator/earnings`, { headers });
-      const body = (await res.json()) as ApiResponse<EarningRow[]>;
-      if (!res.ok || !body?.success) {
-        throw new Error(body?.error || "Nao foi possivel carregar o historico de ganhos");
-      }
-      setEarnings(body.data ?? []);
+      const creatorId = await getCurrentUserId();
+
+      const { data: rows, error } = await supabase
+        .from("creator_earnings")
+        .select(
+          "id, live_id, credits_consumed, gross_amount_cents, creator_amount_cents, platform_amount_cents, status, settled_at, created_at",
+        )
+        .eq("creator_id", creatorId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw new Error(error.message);
+
+      const liveIds = Array.from(new Set((rows ?? []).map((r) => r.live_id)));
+      const { data: lives } = liveIds.length
+        ? await supabase.from("lives").select("id, title, created_at").in("id", liveIds)
+        : { data: [] as any[] };
+
+      const liveMap = new Map((lives ?? []).map((l: any) => [l.id, l]));
+
+      setEarnings(
+        (rows ?? []).map((row: any) => {
+          const live = liveMap.get(row.live_id);
+          return {
+            id: row.id,
+            liveId: row.live_id,
+            liveTitle: live?.title ?? null,
+            liveCreatedAt: live?.created_at ?? row.created_at ?? null,
+            creditsConsumed: Number(row.credits_consumed ?? 0),
+            grossCents: Number(row.gross_amount_cents ?? 0),
+            netCents: Number(row.creator_amount_cents ?? 0),
+            platformCents: Number(row.platform_amount_cents ?? 0),
+            status: row.status ?? "pending",
+            settledAt: row.settled_at ?? null,
+          } as EarningRow;
+        }),
+      );
     } catch (err) {
       setEarningsError((err as Error).message);
     } finally {
@@ -85,16 +112,27 @@ const CreatorPayouts = () => {
     setIsLoadingPayouts(true);
     setPayoutsError(null);
     try {
-      const headers = {
-        "Content-Type": "application/json",
-        ...(await getAuthHeaders()),
-      };
-      const res = await fetch(`${backendBase}/withdrawals/history`, { headers });
-      const body = (await res.json()) as ApiResponse<{ payouts: PayoutRow[] }>;
-      if (!res.ok || !body?.success || !body.data) {
-        throw new Error(body?.error || "Nao foi possivel carregar o historico de saques");
-      }
-      setPayouts(body.data.payouts ?? []);
+      const creatorId = await getCurrentUserId();
+
+      const { data: rows, error } = await supabase
+        .from("payout_requests")
+        .select("id, amount, status, created_at, pix_key, source_type")
+        .eq("creator_id", creatorId)
+        .eq("source_type", "creator")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw new Error(error.message);
+
+      setPayouts(
+        (rows ?? []).map((row: any) => ({
+          id: row.id,
+          amountCents: Number(row.amount ?? 0),
+          status: row.status ?? "pending",
+          createdAt: row.created_at,
+          pixKey: row.pix_key ?? null,
+        })),
+      );
     } catch (err) {
       setPayoutsError((err as Error).message);
     } finally {
