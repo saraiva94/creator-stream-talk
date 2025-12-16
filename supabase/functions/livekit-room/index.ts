@@ -325,14 +325,14 @@ serve(async (req) => {
       // Generate participant identity (user id or anonymous)
       const participantIdentity = user?.id || `anon-${crypto.randomUUID().slice(0, 8)}`;
       
-      // Get viewer name
+      // Get viewer name (use maybeSingle to handle missing profiles gracefully)
       let participantName = 'Viewer';
       if (user) {
         const { data: profile } = await supabaseAdmin
           .from('profiles')
           .select('username')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         participantName = profile?.username || 'Viewer';
       }
 

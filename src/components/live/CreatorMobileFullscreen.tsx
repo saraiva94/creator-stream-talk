@@ -44,6 +44,7 @@ interface CreatorMobileFullscreenProps {
   liveUrl?: string;
   streamPhase?: "idle" | "live";
   liveId?: string | null;
+  isGoingLive?: boolean;
 }
 
 export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = ({
@@ -64,6 +65,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
   liveUrl,
   streamPhase = "idle",
   liveId,
+  isGoingLive = false,
 }) => {
   const { t } = useLanguage();
   const [showSuperchatQueue, setShowSuperchatQueue] = useState(false);
@@ -323,6 +325,7 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               onGoLive={onGoLive}
               onEndStream={onEndStream}
               fullWidth
+              disabled={isGoingLive}
             />
           ) : null}
         </div>
