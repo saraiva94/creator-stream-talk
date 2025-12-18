@@ -65,6 +65,90 @@ interface ValidationResult {
   error?: string;
 }
 
+// Detecta o tipo de chave PIX e formata automaticamente
+const detectAndFormatPixKey = (value: string): { formatted: string; type: string | null } => {
+  // Remove todos os caracteres não numéricos para análise
+  const digitsOnly = value.replace(/\D/g, "");
+  
+  // Se tem letras ou @, é email ou chave aleatória - não formatar
+  if (/[a-zA-Z@]/.test(value)) {
+    return { formatted: value, type: value.includes("@") ? "EMAIL" : "EVP" };
+  }
+  
+  // Se começa com +, é telefone internacional
+  if (value.startsWith("+")) {
+    return { formatted: value, type: "PHONE" };
+  }
+  
+  // Analisa baseado na quantidade de dígitos
+  if (digitsOnly.length === 11) {
+    // Pode ser CPF ou telefone
+    // Se os 2 primeiros dígitos são DDD válido (11-99), provavelmente é telefone
+    const firstTwo = parseInt(digitsOnly.substring(0, 2));
+    if (firstTwo >= 11 && firstTwo <= 99) {
+      // Formata como telefone: (XX) XXXXX-XXXX
+      const formatted = `(${digitsOnly.substring(0, 2)}) ${digitsOnly.substring(2, 7)}-${digitsOnly.substring(7, 11)}`;
+      return { formatted, type: "PHONE" };
+    }
+    // Formata como CPF: XXX.XXX.XXX-XX
+    const formatted = `${digitsOnly.substring(0, 3)}.${digitsOnly.substring(3, 6)}.${digitsOnly.substring(6, 9)}-${digitsOnly.substring(9, 11)}`;
+    return { formatted, type: "CPF" };
+  }
+  
+  if (digitsOnly.length === 14) {
+    // CNPJ: XX.XXX.XXX/XXXX-XX
+    const formatted = `${digitsOnly.substring(0, 2)}.${digitsOnly.substring(2, 5)}.${digitsOnly.substring(5, 8)}/${digitsOnly.substring(8, 12)}-${digitsOnly.substring(12, 14)}`;
+    return { formatted, type: "CNPJ" };
+  }
+  
+  // Para outros casos, retorna sem formatação
+  return { formatted: value, type: null };
+};
+
+// Formata a chave enquanto digita
+const formatPixKeyOnChange = (value: string): string => {
+  const digitsOnly = value.replace(/\D/g, "");
+  
+  // Se tem letras ou @, não formatar
+  if (/[a-zA-Z@]/.test(value)) {
+    return value;
+  }
+  
+  // Se começa com +, é telefone internacional
+  if (value.startsWith("+")) {
+    return value;
+  }
+  
+  // Formata progressivamente baseado no tamanho
+  if (digitsOnly.length <= 11) {
+    // Pode ser CPF ou telefone - formata como CPF primeiro
+    if (digitsOnly.length <= 3) {
+      return digitsOnly;
+    } else if (digitsOnly.length <= 6) {
+      return `${digitsOnly.substring(0, 3)}.${digitsOnly.substring(3)}`;
+    } else if (digitsOnly.length <= 9) {
+      return `${digitsOnly.substring(0, 3)}.${digitsOnly.substring(3, 6)}.${digitsOnly.substring(6)}`;
+    } else {
+      return `${digitsOnly.substring(0, 3)}.${digitsOnly.substring(3, 6)}.${digitsOnly.substring(6, 9)}-${digitsOnly.substring(9)}`;
+    }
+  } else if (digitsOnly.length <= 14) {
+    // CNPJ
+    if (digitsOnly.length <= 2) {
+      return digitsOnly;
+    } else if (digitsOnly.length <= 5) {
+      return `${digitsOnly.substring(0, 2)}.${digitsOnly.substring(2)}`;
+    } else if (digitsOnly.length <= 8) {
+      return `${digitsOnly.substring(0, 2)}.${digitsOnly.substring(2, 5)}.${digitsOnly.substring(5)}`;
+    } else if (digitsOnly.length <= 12) {
+      return `${digitsOnly.substring(0, 2)}.${digitsOnly.substring(2, 5)}.${digitsOnly.substring(5, 8)}/${digitsOnly.substring(8)}`;
+    } else {
+      return `${digitsOnly.substring(0, 2)}.${digitsOnly.substring(2, 5)}.${digitsOnly.substring(5, 8)}/${digitsOnly.substring(8, 12)}-${digitsOnly.substring(12)}`;
+    }
+  }
+  
+  return value;
+};
+
 const PixWithdrawDialog = ({
   open,
   onOpenChange,
@@ -75,6 +159,7 @@ const PixWithdrawDialog = ({
   const [step, setStep] = useState<Step>("input");
   const [method, setMethod] = useState<WithdrawMethod>("pix");
   const [pixKey, setPixKey] = useState("");
+  const [detectedKeyType, setDetectedKeyType] = useState<string | null>(null);
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [agencyNumber, setAgencyNumber] = useState("");
@@ -85,6 +170,17 @@ const PixWithdrawDialog = ({
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const { toast } = useToast();
   const { t } = useLanguage();
+
+  // Handler para mudança na chave PIX com formatação automática
+  const handlePixKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const formatted = formatPixKeyOnChange(rawValue);
+    setPixKey(formatted);
+    
+    // Detecta o tipo baseado no valor formatado
+    const { type } = detectAndFormatPixKey(formatted);
+    setDetectedKeyType(type);
+  };
 
   const handleValidateAndProceed = async () => {
     const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
@@ -246,6 +342,7 @@ const PixWithdrawDialog = ({
   const resetForm = () => {
     setStep("input");
     setPixKey("");
+    setDetectedKeyType(null);
     setBankCode("");
     setAccountNumber("");
     setAgencyNumber("");
@@ -466,18 +563,25 @@ const PixWithdrawDialog = ({
           </div>
 
           {/* Campos PIX */}
-          {method === "pix" && (
+{method === "pix" && (
             <div className="space-y-2">
               <Label htmlFor="pix-key">{t.pix?.pixKey || "Chave PIX"}</Label>
               <Input
                 id="pix-key"
                 value={pixKey}
-                onChange={(e) => setPixKey(e.target.value)}
+                onChange={handlePixKeyChange}
                 placeholder={t.pix?.pixKeyPlaceholder || "CPF, email, telefone ou chave aleatória"}
               />
-              <p className="text-xs text-muted-foreground">
-                Pode digitar CPF/CNPJ com ou sem pontuação - será normalizado automaticamente
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Digite CPF, CNPJ, telefone, email ou chave aleatória
+                </p>
+                {detectedKeyType && (
+                  <span className="text-xs font-medium text-primary px-2 py-0.5 bg-primary/10 rounded">
+                    {detectedKeyType}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
