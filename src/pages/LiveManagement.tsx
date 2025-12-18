@@ -148,8 +148,26 @@ const LiveManagement = () => {
   useEffect(() => {
     if (!user || streamPhase !== "live") return;
 
-    const endLiveOnLeave = async () => {
-      console.log('[LiveManagement] Creator leaving page - ending live...');
+    // Use sendBeacon for reliable cleanup on page unload
+    const sendEndLiveBeacon = () => {
+      const payload = JSON.stringify({
+        action: 'end-live',
+        creatorId: user.id,
+        liveId: currentLiveId,
+        roomId: room?.id
+      });
+      
+      const beaconSent = navigator.sendBeacon?.(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-room`,
+        new Blob([payload], { type: 'application/json' })
+      );
+      
+      console.log('[LiveManagement] sendBeacon result:', beaconSent);
+    };
+
+    // Direct async end - for in-app navigation
+    const endLiveDirectly = async () => {
+      console.log('[LiveManagement] Ending live directly via Supabase...');
       try {
         // End the live
         await supabase
@@ -161,69 +179,49 @@ const LiveManagement = () => {
           })
           .eq("creator_id", user.id)
           .eq("is_active", true);
-
+        
         // Update creator profile
         await supabase
           .from("creator_profiles")
           .update({ is_streaming: false })
           .eq("id", user.id);
 
-        // End room
+        // End room if exists
         if (room?.id) {
           await supabase
             .from("rooms")
             .update({ is_active: false, ended_at: new Date().toISOString() })
             .eq("id", room.id);
         }
+
+        console.log('[LiveManagement] Live ended successfully');
       } catch (e) {
-        console.error('[LiveManagement] Error ending live on leave:', e);
+        console.error('[LiveManagement] Error ending live:', e);
       }
     };
 
-    // Handle browser close/reload
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Fire and forget - sendBeacon for reliability
-      const payload = JSON.stringify({
-        action: 'end-live',
-        creatorId: user.id,
-        liveId: currentLiveId,
-        roomId: room?.id
-      });
-      navigator.sendBeacon?.(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-room`,
-        new Blob([payload], { type: 'application/json' })
-      );
-      
-      // Also try direct call
-      endLiveOnLeave();
+    // Handle browser close/reload - use sendBeacon for reliability
+    const handleBeforeUnload = () => {
+      sendEndLiveBeacon();
     };
 
-    // Handle mobile page hide
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        // Use sendBeacon for mobile reliability
-        const payload = JSON.stringify({
-          action: 'end-live',
-          creatorId: user.id,
-          liveId: currentLiveId,
-          roomId: room?.id
-        });
-        navigator.sendBeacon?.(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-room`,
-          new Blob([payload], { type: 'application/json' })
-        );
-      }
+    // Handle mobile page hide (only send beacon, don't end - user might return)
+    const handlePageHide = () => {
+      // pagehide is more reliable than beforeunload on mobile
+      sendEndLiveBeacon();
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
 
-    // Cleanup on unmount (navigation within app)
+    // Cleanup on unmount (SPA navigation within app)
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // End live on component unmount (navigation)
-      endLiveOnLeave();
+      window.removeEventListener('pagehide', handlePageHide);
+      
+      // For SPA navigation, end live directly (async but fire-and-forget)
+      // This is more reliable than sendBeacon for in-app navigation
+      endLiveDirectly();
     };
   }, [user, streamPhase, currentLiveId, room?.id]);
 
