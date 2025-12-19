@@ -1,8 +1,9 @@
 /**
  * Edge Function: PIX Withdrawal via Woovi/OpenPix
  * 
- * Processa solicitações de saque PIX usando Woovi como PSP.
- * Validações, débito de saldo, e chamada à API Woovi.
+ * Processa solicitações de saque PIX.
+ * Se Woovi estiver configurado, processa automaticamente.
+ * Caso contrário, cria solicitação para processamento manual.
  */
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
@@ -23,24 +24,19 @@ type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'RANDOM';
 
 /**
  * Normaliza chave PIX ADICIONANDO formatação a CPF/CNPJ
- * Usuários digitam sem símbolos, sistema adiciona no padrão correto
  */
 function normalizePixKey(key: string): string {
   const trimmed = key.trim();
-  // Remove qualquer pontuação existente para normalizar
   const cleanDigits = trimmed.replace(/\D/g, '');
   
-  // Se tem 11 dígitos, formata como CPF: 123.456.789-01
   if (cleanDigits.length === 11) {
     return `${cleanDigits.slice(0, 3)}.${cleanDigits.slice(3, 6)}.${cleanDigits.slice(6, 9)}-${cleanDigits.slice(9, 11)}`;
   }
   
-  // Se tem 14 dígitos, formata como CNPJ: 12.345.678/0001-99
   if (cleanDigits.length === 14) {
     return `${cleanDigits.slice(0, 2)}.${cleanDigits.slice(2, 5)}.${cleanDigits.slice(5, 8)}/${cleanDigits.slice(8, 12)}-${cleanDigits.slice(12, 14)}`;
   }
   
-  // Para outros tipos (email, telefone, chave aleatória), retorna como está
   return trimmed;
 }
 
@@ -70,7 +66,6 @@ function validatePixKeyFormat(key: string, keyType: PixKeyType): { valid: boolea
       if (cleanKey.length !== 11) {
         return { valid: false, error: 'CPF deve ter 11 dígitos' };
       }
-      // Validação básica de CPF (dígitos repetidos são inválidos)
       if (/^(\d)\1+$/.test(cleanKey)) {
         return { valid: false, error: 'CPF inválido' };
       }
@@ -104,40 +99,80 @@ function maskPixKey(key: string): string {
 }
 
 /**
- * Consulta informações da chave PIX via Woovi/OpenPix
- * Usa endpoint de validação DICT (Diretório de Identificadores de Contas Transacionais)
+ * Verifica se o WOOVI_APP_ID está configurado corretamente
  */
-async function lookupPixKey(pixKey: string, keyType: PixKeyType, wooviAppId: string): Promise<{ 
-  valid: boolean; 
-  holderName?: string; 
-  holderDocument?: string;
-  bankName?: string;
-  error?: string 
-}> {
+function isWooviConfigured(appId: string | undefined): boolean {
+  if (!appId) return false;
+  // App ID da Woovi deve ter pelo menos 32 caracteres
+  if (appId.length < 32) return false;
+  // Verifica se não é um placeholder
+  if (appId.includes('YOUR_') || appId.includes('your_') || appId === 'test') return false;
+  return true;
+}
+
+/**
+ * Tenta chamar a API Woovi para processar o PIX
+ */
+async function processWooviPayment(
+  wooviAppId: string,
+  pixKey: string,
+  keyType: PixKeyType,
+  amountCents: number,
+  correlationId: string,
+  payoutRequestId: string
+): Promise<{ success: boolean; error?: string; data?: unknown }> {
   try {
-    console.log('[pix-withdraw] Looking up PIX key:', { keyType, key: maskPixKey(pixKey) });
+    console.log('[pix-withdraw] Calling Woovi API...', { 
+      url: WOOVI_BASE_URL,
+      appIdLength: wooviAppId.length,
+      appIdPrefix: wooviAppId.substring(0, 8) + '...'
+    });
     
-    // OpenPix usa endpoint /api/v1/pixQrCode/decode para validar chaves PIX
-    // Mas para chaves simples (não QR codes), podemos pular a validação remota
-    // e confiar apenas na validação de formato, já que a API de pagamento irá validar
-    
-    // Primeiro, tentamos o endpoint de decode (funciona para algumas chaves)
-    // Se falhar, assumimos que a chave é válida e deixamos a API de pagamento validar
-    
-    // Para chaves PIX normais, não há um endpoint público de validação no OpenPix
-    // A validação real acontece quando o pagamento é criado
-    // Vamos apenas retornar sucesso baseado na validação de formato local
-    
-    console.log('[pix-withdraw] Format validation passed, PIX key accepted for processing');
-    
-    return { 
-      valid: true, 
-      holderName: 'Validação será confirmada no momento do envio',
+    const wooviPayload = {
+      value: amountCents,
+      destinationAlias: pixKey,
+      destinationAliasType: keyType,
+      correlationID: correlationId,
+      comment: `Saque Stream Live Hub - ${payoutRequestId.substring(0, 8)}`,
     };
+
+    const wooviResponse = await fetch(`${WOOVI_BASE_URL}/api/v1/payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': wooviAppId,
+      },
+      body: JSON.stringify(wooviPayload),
+    });
+
+    const wooviData = await wooviResponse.json();
+
+    if (!wooviResponse.ok) {
+      console.error('[pix-withdraw] Woovi API error:', wooviData);
+      
+      // Extrair mensagem de erro mais específica
+      let errorMessage = 'Erro ao processar PIX';
+      if (wooviData.errors && Array.isArray(wooviData.errors)) {
+        errorMessage = wooviData.errors.map((e: { message?: string }) => e.message).join(', ');
+      } else if (wooviData.message) {
+        errorMessage = wooviData.message;
+      }
+      
+      return { success: false, error: errorMessage, data: wooviData };
+    }
+
+    console.log('[pix-withdraw] Woovi payment created:', {
+      correlationId,
+      status: wooviData.payment?.status,
+    });
+
+    return { success: true, data: wooviData };
   } catch (error) {
-    console.error('[pix-withdraw] Lookup exception:', error);
-    // Em caso de erro, permitir prosseguir - a API de pagamento vai validar
-    return { valid: true, holderName: 'Confirmação pendente' };
+    console.error('[pix-withdraw] Woovi exception:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Erro de conexão com Woovi' 
+    };
   }
 }
 
@@ -153,8 +188,14 @@ serve(async (req) => {
     const wooviAppId = Deno.env.get('WOOVI_APP_ID');
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const wooviEnabled = isWooviConfigured(wooviAppId);
 
-    // Require authentication and ensure caller can only act on their own userId
+    console.log('[pix-withdraw] Configuration:', { 
+      wooviEnabled,
+      wooviAppIdConfigured: !!wooviAppId,
+    });
+
+    // Require authentication
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Authentication required' }), {
@@ -185,7 +226,6 @@ serve(async (req) => {
       });
     }
 
-    // Normalizar chave PIX (remover pontuação de CPF/CNPJ)
     const pixKey = rawPixKey ? normalizePixKey(rawPixKey) : '';
 
     // === ACTION: VALIDATE PIX KEY ===
@@ -199,7 +239,6 @@ serve(async (req) => {
 
       const keyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
       
-      // Validar formato
       const formatValidation = validatePixKeyFormat(pixKey, keyType);
       if (!formatValidation.valid) {
         return new Response(JSON.stringify({ 
@@ -213,30 +252,18 @@ serve(async (req) => {
         });
       }
 
-      // Consultar informações da chave via Woovi
-      let lookupResult: { valid: boolean; holderName?: string; holderDocument?: string; bankName?: string; error?: string } = { 
-        valid: true, 
-        holderName: 'Confirmação manual necessária' 
-      };
-      if (wooviAppId) {
-        lookupResult = await lookupPixKey(pixKey, keyType, wooviAppId);
-      }
-
       return new Response(JSON.stringify({
-        valid: lookupResult.valid,
+        valid: true,
         keyType,
         normalizedKey: pixKey,
-        holderName: lookupResult.holderName,
-        holderDocument: lookupResult.holderDocument,
-        bankName: lookupResult.bankName,
-        error: lookupResult.error,
+        holderName: 'Validação será confirmada no momento do envio',
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // === ACTION: WITHDRAW (default) ===
+    // === ACTION: WITHDRAW ===
     console.log('[pix-withdraw] Request:', { 
       userId, 
       pixKey: maskPixKey(pixKey), 
@@ -264,10 +291,9 @@ serve(async (req) => {
       });
     }
 
-    // Detectar tipo de chave PIX
     const keyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
 
-    // Fetch both balances
+    // Buscar saldos
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('affiliate_earnings')
@@ -296,7 +322,6 @@ serve(async (req) => {
 
     console.log('[pix-withdraw] Balances:', { affiliateBalanceCents, creatorBalanceCents, totalAvailableCents });
 
-    // Verificar saldo suficiente
     if (totalAvailableCents < amountCents) {
       return new Response(JSON.stringify({ 
         error: `Saldo insuficiente. Disponível: R$ ${(totalAvailableCents / 100).toFixed(2)}` 
@@ -306,14 +331,12 @@ serve(async (req) => {
       });
     }
 
-    // Calculate how much to deduct from each source
-    // Priority: first from affiliate_earnings, then from creator_wallet
+    // Calcular dedução de cada fonte
     let deductFromAffiliate = Math.min(affiliateBalanceCents, amountCents);
     let deductFromCreator = amountCents - deductFromAffiliate;
 
     console.log('[pix-withdraw] Deductions:', { deductFromAffiliate, deductFromCreator });
 
-    // Gerar correlationId único
     const correlationId = crypto.randomUUID();
     const now = new Date().toISOString();
 
@@ -349,7 +372,6 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('[pix-withdraw] Creator balance update error:', updateError);
-        // Rollback affiliate balance if we already deducted
         if (deductFromAffiliate > 0) {
           await supabase
             .from('profiles')
@@ -360,10 +382,9 @@ serve(async (req) => {
       }
     }
 
-    // Determine source type for payout request (use 'creator' for mixed withdrawals as DB only allows 'creator' or 'affiliate')
     const sourceType = deductFromCreator > 0 ? 'creator' : 'affiliate';
 
-    // Criar payout request (status válidos: pending, approved, rejected, paid)
+    // Criar payout request - status 'pending' para processamento manual ou automático
     const { data: payoutRequest, error: payoutError } = await supabase
       .from('payout_requests')
       .insert({
@@ -382,7 +403,7 @@ serve(async (req) => {
     if (payoutError || !payoutRequest) {
       console.error('[pix-withdraw] Payout request error:', payoutError);
       
-      // Rollback balances
+      // Rollback
       if (deductFromAffiliate > 0) {
         await supabase
           .from('profiles')
@@ -402,7 +423,7 @@ serve(async (req) => {
       throw new Error('Erro ao criar solicitação de saque');
     }
 
-    // Registrar hold no ledger (one entry for each source if mixed)
+    // Registrar hold no ledger
     if (deductFromAffiliate > 0) {
       await supabase.from('wallet_transactions').insert({
         wallet_type: 'affiliate',
@@ -413,7 +434,7 @@ serve(async (req) => {
         reference_type: 'payout_request',
         reference_id: payoutRequest.id,
         description: `Saque PIX (afiliado) - R$ ${(deductFromAffiliate / 100).toFixed(2)}`,
-        metadata: { action: 'withdrawal.hold', correlationId, psp: 'woovi', source: 'affiliate' },
+        metadata: { action: 'withdrawal.hold', correlationId, source: 'affiliate' },
       });
     }
     
@@ -427,142 +448,83 @@ serve(async (req) => {
         reference_type: 'payout_request',
         reference_id: payoutRequest.id,
         description: `Saque PIX (criador) - R$ ${(deductFromCreator / 100).toFixed(2)}`,
-        metadata: { action: 'withdrawal.hold', correlationId, psp: 'woovi', source: 'creator' },
+        metadata: { action: 'withdrawal.hold', correlationId, source: 'creator' },
       });
     }
 
-    // Chamar API da Woovi para criar pagamento PIX
-    if (wooviAppId) {
-      try {
-        console.log('[pix-withdraw] Calling Woovi API...');
+    // Tentar processar via Woovi se configurado
+    let wooviProcessed = false;
+    let wooviError: string | null = null;
+
+    if (wooviEnabled && wooviAppId) {
+      const wooviResult = await processWooviPayment(
+        wooviAppId,
+        pixKey,
+        keyType,
+        amountCents,
+        correlationId,
+        payoutRequest.id
+      );
+
+      if (wooviResult.success) {
+        wooviProcessed = true;
         
-        const wooviPayload = {
-          value: amountCents,
-          destinationAlias: pixKey,
-          destinationAliasType: keyType,
-          correlationID: correlationId,
-          comment: `Saque Stream Live Hub - ${payoutRequest.id.substring(0, 8)}`,
-        };
-
-        const wooviResponse = await fetch(`${WOOVI_BASE_URL}/api/v1/payment`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': wooviAppId,
-          },
-          body: JSON.stringify(wooviPayload),
-        });
-
-        const wooviData = await wooviResponse.json();
-
-        if (!wooviResponse.ok) {
-          console.error('[pix-withdraw] Woovi API error:', wooviData);
-          
-          // Rollback everything
-          if (deductFromAffiliate > 0) {
-            await supabase
-              .from('profiles')
-              .update({ affiliate_earnings: affiliateBalanceCents })
-              .eq('id', userId);
-          }
-          if (deductFromCreator > 0) {
-            await supabase
-              .from('creator_wallet')
-              .update({ 
-                balance_cents: creatorBalanceCents,
-                pending_cents: creatorWallet?.pending_cents || 0,
-              })
-              .eq('creator_id', userId);
-          }
-
-          await supabase
-            .from('payout_requests')
-            .update({ 
-              status: 'failed', 
-              failure_reason: wooviData.message || 'Erro na API Woovi',
-              psp_response: wooviData,
-            })
-            .eq('id', payoutRequest.id);
-
-          // Record refund in ledger
-          if (deductFromAffiliate > 0) {
-            await supabase.from('wallet_transactions').insert({
-              wallet_type: 'affiliate',
-              wallet_id: userId,
-              type: 'refund',
-              amount_cents: deductFromAffiliate,
-              balance_after_cents: affiliateBalanceCents,
-              reference_type: 'payout_request',
-              reference_id: payoutRequest.id,
-              description: `Saque PIX falhou - valor estornado (afiliado)`,
-              metadata: { action: 'withdrawal.refund', correlationId, psp: 'woovi', error: wooviData.message },
-            });
-          }
-          if (deductFromCreator > 0) {
-            await supabase.from('wallet_transactions').insert({
-              wallet_type: 'creator',
-              wallet_id: userId,
-              type: 'refund',
-              amount_cents: deductFromCreator,
-              balance_after_cents: creatorBalanceCents,
-              reference_type: 'payout_request',
-              reference_id: payoutRequest.id,
-              description: `Saque PIX falhou - valor estornado (criador)`,
-              metadata: { action: 'withdrawal.refund', correlationId, psp: 'woovi', error: wooviData.message },
-            });
-          }
-
-          throw new Error(wooviData.message || 'Erro ao processar PIX via Woovi');
-        }
-
         // Atualizar payout_request com resposta da Woovi
         await supabase
           .from('payout_requests')
           .update({
-            psp_response: wooviData,
+            psp_response: wooviResult.data,
+            status: 'approved', // Woovi processou, marcar como aprovado
           })
           .eq('id', payoutRequest.id);
-
-        console.log('[pix-withdraw] Woovi payment created:', {
-          correlationId,
-          status: wooviData.payment?.status,
-        });
-
-      } catch (wooviError) {
-        console.error('[pix-withdraw] Woovi error:', wooviError);
-        throw wooviError;
+      } else {
+        wooviError = wooviResult.error || 'Erro ao processar via Woovi';
+        console.warn('[pix-withdraw] Woovi failed, falling back to manual processing:', wooviError);
+        
+        // Atualizar com erro mas não falhar - continuar para processamento manual
+        await supabase
+          .from('payout_requests')
+          .update({
+            psp_response: { error: wooviError, data: wooviResult.data },
+            admin_notes: `Processamento automático falhou: ${wooviError}. Aguardando processamento manual.`,
+          })
+          .eq('id', payoutRequest.id);
       }
     } else {
-      console.warn('[pix-withdraw] WOOVI_APP_ID not configured - payout will require manual processing');
+      console.log('[pix-withdraw] Woovi not configured - payout requires manual processing');
     }
 
-    // Record transaction
+    // Registrar transação
     await supabase.from('transactions').insert({
       user_id: userId,
       type: 'pix_withdraw',
       amount: -(amountCents / 100),
-      status: 'processing',
+      status: wooviProcessed ? 'processing' : 'pending',
       payment_method: 'pix',
       external_id: payoutRequest.id,
       metadata: { 
         pix_key_masked: maskPixKey(pixKey),
         pix_key_type: keyType,
         correlation_id: correlationId,
-        psp: 'woovi',
+        woovi_processed: wooviProcessed,
         deduct_from_affiliate: deductFromAffiliate,
         deduct_from_creator: deductFromCreator,
       },
     });
 
-    // Notify user
+    // Notificar usuário
+    const userNotificationMessage = wooviProcessed
+      ? `Seu saque de R$ ${(amountCents / 100).toFixed(2)} está sendo processado via PIX.`
+      : `Seu saque de R$ ${(amountCents / 100).toFixed(2)} foi solicitado e será processado em breve.`;
+
     await supabase.from('notifications').insert({
       user_id: userId,
-      title: '💰 Saque PIX em processamento',
-      message: `Seu saque de R$ ${(amountCents / 100).toFixed(2)} está sendo processado via PIX.`,
+      title: wooviProcessed ? '💰 Saque PIX em processamento' : '📝 Saque solicitado',
+      message: userNotificationMessage,
       type: 'withdrawal_processing',
     });
 
-    // Notify admins
+    // Notificar admins
     const { data: admins } = await supabase
       .from('user_roles')
       .select('user_id')
@@ -575,10 +537,14 @@ serve(async (req) => {
         .eq('id', userId)
         .single();
 
+      const adminMessage = wooviProcessed
+        ? `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)} via PIX (processado automaticamente)`
+        : `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)} via PIX - REQUER PROCESSAMENTO MANUAL`;
+
       const notifications = admins.map(admin => ({
         user_id: admin.user_id,
-        title: '🏦 Saque PIX solicitado',
-        message: `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)} via PIX`,
+        title: wooviProcessed ? '🏦 Saque PIX processado' : '⚠️ Saque PIX pendente',
+        message: adminMessage,
         type: 'withdrawal_requested',
       }));
       await supabase.from('notifications').insert(notifications);
@@ -589,17 +555,21 @@ serve(async (req) => {
       correlationId,
       amountCents, 
       sourceType,
+      wooviProcessed,
       deductFromAffiliate,
       deductFromCreator,
     });
 
     return new Response(JSON.stringify({
       success: true,
-      status: 'processing',
-      message: 'Saque PIX enviado para processamento',
+      status: wooviProcessed ? 'processing' : 'pending',
+      message: wooviProcessed 
+        ? 'Saque PIX enviado para processamento automático'
+        : 'Saque solicitado com sucesso. Será processado em até 24 horas.',
       payoutId: payoutRequest.id,
       correlationId,
       amount: amountCents / 100,
+      automaticProcessing: wooviProcessed,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
