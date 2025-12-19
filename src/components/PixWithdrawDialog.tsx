@@ -312,11 +312,18 @@ const PixWithdrawDialog = ({
 
       if (response.data?.success) {
         setStep("success");
+        
+        // Mensagem diferenciada baseada no tipo de processamento
+        const isAutomatic = response.data?.automaticProcessing;
         toast({
-          title: t.pix?.successAuto || "Saque processado!",
-          description: method === "pix" 
-            ? (t.pix?.successAutoDesc || "Seu saque via PIX foi processado automaticamente")
-            : "Sua transferência bancária foi processada",
+          title: isAutomatic 
+            ? (t.pix?.successAuto || "Saque processado!") 
+            : "Saque solicitado!",
+          description: isAutomatic
+            ? (method === "pix" 
+                ? (t.pix?.successAutoDesc || "Seu saque via PIX foi processado automaticamente")
+                : "Sua transferência bancária foi processada")
+            : "Seu saque foi solicitado e será processado em até 24 horas.",
         });
         onSuccess();
         
