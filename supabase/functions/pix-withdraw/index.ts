@@ -363,7 +363,7 @@ serve(async (req) => {
     // Determine source type for payout request (use 'creator' for mixed withdrawals as DB only allows 'creator' or 'affiliate')
     const sourceType = deductFromCreator > 0 ? 'creator' : 'affiliate';
 
-    // Criar payout request
+    // Criar payout request (status válidos: pending, approved, rejected, paid)
     const { data: payoutRequest, error: payoutError } = await supabase
       .from('payout_requests')
       .insert({
@@ -372,7 +372,7 @@ serve(async (req) => {
         pix_key: pixKey,
         pix_key_type: keyType,
         source_type: sourceType,
-        status: 'processing',
+        status: 'pending',
         idempotency_key: correlationId,
         psp_transaction_id: correlationId,
       })
