@@ -1,21 +1,178 @@
-# 📚 Relatório Técnico - Plataforma de Streaming
+# 📚 Documentação Técnica - Plataforma de Streaming
 
-## Índice
-1. [Linguagens e Tecnologias](#1-linguagens-e-tecnologias)
-2. [Bibliotecas e Dependências](#2-bibliotecas-e-dependências)
-3. [Arquitetura da Aplicação](#3-arquitetura-da-aplicação)
-4. [Padrões de Design](#4-padrões-de-design)
-5. [Sistema de Design (Design System)](#5-sistema-de-design)
-6. [Internacionalização (i18n)](#6-internacionalização-i18n)
-7. [Banco de Dados Relacional](#7-banco-de-dados-relacional)
-8. [Autenticação e Autorização](#8-autenticação-e-autorização)
-9. [Protocolo WebRTC e Streaming](#9-protocolo-webrtc-e-streaming)
-10. [Comunicação em Tempo Real](#10-comunicação-em-tempo-real)
-11. [Serverless Functions](#11-serverless-functions)
-12. [Webhooks e Integrações](#12-webhooks-e-integrações)
-13. [Fluxos de Dados](#13-fluxos-de-dados)
-14. [Gerenciamento de Estado](#14-gerenciamento-de-estado)
-15. [Padrões de Código](#15-padrões-de-código)
+> **Para quem é este documento?**  
+> Programadores que estão entrando no projeto e precisam entender rapidamente como ele foi construído, quais tecnologias foram usadas e onde encontrar cada parte do código.
+
+---
+
+## 🗺️ Guia Rápido de Navegação
+
+### Estrutura de Pastas do Projeto
+
+```
+📁 projeto/
+├── 📁 src/                      ← TODO O CÓDIGO FRONTEND
+│   ├── 📁 components/           ← Componentes React reutilizáveis
+│   │   ├── 📁 ui/               ← Botões, Cards, Dialogs (primitivas)
+│   │   ├── 📁 chat/             ← Componentes de chat
+│   │   ├── 📁 admin/            ← Componentes do painel admin
+│   │   └── 📁 creator/          ← Componentes para criadores
+│   ├── 📁 pages/                ← Páginas (cada arquivo = uma rota)
+│   ├── 📁 hooks/                ← Lógica reutilizável (useAuth, useLanguage)
+│   ├── 📁 contexts/             ← Estado global (AuthContext, CreditsContext)
+│   ├── 📁 lib/                  ← Utilitários e serviços
+│   └── 📁 integrations/         ← Conexão com Supabase
+│
+├── 📁 supabase/
+│   └── 📁 functions/            ← EDGE FUNCTIONS (backend serverless)
+│       ├── create-payment/      ← Criar pagamentos
+│       ├── mercadopago-webhook/ ← Receber webhooks
+│       └── livekit-room/        ← Gerenciar salas de streaming
+│
+├── 📁 public/                   ← Arquivos estáticos (imagens, favicon)
+├── 📁 docs/                     ← Documentação (você está aqui!)
+├── 📄 index.html                ← Ponto de entrada HTML
+├── 📄 tailwind.config.ts        ← Configuração do Tailwind CSS
+└── 📄 src/index.css             ← Design tokens (cores, fontes)
+```
+
+### Onde Encontrar Cada Coisa
+
+| Preciso de... | Onde está | Arquivo(s) principal(is) |
+|---------------|-----------|--------------------------|
+| **Cores e tema** | Design System | `src/index.css`, `tailwind.config.ts` |
+| **Componentes visuais** | UI Components | `src/components/ui/` |
+| **Páginas do app** | Pages | `src/pages/` |
+| **Rotas da aplicação** | Router | `src/App.tsx` |
+| **Autenticação** | Auth Context | `src/contexts/AuthContext.tsx` |
+| **Traduções** | i18n | `src/lib/i18n.ts`, `src/hooks/useLanguage.tsx` |
+| **Tipos do banco** | Supabase Types | `src/integrations/supabase/types.ts` |
+| **Cliente Supabase** | Supabase Client | `src/integrations/supabase/client.ts` |
+| **Lógica de backend** | Edge Functions | `supabase/functions/` |
+| **Queries de dados** | Hooks | `src/hooks/use*.ts` |
+
+---
+
+## 📖 Glossário de Termos
+
+### Termos Gerais de Programação
+
+| Termo | O que significa |
+|-------|-----------------|
+| **Frontend** | A parte visual que o usuário vê e interage (interface) |
+| **Backend** | A parte que roda no servidor (lógica, banco de dados) |
+| **API** | Interface que permite comunicação entre sistemas |
+| **SPA** | Single Page Application - site que não recarrega ao navegar |
+| **Hook** | Função especial do React para reutilizar lógica |
+| **Componente** | Pedaço de interface reutilizável (ex: botão, card) |
+| **Estado (State)** | Dados que podem mudar e fazem a tela atualizar |
+| **Props** | Dados passados de um componente pai para filho |
+| **Context** | Forma de compartilhar dados sem passar por props |
+
+### Termos Específicos do Projeto
+
+| Termo | O que significa |
+|-------|-----------------|
+| **Supabase** | Plataforma BaaS (Backend as a Service) usada no projeto |
+| **Edge Function** | Código que roda no servidor da Supabase (serverless) |
+| **RLS** | Row Level Security - regras de quem pode ver/editar dados |
+| **JWT** | Token seguro usado para autenticação |
+| **WebRTC** | Protocolo para streaming de vídeo em tempo real |
+| **LiveKit** | Serviço que gerencia as chamadas de vídeo/streaming |
+| **Webhook** | URL que recebe notificações automáticas de eventos |
+| **PIX** | Sistema de pagamento instantâneo brasileiro |
+| **Tailwind** | Framework CSS que usa classes utilitárias |
+| **shadcn/ui** | Biblioteca de componentes React pré-estilizados |
+| **Zod** | Biblioteca para validar dados com TypeScript |
+| **TanStack Query** | Biblioteca para gerenciar dados do servidor |
+
+### Siglas Importantes
+
+| Sigla | Significado |
+|-------|-------------|
+| **TS/TSX** | TypeScript / TypeScript com JSX (React) |
+| **CSS** | Cascading Style Sheets (estilização) |
+| **SQL** | Structured Query Language (linguagem de banco) |
+| **UUID** | Identificador único universal (ex: `a1b2c3d4-...`) |
+| **HSL** | Hue-Saturation-Lightness (formato de cor) |
+| **HMR** | Hot Module Replacement (atualização sem recarregar) |
+| **CRUD** | Create, Read, Update, Delete (operações básicas) |
+| **BaaS** | Backend as a Service |
+| **i18n** | Internacionalização (internationalization) |
+| **SSR** | Server-Side Rendering |
+| **SFU** | Selective Forwarding Unit (arquitetura de streaming) |
+
+---
+
+## 📑 Índice Detalhado
+
+### Parte 1: Fundamentos
+| # | Seção | O que você vai aprender |
+|---|-------|------------------------|
+| 1 | [Linguagens e Tecnologias](#1-linguagens-e-tecnologias) | TypeScript, SQL, CSS, ambientes de execução |
+| 2 | [Bibliotecas e Dependências](#2-bibliotecas-e-dependências) | React, Tailwind, Supabase, todas as libs usadas |
+| 3 | [Arquitetura da Aplicação](#3-arquitetura-da-aplicação) | Como as partes se conectam, estrutura de pastas |
+
+### Parte 2: Padrões e Sistema Visual
+| # | Seção | O que você vai aprender |
+|---|-------|------------------------|
+| 4 | [Padrões de Design](#4-padrões-de-design) | Composition, Provider, Container/Presentational |
+| 5 | [Sistema de Design](#5-sistema-de-design) | CSS Variables, Tailwind, CVA, Design Tokens |
+| 6 | [Internacionalização](#6-internacionalização-i18n) | Multi-idioma (PT/EN/ES), traduções, useLanguage |
+
+### Parte 3: Dados e Segurança
+| # | Seção | O que você vai aprender |
+|---|-------|------------------------|
+| 7 | [Banco de Dados](#7-banco-de-dados-relacional) | PostgreSQL, tabelas, RLS, queries Supabase |
+| 8 | [Autenticação](#8-autenticação-e-autorização) | JWT, login/registro, proteção de rotas, RBAC |
+
+### Parte 4: Comunicação em Tempo Real
+| # | Seção | O que você vai aprender |
+|---|-------|------------------------|
+| 9 | [WebRTC e Streaming](#9-protocolo-webrtc-e-streaming) | Como funciona vídeo ao vivo, LiveKit, SFU |
+| 10 | [Tempo Real](#10-comunicação-em-tempo-real) | WebSocket, Supabase Realtime, chat ao vivo |
+
+### Parte 5: Backend e Integrações
+| # | Seção | O que você vai aprender |
+|---|-------|------------------------|
+| 11 | [Serverless Functions](#11-serverless-functions) | Edge Functions, Deno, como criar endpoints |
+| 12 | [Webhooks](#12-webhooks-e-integrações) | Mercado Pago, Woovi, receber notificações |
+
+### Parte 6: Fluxos e Boas Práticas
+| # | Seção | O que você vai aprender |
+|---|-------|------------------------|
+| 13 | [Fluxos de Dados](#13-fluxos-de-dados) | Compra de créditos, consumo, streaming |
+| 14 | [Gerenciamento de Estado](#14-gerenciamento-de-estado) | Context API, TanStack Query, estados locais |
+| 15 | [Padrões de Código](#15-padrões-de-código) | Convenções, nomenclatura, boas práticas |
+
+---
+
+## 🚀 Por Onde Começar?
+
+### Se você é completamente iniciante:
+1. Leia o [Glossário](#-glossário-de-termos) para entender os termos
+2. Veja a [Arquitetura](#3-arquitetura-da-aplicação) para entender a estrutura
+3. Explore a pasta `src/pages/` para ver as páginas do app
+4. Olhe `src/components/ui/` para ver componentes básicos
+
+### Se você já conhece React:
+1. Veja os [Padrões de Design](#4-padrões-de-design) usados
+2. Entenda o [Sistema de Design](#5-sistema-de-design)
+3. Explore os hooks customizados em `src/hooks/`
+
+### Se você vai trabalhar no backend:
+1. Leia sobre [Edge Functions](#11-serverless-functions)
+2. Entenda o [Banco de Dados](#7-banco-de-dados-relacional)
+3. Veja como funcionam os [Webhooks](#12-webhooks-e-integrações)
+
+### Se você vai trabalhar com streaming:
+1. Leia sobre [WebRTC](#9-protocolo-webrtc-e-streaming)
+2. Entenda a [Comunicação em Tempo Real](#10-comunicação-em-tempo-real)
+3. Explore `src/components/webrtc/`
+
+---
+
+## 📚 Conteúdo Técnico Detalhado
 
 ---
 
@@ -2267,23 +2424,54 @@ export async function updateLiveStatus(liveId: string, status: string) {
 
 ---
 
-## Anexo: Glossário
+## 📎 Referência Rápida
 
-| Termo | Definição |
-|-------|-----------|
-| **SPA** | Single Page Application - aplicação de página única |
-| **BaaS** | Backend as a Service - backend como serviço |
-| **JWT** | JSON Web Token - token de autenticação |
-| **RLS** | Row Level Security - segurança por linha no banco |
-| **WebRTC** | Web Real-Time Communication - protocolo de comunicação |
-| **SFU** | Selective Forwarding Unit - servidor de mídia |
-| **Edge Function** | Função serverless na borda da rede |
-| **Webhook** | Callback HTTP para notificações de eventos |
-| **SSR** | Server-Side Rendering - renderização no servidor |
-| **CSR** | Client-Side Rendering - renderização no cliente |
-| **HMR** | Hot Module Replacement - atualização sem refresh |
-| **CORS** | Cross-Origin Resource Sharing - compartilhamento entre origens |
+### Comandos Úteis
+
+```bash
+# Instalar dependências
+npm install
+
+# Rodar em desenvolvimento
+npm run dev
+
+# Build para produção
+npm run build
+
+# Rodar testes
+npm test
+```
+
+### Arquivos Mais Importantes
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `src/App.tsx` | Rotas e estrutura principal |
+| `src/index.css` | Design tokens (cores, fontes) |
+| `src/contexts/AuthContext.tsx` | Lógica de autenticação |
+| `src/lib/i18n.ts` | Todas as traduções |
+| `src/integrations/supabase/client.ts` | Cliente do banco de dados |
+| `tailwind.config.ts` | Configuração de estilos |
+
+### Links Úteis
+
+- **Tailwind CSS**: https://tailwindcss.com/docs
+- **React**: https://react.dev
+- **Supabase**: https://supabase.com/docs
+- **shadcn/ui**: https://ui.shadcn.com
+- **TanStack Query**: https://tanstack.com/query
+- **LiveKit**: https://docs.livekit.io
 
 ---
 
-*Documento técnico - Versão 1.0*
+## 📝 Histórico de Versões
+
+| Versão | Data | Alterações |
+|--------|------|------------|
+| 1.0 | - | Versão inicial do documento |
+| 2.0 | - | Adicionado glossário e guia de navegação |
+| 2.1 | - | Adicionada seção de Internacionalização (i18n) |
+
+---
+
+*Este documento foi criado para facilitar o onboarding de novos desenvolvedores no projeto.*
