@@ -6,15 +6,16 @@
 3. [Arquitetura da Aplicação](#3-arquitetura-da-aplicação)
 4. [Padrões de Design](#4-padrões-de-design)
 5. [Sistema de Design (Design System)](#5-sistema-de-design)
-6. [Banco de Dados Relacional](#6-banco-de-dados-relacional)
-7. [Autenticação e Autorização](#7-autenticação-e-autorização)
-8. [Protocolo WebRTC e Streaming](#8-protocolo-webrtc-e-streaming)
-9. [Comunicação em Tempo Real](#9-comunicação-em-tempo-real)
-10. [Serverless Functions](#10-serverless-functions)
-11. [Webhooks e Integrações](#11-webhooks-e-integrações)
-12. [Fluxos de Dados](#12-fluxos-de-dados)
-13. [Gerenciamento de Estado](#13-gerenciamento-de-estado)
-14. [Padrões de Código](#14-padrões-de-código)
+6. [Internacionalização (i18n)](#6-internacionalização-i18n)
+7. [Banco de Dados Relacional](#7-banco-de-dados-relacional)
+8. [Autenticação e Autorização](#8-autenticação-e-autorização)
+9. [Protocolo WebRTC e Streaming](#9-protocolo-webrtc-e-streaming)
+10. [Comunicação em Tempo Real](#10-comunicação-em-tempo-real)
+11. [Serverless Functions](#11-serverless-functions)
+12. [Webhooks e Integrações](#12-webhooks-e-integrações)
+13. [Fluxos de Dados](#13-fluxos-de-dados)
+14. [Gerenciamento de Estado](#14-gerenciamento-de-estado)
+15. [Padrões de Código](#15-padrões-de-código)
 
 ---
 
@@ -564,7 +565,416 @@ cn("px-4 py-2", condition && "bg-primary", "px-6")
 
 ---
 
-## 6. Banco de Dados Relacional
+## 6. Internacionalização (i18n)
+
+### Conceito
+
+Internacionalização (i18n) é o processo de preparar uma aplicação para suportar múltiplos idiomas e regiões. O "18" representa as 18 letras entre "i" e "n" na palavra "internationalization".
+
+### Arquitetura do Sistema de Traduções
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        SISTEMA DE INTERNACIONALIZAÇÃO                        │
+│                                                                              │
+│   ┌───────────────────────────────────────────────────────────────────────┐ │
+│   │                     src/lib/i18n.ts                                    │ │
+│   │                  (Arquivo de Traduções)                                │ │
+│   │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                   │ │
+│   │  │     EN      │  │     ES      │  │     PT      │                   │ │
+│   │  │  (Inglês)   │  │ (Espanhol)  │  │ (Português) │                   │ │
+│   │  └─────────────┘  └─────────────┘  └─────────────┘                   │ │
+│   └───────────────────────────────────────────────────────────────────────┘ │
+│                                    │                                         │
+│                                    ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────────────┐ │
+│   │               src/hooks/useLanguage.tsx                                │ │
+│   │                  (LanguageProvider)                                    │ │
+│   │  ┌─────────────────────────────────────────────────────────────────┐  │ │
+│   │  │ • useState para idioma atual                                    │  │ │
+│   │  │ • localStorage para persistência                                │  │ │
+│   │  │ • Detecção automática do navegador                              │  │ │
+│   │  │ • Context API para distribuição                                 │  │ │
+│   │  └─────────────────────────────────────────────────────────────────┘  │ │
+│   └───────────────────────────────────────────────────────────────────────┘ │
+│                                    │                                         │
+│                                    ▼                                         │
+│   ┌───────────────────────────────────────────────────────────────────────┐ │
+│   │              src/components/LanguageSelector.tsx                       │ │
+│   │                  (Componente de Seleção)                               │ │
+│   │  ┌─────────────────────────────────────────────────────────────────┐  │ │
+│   │  │ 🇺🇸 EN │ 🇪🇸 ES │ 🇧🇷 PT │  ← Dropdown com bandeiras            │  │ │
+│   │  └─────────────────────────────────────────────────────────────────┘  │ │
+│   └───────────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Estrutura do Arquivo de Traduções
+
+```typescript
+// src/lib/i18n.ts
+
+// Tipo que define idiomas suportados
+export type Language = 'en' | 'es' | 'pt';
+
+// Objeto com todas as traduções organizadas por namespace
+export const translations = {
+  en: {
+    nav: {
+      dashboard: "Dashboard",
+      logout: "Logout",
+      login: "Login",
+      profile: "Profile",
+      home: "Home",
+    },
+    auth: {
+      email: "Email",
+      password: "Password",
+      loginButton: "Sign In",
+      loading: "Loading...",
+    },
+    home: {
+      title: "Stream Star",
+      onlineNow: "Online Now",
+      search: "Search creators...",
+      noCreators: "No creators found",
+    },
+    // ... outros namespaces
+  },
+  
+  es: {
+    nav: {
+      dashboard: "Panel de Control",
+      logout: "Cerrar Sesión",
+      login: "Iniciar Sesión",
+      profile: "Perfil",
+      home: "Inicio",
+    },
+    // ... mesma estrutura que EN
+  },
+  
+  pt: {
+    nav: {
+      dashboard: "Painel",
+      logout: "Sair",
+      login: "Entrar",
+      profile: "Perfil",
+      home: "Início",
+    },
+    // ... mesma estrutura que EN
+  },
+};
+```
+
+### Provider Pattern para Idioma
+
+```typescript
+// src/hooks/useLanguage.tsx
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { translations, Language } from '@/lib/i18n';
+
+// 1. Definir tipo do contexto
+interface LanguageContextType {
+  language: Language;             // Idioma atual
+  setLanguage: (lang: Language) => void;  // Função para mudar idioma
+  t: typeof translations.en;      // Objeto de traduções do idioma atual
+}
+
+// 2. Criar contexto
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+// 3. Criar Provider
+export const LanguageProvider = ({ children }: { children: ReactNode }) => {
+  // Estado inicial: tenta carregar do localStorage ou detecta do navegador
+  const [language, setLanguageState] = useState<Language>(() => {
+    // Primeiro: verifica se há idioma salvo
+    const saved = localStorage.getItem('language');
+    if (saved && (saved === 'en' || saved === 'es' || saved === 'pt')) {
+      return saved as Language;
+    }
+    
+    // Segundo: detecta idioma do navegador
+    const browserLang = navigator.language.split('-')[0];
+    if (browserLang === 'es' || browserLang === 'pt') {
+      return browserLang as Language;
+    }
+    
+    // Fallback: inglês
+    return 'en';
+  });
+
+  // Função para mudar idioma e persistir
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem('language', lang);  // Persiste a escolha
+  };
+
+  // Objeto de traduções do idioma atual
+  const t = translations[language];
+
+  return (
+    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+// 4. Hook customizado para consumir o contexto
+export const useLanguage = () => {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error('useLanguage must be used within LanguageProvider');
+  }
+  return context;
+};
+```
+
+### Componente de Seleção de Idioma
+
+```typescript
+// src/components/LanguageSelector.tsx
+import { useLanguage } from '@/hooks/useLanguage';
+import { Button } from './ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Check } from 'lucide-react';
+
+// Array de idiomas disponíveis com suas bandeiras
+const LANGUAGES = [
+  { code: 'en', label: 'EN', flag: '/flags/us.png' },
+  { code: 'es', label: 'ES', flag: '/flags/es.png' },
+  { code: 'pt', label: 'PT', flag: '/flags/br.png' },
+];
+
+export const LanguageSelector = () => {
+  const { language, setLanguage } = useLanguage();
+  
+  // Encontra dados do idioma atual para exibir
+  const currentLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[2];
+
+  return (
+    <DropdownMenu>
+      {/* Botão que mostra bandeira atual */}
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <img 
+            src={currentLang.flag} 
+            alt={currentLang.label} 
+            className="w-6 h-4 object-cover rounded-sm"
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      
+      {/* Menu dropdown com opções */}
+      <DropdownMenuContent align="end">
+        {LANGUAGES.map((lang) => (
+          <DropdownMenuItem
+            key={lang.code}
+            onClick={() => setLanguage(lang.code as Language)}
+            className={language === lang.code ? 'bg-primary/20' : ''}
+          >
+            {/* Check mark no idioma selecionado */}
+            {language === lang.code && <Check className="h-4 w-4 text-primary" />}
+            <img src={lang.flag} alt={lang.label} className="w-5 h-3.5" />
+            <span>{lang.label}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+```
+
+### Uso nos Componentes
+
+```typescript
+// Qualquer componente pode usar traduções via hook
+import { useLanguage } from '@/hooks/useLanguage';
+
+function LoginForm() {
+  const { t } = useLanguage();  // Obtém traduções do idioma atual
+  
+  return (
+    <form>
+      {/* Textos vêm do objeto de traduções */}
+      <label>{t.auth.email}</label>
+      <Input placeholder={t.auth.email} />
+      
+      <label>{t.auth.password}</label>
+      <Input type="password" />
+      
+      <Button>{t.auth.loginButton}</Button>
+    </form>
+  );
+}
+
+// O texto muda automaticamente quando o idioma é alterado!
+// Se language = 'pt': "Email", "Senha", "Entrar"
+// Se language = 'en': "Email", "Password", "Sign In"
+// Se language = 'es': "Correo", "Contraseña", "Iniciar Sesión"
+```
+
+### Interpolação de Variáveis
+
+Para textos dinâmicos com variáveis:
+
+```typescript
+// Na definição das traduções
+const translations = {
+  pt: {
+    chat: {
+      isTyping: "{name} está digitando...",
+      areTyping: "{names} estão digitando...",
+      multipleTyping: "{count} pessoas estão digitando...",
+    },
+  },
+};
+
+// No componente - substituição manual
+function TypingIndicator({ usernames }: { usernames: string[] }) {
+  const { t } = useLanguage();
+  
+  const getTypingText = () => {
+    if (usernames.length === 1) {
+      // Substitui placeholder pela variável
+      return t.chat.isTyping.replace("{name}", usernames[0]);
+      // Resultado: "João está digitando..."
+    }
+    if (usernames.length === 2) {
+      return t.chat.areTyping.replace("{names}", usernames.join(" e "));
+      // Resultado: "João e Maria estão digitando..."
+    }
+    return t.chat.multipleTyping.replace("{count}", String(usernames.length));
+    // Resultado: "5 pessoas estão digitando..."
+  };
+  
+  return <span>{getTypingText()}</span>;
+}
+```
+
+### Fallback Seguro
+
+Para evitar erros quando uma tradução não existe:
+
+```typescript
+// Acesso seguro com optional chaining e fallback
+const getTypingText = () => {
+  if (usernames.length === 1) {
+    // Se t.chat?.isTyping não existir, usa fallback
+    return t.chat?.isTyping 
+      ? t.chat.isTyping.replace("{name}", usernames[0])
+      : `${usernames[0]} está digitando...`;  // Fallback hardcoded
+  }
+  // ...
+};
+```
+
+### Fluxo Completo de Internacionalização
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │            INICIALIZAÇÃO                │
+                    └─────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │     localStorage.getItem('language')     │
+                    │               tem valor?                 │
+                    └─────────────────────────────────────────┘
+                               │              │
+                           SIM ▼              ▼ NÃO
+                    ┌──────────────┐   ┌──────────────────────┐
+                    │  Usa idioma  │   │ navigator.language   │
+                    │    salvo     │   │   é pt ou es?        │
+                    └──────────────┘   └──────────────────────┘
+                           │                  │          │
+                           │              SIM ▼          ▼ NÃO
+                           │          ┌──────────┐  ┌──────────┐
+                           │          │ Usa esse │  │ Usa 'en' │
+                           │          │  idioma  │  │(fallback)│
+                           │          └──────────┘  └──────────┘
+                           │                │          │
+                           └────────────────┴──────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │   useState(language) inicializado       │
+                    │   t = translations[language]            │
+                    └─────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │      Componentes usam {t.xxx.yyy}       │
+                    │       para exibir textos traduzidos     │
+                    └─────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │  Usuário clica em outro idioma no       │
+                    │        LanguageSelector                 │
+                    └─────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │    setLanguage('es')                    │
+                    │    • Atualiza state                     │
+                    │    • localStorage.setItem('language')   │
+                    │    • t = translations['es']             │
+                    └─────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │    React re-renderiza componentes       │
+                    │    com novas traduções automaticamente  │
+                    └─────────────────────────────────────────┘
+```
+
+### Namespaces de Tradução
+
+O arquivo i18n.ts organiza traduções em namespaces por funcionalidade:
+
+| Namespace | Propósito |
+|-----------|-----------|
+| `nav` | Navegação, navbar, links |
+| `auth` | Login, registro, senhas |
+| `home` | Página inicial |
+| `dashboard` | Dashboard do usuário |
+| `profile` | Perfil e configurações |
+| `credits` | Sistema de créditos |
+| `admin` | Painel administrativo |
+| `affiliate` | Sistema de afiliados |
+| `common` | Textos genéricos reutilizáveis |
+| `chat` | Mensagens e chat |
+| `notifications` | Notificações |
+| `subscribe` | Página de assinatura |
+
+### Testes com Mock de Idioma
+
+```typescript
+// src/test/setup.ts
+vi.mock("@/hooks/useLanguage", () => {
+  const translations = {
+    auth: {
+      email: "Email",
+      password: "Senha",
+      loginButton: "Entrar",
+    },
+    // ... traduções necessárias para testes
+  };
+
+  return {
+    useLanguage: () => ({ 
+      language: "pt", 
+      setLanguage: vi.fn(), 
+      t: translations 
+    }),
+    LanguageProvider: ({ children }) => children,
+  };
+});
+```
+
+---
+
+## 7. Banco de Dados Relacional
 
 ### PostgreSQL
 
@@ -716,7 +1126,7 @@ export interface Database {
 
 ---
 
-## 7. Autenticação e Autorização
+## 8. Autenticação e Autorização
 
 ### Fluxo de Autenticação JWT
 
@@ -895,7 +1305,7 @@ function AdminRoute({ children }: { children: ReactNode }) {
 
 ---
 
-## 8. Protocolo WebRTC e Streaming
+## 9. Protocolo WebRTC e Streaming
 
 ### O que é WebRTC?
 
@@ -1010,7 +1420,7 @@ Deno.serve(async (req) => {
 
 ---
 
-## 9. Comunicação em Tempo Real
+## 10. Comunicação em Tempo Real
 
 ### Supabase Realtime (WebSocket)
 
@@ -1147,7 +1557,7 @@ function useRealtimeChat(roomId: string) {
 
 ---
 
-## 10. Serverless Functions
+## 11. Serverless Functions
 
 ### Edge Functions (Deno Runtime)
 
@@ -1263,7 +1673,7 @@ const livekitKey = Deno.env.get('LIVEKIT_API_KEY');
 
 ---
 
-## 11. Webhooks e Integrações
+## 12. Webhooks e Integrações
 
 ### O que é um Webhook?
 
@@ -1361,7 +1771,7 @@ try {
 
 ---
 
-## 12. Fluxos de Dados
+## 13. Fluxos de Dados
 
 ### Fluxo: Compra de Créditos
 
@@ -1508,7 +1918,7 @@ try {
 
 ---
 
-## 13. Gerenciamento de Estado
+## 14. Gerenciamento de Estado
 
 ### Níveis de Estado
 
@@ -1646,7 +2056,7 @@ function useLivesWithRealtime() {
 
 ---
 
-## 14. Padrões de Código
+## 15. Padrões de Código
 
 ### Estrutura de Componente
 
