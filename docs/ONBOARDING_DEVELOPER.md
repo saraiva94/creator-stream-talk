@@ -1,207 +1,413 @@
-# 📚 Guia Completo de Onboarding - Stream Star
+# 📚 Relatório Técnico - Plataforma de Streaming
 
 ## Índice
-1. [Visão Geral do Projeto](#visão-geral-do-projeto)
-2. [Stack Tecnológico](#stack-tecnológico)
-3. [Arquitetura do Sistema](#arquitetura-do-sistema)
-4. [Estrutura de Pastas](#estrutura-de-pastas)
-5. [Sistema de Design](#sistema-de-design)
-6. [Banco de Dados](#banco-de-dados)
-7. [Autenticação](#autenticação)
-8. [Sistema de Lives/Streaming](#sistema-de-livesstreaming)
-9. [Sistema de Pagamentos](#sistema-de-pagamentos)
-10. [Sistema de Afiliados](#sistema-de-afiliados)
-11. [Edge Functions](#edge-functions)
-12. [Padrões de Código](#padrões-de-código)
-13. [Fluxos Principais](#fluxos-principais)
+1. [Linguagens e Tecnologias](#1-linguagens-e-tecnologias)
+2. [Bibliotecas e Dependências](#2-bibliotecas-e-dependências)
+3. [Arquitetura da Aplicação](#3-arquitetura-da-aplicação)
+4. [Padrões de Design](#4-padrões-de-design)
+5. [Sistema de Design (Design System)](#5-sistema-de-design)
+6. [Banco de Dados Relacional](#6-banco-de-dados-relacional)
+7. [Autenticação e Autorização](#7-autenticação-e-autorização)
+8. [Protocolo WebRTC e Streaming](#8-protocolo-webrtc-e-streaming)
+9. [Comunicação em Tempo Real](#9-comunicação-em-tempo-real)
+10. [Serverless Functions](#10-serverless-functions)
+11. [Webhooks e Integrações](#11-webhooks-e-integrações)
+12. [Fluxos de Dados](#12-fluxos-de-dados)
+13. [Gerenciamento de Estado](#13-gerenciamento-de-estado)
+14. [Padrões de Código](#14-padrões-de-código)
 
 ---
 
-## 1. Visão Geral do Projeto
+## 1. Linguagens e Tecnologias
 
-**Stream Star** é uma plataforma de streaming ao vivo onde:
-- **Criadores** fazem lives e ganham dinheiro
-- **Espectadores** assistem lives e gastam créditos
-- **Afiliados** indicam usuários e ganham comissões
+### Linguagens Utilizadas
 
-### Modelo de Negócio
+| Linguagem | Uso | Característica |
+|-----------|-----|----------------|
+| **TypeScript** | Frontend e Backend | Superset do JavaScript com tipagem estática |
+| **SQL** | Banco de dados | Linguagem de consulta para PostgreSQL |
+| **CSS** | Estilização | Processado via Tailwind CSS |
+| **HTML** | Estrutura | Gerado via JSX no React |
+
+### TypeScript
+
+TypeScript adiciona tipagem estática ao JavaScript, permitindo:
+
+```typescript
+// Definição de tipos
+interface User {
+  id: string;
+  email: string;
+  username: string;
+  createdAt: Date;
+}
+
+// Função tipada
+function getUser(id: string): Promise<User | null> {
+  // implementação
+}
+
+// Generic types
+type ApiResponse<T> = {
+  data: T | null;
+  error: Error | null;
+};
 ```
-Espectador compra créditos → Assiste live → Créditos são consumidos
-                                              ↓
-                          Criador recebe % → Plataforma recebe %
-                                              ↓
-                          Afiliado recebe % (se houver indicação)
-```
+
+**Benefícios:**
+- Detecção de erros em tempo de desenvolvimento
+- Autocompletion no editor
+- Documentação implícita via tipos
+- Refatoração mais segura
+
+### Runtime Environments
+
+| Ambiente | Onde roda | Engine |
+|----------|-----------|--------|
+| **Browser** | Cliente (React) | V8 (Chrome), SpiderMonkey (Firefox) |
+| **Deno** | Servidor (Edge Functions) | V8 com runtime seguro |
+| **Node.js** | Backend auxiliar | V8 com APIs nativas |
 
 ---
 
-## 2. Stack Tecnológico
+## 2. Bibliotecas e Dependências
 
-### Frontend
-| Tecnologia | Uso | Documentação |
-|------------|-----|--------------|
-| **React 18** | Framework principal | [react.dev](https://react.dev) |
-| **TypeScript** | Tipagem estática | [typescriptlang.org](https://typescriptlang.org) |
-| **Vite** | Build tool e dev server | [vitejs.dev](https://vitejs.dev) |
-| **Tailwind CSS** | Estilização | [tailwindcss.com](https://tailwindcss.com) |
-| **shadcn/ui** | Componentes UI | [ui.shadcn.com](https://ui.shadcn.com) |
-| **React Router** | Roteamento SPA | [reactrouter.com](https://reactrouter.com) |
-| **TanStack Query** | Cache e fetching | [tanstack.com/query](https://tanstack.com/query) |
-| **Framer Motion** | Animações | [framer.com/motion](https://framer.com/motion) |
+### Frontend Core
 
-### Backend (Lovable Cloud / Supabase)
-| Tecnologia | Uso |
-|------------|-----|
-| **Supabase** | BaaS (Backend as a Service) |
-| **PostgreSQL** | Banco de dados |
-| **Edge Functions** | Lógica serverless (Deno) |
-| **Realtime** | WebSockets para chat e status |
-| **Storage** | Armazenamento de arquivos |
-| **Auth** | Autenticação de usuários |
+| Biblioteca | Versão | Propósito |
+|------------|--------|-----------|
+| **React** | 18.x | Biblioteca de UI baseada em componentes |
+| **React DOM** | 18.x | Renderização para navegador |
+| **React Router** | 6.x | Roteamento SPA (Single Page Application) |
+| **Vite** | 5.x | Build tool e dev server com HMR |
 
-### Streaming
-| Tecnologia | Uso |
-|------------|-----|
-| **LiveKit** | Servidor WebRTC para vídeo/áudio |
-| **livekit-client** | SDK cliente para streaming |
+### Estado e Data Fetching
 
-### Pagamentos
-| Tecnologia | Uso |
-|------------|-----|
-| **Mercado Pago** | Processamento de pagamentos |
-| **Woovi/OpenPix** | Pagamentos PIX |
+| Biblioteca | Propósito |
+|------------|-----------|
+| **TanStack Query** | Cache, fetching, sincronização de dados servidor |
+| **React Context** | Estado global leve (auth, theme) |
+| **useState/useReducer** | Estado local de componentes |
 
----
+### UI e Estilização
 
-## 3. Arquitetura do Sistema
+| Biblioteca | Propósito |
+|------------|-----------|
+| **Tailwind CSS** | Framework CSS utility-first |
+| **shadcn/ui** | Componentes acessíveis baseados em Radix |
+| **Radix UI** | Primitivas de UI sem estilo |
+| **class-variance-authority** | Variantes de componentes |
+| **tailwind-merge** | Merge inteligente de classes |
+| **clsx** | Concatenação condicional de classes |
 
-### Diagrama de Arquitetura
+### Formulários e Validação
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           FRONTEND (React)                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │   Páginas    │  │  Componentes │  │        Hooks             │  │
-│  │  (src/pages) │  │(src/components│  │     (src/hooks)          │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
-│                              │                                       │
-│  ┌───────────────────────────┴───────────────────────────────────┐  │
-│  │                    Supabase Client                             │  │
-│  │              (src/integrations/supabase/client.ts)             │  │
-│  └───────────────────────────┬───────────────────────────────────┘  │
-└──────────────────────────────┼───────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      LOVABLE CLOUD (Supabase)                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │   Database   │  │   Realtime   │  │     Edge Functions       │  │
-│  │ (PostgreSQL) │  │ (WebSockets) │  │        (Deno)            │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
-│  ┌──────────────┐  ┌──────────────┐                                 │
-│  │   Storage    │  │     Auth     │                                 │
-│  │   (Files)    │  │   (Users)    │                                 │
-│  └──────────────┘  └──────────────┘                                 │
-└─────────────────────────────────────────────────────────────────────┘
-                               │
-            ┌──────────────────┼──────────────────┐
-            ▼                  ▼                  ▼
-     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-     │   LiveKit    │  │ Mercado Pago │  │    Woovi     │
-     │   (Video)    │  │  (Payments)  │  │    (PIX)     │
-     └──────────────┘  └──────────────┘  └──────────────┘
-```
+| Biblioteca | Propósito |
+|------------|-----------|
+| **React Hook Form** | Gerenciamento de formulários performático |
+| **Zod** | Validação de schemas com inferência de tipos |
+| **@hookform/resolvers** | Integração Zod + React Hook Form |
 
-### Fluxo de Dados
+### Streaming e Mídia
 
-```
-Usuario interage → React Component → Hook/Service → Supabase Client
-                                                          │
-                                                          ▼
-                                                    PostgreSQL/
-                                                    Edge Function
-                                                          │
-                                                          ▼
-                                              Resposta → Atualiza UI
-```
+| Biblioteca | Propósito |
+|------------|-----------|
+| **livekit-client** | SDK WebRTC para streaming de vídeo/áudio |
+| **MediaDevices API** | Acesso a câmera e microfone (nativo) |
+
+### Backend como Serviço (BaaS)
+
+| Biblioteca | Propósito |
+|------------|-----------|
+| **@supabase/supabase-js** | Cliente para Supabase (auth, db, realtime, storage) |
+
+### Utilitários
+
+| Biblioteca | Propósito |
+|------------|-----------|
+| **date-fns** | Manipulação de datas |
+| **lucide-react** | Ícones SVG |
+| **sonner** | Notificações toast |
+| **embla-carousel-react** | Carrossel touch-friendly |
+| **recharts** | Gráficos e visualizações |
 
 ---
 
-## 4. Estrutura de Pastas
+## 3. Arquitetura da Aplicação
+
+### Padrão Arquitetural: Client-Server com BaaS
 
 ```
-stream-star/
-├── src/                          # Código fonte do frontend
-│   ├── components/               # Componentes React
-│   │   ├── ui/                   # Componentes base (shadcn)
-│   │   ├── admin/                # Componentes do painel admin
-│   │   ├── affiliate/            # Componentes de afiliados
-│   │   ├── carousel/             # Componentes do carrossel
-│   │   ├── chat/                 # Componentes de chat
-│   │   ├── creator/              # Componentes do painel criador
-│   │   ├── live/                 # Componentes de lives
-│   │   ├── live-monitor/         # Monitor de lives (admin)
-│   │   ├── revenue/              # Dashboard de receita
-│   │   ├── user/                 # Componentes do usuário
-│   │   └── webrtc/               # Componentes de streaming
-│   │
-│   ├── contexts/                 # React Contexts
-│   │   ├── AuthContext.tsx       # Estado de autenticação
-│   │   ├── CreditsContext.tsx    # Estado de créditos
-│   │   └── SidebarContext.tsx    # Estado da sidebar
-│   │
-│   ├── hooks/                    # Custom Hooks
-│   │   ├── useAuth.ts            # Hook de autenticação
-│   │   ├── useCreatorDashboard.ts# Dashboard do criador
-│   │   ├── useLiveMonitor.ts     # Monitor de lives
-│   │   └── ...
-│   │
-│   ├── lib/                      # Utilitários e serviços
-│   │   ├── api.ts                # Configuração de API
-│   │   ├── i18n.ts               # Internacionalização
-│   │   ├── payments.ts           # Lógica de pagamentos
-│   │   └── ...
-│   │
-│   ├── pages/                    # Páginas/Rotas
-│   │   ├── Index.tsx             # Homepage
-│   │   ├── Auth.tsx              # Login/Signup
-│   │   ├── Home.tsx              # Feed de lives
-│   │   ├── LiveViewer.tsx        # Assistir live
-│   │   ├── CreatorRoom.tsx       # Transmitir live
-│   │   └── ...
-│   │
-│   ├── integrations/
-│   │   └── supabase/
-│   │       ├── client.ts         # Cliente Supabase (NÃO EDITAR)
-│   │       └── types.ts          # Tipos do banco (NÃO EDITAR)
-│   │
-│   ├── index.css                 # Design system (CSS variables)
-│   ├── App.tsx                   # Componente raiz
-│   └── main.tsx                  # Entry point
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        CAMADA DE APRESENTAÇÃO                           │
+│                         (React SPA - Browser)                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
+│  │   Pages     │  │ Components  │  │   Hooks     │  │  Contexts   │   │
+│  │  (Rotas)    │  │    (UI)     │  │  (Lógica)   │  │  (Estado)   │   │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                         HTTP/WebSocket/WebRTC
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         CAMADA DE SERVIÇOS                              │
+│                      (Supabase - PostgreSQL)                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
+│  │  Database   │  │    Auth     │  │  Realtime   │  │   Storage   │   │
+│  │   (SQL)     │  │   (JWT)     │  │ (WebSocket) │  │   (Files)   │   │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    Edge Functions (Deno)                         │   │
+│  │              Lógica serverless para operações seguras            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       SERVIÇOS EXTERNOS                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                     │
+│  │  LiveKit    │  │ Mercado Pago│  │   Woovi     │                     │
+│  │  (WebRTC)   │  │  (Payments) │  │   (PIX)     │                     │
+│  └─────────────┘  └─────────────┘  └─────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Estrutura de Diretórios
+
+```
+src/
+├── components/           # Componentes React reutilizáveis
+│   ├── ui/              # Primitivas de UI (Button, Card, Dialog)
+│   └── [feature]/       # Componentes por funcionalidade
 │
-├── supabase/                     # Backend Supabase
-│   ├── functions/                # Edge Functions
-│   │   ├── create-payment/       # Criar pagamento
-│   │   ├── livekit-room/         # Token LiveKit
-│   │   ├── mercadopago-webhook/  # Webhook MP
-│   │   ├── viewer-heartbeat/     # Heartbeat de viewers
-│   │   └── ...
-│   │
-│   ├── migrations/               # Migrações do banco (NÃO EDITAR)
-│   └── config.toml               # Config Supabase (NÃO EDITAR)
+├── pages/               # Componentes de página (1:1 com rotas)
 │
-├── backend/                      # Backend Express (auxiliar)
-│   ├── src/
-│   │   ├── controllers/          # Controllers da API
-│   │   ├── routes/               # Rotas da API
-│   │   ├── services/             # Lógica de negócio
-│   │   └── middleware/           # Middlewares
-│   └── index.ts                  # Entry point
+├── hooks/               # Custom hooks (lógica reutilizável)
 │
-├── docs/                         # Documentação
-├── public/                       # Assets estáticos
-├── tailwind.config.ts            # Configuração Tailwind
-└── vite.config.ts                # Configuração Vite
+├── contexts/            # React Contexts (estado global)
+│
+├── lib/                 # Utilitários e serviços
+│   ├── utils.ts         # Funções helper genéricas
+│   └── [service].ts     # Serviços de domínio
+│
+├── integrations/        # Integrações externas
+│   └── supabase/        # Cliente e tipos Supabase
+│
+└── assets/              # Arquivos estáticos (imagens, fontes)
+```
+
+### Single Page Application (SPA)
+
+O projeto usa o padrão SPA onde:
+- Uma única página HTML é carregada inicialmente
+- JavaScript gerencia toda navegação
+- Mudanças de rota não recarregam a página
+- Estado é mantido entre navegações
+
+```typescript
+// App.tsx - Configuração de rotas
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/live/:id" element={<LiveViewer />} />
+        {/* Rotas protegidas */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+---
+
+## 4. Padrões de Design
+
+### Component Composition Pattern
+
+Composição de componentes menores para formar interfaces complexas:
+
+```typescript
+// Componentes pequenos e focados
+<Card>
+  <CardHeader>
+    <CardTitle>Título</CardTitle>
+    <CardDescription>Descrição</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <UserAvatar user={user} />
+    <UserStats stats={stats} />
+  </CardContent>
+  <CardFooter>
+    <Button>Ação</Button>
+  </CardFooter>
+</Card>
+```
+
+### Container/Presentational Pattern
+
+Separação entre lógica e apresentação:
+
+```typescript
+// Container (lógica) - hook
+function useLiveData(liveId: string) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchLive(liveId).then(setData).finally(() => setLoading(false));
+  }, [liveId]);
+  
+  return { data, loading };
+}
+
+// Presentational (UI) - componente
+function LiveCard({ data, loading }: LiveCardProps) {
+  if (loading) return <Skeleton />;
+  return (
+    <Card>
+      <img src={data.thumbnail} />
+      <h3>{data.title}</h3>
+    </Card>
+  );
+}
+
+// Uso combinado
+function LiveCardContainer({ liveId }: { liveId: string }) {
+  const { data, loading } = useLiveData(liveId);
+  return <LiveCard data={data} loading={loading} />;
+}
+```
+
+### Provider Pattern (Context API)
+
+Compartilhamento de estado sem prop drilling:
+
+```typescript
+// 1. Criar Context
+const AuthContext = createContext<AuthContextType | null>(null);
+
+// 2. Criar Provider
+function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  
+  const signIn = async (email: string, password: string) => {
+    // lógica de login
+  };
+  
+  return (
+    <AuthContext.Provider value={{ user, signIn }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+// 3. Criar hook de consumo
+function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  return context;
+}
+
+// 4. Usar na árvore
+<AuthProvider>
+  <App />
+</AuthProvider>
+
+// 5. Consumir em qualquer componente
+function Profile() {
+  const { user } = useAuth();
+  return <p>Olá, {user.name}</p>;
+}
+```
+
+### Render Props / Children as Function
+
+Compartilhamento de lógica via função como children:
+
+```typescript
+function DataFetcher<T>({ 
+  url, 
+  children 
+}: { 
+  url: string; 
+  children: (data: T, loading: boolean) => ReactNode 
+}) {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetch(url).then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, [url]);
+  
+  return <>{children(data, loading)}</>;
+}
+
+// Uso
+<DataFetcher url="/api/users">
+  {(users, loading) => 
+    loading ? <Spinner /> : <UserList users={users} />
+  }
+</DataFetcher>
+```
+
+### Compound Components Pattern
+
+Componentes que funcionam juntos compartilhando estado implícito:
+
+```typescript
+// Implementação
+const TabsContext = createContext<TabsContextType>(null);
+
+function Tabs({ children, defaultValue }) {
+  const [activeTab, setActiveTab] = useState(defaultValue);
+  return (
+    <TabsContext.Provider value={{ activeTab, setActiveTab }}>
+      {children}
+    </TabsContext.Provider>
+  );
+}
+
+function TabsList({ children }) {
+  return <div className="flex gap-2">{children}</div>;
+}
+
+function TabsTrigger({ value, children }) {
+  const { activeTab, setActiveTab } = useContext(TabsContext);
+  return (
+    <button 
+      onClick={() => setActiveTab(value)}
+      className={activeTab === value ? 'active' : ''}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TabsContent({ value, children }) {
+  const { activeTab } = useContext(TabsContext);
+  if (activeTab !== value) return null;
+  return <div>{children}</div>;
+}
+
+// Uso
+<Tabs defaultValue="tab1">
+  <TabsList>
+    <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+    <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+  </TabsList>
+  <TabsContent value="tab1">Conteúdo 1</TabsContent>
+  <TabsContent value="tab2">Conteúdo 2</TabsContent>
+</Tabs>
 ```
 
 ---
@@ -210,220 +416,250 @@ stream-star/
 
 ### Conceito: Design Tokens
 
-O projeto usa **CSS Variables** (Custom Properties) como tokens de design. Isso permite:
-- Tema consistente em toda aplicação
-- Fácil troca de tema (dark/light)
+Design tokens são variáveis que armazenam valores de design (cores, espaçamentos, tipografia). Isso permite:
+- Consistência visual
+- Temas (dark/light mode)
 - Manutenção centralizada
 
-### Arquivo Principal: `src/index.css`
+### CSS Custom Properties (Variáveis CSS)
 
 ```css
+/* src/index.css */
 :root {
-  /* Cores principais (HSL) */
-  --background: 0 0% 0%;           /* Preto puro */
-  --foreground: 0 0% 100%;         /* Branco puro */
+  /* Cores em HSL (Hue, Saturation, Lightness) */
+  --background: 0 0% 0%;           /* hsl(0, 0%, 0%) = preto */
+  --foreground: 0 0% 100%;         /* hsl(0, 0%, 100%) = branco */
   
-  /* Cor primária: Roxo */
-  --primary: 270 70% 55%;          /* Roxo vibrante */
-  --primary-foreground: 0 0% 100%; /* Texto branco sobre roxo */
-  --primary-glow: 270 70% 70%;     /* Versão mais clara para glow */
+  --primary: 270 70% 55%;          /* Roxo */
+  --primary-foreground: 0 0% 100%;
   
-  /* Cor secundária */
   --secondary: 270 50% 45%;
-  
-  /* Estados */
-  --success: 142 76% 50%;          /* Verde */
   --destructive: 0 84% 70%;        /* Vermelho */
+  --success: 142 76% 50%;          /* Verde */
   
-  /* UI */
+  /* Componentes UI */
   --border: 0 0% 25%;
   --input: 0 0% 20%;
-  --ring: 270 70% 60%;             /* Foco */
+  --ring: 270 70% 60%;             /* Cor de foco */
   
-  /* Gradientes */
-  --gradient-primary: linear-gradient(135deg, hsl(270 70% 50%), hsl(270 70% 65%));
-  --gradient-logo: linear-gradient(90deg, hsl(330 90% 60%), hsl(25 95% 55%), hsl(270 80% 60%));
+  --radius: 0.75rem;               /* Border radius padrão */
 }
 ```
 
-### Como Usar no Código
-
-```tsx
-// ❌ ERRADO - Nunca use cores diretas
-<div className="bg-purple-500 text-white">
-
-// ✅ CORRETO - Use tokens do design system
-<div className="bg-primary text-primary-foreground">
-
-// ✅ CORRETO - Para gradientes
-<div className="bg-gradient-to-r from-[hsl(var(--logo-pink))] to-[hsl(var(--logo-purple))]">
-```
-
-### Tailwind Config: `tailwind.config.ts`
+### Integração com Tailwind CSS
 
 ```typescript
-// As cores são mapeadas para usar as CSS variables
-colors: {
-  background: "hsl(var(--background))",
-  foreground: "hsl(var(--foreground))",
-  primary: {
-    DEFAULT: "hsl(var(--primary))",
-    foreground: "hsl(var(--primary-foreground))",
+// tailwind.config.ts
+export default {
+  theme: {
+    extend: {
+      colors: {
+        // Mapeia CSS variables para classes Tailwind
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        // ...
+      },
+    },
   },
-  // ...
-}
+};
 ```
 
-### Componentes shadcn/ui
+### Utility-First CSS (Tailwind)
 
-Localização: `src/components/ui/`
+Tailwind usa classes utilitárias ao invés de CSS semântico:
 
-Componentes base pré-estilizados:
-- `button.tsx` - Botões com variantes
-- `card.tsx` - Cards
-- `dialog.tsx` - Modais
-- `input.tsx` - Inputs
-- `toast.tsx` - Notificações
-- etc.
-
-**Exemplo de uso:**
 ```tsx
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+// ❌ CSS tradicional
+<div className="card">
+  <h1 className="card-title">Título</h1>
+</div>
 
-<Card>
-  <CardHeader>
-    <CardTitle>Título</CardTitle>
-  </CardHeader>
-  <CardContent>
-    <Button variant="default">Primário</Button>
-    <Button variant="secondary">Secundário</Button>
-    <Button variant="destructive">Deletar</Button>
-    <Button variant="ghost">Ghost</Button>
-  </CardContent>
-</Card>
+// styles.css
+.card { padding: 16px; border-radius: 8px; background: white; }
+.card-title { font-size: 24px; font-weight: bold; }
+
+// ✅ Tailwind utility-first
+<div className="p-4 rounded-lg bg-card">
+  <h1 className="text-2xl font-bold text-foreground">Título</h1>
+</div>
 ```
 
-### Animações
+### Class Variance Authority (CVA)
 
-Definidas em `tailwind.config.ts`:
+Gerencia variantes de componentes de forma tipada:
 
 ```typescript
-keyframes: {
-  "fade-in": {
-    "0%": { opacity: "0", transform: "translateY(10px)" },
-    "100%": { opacity: "1", transform: "translateY(0)" }
-  },
-  "scale-in": {
-    "0%": { transform: "scale(0.95)", opacity: "0" },
-    "100%": { transform: "scale(1)", opacity: "1" }
-  },
-  // ...
+// src/components/ui/button.tsx
+import { cva, type VariantProps } from "class-variance-authority";
+
+const buttonVariants = cva(
+  // Classes base (sempre aplicadas)
+  "inline-flex items-center justify-center rounded-md font-medium transition-colors",
+  {
+    variants: {
+      // Variante: variant
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground",
+        outline: "border border-input bg-background hover:bg-accent",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+      },
+      // Variante: size
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 px-3",
+        lg: "h-11 px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+);
+
+interface ButtonProps extends VariantProps<typeof buttonVariants> {
+  children: ReactNode;
 }
+
+function Button({ variant, size, children }: ButtonProps) {
+  return (
+    <button className={buttonVariants({ variant, size })}>
+      {children}
+    </button>
+  );
+}
+
+// Uso
+<Button variant="destructive" size="lg">Deletar</Button>
 ```
 
-**Uso:**
-```tsx
-<div className="animate-fade-in">Conteúdo que aparece suavemente</div>
+### Função cn() - Class Name Merge
+
+Combina classes condicionalmente e resolve conflitos:
+
+```typescript
+// src/lib/utils.ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// Uso
+cn("px-4 py-2", condition && "bg-primary", "px-6") 
+// Resultado: "py-2 px-6 bg-primary"
+// twMerge resolve conflito px-4 vs px-6
 ```
 
 ---
 
-## 6. Banco de Dados
+## 6. Banco de Dados Relacional
 
-### Conceitos Importantes
+### PostgreSQL
 
-1. **PostgreSQL**: Banco de dados relacional
-2. **RLS (Row Level Security)**: Políticas de segurança por linha
-3. **Realtime**: Mudanças são transmitidas via WebSocket
+PostgreSQL é um banco de dados relacional open-source com suporte a:
+- ACID (Atomicity, Consistency, Isolation, Durability)
+- JSON/JSONB nativo
+- Full-text search
+- Extensões (PostGIS, pgvector, etc.)
 
-### Principais Tabelas
+### Modelo Relacional
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              USUÁRIOS                                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│ profiles           │ Dados públicos do usuário (username, avatar, bio)  │
-│ user_roles         │ Roles do usuário (admin, creator)                  │
-│ creator_profiles   │ Dados específicos de criadores                     │
-│ credits_wallet     │ Carteira de créditos do usuário                    │
-│ creator_wallet     │ Carteira do criador (ganhos)                       │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│                               LIVES                                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│ lives              │ Sessões de live (título, status, criador)          │
-│ live_consumption   │ Consumo de créditos por viewer                     │
-│ live_access        │ Controle de acesso a lives                         │
-│ rooms              │ Salas de chat                                       │
-│ messages           │ Mensagens do chat                                   │
-│ superchats         │ SuperChats enviados                                 │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            FINANCEIRO                                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│ payments           │ Pagamentos de usuários                              │
-│ transactions       │ Todas as transações                                 │
-│ credit_purchases   │ Compras de créditos                                 │
-│ creator_earnings   │ Ganhos dos criadores por live                       │
-│ payout_requests    │ Solicitações de saque                               │
-│ platform_revenue   │ Receita da plataforma                               │
-│ financial_settings │ Configurações de percentuais                        │
-└─────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            AFILIADOS                                     │
-├─────────────────────────────────────────────────────────────────────────┤
-│ referrals          │ Indicações feitas                                   │
-│ registration_referrals │ Indicações durante registro                    │
-│ affiliate_logs     │ Log de comissões de afiliados                       │
-│ commissions        │ Comissões pagas                                     │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────┐       ┌──────────────────┐
+│     profiles     │       │      lives       │
+├──────────────────┤       ├──────────────────┤
+│ id (PK, UUID)    │───┐   │ id (PK, UUID)    │
+│ username         │   │   │ creator_id (FK)  │──┐
+│ email            │   │   │ title            │  │
+│ avatar_url       │   │   │ status           │  │
+│ is_subscribed    │   │   │ is_active        │  │
+│ referral_code    │   └───│ created_at       │  │
+│ referred_by      │       └──────────────────┘  │
+└──────────────────┘                             │
+                                                 │
+┌──────────────────┐       ┌──────────────────┐  │
+│ creator_profiles │       │ live_consumption │  │
+├──────────────────┤       ├──────────────────┤  │
+│ id (PK, FK)      │───────│ id (PK, UUID)    │  │
+│ display_name     │       │ live_id (FK)     │──┘
+│ bio              │       │ user_id (FK)     │
+│ is_streaming     │       │ credits_consumed │
+│ tags             │       │ seconds_watched  │
+└──────────────────┘       └──────────────────┘
 ```
 
-### Exemplo: Tabela `profiles`
+### Row Level Security (RLS)
+
+RLS permite definir políticas de acesso por linha:
 
 ```sql
-CREATE TABLE public.profiles (
-  id UUID PRIMARY KEY,              -- Mesmo ID do auth.users
-  username TEXT NOT NULL UNIQUE,    -- Nome de usuário
-  avatar_url TEXT,                  -- URL do avatar
-  bio TEXT,                         -- Biografia
-  is_subscribed BOOLEAN,            -- Assinante ativo?
-  referral_code TEXT UNIQUE,        -- Código de indicação
-  referred_by TEXT,                 -- Quem indicou
-  status TEXT,                      -- 'active', 'blocked'
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
-);
+-- Habilitar RLS na tabela
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Política RLS: Usuário só pode editar seu próprio perfil
-CREATE POLICY "Users can update own profile" ON profiles
-  FOR UPDATE USING (auth.uid() = id);
+-- Política: usuários podem ver todos os perfis
+CREATE POLICY "Profiles are viewable by everyone" 
+ON profiles FOR SELECT 
+USING (true);
 
--- Política RLS: Qualquer um pode ver perfis (públicos)
-CREATE POLICY "Profiles are viewable by everyone" ON profiles
-  FOR SELECT USING (true);
+-- Política: usuários só podem editar seu próprio perfil
+CREATE POLICY "Users can update own profile" 
+ON profiles FOR UPDATE 
+USING (auth.uid() = id);
+
+-- Política: apenas criador pode ver seus ganhos
+CREATE POLICY "Creators can view own earnings" 
+ON creator_earnings FOR SELECT 
+USING (auth.uid() = creator_id);
 ```
 
-### Como Acessar o Banco (Frontend)
+### Queries com Supabase Client
 
 ```typescript
 import { supabase } from "@/integrations/supabase/client";
 
-// SELECT
+// SELECT com filtros
 const { data, error } = await supabase
-  .from('profiles')
-  .select('*')
-  .eq('id', userId)
-  .single();
+  .from('lives')
+  .select('id, title, creator_id, status')
+  .eq('status', 'live')
+  .order('created_at', { ascending: false })
+  .limit(10);
+
+// SELECT com JOIN (foreign key)
+const { data } = await supabase
+  .from('lives')
+  .select(`
+    id,
+    title,
+    creator_profiles (
+      display_name,
+      avatar_url
+    )
+  `)
+  .eq('is_active', true);
 
 // INSERT
-const { error } = await supabase
+const { data, error } = await supabase
   .from('messages')
-  .insert({ room_id: roomId, content: text, user_id: userId });
+  .insert({
+    room_id: roomId,
+    user_id: userId,
+    content: 'Hello!'
+  })
+  .select()
+  .single();
 
 // UPDATE
 const { error } = await supabase
@@ -437,64 +673,121 @@ const { error } = await supabase
   .delete()
   .eq('id', messageId);
 
-// Realtime (escutar mudanças)
-const channel = supabase
-  .channel('messages')
-  .on('postgres_changes', 
-    { event: 'INSERT', schema: 'public', table: 'messages' },
-    (payload) => {
-      console.log('Nova mensagem:', payload.new);
-    }
-  )
-  .subscribe();
+// UPSERT (insert or update)
+const { error } = await supabase
+  .from('user_preferences')
+  .upsert({ user_id: id, theme: 'dark' });
+```
+
+### Tipos TypeScript Gerados
+
+Os tipos do banco são gerados automaticamente:
+
+```typescript
+// src/integrations/supabase/types.ts (auto-gerado)
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string;
+          username: string;
+          email: string;
+          avatar_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          username: string;
+          email?: string;
+          // ...
+        };
+        Update: {
+          username?: string;
+          avatar_url?: string;
+          // ...
+        };
+      };
+      // outras tabelas...
+    };
+  };
+}
 ```
 
 ---
 
-## 7. Autenticação
+## 7. Autenticação e Autorização
 
-### Fluxo de Autenticação
+### Fluxo de Autenticação JWT
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Usuário   │───▶│   /auth     │───▶│  Supabase   │
-│  (Browser)  │    │   (React)   │    │    Auth     │
+│   Cliente   │───▶│  Supabase   │───▶│  PostgreSQL │
+│  (Browser)  │    │    Auth     │    │   (Users)   │
 └─────────────┘    └─────────────┘    └─────────────┘
-                          │                   │
-                          │    JWT Token      │
-                          │◀──────────────────│
-                          │                   │
-                   ┌──────▼──────┐           │
-                   │ AuthContext │           │
-                   │  (Session)  │           │
-                   └─────────────┘           │
+      │                   │
+      │    JWT Token      │
+      │◀──────────────────│
+      │                   │
+      ▼                   │
+┌─────────────┐          │
+│ localStorage │          │
+│  (Session)  │          │
+└─────────────┘          │
 ```
 
-### Componentes Envolvidos
+### JSON Web Token (JWT)
 
-1. **`src/contexts/AuthContext.tsx`** - Provider de autenticação
-2. **`src/pages/Auth.tsx`** - Página de login/signup
-3. **`src/components/ProtectedRoute.tsx`** - Proteção de rotas
+JWT é um padrão para transmissão segura de informações:
+
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.  <- Header (algoritmo)
+eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6.  <- Payload (dados)
+SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_   <- Signature (assinatura)
+```
+
+**Payload típico:**
+```json
+{
+  "sub": "user-uuid-123",
+  "email": "user@email.com",
+  "role": "authenticated",
+  "exp": 1699999999
+}
+```
 
 ### Implementação do AuthContext
 
 ```typescript
 // src/contexts/AuthContext.tsx
-export const AuthProvider = ({ children }) => {
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+
+interface AuthContextType {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Escutar mudanças de autenticação
+    // 1. Listener para mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Eventos: SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, etc.
         setSession(session);
         setUser(session?.user ?? null);
       }
     );
 
-    // 2. Verificar sessão existente
+    // 2. Verificar sessão existente (cookie/localStorage)
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -504,18 +797,18 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Funções de autenticação
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email, password
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({
-      email, password,
-      options: { emailRedirectTo: `${window.location.origin}/` }
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`
+      }
     });
     return { error };
   };
@@ -529,505 +822,874 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-```
-
-### Uso nos Componentes
-
-```typescript
-// Usando o hook useAuth
-import { useAuth } from "@/hooks/useAuth";
-
-function MyComponent() {
-  const { user, session, loading, signOut } = useAuth();
-
-  if (loading) return <Loading />;
-  if (!user) return <Navigate to="/auth" />;
-
-  return (
-    <div>
-      <p>Bem-vindo, {user.email}</p>
-      <button onClick={signOut}>Sair</button>
-    </div>
-  );
 }
 ```
 
-### Proteção de Rotas
+### Protected Routes
+
+Padrão para proteger rotas que requerem autenticação:
 
 ```typescript
 // src/components/ProtectedRoute.tsx
-export const ProtectedRoute = ({ children }) => {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  
-  if (loading) return <PageLoading />;
-  if (!user) return <Navigate to="/auth" replace />;
-  
-  return children;
-};
+  const location = useLocation();
 
-// Uso no App.tsx
-<Route path="/dashboard" element={
-  <ProtectedRoute>
-    <Dashboard />
-  </ProtectedRoute>
-} />
+  if (loading) {
+    return <PageLoading />;
+  }
+
+  if (!user) {
+    // Redireciona para login, salvando origem
+    return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Uso no router
+<Route 
+  path="/dashboard" 
+  element={
+    <ProtectedRoute>
+      <Dashboard />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+### Role-Based Access Control (RBAC)
+
+```typescript
+// Verificar role do usuário
+async function checkUserRole(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId);
+  
+  return data?.map(r => r.role) ?? [];
+}
+
+// Componente que verifica role
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      checkUserRole(user.id).then(roles => {
+        setIsAdmin(roles.includes('admin'));
+        setChecking(false);
+      });
+    }
+  }, [user]);
+
+  if (checking) return <Loading />;
+  if (!isAdmin) return <Navigate to="/access-denied" />;
+  
+  return <>{children}</>;
+}
 ```
 
 ---
 
-## 8. Sistema de Lives/Streaming
+## 8. Protocolo WebRTC e Streaming
 
-### Arquitetura de Streaming
+### O que é WebRTC?
+
+WebRTC (Web Real-Time Communication) é um protocolo para comunicação peer-to-peer de áudio, vídeo e dados diretamente no navegador.
+
+### Componentes do WebRTC
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                            CRIADOR                                       │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  CreatorRoom.tsx → WebRTCPublisher.tsx → LiveKit Client          │   │
-│  │       ↓                    ↓                    ↓                │   │
-│  │  Configura live      Captura câmera/     Envia para              │   │
-│  │  (título, thumb)     microfone           LiveKit Cloud           │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-                           ┌────────────────┐
-                           │  LiveKit Cloud  │
-                           │   (WebRTC SFU)  │
-                           └────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           ESPECTADOR                                     │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │  LiveViewer.tsx → WebRTCViewer.tsx → LiveKit Client              │   │
-│  │       ↓                   ↓                   ↓                  │   │
-│  │  Mostra player      Recebe stream       Conecta ao               │   │
-│  │  + chat             de vídeo            LiveKit Cloud            │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
+│                         WebRTC Stack                                     │
+│                                                                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
+│  │   MediaStream   │  │ RTCPeerConnection│  │  RTCDataChannel │         │
+│  │  (Áudio/Vídeo)  │  │   (Conexão P2P)  │  │     (Dados)     │         │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘         │
+│           │                    │                    │                    │
+│           └────────────────────┼────────────────────┘                    │
+│                                │                                         │
+│  ┌─────────────────────────────┼─────────────────────────────────────┐  │
+│  │                       Protocolos                                   │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐          │  │
+│  │  │   ICE    │  │   STUN   │  │   TURN   │  │   DTLS   │          │  │
+│  │  │(NAT Trav)│  │(Discovery)│ │ (Relay)  │  │(Security)│          │  │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘          │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Fluxo Detalhado
+### SFU (Selective Forwarding Unit) - LiveKit
 
-#### 1. Criador Inicia Live
+Em vez de P2P direto, usamos um servidor SFU para escalabilidade:
+
+```
+       ┌─────────────────────────────────────┐
+       │           LiveKit Server            │
+       │              (SFU)                  │
+       └─────────────────────────────────────┘
+              ▲           │           │
+              │           │           │
+              │           ▼           ▼
+       ┌──────────┐  ┌──────────┐  ┌──────────┐
+       │ Publisher │  │ Viewer 1 │  │ Viewer 2 │
+       │ (Criador) │  │          │  │          │
+       └──────────┘  └──────────┘  └──────────┘
+
+Publisher envia 1 stream → SFU distribui para N viewers
+```
+
+### Fluxo de Conexão WebRTC
 
 ```typescript
-// CreatorRoom.tsx
-// 1. Cria registro da live no banco
-const { data: live } = await supabase
-  .from('lives')
-  .insert({
-    creator_id: user.id,
-    title: 'Minha Live',
-    status: 'waiting',
-    is_active: true
-  })
-  .select()
-  .single();
+// 1. Obter acesso à câmera/microfone
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: true,
+  audio: true
+});
 
-// 2. Solicita token do LiveKit via Edge Function
-const response = await supabase.functions.invoke('livekit-room', {
-  body: { 
-    roomName: live.webrtc_room_name,
-    identity: user.id,
-    isPublisher: true 
+// 2. Conectar ao LiveKit (que abstrai WebRTC)
+import { Room, RoomEvent } from 'livekit-client';
+
+const room = new Room();
+
+// 3. Eventos de conexão
+room.on(RoomEvent.Connected, () => {
+  console.log('Conectado à sala');
+});
+
+room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+  // Novo track de vídeo/áudio disponível
+  if (track.kind === 'video') {
+    const element = track.attach();
+    videoContainer.appendChild(element);
   }
 });
-const { token } = response.data;
 
-// 3. Conecta ao LiveKit e publica
-const room = new Room();
-await room.connect(LIVEKIT_URL, token);
+// 4. Conectar com token JWT
+await room.connect(LIVEKIT_URL, accessToken);
+
+// 5. Publicar mídia local (criador)
 await room.localParticipant.setCameraEnabled(true);
 await room.localParticipant.setMicrophoneEnabled(true);
 ```
 
-#### 2. Espectador Assiste
+### Edge Function para Token LiveKit
 
 ```typescript
-// LiveViewer.tsx
-// 1. Busca dados da live
-const { data: live } = await supabase
-  .from('lives')
-  .select('*, creator_profiles(*)')
-  .eq('id', liveId)
-  .single();
+// supabase/functions/livekit-room/index.ts
+import { AccessToken } from 'livekit-server-sdk';
 
-// 2. Solicita token de viewer
-const response = await supabase.functions.invoke('livekit-room', {
-  body: { 
-    roomName: live.webrtc_room_name,
-    identity: user.id,
-    isPublisher: false 
-  }
-});
-
-// 3. Conecta e recebe stream
-const room = new Room();
-await room.connect(LIVEKIT_URL, token);
-
-room.on(RoomEvent.TrackSubscribed, (track) => {
-  if (track.kind === 'video') {
-    track.attach(videoElement);
-  }
+Deno.serve(async (req) => {
+  const { roomName, identity, isPublisher } = await req.json();
+  
+  const token = new AccessToken(
+    Deno.env.get('LIVEKIT_API_KEY'),
+    Deno.env.get('LIVEKIT_API_SECRET'),
+    { identity }
+  );
+  
+  token.addGrant({
+    room: roomName,
+    roomJoin: true,
+    canPublish: isPublisher,
+    canSubscribe: true
+  });
+  
+  return new Response(
+    JSON.stringify({ token: token.toJwt() }),
+    { headers: { 'Content-Type': 'application/json' } }
+  );
 });
 ```
-
-#### 3. Sistema de Créditos (Heartbeat)
-
-```typescript
-// Viewer envia heartbeat a cada 5 segundos
-useEffect(() => {
-  const interval = setInterval(async () => {
-    await supabase.functions.invoke('viewer-heartbeat', {
-      body: { liveId, sessionToken }
-    });
-  }, 5000);
-
-  return () => clearInterval(interval);
-}, [liveId]);
-
-// Edge Function viewer-heartbeat:
-// - Verifica se passou 1 minuto desde último débito
-// - Debita 1 crédito do viewer
-// - Credita proporcionalmente o criador
-// - Registra em live_consumption
-```
-
-### Componentes de Streaming
-
-| Componente | Localização | Função |
-|------------|-------------|--------|
-| `WebRTCPublisher` | `src/components/webrtc/` | Publicar stream (criador) |
-| `WebRTCViewer` | `src/components/webrtc/` | Receber stream (viewer) |
-| `CreatorRoom` | `src/pages/` | Página do criador transmitindo |
-| `LiveViewer` | `src/pages/` | Página do viewer assistindo |
-| `FloatingLiveChat` | `src/components/live/` | Chat da live |
 
 ---
 
-## 9. Sistema de Pagamentos
+## 9. Comunicação em Tempo Real
 
-### Fluxo de Compra de Créditos
+### Supabase Realtime (WebSocket)
+
+Supabase Realtime permite escutar mudanças no banco via WebSocket:
 
 ```
-┌─────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Usuário   │───▶│  create-payment │───▶│   Mercado Pago  │
-│  clica em   │    │  Edge Function  │    │    ou Woovi     │
-│  "Comprar"  │    └─────────────────┘    └─────────────────┘
-└─────────────┘                                    │
-                                                   │ Webhook
-                                                   ▼
-                                    ┌─────────────────────────┐
-                                    │  mercadopago-webhook    │
-                                    │  ou woovi-webhook       │
-                                    └─────────────────────────┘
-                                                   │
-                                                   ▼
-                                    ┌─────────────────────────┐
-                                    │  credits_wallet UPDATE  │
-                                    │  (adiciona créditos)    │
-                                    └─────────────────────────┘
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   Browser   │◀───────▶│  Realtime   │◀───────▶│  PostgreSQL │
+│  (Client)   │   WS    │   Server    │  NOTIFY │   (DB)      │
+└─────────────┘         └─────────────┘         └─────────────┘
 ```
 
-### Edge Function: create-payment
+### Postgres Changes
+
+Escutar INSERT, UPDATE, DELETE em tabelas:
 
 ```typescript
-// supabase/functions/create-payment/index.ts
-Deno.serve(async (req) => {
-  const { credits, userId, paymentMethod } = await req.json();
-  
-  // Calcula valor (ex: 100 créditos = R$ 10)
-  const amount = credits * 0.10;
-  
-  if (paymentMethod === 'mercadopago') {
-    // Cria preferência no Mercado Pago
-    const preference = await mercadoPago.preferences.create({
-      items: [{ title: `${credits} créditos`, unit_price: amount }],
-      external_reference: paymentId,
-      notification_url: `${SUPABASE_URL}/functions/v1/mercadopago-webhook`
-    });
-    
-    return { init_point: preference.init_point };
-  }
-  
-  if (paymentMethod === 'pix') {
-    // Cria cobrança PIX via Woovi
-    const charge = await woovi.createCharge({
-      value: amount * 100, // centavos
-      correlationID: paymentId
-    });
-    
-    return { qrcode: charge.qrCodeImage, pixCode: charge.brCode };
-  }
-});
-```
+import { supabase } from '@/integrations/supabase/client';
 
-### Webhook: Confirmação de Pagamento
-
-```typescript
-// supabase/functions/mercadopago-webhook/index.ts
-Deno.serve(async (req) => {
-  const notification = await req.json();
-  
-  // Verifica assinatura do webhook
-  if (!verifySignature(req, notification)) {
-    return new Response('Invalid signature', { status: 401 });
-  }
-  
-  if (notification.action === 'payment.updated') {
-    const payment = await mercadoPago.payment.get(notification.data.id);
-    
-    if (payment.status === 'approved') {
-      // Adiciona créditos ao usuário
-      await supabase
-        .from('credits_wallet')
-        .update({ 
-          balance_credits: supabase.sql`balance_credits + ${credits}` 
-        })
-        .eq('user_id', userId);
+// Escutar todas as mudanças na tabela messages
+const channel = supabase
+  .channel('room-messages')
+  .on(
+    'postgres_changes',
+    {
+      event: '*',        // INSERT, UPDATE, DELETE, ou *
+      schema: 'public',
+      table: 'messages',
+      filter: `room_id=eq.${roomId}`  // Filtro opcional
+    },
+    (payload) => {
+      console.log('Mudança:', payload);
+      // payload.eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+      // payload.new: novo registro
+      // payload.old: registro anterior (UPDATE/DELETE)
       
-      // Registra transação
-      await supabase
-        .from('credit_purchases')
-        .update({ status: 'completed' })
-        .eq('payment_id', paymentId);
+      if (payload.eventType === 'INSERT') {
+        setMessages(prev => [...prev, payload.new]);
+      }
     }
-  }
-  
-  return new Response('OK');
-});
+  )
+  .subscribe();
+
+// Cleanup
+return () => {
+  supabase.removeChannel(channel);
+};
 ```
 
-### Fluxo de Saque (Criador)
+### Broadcast (Presença e Eventos)
 
-```
-┌─────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Criador   │───▶│ payout_requests │───▶│     Admin       │
-│  solicita   │    │    (pending)    │    │   aprova/nega   │
-│   saque     │    └─────────────────┘    └─────────────────┘
-└─────────────┘                                    │
-                                                   │ Se aprovado
-                                                   ▼
-                                    ┌─────────────────────────┐
-                                    │   process-pix-payout    │
-                                    │   Edge Function         │
-                                    └─────────────────────────┘
-                                                   │
-                                                   ▼
-                                    ┌─────────────────────────┐
-                                    │       PIX enviado       │
-                                    │   creator_wallet UPDATE │
-                                    └─────────────────────────┘
-```
-
----
-
-## 10. Sistema de Afiliados
-
-### Modelo de Comissões
-
-```
-Usuário A indica Usuário B
-Usuário B indica Usuário C
-
-Quando C compra créditos:
-├── C paga R$ 100
-├── Plataforma recebe R$ 50 (50%)
-├── Criador recebe R$ 40 (40%)
-├── B (afiliado direto) recebe R$ 7 (7%)
-└── A (afiliado raiz) recebe R$ 3 (3%)
-```
-
-### Tabelas Envolvidas
-
-```sql
--- Código de indicação no perfil
-profiles.referral_code   -- Ex: "JOAO2024"
-profiles.referred_by     -- ID de quem indicou
-profiles.referrer_direct -- ID do afiliado direto
-profiles.referrer_root   -- ID do afiliado raiz (criador)
-
--- Registro de indicações
-referrals:
-  id, referrer_id, referred_id, referral_code, status, commission_earned
-
--- Log de comissões
-affiliate_logs:
-  id, event_type, new_user, direct_referrer, root_creator, 
-  amount_direct, amount_root, amount_platform
-```
-
-### Fluxo de Registro com Indicação
+Comunicação client-to-client sem passar pelo banco:
 
 ```typescript
-// 1. Usuário acessa link: /subscribe?ref=JOAO2024
+// Broadcast: eventos efêmeros
+const channel = supabase.channel('live-room');
 
-// 2. No registro, valida código
-const { data: referrer } = await supabase
-  .from('profiles')
-  .select('id, username, is_root_creator')
-  .eq('referral_code', 'JOAO2024')
-  .single();
+// Enviar evento
+channel.send({
+  type: 'broadcast',
+  event: 'typing',
+  payload: { userId, username }
+});
 
-// 3. Se válido, armazena no perfil do novo usuário
-await supabase.from('profiles').update({
-  referred_by: 'JOAO2024',
-  referrer_direct: referrer.id,
-  referrer_root: referrer.is_root_creator ? referrer.id : referrer.referrer_root
-}).eq('id', newUserId);
+// Receber evento
+channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
+  console.log(`${payload.username} está digitando...`);
+});
 
-// 4. Registra na tabela referrals
-await supabase.from('referrals').insert({
-  referrer_id: referrer.id,
-  referred_id: newUserId,
-  referral_code: 'JOAO2024',
-  status: 'active'
+// Presence: quem está online
+channel.on('presence', { event: 'sync' }, () => {
+  const state = channel.presenceState();
+  console.log('Online:', Object.keys(state).length);
+});
+
+// Anunciar presença
+channel.subscribe(async (status) => {
+  if (status === 'SUBSCRIBED') {
+    await channel.track({ user_id: userId, online_at: new Date() });
+  }
 });
 ```
 
-### Componentes de Afiliados
+### Implementação de Chat em Tempo Real
 
-| Componente | Função |
-|------------|--------|
-| `ReferralLinkBox` | Mostra e copia link de indicação |
-| `CompactReferralCodeBox` | Criar/editar código de indicação |
-| `AffiliateDashboardPanel` | Dashboard de ganhos do afiliado |
-| `HowToMonetizeDialog` | Explica como ganhar indicando |
+```typescript
+function useRealtimeChat(roomId: string) {
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    // 1. Carregar mensagens existentes
+    supabase
+      .from('messages')
+      .select('*, profiles(username, avatar_url)')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => setMessages(data || []));
+
+    // 2. Escutar novas mensagens
+    const channel = supabase
+      .channel(`chat-${roomId}`)
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
+        async (payload) => {
+          // Buscar dados do perfil
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, avatar_url')
+            .eq('id', payload.new.user_id)
+            .single();
+          
+          const newMessage = { ...payload.new, profiles: profile };
+          setMessages(prev => [...prev, newMessage]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]);
+
+  const sendMessage = async (content: string, userId: string) => {
+    await supabase.from('messages').insert({
+      room_id: roomId,
+      user_id: userId,
+      content
+    });
+  };
+
+  return { messages, sendMessage };
+}
+```
 
 ---
 
-## 11. Edge Functions
+## 10. Serverless Functions
 
-### O que são Edge Functions?
+### Edge Functions (Deno Runtime)
 
-São funções serverless que rodam no servidor (Deno runtime). Usamos para:
-- Lógica que precisa de segredos (API keys)
-- Webhooks de serviços externos
-- Operações que precisam ser seguras
+Edge Functions são funções serverless que rodam próximo ao usuário (edge computing):
 
-### Localização
-
-```
-supabase/functions/
-├── create-payment/          # Criar pagamento MP/Woovi
-├── create-superchat-payment/# Pagamento de SuperChat
-├── livekit-room/            # Gerar token LiveKit
-├── mercadopago-webhook/     # Receber webhook MP
-├── woovi-payment-webhook/   # Receber webhook Woovi
-├── viewer-heartbeat/        # Heartbeat de viewers
-├── pix-withdraw/            # Processar saque PIX
-├── monitor-lives/           # Monitorar lives ativas
-├── password-reset/          # Reset de senha
-└── admin-set-password/      # Admin define senha
-```
+**Características:**
+- Runtime: Deno (TypeScript nativo)
+- Cold start rápido
+- Isolamento por requisição
+- Acesso a secrets via `Deno.env`
 
 ### Estrutura de uma Edge Function
 
 ```typescript
 // supabase/functions/minha-funcao/index.ts
+
+// Importações Deno
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Headers CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
-  // Handle CORS preflight
+// Handler principal
+serve(async (req: Request) => {
+  // Preflight CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Criar cliente Supabase com service role (acesso total)
+    // Criar cliente Supabase com service role
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Pegar dados do request
-    const { userId, amount } = await req.json();
+    // Obter usuário autenticado do token
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      const { data: { user } } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', '')
+      );
+    }
 
-    // Fazer operações no banco
-    const { data, error } = await supabase
-      .from('credits_wallet')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    // Processar body
+    const { param1, param2 } = await req.json();
 
-    if (error) throw error;
+    // Lógica de negócio
+    const result = await processarDados(param1, param2);
 
+    // Retornar resposta
     return new Response(
-      JSON.stringify({ success: true, data }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, data: result }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
     );
 
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400 
+      }
     );
   }
 });
 ```
 
-### Como Chamar Edge Functions
+### Chamando Edge Functions do Frontend
 
 ```typescript
-// No frontend
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from '@/integrations/supabase/client';
 
+// Método 1: supabase.functions.invoke
 const { data, error } = await supabase.functions.invoke('minha-funcao', {
-  body: { userId: '123', amount: 100 }
+  body: { param1: 'valor1', param2: 'valor2' }
 });
 
-if (error) {
-  console.error('Erro:', error);
-} else {
-  console.log('Sucesso:', data);
+// Método 2: fetch direto
+const response = await fetch(
+  `${SUPABASE_URL}/functions/v1/minha-funcao`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ param1: 'valor1' })
+  }
+);
+const data = await response.json();
+```
+
+### Secrets e Variáveis de Ambiente
+
+```typescript
+// Acessar secrets na Edge Function
+const apiKey = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
+const livekitKey = Deno.env.get('LIVEKIT_API_KEY');
+
+// Variáveis automáticas disponíveis:
+// - SUPABASE_URL
+// - SUPABASE_ANON_KEY
+// - SUPABASE_SERVICE_ROLE_KEY
+```
+
+---
+
+## 11. Webhooks e Integrações
+
+### O que é um Webhook?
+
+Webhook é um padrão de comunicação onde um serviço externo envia dados para sua aplicação quando um evento ocorre:
+
+```
+┌─────────────────┐    Evento ocorre    ┌─────────────────┐
+│  Mercado Pago   │ ─────────────────▶  │  Edge Function  │
+│   (Pagamento)   │    POST /webhook    │ (Processa dados)│
+└─────────────────┘                     └─────────────────┘
+                                               │
+                                               ▼
+                                        ┌─────────────────┐
+                                        │    Database     │
+                                        │ (Atualiza dados)│
+                                        └─────────────────┘
+```
+
+### Implementação de Webhook
+
+```typescript
+// supabase/functions/mercadopago-webhook/index.ts
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createHmac } from 'https://deno.land/std@0.168.0/crypto/mod.ts';
+
+serve(async (req) => {
+  // 1. Validar assinatura do webhook
+  const signature = req.headers.get('x-signature');
+  const body = await req.text();
+  
+  const expectedSignature = createHmac('sha256', WEBHOOK_SECRET)
+    .update(body)
+    .digest('hex');
+  
+  if (signature !== expectedSignature) {
+    return new Response('Invalid signature', { status: 401 });
+  }
+
+  // 2. Parsear payload
+  const payload = JSON.parse(body);
+
+  // 3. Idempotência - evitar processar evento duplicado
+  const { data: existing } = await supabase
+    .from('webhook_events')
+    .select('id')
+    .eq('idempotency_key', payload.id)
+    .single();
+
+  if (existing) {
+    return new Response('Already processed', { status: 200 });
+  }
+
+  // 4. Processar evento
+  if (payload.action === 'payment.updated') {
+    await processPaymentUpdate(payload);
+  }
+
+  // 5. Registrar evento como processado
+  await supabase.from('webhook_events').insert({
+    idempotency_key: payload.id,
+    processed_at: new Date().toISOString()
+  });
+
+  return new Response('OK', { status: 200 });
+});
+```
+
+### Padrão de Retry e Logging
+
+```typescript
+// Logging de webhooks para debug
+await supabase.from('webhook_logs').insert({
+  source: 'mercadopago',
+  event_type: payload.action,
+  payload: payload,
+  status: 'received'
+});
+
+try {
+  await processWebhook(payload);
+  
+  await supabase.from('webhook_logs')
+    .update({ status: 'processed', processed_at: new Date() })
+    .eq('id', logId);
+    
+} catch (error) {
+  await supabase.from('webhook_logs')
+    .update({ status: 'failed', error_message: error.message })
+    .eq('id', logId);
+  
+  // Retornar erro para webhook tentar novamente
+  throw error;
 }
 ```
 
 ---
 
-## 12. Padrões de Código
+## 12. Fluxos de Dados
 
-### Estrutura de Componentes
+### Fluxo: Compra de Créditos
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 1. INICIAÇÃO                                                              │
+│    Usuário clica "Comprar Créditos"                                       │
+│    ↓                                                                      │
+│    Frontend chama Edge Function: create-payment                           │
+│    ↓                                                                      │
+│    Edge Function cria pagamento no Mercado Pago                           │
+│    ↓                                                                      │
+│    Retorna URL de checkout ou QR Code PIX                                 │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 2. PAGAMENTO                                                              │
+│    Usuário completa pagamento no Mercado Pago                             │
+│    ↓                                                                      │
+│    Mercado Pago envia webhook para: mercadopago-webhook                   │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 3. PROCESSAMENTO                                                          │
+│    Edge Function valida assinatura do webhook                             │
+│    ↓                                                                      │
+│    Busca detalhes do pagamento na API Mercado Pago                        │
+│    ↓                                                                      │
+│    Se status === 'approved':                                              │
+│      - UPDATE credits_wallet (adiciona créditos)                          │
+│      - INSERT credit_purchases (registro)                                 │
+│      - INSERT platform_revenue (receita)                                  │
+│      - Se tem afiliado: calcula e credita comissões                       │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 4. ATUALIZAÇÃO EM TEMPO REAL                                              │
+│    Frontend escuta changes em credits_wallet via Realtime                 │
+│    ↓                                                                      │
+│    UI atualiza saldo automaticamente                                      │
+│    ↓                                                                      │
+│    Toast de confirmação                                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo: Assistir Live (Consumo de Créditos)
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 1. CONEXÃO                                                                │
+│    Viewer acessa /live/:id                                                │
+│    ↓                                                                      │
+│    Verifica se tem créditos suficientes                                   │
+│    ↓                                                                      │
+│    Solicita token LiveKit via Edge Function                               │
+│    ↓                                                                      │
+│    Conecta ao LiveKit e recebe stream                                     │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 2. HEARTBEAT (a cada 5 segundos)                                          │
+│    Frontend envia heartbeat para: viewer-heartbeat                        │
+│    ↓                                                                      │
+│    Edge Function verifica:                                                │
+│      - Live ainda ativa?                                                  │
+│      - Passou 1 minuto desde último débito?                               │
+│    ↓                                                                      │
+│    Se passou 1 minuto:                                                    │
+│      - Debita 1 crédito do viewer                                         │
+│      - Credita % para criador                                             │
+│      - Credita % para afiliado (se houver)                                │
+│      - Registra em live_consumption                                       │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 3. CRÉDITOS ESGOTADOS                                                     │
+│    credits_wallet.balance_credits === 0                                   │
+│    ↓                                                                      │
+│    Frontend detecta via Realtime                                          │
+│    ↓                                                                      │
+│    Exibe PaywallOverlay                                                   │
+│    ↓                                                                      │
+│    Usuário pode: Comprar mais créditos | Sair da live                     │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo: Criador Faz Live
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 1. PREPARAÇÃO                                                             │
+│    Criador acessa /creator-room                                           │
+│    ↓                                                                      │
+│    Define título e thumbnail                                              │
+│    ↓                                                                      │
+│    INSERT lives (status: 'waiting')                                       │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 2. INÍCIO DA TRANSMISSÃO                                                  │
+│    Solicita permissão de câmera/microfone                                 │
+│    ↓                                                                      │
+│    Solicita token LiveKit (isPublisher: true)                             │
+│    ↓                                                                      │
+│    Conecta ao LiveKit e publica mídia                                     │
+│    ↓                                                                      │
+│    UPDATE lives (status: 'live', host_joined_at: now())                   │
+│    ↓                                                                      │
+│    Inicia heartbeat do host (manter live ativa)                           │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 3. DURANTE A LIVE                                                         │
+│    Chat em tempo real (Supabase Realtime)                                 │
+│    ↓                                                                      │
+│    SuperChats recebidos (exibidos na fila)                                │
+│    ↓                                                                      │
+│    Viewers entram e saem                                                  │
+│    ↓                                                                      │
+│    Monitor de lives atualiza contadores                                   │
+└──────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 4. ENCERRAMENTO                                                           │
+│    Criador clica "Encerrar"                                               │
+│    ↓                                                                      │
+│    Desconecta do LiveKit                                                  │
+│    ↓                                                                      │
+│    UPDATE lives (status: 'ended', ended_at: now())                        │
+│    ↓                                                                      │
+│    Calcula e registra creator_earnings                                    │
+│    ↓                                                                      │
+│    Credita creator_wallet                                                 │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 13. Gerenciamento de Estado
+
+### Níveis de Estado
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ESTADO DO SERVIDOR                              │
+│    PostgreSQL (Supabase) - Fonte da verdade                              │
+│    - Dados persistentes                                                  │
+│    - Sincronização via Realtime                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ESTADO GLOBAL (CLIENT)                          │
+│    React Context - Estado compartilhado entre rotas                      │
+│    - AuthContext (user, session)                                         │
+│    - CreditsContext (saldo de créditos)                                  │
+│    - SidebarContext (UI state)                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          CACHE DE DADOS                                  │
+│    TanStack Query - Cache e sincronização                                │
+│    - Queries cacheadas                                                   │
+│    - Invalidação automática                                              │
+│    - Refetch em foco/reconexão                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          ESTADO LOCAL                                    │
+│    useState/useReducer - Estado de componente                            │
+│    - Formulários                                                         │
+│    - UI toggles                                                          │
+│    - Estado temporário                                                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### TanStack Query (React Query)
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Query: buscar dados
+function useLives() {
+  return useQuery({
+    queryKey: ['lives', 'active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lives')
+        .select('*')
+        .eq('is_active', true);
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 1000 * 60, // Dados "frescos" por 1 minuto
+    refetchOnWindowFocus: true,
+  });
+}
+
+// Mutation: modificar dados
+function useCreateLive() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (liveData: CreateLiveData) => {
+      const { data, error } = await supabase
+        .from('lives')
+        .insert(liveData)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidar cache para refetch
+      queryClient.invalidateQueries({ queryKey: ['lives'] });
+    },
+  });
+}
+
+// Uso no componente
+function LivesPage() {
+  const { data: lives, isLoading, error } = useLives();
+  const createLive = useCreateLive();
+
+  if (isLoading) return <Loading />;
+  if (error) return <Error message={error.message} />;
+
+  return (
+    <div>
+      {lives.map(live => <LiveCard key={live.id} live={live} />)}
+      <button onClick={() => createLive.mutate({ title: 'Nova Live' })}>
+        Criar Live
+      </button>
+    </div>
+  );
+}
+```
+
+### Sincronização Realtime + Query
+
+```typescript
+function useLivesWithRealtime() {
+  const queryClient = useQueryClient();
+  
+  // Query inicial
+  const query = useQuery({
+    queryKey: ['lives'],
+    queryFn: fetchLives,
+  });
+
+  // Sincronização em tempo real
+  useEffect(() => {
+    const channel = supabase
+      .channel('lives-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'lives' },
+        () => {
+          // Invalidar cache quando houver mudanças
+          queryClient.invalidateQueries({ queryKey: ['lives'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  return query;
+}
+```
+
+---
+
+## 14. Padrões de Código
+
+### Estrutura de Componente
 
 ```typescript
 // src/components/MeuComponente.tsx
-import { useState, useEffect } from 'react';
+
+// 1. Imports (organizados por tipo)
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
+
+// 2. Types/Interfaces
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 interface MeuComponenteProps {
   userId: string;
-  onSuccess?: () => void;
+  onSuccess?: (data: Profile) => void;
 }
 
-export const MeuComponente = ({ userId, onSuccess }: MeuComponenteProps) => {
-  // 1. Hooks primeiro
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<DataType | null>(null);
+// 3. Componente
+export function MeuComponente({ userId, onSuccess }: MeuComponenteProps) {
+  // 3a. Hooks (ordem consistente)
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Profile | null>(null);
 
-  // 2. Effects
+  // 3b. Effects
   useEffect(() => {
     fetchData();
   }, [userId]);
 
-  // 3. Funções
-  const fetchData = async () => {
+  // 3c. Handlers e funções
+  const fetchData = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('tabela')
+      .from('profiles')
       .select('*')
-      .eq('user_id', userId);
+      .eq('id', userId)
+      .single();
     
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
@@ -1035,272 +1697,183 @@ export const MeuComponente = ({ userId, onSuccess }: MeuComponenteProps) => {
       setData(data);
     }
     setLoading(false);
-  };
+  }, [userId, toast]);
 
-  const handleClick = async () => {
+  const handleSubmit = async () => {
     // lógica
-    onSuccess?.();
+    onSuccess?.(data!);
   };
 
-  // 4. Render
-  if (loading) return <div>Carregando...</div>;
+  // 3d. Early returns
+  if (loading) return <div className="animate-pulse">Carregando...</div>;
+  if (!data) return null;
 
+  // 3e. Render principal
   return (
-    <div className="p-4 bg-card rounded-lg">
-      <h2 className="text-foreground">Título</h2>
-      <Button onClick={handleClick}>Ação</Button>
+    <div className="p-4 bg-card rounded-lg border border-border">
+      <h2 className="text-lg font-semibold text-foreground">{data.username}</h2>
+      <p className="text-muted-foreground">{data.bio}</p>
+      <Button onClick={handleSubmit}>Salvar</Button>
     </div>
   );
-};
+}
 ```
 
-### Hooks Customizados
+### Custom Hook
 
 ```typescript
 // src/hooks/useMeuHook.ts
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-interface UseMeuHookResult {
-  data: DataType[];
-  loading: boolean;
-  error: Error | null;
-  refetch: () => void;
+interface UseMeuHookOptions {
+  enabled?: boolean;
+  onError?: (error: Error) => void;
 }
 
-export const useMeuHook = (userId: string): UseMeuHookResult => {
-  const [data, setData] = useState<DataType[]>([]);
+interface UseMeuHookResult<T> {
+  data: T[];
+  loading: boolean;
+  error: Error | null;
+  refetch: () => Promise<void>;
+}
+
+export function useMeuHook<T>(
+  tableName: string,
+  options: UseMeuHookOptions = {}
+): UseMeuHookResult<T> {
+  const { enabled = true, onError } = options;
+  
+  const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!enabled) return;
+    
     setLoading(true);
     setError(null);
     
-    const { data, error } = await supabase
-      .from('tabela')
-      .select('*')
-      .eq('user_id', userId);
+    try {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*');
 
-    if (error) {
+      if (error) throw error;
+      setData(data as T[]);
+    } catch (err) {
+      const error = err as Error;
       setError(error);
-    } else {
-      setData(data || []);
+      onError?.(error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [userId]);
+  }, [tableName, enabled, onError]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   return { data, loading, error, refetch: fetchData };
-};
+}
 ```
 
-### Serviços (lib)
+### Service Layer
 
 ```typescript
-// src/lib/meuService.ts
-import { supabase } from '@/integrations/supabase/client';
+// src/lib/livesService.ts
 
-export interface CreateItemParams {
-  name: string;
-  userId: string;
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+
+type Live = Database['public']['Tables']['lives']['Row'];
+type CreateLiveInput = Database['public']['Tables']['lives']['Insert'];
+
+export async function getLives(filters?: { status?: string; creatorId?: string }) {
+  let query = supabase
+    .from('lives')
+    .select(`
+      *,
+      creator_profiles (
+        display_name,
+        avatar_url
+      )
+    `)
+    .order('created_at', { ascending: false });
+
+  if (filters?.status) {
+    query = query.eq('status', filters.status);
+  }
+  if (filters?.creatorId) {
+    query = query.eq('creator_id', filters.creatorId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
 }
 
-export const createItem = async (params: CreateItemParams) => {
+export async function createLive(input: CreateLiveInput): Promise<Live> {
   const { data, error } = await supabase
-    .from('items')
-    .insert(params)
+    .from('lives')
+    .insert(input)
     .select()
     .single();
 
   if (error) throw error;
   return data;
-};
+}
 
-export const getItems = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('items')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+export async function updateLiveStatus(liveId: string, status: string) {
+  const updates: Partial<Live> = { status };
+  
+  if (status === 'ended') {
+    updates.ended_at = new Date().toISOString();
+  }
+
+  const { error } = await supabase
+    .from('lives')
+    .update(updates)
+    .eq('id', liveId);
 
   if (error) throw error;
-  return data;
-};
+}
 ```
 
 ### Convenções de Nomenclatura
 
 | Tipo | Convenção | Exemplo |
 |------|-----------|---------|
-| Componentes | PascalCase | `LiveViewer.tsx` |
-| Hooks | camelCase com "use" | `useLiveMonitor.ts` |
-| Serviços | camelCase + "Service" | `paymentsService.ts` |
-| Tipos/Interfaces | PascalCase | `LiveData`, `UserProfile` |
-| Constantes | UPPER_SNAKE_CASE | `API_BASE_URL` |
-| Funções | camelCase | `fetchLiveData()` |
-| CSS classes | kebab-case | `live-viewer-container` |
+| Componentes | PascalCase | `LiveViewer.tsx`, `UserCard.tsx` |
+| Hooks | camelCase com "use" | `useLiveData.ts`, `useAuth.ts` |
+| Serviços | camelCase + "Service" | `livesService.ts` |
+| Utilitários | camelCase | `formatDate.ts`, `cn.ts` |
+| Types/Interfaces | PascalCase | `UserProfile`, `LiveData` |
+| Constantes | UPPER_SNAKE_CASE | `API_BASE_URL`, `MAX_RETRIES` |
+| Funções | camelCase (verbos) | `fetchLives()`, `calculateTotal()` |
+| Eventos | handle + Ação | `handleClick`, `handleSubmit` |
+| Booleanos | is/has/can/should | `isLoading`, `hasError`, `canEdit` |
 
 ---
 
-## 13. Fluxos Principais
+## Anexo: Glossário
 
-### Fluxo 1: Usuário Novo Assiste Live
-
-```
-1. Acessa site (Index.tsx)
-   ↓
-2. Vê lista de lives (Home.tsx)
-   ↓
-3. Clica em uma live
-   ↓
-4. Modal pede login (não autenticado)
-   ↓
-5. Vai para /auth (Auth.tsx)
-   ↓
-6. Faz signup com email/senha
-   ↓
-7. É redirecionado para /subscribe
-   ↓
-8. Paga assinatura (ou usa código gratuito)
-   ↓
-9. Ganha créditos iniciais
-   ↓
-10. Volta para live (LiveViewer.tsx)
-    ↓
-11. Conecta ao LiveKit (WebRTCViewer)
-    ↓
-12. Assiste e gasta créditos (heartbeat)
-    ↓
-13. Quando créditos acabam → PaywallOverlay
-    ↓
-14. Compra mais créditos ou sai
-```
-
-### Fluxo 2: Criador Faz Live
-
-```
-1. Criador logado acessa /creator-room
-   ↓
-2. Configura título e thumbnail (LiveConfigPanel)
-   ↓
-3. Clica "Iniciar Transmissão"
-   ↓
-4. Sistema cria registro em 'lives' (status: waiting)
-   ↓
-5. Edge Function gera token LiveKit
-   ↓
-6. WebRTCPublisher conecta ao LiveKit
-   ↓
-7. Câmera/microfone são ativados
-   ↓
-8. Live muda para status: 'live'
-   ↓
-9. Viewers podem entrar
-   ↓
-10. Chat funciona via Supabase Realtime
-    ↓
-11. SuperChats aparecem (SuperChatQueue)
-    ↓
-12. Criador clica "Encerrar"
-    ↓
-13. Desconecta do LiveKit
-    ↓
-14. Live muda para status: 'ended'
-    ↓
-15. Ganhos são calculados (creator_earnings)
-```
-
-### Fluxo 3: Afiliado Indica Usuário
-
-```
-1. Afiliado cria código (CompactReferralCodeBox)
-   ↓
-2. Sistema salva em profiles.referral_code
-   ↓
-3. Afiliado compartilha link: /subscribe?ref=CODIGO
-   ↓
-4. Novo usuário acessa link
-   ↓
-5. Código é validado via API
-   ↓
-6. Novo usuário completa cadastro
-   ↓
-7. profiles.referred_by = CODIGO
-   ↓
-8. Registro criado em 'referrals'
-   ↓
-9. Quando novo usuário compra créditos:
-   ├── Plataforma registra transação
-   ├── Calcula comissão do afiliado
-   ├── Credita em affiliate_earnings
-   └── Registra em affiliate_logs
-   ↓
-10. Afiliado vê ganhos no dashboard
-```
+| Termo | Definição |
+|-------|-----------|
+| **SPA** | Single Page Application - aplicação de página única |
+| **BaaS** | Backend as a Service - backend como serviço |
+| **JWT** | JSON Web Token - token de autenticação |
+| **RLS** | Row Level Security - segurança por linha no banco |
+| **WebRTC** | Web Real-Time Communication - protocolo de comunicação |
+| **SFU** | Selective Forwarding Unit - servidor de mídia |
+| **Edge Function** | Função serverless na borda da rede |
+| **Webhook** | Callback HTTP para notificações de eventos |
+| **SSR** | Server-Side Rendering - renderização no servidor |
+| **CSR** | Client-Side Rendering - renderização no cliente |
+| **HMR** | Hot Module Replacement - atualização sem refresh |
+| **CORS** | Cross-Origin Resource Sharing - compartilhamento entre origens |
 
 ---
 
-## Comandos Úteis
-
-```bash
-# Desenvolvimento
-npm run dev              # Inicia servidor de desenvolvimento
-
-# Build
-npm run build            # Gera build de produção
-npm run preview          # Preview do build
-
-# Testes
-npm run test             # Roda testes
-
-# Tipos do Supabase (automático)
-# Os tipos são gerados automaticamente pelo Lovable
-```
-
----
-
-## Dicas para Novos Desenvolvedores
-
-1. **Nunca edite arquivos automáticos**:
-   - `src/integrations/supabase/client.ts`
-   - `src/integrations/supabase/types.ts`
-   - `supabase/config.toml`
-   - `supabase/migrations/*`
-
-2. **Sempre use o design system**:
-   - Classes Tailwind com tokens (`bg-primary`, não `bg-purple-500`)
-   - Componentes do shadcn/ui
-
-3. **Debugging**:
-   - Console do browser para erros frontend
-   - Logs das Edge Functions no painel Lovable Cloud
-   - Tabela `webhook_logs` para problemas de pagamento
-
-4. **Teste localmente**:
-   - Crie uma conta de teste
-   - Use códigos de cupom para créditos gratuitos
-   - Mercado Pago tem ambiente sandbox
-
-5. **Pergunte antes de mudar**:
-   - Tabelas do banco afetam muitas coisas
-   - Edge Functions são críticas (pagamentos, etc.)
-
----
-
-## Recursos Adicionais
-
-- [Documentação React](https://react.dev)
-- [Documentação Supabase](https://supabase.com/docs)
-- [Documentação Tailwind](https://tailwindcss.com/docs)
-- [Documentação shadcn/ui](https://ui.shadcn.com)
-- [Documentação LiveKit](https://docs.livekit.io)
-- [API Mercado Pago](https://www.mercadopago.com.br/developers)
-
----
-
-*Documento gerado em Dezembro/2024*
-*Projeto: Stream Star*
+*Documento técnico - Versão 1.0*
