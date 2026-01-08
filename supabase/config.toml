@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.admin-set-password]
 verify_jwt = false
+
+[functions.velana-webhook]
+verify_jwt = false

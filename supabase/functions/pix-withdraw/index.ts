@@ -1,93 +1,36 @@
-/**
- * Edge Function: PIX Withdrawal via Woovi/OpenPix
- * 
- * Processa solicitações de saque PIX.
- * Se Woovi estiver configurado, processa automaticamente.
- * Caso contrário, cria solicitação para processamento manual.
- */
+// supabase/functions/pix-withdraw/index.ts
+// ATUALIZADO PARA VELANA.IO
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const VELANA_API_KEY = Deno.env.get('VELANA_API_KEY');
+const VELANA_BASE_URL = 'https://api.velana.io';
+const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
+
+interface PixWithdrawRequest {
+  userId: string;
+  pixKey: string;
+  amountCents: number;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Configurações
-const MIN_WITHDRAW_CENTS = 1500; // R$ 15,00
-const WOOVI_BASE_URL = Deno.env.get('WOOVI_SANDBOX') === 'true' 
-  ? 'https://api.woovi-sandbox.com'
-  : 'https://api.openpix.com.br';
-
-type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'RANDOM';
-
-/**
- * Normaliza chave PIX ADICIONANDO formatação a CPF/CNPJ
- */
-function normalizePixKey(key: string): string {
-  const trimmed = key.trim();
-  const cleanDigits = trimmed.replace(/\D/g, '');
-  
-  if (cleanDigits.length === 11) {
-    return `${cleanDigits.slice(0, 3)}.${cleanDigits.slice(3, 6)}.${cleanDigits.slice(6, 9)}-${cleanDigits.slice(9, 11)}`;
-  }
-  
-  if (cleanDigits.length === 14) {
-    return `${cleanDigits.slice(0, 2)}.${cleanDigits.slice(2, 5)}.${cleanDigits.slice(5, 8)}/${cleanDigits.slice(8, 12)}-${cleanDigits.slice(12, 14)}`;
-  }
-  
-  return trimmed;
-}
 
 /**
  * Detecta tipo de chave PIX automaticamente
  */
-function detectPixKeyType(key: string): PixKeyType {
-  const cleanKey = key.replace(/\D/g, '');
-  
+function detectPixKeyType(pixKey: string): string {
+  const cleanKey = pixKey.replace(/\D/g, '');
+
   if (/^\d{11}$/.test(cleanKey)) return 'CPF';
   if (/^\d{14}$/.test(cleanKey)) return 'CNPJ';
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) return 'EMAIL';
-  if (/^\+?55?\d{10,11}$/.test(cleanKey)) return 'PHONE';
-  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(key)) return 'RANDOM';
-  
+  if (/@/.test(pixKey)) return 'EMAIL';
+  if (/^\+?\d{10,13}$/.test(cleanKey)) return 'PHONE';
   return 'RANDOM';
-}
-
-/**
- * Valida formato da chave PIX
- */
-function validatePixKeyFormat(key: string, keyType: PixKeyType): { valid: boolean; error?: string } {
-  const cleanKey = key.replace(/\D/g, '');
-  
-  switch (keyType) {
-    case 'CPF':
-      if (cleanKey.length !== 11) {
-        return { valid: false, error: 'CPF deve ter 11 dígitos' };
-      }
-      if (/^(\d)\1+$/.test(cleanKey)) {
-        return { valid: false, error: 'CPF inválido' };
-      }
-      break;
-    case 'CNPJ':
-      if (cleanKey.length !== 14) {
-        return { valid: false, error: 'CNPJ deve ter 14 dígitos' };
-      }
-      break;
-    case 'EMAIL':
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) {
-        return { valid: false, error: 'Email inválido' };
-      }
-      break;
-    case 'PHONE':
-      if (!/^\+?55?\d{10,11}$/.test(cleanKey)) {
-        return { valid: false, error: 'Telefone deve ter 10 ou 11 dígitos' };
-      }
-      break;
-  }
-  
-  return { valid: true };
 }
 
 /**
@@ -98,217 +41,76 @@ function maskPixKey(key: string): string {
   return key.substring(0, 4) + '***' + key.substring(key.length - 3);
 }
 
-/**
- * Verifica se o WOOVI_APP_ID está configurado corretamente
- */
-function isWooviConfigured(appId: string | undefined): boolean {
-  if (!appId) return false;
-  // App ID da Woovi deve ter pelo menos 32 caracteres
-  if (appId.length < 32) return false;
-  // Verifica se não é um placeholder
-  if (appId.includes('YOUR_') || appId.includes('your_') || appId === 'test') return false;
-  return true;
-}
-
-/**
- * Tenta chamar a API Woovi para processar o PIX
- */
-async function processWooviPayment(
-  wooviAppId: string,
-  pixKey: string,
-  keyType: PixKeyType,
-  amountCents: number,
-  correlationId: string,
-  payoutRequestId: string
-): Promise<{ success: boolean; error?: string; data?: unknown }> {
-  try {
-    console.log('[pix-withdraw] Calling Woovi API...', { 
-      url: WOOVI_BASE_URL,
-      appIdLength: wooviAppId.length,
-      appIdPrefix: wooviAppId.substring(0, 8) + '...'
-    });
-    
-    const wooviPayload = {
-      value: amountCents,
-      destinationAlias: pixKey,
-      destinationAliasType: keyType,
-      correlationID: correlationId,
-      comment: `Saque Stream Live Hub - ${payoutRequestId.substring(0, 8)}`,
-    };
-
-    const wooviResponse = await fetch(`${WOOVI_BASE_URL}/api/v1/payment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': wooviAppId,
-      },
-      body: JSON.stringify(wooviPayload),
-    });
-
-    const wooviData = await wooviResponse.json();
-
-    if (!wooviResponse.ok) {
-      console.error('[pix-withdraw] Woovi API error:', wooviData);
-      
-      // Extrair mensagem de erro mais específica
-      let errorMessage = 'Erro ao processar PIX';
-      if (wooviData.errors && Array.isArray(wooviData.errors)) {
-        errorMessage = wooviData.errors.map((e: { message?: string }) => e.message).join(', ');
-      } else if (wooviData.message) {
-        errorMessage = wooviData.message;
-      }
-      
-      return { success: false, error: errorMessage, data: wooviData };
-    }
-
-    console.log('[pix-withdraw] Woovi payment created:', {
-      correlationId,
-      status: wooviData.payment?.status,
-    });
-
-    return { success: true, data: wooviData };
-  } catch (error) {
-    console.error('[pix-withdraw] Woovi exception:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Erro de conexão com Woovi' 
-    };
-  }
-}
-
 serve(async (req) => {
+  // CORS headers
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const wooviAppId = Deno.env.get('WOOVI_APP_ID');
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const wooviEnabled = isWooviConfigured(wooviAppId);
-
-    console.log('[pix-withdraw] Configuration:', { 
-      wooviEnabled,
-      wooviAppIdConfigured: !!wooviAppId,
-    });
-
-    // Require authentication
-    const authHeader = req.headers.get('authorization');
+    // 1. Valida autenticação
+    const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+      return new Response(JSON.stringify({ error: 'Autenticação necessária' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
 
-    const { action, userId, pixKey: rawPixKey, pixKeyType, amountCents } = await req.json();
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
 
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // 2. Valida token e pega usuário
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) {
-      console.error('[pix-withdraw] Auth error:', authError?.message);
-      return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
+      return new Response(JSON.stringify({ error: 'Token inválido' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
 
-    if (user.id !== userId) {
-      return new Response(JSON.stringify({ error: 'Not authorized' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // 3. Parse do body
+    const body: PixWithdrawRequest = await req.json();
+    const { userId, pixKey, amountCents } = body;
 
-    const pixKey = rawPixKey ? normalizePixKey(rawPixKey) : '';
-
-    // === ACTION: VALIDATE PIX KEY ===
-    if (action === 'validate') {
-      if (!pixKey) {
-        return new Response(JSON.stringify({ error: 'Chave PIX obrigatória' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      const keyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
-      
-      const formatValidation = validatePixKeyFormat(pixKey, keyType);
-      if (!formatValidation.valid) {
-        return new Response(JSON.stringify({ 
-          valid: false, 
-          error: formatValidation.error,
-          keyType,
-          normalizedKey: pixKey,
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-
-      return new Response(JSON.stringify({
-        valid: true,
-        keyType,
-        normalizedKey: pixKey,
-        holderName: 'Validação será confirmada no momento do envio',
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // === ACTION: WITHDRAW ===
     console.log('[pix-withdraw] Request:', { 
       userId, 
       pixKey: maskPixKey(pixKey), 
-      pixKeyType,
       amountCents 
     });
 
-    // Validar campos obrigatórios
-    if (!userId || !pixKey || !amountCents) {
-      return new Response(JSON.stringify({ 
-        error: 'Campos obrigatórios: userId, pixKey, amountCents' 
-      }), {
+    // 4. Validações básicas
+    if (!pixKey || !amountCents) {
+      return new Response(JSON.stringify({ error: 'Dados incompletos' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
 
-    // Validar valor mínimo
+    if (userId !== user.id) {
+      return new Response(JSON.stringify({ error: 'Usuário inválido' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
     if (amountCents < MIN_WITHDRAW_CENTS) {
-      return new Response(JSON.stringify({ 
-        error: `Valor mínimo para saque é de R$ ${(MIN_WITHDRAW_CENTS / 100).toFixed(2)}` 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: `Valor mínimo: R$ ${(MIN_WITHDRAW_CENTS / 100).toFixed(2)}` }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
     }
 
-    const keyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
-
-    // Buscar saldos
-    const { data: profile, error: profileError } = await supabase
+    // 5. Busca saldos (afiliado + criador)
+    const { data: profile } = await supabase
       .from('profiles')
       .select('affiliate_earnings')
       .eq('id', userId)
       .single();
-
-    if (profileError || !profile) {
-      console.error('[pix-withdraw] Profile not found:', profileError);
-      return new Response(JSON.stringify({ 
-        error: 'Usuário não encontrado' 
-      }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const { data: creatorWallet } = await supabase
       .from('creator_wallet')
@@ -316,121 +118,116 @@ serve(async (req) => {
       .eq('creator_id', userId)
       .maybeSingle();
 
-    const affiliateBalanceCents = profile.affiliate_earnings || 0;
-    const creatorBalanceCents = creatorWallet?.balance_cents || 0;
-    const totalAvailableCents = affiliateBalanceCents + creatorBalanceCents;
+    const affiliateBalance = profile?.affiliate_earnings || 0;
+    const creatorBalance = creatorWallet?.balance_cents || 0;
+    const totalAvailable = affiliateBalance + creatorBalance;
 
-    console.log('[pix-withdraw] Balances:', { affiliateBalanceCents, creatorBalanceCents, totalAvailableCents });
+    console.log('[pix-withdraw] Balances:', { affiliateBalance, creatorBalance, totalAvailable });
 
-    if (totalAvailableCents < amountCents) {
-      return new Response(JSON.stringify({ 
-        error: `Saldo insuficiente. Disponível: R$ ${(totalAvailableCents / 100).toFixed(2)}` 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // 6. Valida saldo suficiente
+    if (totalAvailable < amountCents) {
+      return new Response(
+        JSON.stringify({
+          error: `Saldo insuficiente. Disponível: R$ ${(totalAvailable / 100).toFixed(2)}`,
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
     }
 
-    // Calcular dedução de cada fonte
-    let deductFromAffiliate = Math.min(affiliateBalanceCents, amountCents);
-    let deductFromCreator = amountCents - deductFromAffiliate;
+    // 7. Gera ID único (correlationId)
+    const correlationId = crypto.randomUUID();
+
+    // 8. Debita saldos (prioriza afiliado, depois criador)
+    let remainingDebit = amountCents;
+    let newAffiliateBalance = affiliateBalance;
+    let newCreatorBalance = creatorBalance;
+    let deductFromAffiliate = 0;
+    let deductFromCreator = 0;
+
+    if (affiliateBalance > 0) {
+      deductFromAffiliate = Math.min(affiliateBalance, remainingDebit);
+      newAffiliateBalance -= deductFromAffiliate;
+      remainingDebit -= deductFromAffiliate;
+    }
+
+    if (remainingDebit > 0) {
+      deductFromCreator = remainingDebit;
+      newCreatorBalance -= remainingDebit;
+    }
 
     console.log('[pix-withdraw] Deductions:', { deductFromAffiliate, deductFromCreator });
 
-    const correlationId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    // Debitar saldos
+    // 9. Atualiza saldos no banco
     if (deductFromAffiliate > 0) {
-      const newAffiliateBalance = affiliateBalanceCents - deductFromAffiliate;
-      const { error: updateError } = await supabase
+      await supabase
         .from('profiles')
-        .update({ 
-          affiliate_earnings: newAffiliateBalance,
-          updated_at: now,
-        })
+        .update({ affiliate_earnings: newAffiliateBalance })
         .eq('id', userId);
-
-      if (updateError) {
-        console.error('[pix-withdraw] Affiliate balance update error:', updateError);
-        throw new Error('Erro ao atualizar saldo de afiliado');
-      }
     }
 
-    if (deductFromCreator > 0) {
-      const newCreatorBalance = creatorBalanceCents - deductFromCreator;
-      const newPending = (creatorWallet?.pending_cents || 0) + deductFromCreator;
-
-      const { error: updateError } = await supabase
+    if (creatorWallet) {
+      await supabase
         .from('creator_wallet')
-        .update({ 
+        .update({
           balance_cents: newCreatorBalance,
-          pending_cents: newPending,
-          updated_at: now,
+          pending_cents: (creatorWallet.pending_cents || 0) + amountCents,
         })
         .eq('creator_id', userId);
-
-      if (updateError) {
-        console.error('[pix-withdraw] Creator balance update error:', updateError);
-        if (deductFromAffiliate > 0) {
-          await supabase
-            .from('profiles')
-            .update({ affiliate_earnings: affiliateBalanceCents })
-            .eq('id', userId);
-        }
-        throw new Error('Erro ao atualizar saldo de criador');
-      }
     }
 
+    // 10. Detecta tipo de chave PIX
+    const pixKeyType = detectPixKeyType(pixKey);
     const sourceType = deductFromCreator > 0 ? 'creator' : 'affiliate';
 
-    // Criar payout request - status 'pending' para processamento manual ou automático
-    const { data: payoutRequest, error: payoutError } = await supabase
+    // 11. Cria registro de payout_request
+    const { data: payoutRequest, error: insertError } = await supabase
       .from('payout_requests')
       .insert({
         creator_id: userId,
-        amount: amountCents,
+        amount: amountCents / 100, // Converte para decimal
         pix_key: pixKey,
-        pix_key_type: keyType,
+        pix_key_type: pixKeyType,
         source_type: sourceType,
         status: 'pending',
         idempotency_key: correlationId,
-        psp_transaction_id: correlationId,
       })
       .select()
       .single();
 
-    if (payoutError || !payoutRequest) {
-      console.error('[pix-withdraw] Payout request error:', payoutError);
+    if (insertError) {
+      console.error('[pix-withdraw] Erro ao criar payout_request:', insertError);
       
-      // Rollback
+      // Rollback saldos
       if (deductFromAffiliate > 0) {
         await supabase
           .from('profiles')
-          .update({ affiliate_earnings: affiliateBalanceCents })
+          .update({ affiliate_earnings: affiliateBalance })
           .eq('id', userId);
       }
-      if (deductFromCreator > 0) {
+      if (creatorWallet) {
         await supabase
           .from('creator_wallet')
           .update({ 
-            balance_cents: creatorBalanceCents,
-            pending_cents: creatorWallet?.pending_cents || 0,
+            balance_cents: creatorBalance,
+            pending_cents: creatorWallet.pending_cents || 0,
           })
           .eq('creator_id', userId);
       }
       
-      throw new Error('Erro ao criar solicitação de saque');
+      return new Response(JSON.stringify({ error: 'Falha ao registrar saque' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
     }
 
-    // Registrar hold no ledger
+    // 12. Registrar hold no ledger
     if (deductFromAffiliate > 0) {
       await supabase.from('wallet_transactions').insert({
         wallet_type: 'affiliate',
         wallet_id: userId,
         type: 'hold',
         amount_cents: -deductFromAffiliate,
-        balance_after_cents: affiliateBalanceCents - deductFromAffiliate,
+        balance_after_cents: newAffiliateBalance,
         reference_type: 'payout_request',
         reference_id: payoutRequest.id,
         description: `Saque PIX (afiliado) - R$ ${(deductFromAffiliate / 100).toFixed(2)}`,
@@ -444,7 +241,7 @@ serve(async (req) => {
         wallet_id: userId,
         type: 'hold',
         amount_cents: -deductFromCreator,
-        balance_after_cents: creatorBalanceCents - deductFromCreator,
+        balance_after_cents: newCreatorBalance,
         reference_type: 'payout_request',
         reference_id: payoutRequest.id,
         description: `Saque PIX (criador) - R$ ${(deductFromCreator / 100).toFixed(2)}`,
@@ -452,76 +249,88 @@ serve(async (req) => {
       });
     }
 
-    // Tentar processar via Woovi se configurado
-    let wooviProcessed = false;
-    let wooviError: string | null = null;
+    // 13. Chama API Velana
+    let velanaProcessed = false;
+    
+    if (VELANA_API_KEY) {
+      const amountBRL = (amountCents / 100).toFixed(2);
 
-    if (wooviEnabled && wooviAppId) {
-      const wooviResult = await processWooviPayment(
-        wooviAppId,
-        pixKey,
-        keyType,
-        amountCents,
-        correlationId,
-        payoutRequest.id
-      );
+      const velanaPayload = {
+        amount: parseFloat(amountBRL),
+        pixKey: pixKey,
+        pixKeyType: pixKeyType,
+        description: 'Saque Stream Live Hub',
+        externalId: correlationId,
+      };
 
-      if (wooviResult.success) {
-        wooviProcessed = true;
+      try {
+        console.log('[pix-withdraw] Calling Velana API...');
         
-        // Atualizar payout_request com resposta da Woovi
-        await supabase
-          .from('payout_requests')
-          .update({
-            psp_response: wooviResult.data,
-            status: 'approved', // Woovi processou, marcar como aprovado
-          })
-          .eq('id', payoutRequest.id);
-      } else {
-        wooviError = wooviResult.error || 'Erro ao processar via Woovi';
-        console.warn('[pix-withdraw] Woovi failed, falling back to manual processing:', wooviError);
-        
-        // Atualizar com erro mas não falhar - continuar para processamento manual
-        await supabase
-          .from('payout_requests')
-          .update({
-            psp_response: { error: wooviError, data: wooviResult.data },
-            admin_notes: `Processamento automático falhou: ${wooviError}. Aguardando processamento manual.`,
-          })
-          .eq('id', payoutRequest.id);
+        const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/pix/transfers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${VELANA_API_KEY}`,
+          },
+          body: JSON.stringify(velanaPayload),
+        });
+
+        const velanaData = await velanaResponse.json();
+
+        if (velanaResponse.ok) {
+          velanaProcessed = true;
+          
+          // Atualiza payout_request com dados da Velana
+          await supabase
+            .from('payout_requests')
+            .update({
+              status: 'approved',
+              psp_transaction_id: velanaData.id,
+              psp_response: velanaData,
+            })
+            .eq('id', payoutRequest.id);
+
+          console.log('[pix-withdraw] Velana transfer created:', velanaData.id);
+        } else {
+          console.error('[pix-withdraw] Velana API error:', velanaData);
+          await supabase
+            .from('payout_requests')
+            .update({
+              admin_notes: `Processamento automático falhou: ${velanaData.message || 'Erro na API Velana'}. Aguardando processamento manual.`,
+              psp_response: velanaData,
+            })
+            .eq('id', payoutRequest.id);
+        }
+      } catch (velanaError) {
+        console.error('[pix-withdraw] Velana fetch error:', velanaError);
+        // Mantém status pending para retry manual
       }
     } else {
-      console.log('[pix-withdraw] Woovi not configured - payout requires manual processing');
+      console.log('[pix-withdraw] Velana not configured - payout requires manual processing');
     }
 
-    // Registrar transação
+    // 14. Registrar transação
     await supabase.from('transactions').insert({
       user_id: userId,
       type: 'pix_withdraw',
-      amount: -(amountCents / 100),
-      status: wooviProcessed ? 'processing' : 'pending',
+      amount: amountCents,
+      status: 'pending',
       payment_method: 'pix',
-      external_id: payoutRequest.id,
-      metadata: { 
-        pix_key_masked: maskPixKey(pixKey),
-        pix_key_type: keyType,
+      metadata: {
+        payout_request_id: payoutRequest.id,
+        pix_key: maskPixKey(pixKey),
+        pix_key_type: pixKeyType,
         correlation_id: correlationId,
-        woovi_processed: wooviProcessed,
-        deduct_from_affiliate: deductFromAffiliate,
-        deduct_from_creator: deductFromCreator,
+        velana_processed: velanaProcessed,
       },
     });
 
-    // Notificar usuário
-    const userNotificationMessage = wooviProcessed
-      ? `Seu saque de R$ ${(amountCents / 100).toFixed(2)} está sendo processado via PIX.`
-      : `Seu saque de R$ ${(amountCents / 100).toFixed(2)} foi solicitado e será processado em breve.`;
-
+    // 15. Notificações
     await supabase.from('notifications').insert({
       user_id: userId,
-      title: wooviProcessed ? '💰 Saque PIX em processamento' : '📝 Saque solicitado',
-      message: userNotificationMessage,
-      type: 'withdrawal_processing',
+      title: '📤 Saque solicitado',
+      message: `Sua solicitação de saque de R$ ${(amountCents / 100).toFixed(2)} foi recebida e está sendo processada.`,
+      type: 'withdrawal',
     });
 
     // Notificar admins
@@ -531,54 +340,40 @@ serve(async (req) => {
       .eq('role', 'admin');
 
     if (admins && admins.length > 0) {
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', userId)
-        .single();
-
-      const adminMessage = wooviProcessed
-        ? `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)} via PIX (processado automaticamente)`
-        : `${userProfile?.username || 'Usuário'} solicitou saque de R$ ${(amountCents / 100).toFixed(2)} via PIX - REQUER PROCESSAMENTO MANUAL`;
-
-      const notifications = admins.map(admin => ({
+      const adminNotifications = admins.map((admin) => ({
         user_id: admin.user_id,
-        title: wooviProcessed ? '🏦 Saque PIX processado' : '⚠️ Saque PIX pendente',
-        message: adminMessage,
-        type: 'withdrawal_requested',
+        title: '💰 Nova solicitação de saque',
+        message: `Novo saque de R$ ${(amountCents / 100).toFixed(2)} aguardando processamento.`,
+        type: 'admin_withdrawal',
       }));
-      await supabase.from('notifications').insert(notifications);
+
+      await supabase.from('notifications').insert(adminNotifications);
     }
 
-    console.log('[pix-withdraw] Withdrawal created:', { 
-      payoutId: payoutRequest.id, 
-      correlationId,
-      amountCents, 
-      sourceType,
-      wooviProcessed,
-      deductFromAffiliate,
-      deductFromCreator,
-    });
-
-    return new Response(JSON.stringify({
-      success: true,
-      status: wooviProcessed ? 'processing' : 'pending',
-      message: wooviProcessed 
-        ? 'Saque PIX enviado para processamento automático'
-        : 'Saque solicitado com sucesso. Será processado em até 24 horas.',
-      payoutId: payoutRequest.id,
-      correlationId,
-      amount: amountCents / 100,
-      automaticProcessing: wooviProcessed,
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // 16. Resposta de sucesso
+    return new Response(
+      JSON.stringify({
+        success: true,
+        payoutId: payoutRequest.id,
+        status: velanaProcessed ? 'approved' : 'pending',
+        message: velanaProcessed 
+          ? 'Saque processado automaticamente' 
+          : 'Saque solicitado com sucesso. Aguarde processamento.',
+        velanaProcessed,
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      }
+    );
   } catch (error) {
     console.error('[pix-withdraw] Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro interno' }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      }
+    );
   }
 });
