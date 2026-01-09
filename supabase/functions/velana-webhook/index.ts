@@ -101,53 +101,87 @@ serve(async (req) => {
 });
 
 // ========== CASH-OUT (Payouts / Withdrawals) ==========
+// Velana Transfer Status: pending | bank_processing | success | failed
 
 async function processCashOutEvent(supabase: any, payload: any, webhookLogId: string | null): Promise<any> {
-  const { event, data } = payload;
+  // Velana pode enviar diretamente o objeto da transferência OU um evento com data
+  let event = payload.event;
+  let data = payload.data || payload;
+  const transferStatus = payload.status || data?.status;
+  
+  // Se não tiver event, inferir pelo status
+  if (!event && transferStatus) {
+    if (transferStatus === 'success') {
+      event = 'transfer.success';
+    } else if (transferStatus === 'failed') {
+      event = 'transfer.failed';
+    } else if (transferStatus === 'bank_processing') {
+      event = 'transfer.bank_processing';
+    } else if (transferStatus === 'pending') {
+      event = 'transfer.pending';
+    }
+  }
 
-  if (!event || !data) {
+  console.log('[velana-webhook] Processing cash-out:', { event, status: transferStatus, id: payload.id || data?.id });
+
+  // Busca payout por externalId OU por psp_transaction_id (transferId da Velana)
+  const externalId = data.externalId || data.correlationId || payload.externalId;
+  const transferId = payload.id || data.id;
+  
+  let payout = null;
+  
+  // Primeiro tenta por externalId (correlationId/idempotency_key)
+  if (externalId) {
+    const { data: foundPayout } = await supabase
+      .from('payout_requests')
+      .select('*')
+      .eq('idempotency_key', externalId)
+      .maybeSingle();
+    payout = foundPayout;
+  }
+  
+  // Se não encontrou, tenta por psp_transaction_id
+  if (!payout && transferId) {
+    const { data: foundPayout } = await supabase
+      .from('payout_requests')
+      .select('*')
+      .eq('psp_transaction_id', transferId)
+      .maybeSingle();
+    payout = foundPayout;
+  }
+
+  if (!payout) {
+    console.error('[velana-webhook] Payout not found:', { externalId, transferId });
     if (webhookLogId) {
       await supabase
         .from('webhook_logs')
-        .update({ status: 'error', error_message: 'Invalid payload', processed_at: new Date().toISOString() })
+        .update({ 
+          status: 'error', 
+          error_message: `Payout not found: externalId=${externalId}, transferId=${transferId}`, 
+          processed_at: new Date().toISOString() 
+        })
         .eq('id', webhookLogId);
     }
-    return { error: 'Invalid payload' };
+    return { error: 'Payout not found' };
   }
 
-  console.log('[velana-webhook] Processing cash-out event:', event);
-
-  switch (event) {
-    case 'transfer.completed':
-    case 'transfer.succeeded':
-    case 'pix.completed': {
-      const externalId = data.externalId || data.correlationId;
-
-      if (!externalId) {
-        console.error('[velana-webhook] Missing externalId');
-        break;
-      }
-
-      const { data: payout, error: fetchError } = await supabase
-        .from('payout_requests')
-        .select('*')
-        .eq('idempotency_key', externalId)
-        .maybeSingle();
-
-      if (fetchError || !payout) {
-        console.error('[velana-webhook] Payout not found:', externalId);
-        break;
-      }
-
+  // Processa baseado no status da Velana
+  const velanaStatus = transferStatus || event?.replace('transfer.', '');
+  
+  switch (velanaStatus) {
+    case 'success':
+    case 'completed':
+    case 'succeeded': {
       await supabase
         .from('payout_requests')
         .update({
           status: 'paid',
           paid_at: new Date().toISOString(),
-          psp_response: data,
+          psp_response: payload,
         })
         .eq('id', payout.id);
 
+      // Limpa pending_cents
       const { data: wallet } = await supabase
         .from('creator_wallet')
         .select('pending_cents')
@@ -155,13 +189,27 @@ async function processCashOutEvent(supabase: any, payload: any, webhookLogId: st
         .maybeSingle();
 
       if (wallet) {
+        const amountCents = Math.round(payout.amount * 100);
         await supabase
           .from('creator_wallet')
           .update({
-            pending_cents: Math.max(0, wallet.pending_cents - payout.amount * 100),
+            pending_cents: Math.max(0, (wallet.pending_cents || 0) - amountCents),
           })
           .eq('creator_id', payout.creator_id);
       }
+
+      // Registra no ledger
+      await supabase.from('wallet_transactions').insert({
+        wallet_type: payout.source_type || 'creator',
+        wallet_id: payout.creator_id,
+        type: 'payout_completed',
+        amount_cents: -Math.round(payout.amount * 100),
+        balance_after_cents: 0, // Já foi debitado no hold
+        reference_type: 'payout_request',
+        reference_id: payout.id,
+        description: `Saque PIX concluído - R$ ${payout.amount.toFixed(2)}`,
+        metadata: { action: 'withdrawal.completed', velana_status: velanaStatus },
+      });
 
       await supabase.from('notifications').insert({
         user_id: payout.creator_id,
@@ -174,52 +222,54 @@ async function processCashOutEvent(supabase: any, payload: any, webhookLogId: st
       break;
     }
 
-    case 'transfer.failed':
-    case 'pix.failed': {
-      const externalId = data.externalId || data.correlationId;
-
-      if (!externalId) {
-        console.error('[velana-webhook] Missing externalId');
-        break;
-      }
-
-      const { data: payout, error: fetchError } = await supabase
-        .from('payout_requests')
-        .select('*')
-        .eq('idempotency_key', externalId)
-        .maybeSingle();
-
-      if (fetchError || !payout) {
-        console.error('[velana-webhook] Payout not found:', externalId);
-        break;
-      }
-
+    case 'failed': {
       await supabase
         .from('payout_requests')
         .update({
           status: 'failed',
-          failure_reason: data.error || 'Falha no processamento PIX',
-          psp_response: data,
+          failure_reason: data.error || data.failureReason || payload.failureReason || 'Falha no processamento PIX',
+          psp_response: payload,
         })
         .eq('id', payout.id);
 
+      // Estorna saldo
+      const amountCents = Math.round(payout.amount * 100);
       const { data: wallet } = await supabase
         .from('creator_wallet')
         .select('balance_cents, pending_cents')
         .eq('creator_id', payout.creator_id)
         .maybeSingle();
 
-      const amountCents = Math.round(payout.amount * 100);
-
       if (wallet) {
         await supabase
           .from('creator_wallet')
           .update({
-            balance_cents: wallet.balance_cents + amountCents,
-            pending_cents: Math.max(0, wallet.pending_cents - amountCents),
+            balance_cents: (wallet.balance_cents || 0) + amountCents,
+            pending_cents: Math.max(0, (wallet.pending_cents || 0) - amountCents),
           })
           .eq('creator_id', payout.creator_id);
       }
+
+      // Também estorna affiliate_earnings se aplicável
+      if (payout.source_type === 'affiliate') {
+        await supabase.rpc('increment_affiliate_earnings', {
+          p_profile_id: payout.creator_id,
+          p_amount_cents: amountCents,
+        });
+      }
+
+      // Registra estorno no ledger
+      await supabase.from('wallet_transactions').insert({
+        wallet_type: payout.source_type || 'creator',
+        wallet_id: payout.creator_id,
+        type: 'refund',
+        amount_cents: amountCents,
+        balance_after_cents: (wallet?.balance_cents || 0) + amountCents,
+        reference_type: 'payout_request',
+        reference_id: payout.id,
+        description: `Estorno saque PIX - R$ ${payout.amount.toFixed(2)}`,
+        metadata: { action: 'withdrawal.refund', velana_status: velanaStatus, reason: data.error || data.failureReason },
+      });
 
       await supabase.from('notifications').insert({
         user_id: payout.creator_id,
@@ -232,8 +282,35 @@ async function processCashOutEvent(supabase: any, payload: any, webhookLogId: st
       break;
     }
 
+    case 'bank_processing': {
+      await supabase
+        .from('payout_requests')
+        .update({
+          status: 'processing',
+          psp_response: payload,
+          admin_notes: 'Transferência em processamento no banco',
+        })
+        .eq('id', payout.id);
+
+      console.log('[velana-webhook] Payout in bank processing:', payout.id);
+      break;
+    }
+
+    case 'pending': {
+      await supabase
+        .from('payout_requests')
+        .update({
+          status: 'processing',
+          psp_response: payload,
+        })
+        .eq('id', payout.id);
+
+      console.log('[velana-webhook] Payout pending:', payout.id);
+      break;
+    }
+
     default:
-      console.log('[velana-webhook] Unhandled event:', event);
+      console.log('[velana-webhook] Unhandled status:', velanaStatus);
   }
 
   if (webhookLogId) {
@@ -243,7 +320,7 @@ async function processCashOutEvent(supabase: any, payload: any, webhookLogId: st
       .eq('id', webhookLogId);
   }
 
-  return { received: true, event };
+  return { received: true, status: velanaStatus, payoutId: payout.id };
 }
 
 // ========== CASH-IN (Payments / Transactions) ==========
