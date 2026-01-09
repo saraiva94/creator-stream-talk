@@ -2,14 +2,25 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { TrendingUp, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Wallet } from "lucide-react";
+import { TrendingUp, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Wallet, Clock } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 
 interface RevenueData {
-  creditsIncome: number;
+  // Créditos consumidos em lives (vem de platform_revenue source_type='live_earnings')
+  liveCreditsIncome: number;
+  liveCreditsGross: number;
+  // Superchats (vem de platform_revenue source_type='superchat')
   superchatIncome: number;
+  superchatGross: number;
+  // Compra de créditos (vem de platform_revenue source_type='credits_purchase')
+  creditsPurchaseIncome: number;
+  creditsPurchaseGross: number;
+  // Registros (vem de platform_revenue source_type='registration' ou 'REGISTRATION')
   registrationIncome: number;
+  registrationGross: number;
+  // Saques
   withdrawals: number;
+  // Totais
   totalIncome: number;
   platformBalance: number;
 }
@@ -25,52 +36,65 @@ const PlatformRevenueDashboard = () => {
   useEffect(() => {
     const loadRevenue = async () => {
       try {
-        // Fetch all transactions
-        const { data: transactions } = await supabase
-          .from("transactions")
-          .select("type, amount, status")
-          .eq("status", "completed");
+        // Busca dados da tabela platform_revenue (fonte principal de verdade)
+        const { data: platformRevenue } = await supabase
+          .from("platform_revenue")
+          .select("amount, source_type");
 
-        // Fetch all withdrawals
+        // Busca saques aprovados/pagos
         const { data: withdrawals } = await supabase
           .from("payout_requests")
           .select("amount, status")
           .in("status", ["approved", "paid"]);
 
-        let creditsIncome = 0;
+        // Inicializa contadores (platform_revenue.amount está em centavos)
+        let liveCreditsIncome = 0;
+        let liveCreditsGross = 0;
         let superchatIncome = 0;
+        let superchatGross = 0;
+        let creditsPurchaseIncome = 0;
+        let creditsPurchaseGross = 0;
         let registrationIncome = 0;
+        let registrationGross = 0;
 
-        // Note: transactions.amount is stored in reais (e.g., 500.00 = R$500, but actually R$5.00)
-        // The database stores 500.00 for R$5.00 registration, so we need to divide by 100
-        transactions?.forEach((tx) => {
-          const amount = Number(tx.amount) || 0;
-          // Amount is stored as 500.00 representing R$5.00, so divide by 100
-          const amountReais = amount / 100;
-          if (tx.type === "credits_purchase") {
-            creditsIncome += amountReais;
-          } else if (tx.type === "superchat") {
+        platformRevenue?.forEach((entry) => {
+          const amountCents = Number(entry.amount) || 0;
+          const amountReais = amountCents / 100;
+          const sourceType = (entry.source_type || "").toLowerCase();
+
+          if (sourceType === "live_earnings") {
+            // Créditos consumidos em lives: plataforma recebe 20%, criador 80%
+            liveCreditsIncome += amountReais;
+            liveCreditsGross += amountReais / 0.2; // Gross = platform / 0.2
+          } else if (sourceType === "superchat") {
+            // Superchats: plataforma recebe 20%, criador 80%
             superchatIncome += amountReais;
-          } else if (tx.type === "registration") {
+            superchatGross += amountReais / 0.2;
+          } else if (sourceType === "credits_purchase") {
+            // Compra de créditos: 100% vai para plataforma
+            creditsPurchaseIncome += amountReais;
+            creditsPurchaseGross += amountReais;
+          } else if (sourceType === "registration") {
+            // Registros: plataforma recebe o que sobra após comissões
             registrationIncome += amountReais;
+            // Gross é R$5.00 por registro (500 centavos = R$5)
+            registrationGross += 5;
           }
         });
 
-        // Platform cut: 20% of credits and superchat, variable from registration (after commissions)
-        const platformCredits = creditsIncome * 0.2;
-        const platformSuperchat = superchatIncome * 0.2;
-        // Registration: R$5.00 - R$1.00 (direct) - R$0.50 (root) = R$3.50 max to platform
-        const platformRegistration = (registrationIncome / 5) * 3.5;
-
-        const totalWithdrawals = withdrawals?.reduce((sum, w) => sum + Number(w.amount), 0) || 0;
-
-        const totalIncome = platformCredits + platformSuperchat + platformRegistration;
+        const totalWithdrawals = withdrawals?.reduce((sum, w) => sum + (Number(w.amount) / 100), 0) || 0;
+        const totalIncome = liveCreditsIncome + superchatIncome + creditsPurchaseIncome + registrationIncome;
         const platformBalance = totalIncome - totalWithdrawals;
 
         setData({
-          creditsIncome,
+          liveCreditsIncome,
+          liveCreditsGross,
           superchatIncome,
+          superchatGross,
+          creditsPurchaseIncome,
+          creditsPurchaseGross,
           registrationIncome,
+          registrationGross,
           withdrawals: totalWithdrawals,
           totalIncome,
           platformBalance,
@@ -103,25 +127,44 @@ const PlatformRevenueDashboard = () => {
 
   const incomeItems = [
     {
-      label: t.revenue.credits,
-      value: data.creditsIncome * 0.2,
-      total: data.creditsIncome,
-      icon: <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />,
-      color: "text-blue-500",
+      label: "Créditos em Lives",
+      description: "Consumo de créditos durante transmissões",
+      value: data.liveCreditsIncome,
+      total: data.liveCreditsGross,
+      icon: <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />,
+      color: "text-purple-500",
+      bgColor: "rgba(168, 85, 247, 0.1)",
+      borderColor: "rgba(168, 85, 247, 0.3)",
     },
     {
       label: t.revenue.superchats,
-      value: data.superchatIncome * 0.2,
-      total: data.superchatIncome,
+      description: "Mensagens destacadas pagas",
+      value: data.superchatIncome,
+      total: data.superchatGross,
       icon: <MessageSquare className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />,
       color: "text-yellow-500",
+      bgColor: "rgba(234, 179, 8, 0.1)",
+      borderColor: "rgba(234, 179, 8, 0.3)",
+    },
+    {
+      label: t.revenue.credits,
+      description: "Pacotes de créditos vendidos",
+      value: data.creditsPurchaseIncome,
+      total: data.creditsPurchaseGross,
+      icon: <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />,
+      color: "text-blue-500",
+      bgColor: "rgba(59, 130, 246, 0.1)",
+      borderColor: "rgba(59, 130, 246, 0.3)",
     },
     {
       label: t.revenue.registrations,
-      value: (data.registrationIncome / 5) * 3.5,
-      total: data.registrationIncome,
+      description: "Assinaturas de novos usuários",
+      value: data.registrationIncome,
+      total: data.registrationGross,
       icon: <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />,
       color: "text-green-500",
+      bgColor: "rgba(34, 197, 94, 0.1)",
+      borderColor: "rgba(34, 197, 94, 0.3)",
     },
   ];
 
@@ -132,7 +175,9 @@ const PlatformRevenueDashboard = () => {
           <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           {t.revenue.title}
         </CardTitle>
-        <CardDescription className="text-xs sm:text-sm">{t.revenue.subtitle}</CardDescription>
+        <CardDescription className="text-xs sm:text-sm">
+          Dados da tabela platform_revenue (fonte única de verdade)
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-4 sm:p-6 pt-0 space-y-4 sm:space-y-6">
         {/* Summary Cards */}
@@ -165,23 +210,33 @@ const PlatformRevenueDashboard = () => {
         {/* Income Breakdown */}
         <div>
           <h4 className="font-semibold mb-2 sm:mb-3 text-sm sm:text-base">{t.revenue.entriesByType}</h4>
-          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {incomeItems.map((item) => (
-              <Card key={item.label} className={`bg-${item.color.replace('text-', '')}/10 border-${item.color.replace('text-', '')}/30`} style={{ 
-                backgroundColor: item.color === 'text-blue-500' ? 'rgba(59, 130, 246, 0.1)' : item.color === 'text-yellow-500' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                borderColor: item.color === 'text-blue-500' ? 'rgba(59, 130, 246, 0.3)' : item.color === 'text-yellow-500' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(34, 197, 94, 0.3)'
-              }}>
+              <Card 
+                key={item.label} 
+                style={{ 
+                  backgroundColor: item.bgColor,
+                  borderColor: item.borderColor
+                }}
+              >
                 <CardContent className="p-3 sm:pt-4">
                   <div className="flex items-center gap-2 sm:gap-3">
                     {item.icon}
-                    <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{item.label}</p>
-                      <p className="text-[10px] text-muted-foreground/70">
-                        {t.revenue.gross}: {formatBRL(item.total)}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs sm:text-sm font-medium truncate">{item.label}</p>
+                      <p className="text-[10px] text-muted-foreground/70 truncate">
+                        {item.description}
                       </p>
                     </div>
                   </div>
-                  <p className={`font-bold text-lg sm:text-2xl mt-2 ${item.color}`}>+{formatBRL(item.value)}</p>
+                  <div className="mt-2 space-y-1">
+                    <p className={`font-bold text-lg sm:text-2xl ${item.color}`}>
+                      +{formatBRL(item.value)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {t.revenue.gross}: {formatBRL(item.total)}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ))}
