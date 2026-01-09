@@ -10,9 +10,9 @@ import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { validatePasswordStrength } from "@/lib/password";
-import { apiClient } from "@/lib/api";
 import { supabase } from "@/integrations/supabase/client";
-import { ApiError } from "@/lib/api";
+import { createRegistrationPayment } from "@/lib/supabaseApi";
+import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 
 const InviteSignup = () => {
   const { inviteCode: inviteCodeParam } = useParams();
@@ -29,6 +29,9 @@ const InviteSignup = () => {
   const [loading, setLoading] = useState(false);
   const [parentId, setParentId] = useState<string | null>(null);
   const [parentUsername, setParentUsername] = useState<string | null>(null);
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
+  const [createdUserId, setCreatedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ref) {
@@ -102,27 +105,49 @@ const InviteSignup = () => {
 
     setLoading(true);
     try {
-      const response = await apiClient.registrationCheckout({
+      // First create user in Supabase Auth
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        referralCode: ref,
-        referrer_id: parentId,
+        options: {
+          data: {
+            username,
+            referrer_id: parentId,
+          }
+        }
       });
 
-      if (response.init_point) {
-        window.location.href = response.init_point;
-      } else {
-        toast({
-          title: "Link de pagamento gerado",
-          description: "Siga para o checkout para concluir o cadastro.",
+      if (signUpError) throw signUpError;
+      if (!signUpData.user?.id) throw new Error("Failed to create user");
+
+      setCreatedUserId(signUpData.user.id);
+
+      // Create PIX payment for registration
+      const response = await createRegistrationPayment({
+        userId: signUpData.user.id,
+        referrerId: parentId || undefined,
+        customerName: username,
+        customerEmail: email,
+      });
+
+      if (response?.pix?.qrCode) {
+        setPixData({
+          qrCode: response.pix.qrCode,
+          qrCodeImage: response.pix.qrCodeImage,
+          expiresAt: response.pix.expiresAt,
+          transactionId: response.transactionId || '',
+          paymentId: response.paymentId,
+          amount: response.amount,
+          eventType: 'REGISTRATION',
+          description: 'Ativação de conta - R$ 5,00',
         });
+        setPixDialogOpen(true);
+      } else {
+        throw new Error("Could not generate PIX QR Code");
       }
     } catch (err) {
       console.error("[INVITE][SIGNUP]", err);
-      const description =
-        err instanceof ApiError && err.status === 409
-          ? "Este convite já foi usado com este e-mail."
-          : "Please verify your invite link and try again.";
+      const description = err instanceof Error ? err.message : "Please verify your invite link and try again.";
       toast({
         title: "Error creating account",
         description,
@@ -131,6 +156,15 @@ const InviteSignup = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentConfirmed = () => {
+    setPixDialogOpen(false);
+    toast({
+      title: "Conta ativada!",
+      description: "Seu pagamento foi confirmado. Redirecionando...",
+    });
+    navigate("/dashboard", { replace: true });
   };
 
   return (
@@ -230,6 +264,13 @@ const InviteSignup = () => {
           </CardContent>
         </Card>
       </div>
+
+      <PixPaymentDialog
+        open={pixDialogOpen}
+        onOpenChange={setPixDialogOpen}
+        pixData={pixData}
+        onPaymentConfirmed={handlePaymentConfirmed}
+      />
     </div>
   );
 };

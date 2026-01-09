@@ -15,11 +15,21 @@ export interface CreditBalanceResponse {
 }
 
 export interface PaymentResponse {
-  init_point: string;
-  preferenceId: string;
+  success?: boolean;
+  transactionId?: string;
+  secureUrl?: string;
   paymentId: string;
   amount: number;
   credits?: number;
+  eventType?: string;
+  pix?: {
+    qrCode: string;
+    qrCodeImage?: string;
+    expiresAt: string;
+  };
+  // Legacy MP fields (for backwards compatibility)
+  init_point?: string;
+  preferenceId?: string;
 }
 
 export interface RegistrationResponse {
@@ -92,13 +102,13 @@ export const fetchCreditsBalance = async (): Promise<CreditBalanceResponse> => {
   }
 };
 
-// ==================== PAYMENTS ====================
+// ==================== PAYMENTS (Velana PIX) ====================
 
 export const createCreditsPayment = async (params: {
   credits: number;
   userId?: string;
 }): Promise<PaymentResponse> => {
-  logger.payment.info('Criando pagamento de créditos', { 
+  logger.payment.info('Criando pagamento PIX Velana para créditos', { 
     credits: params.credits,
     userId: params.userId ?? 'auto-detect',
   });
@@ -118,14 +128,14 @@ export const createCreditsPayment = async (params: {
     throw new Error('User not authenticated');
   }
 
-  const url = `${SUPABASE_URL}/functions/v1/create-payment`;
+  const url = `${SUPABASE_URL}/functions/v1/create-velana-payment`;
   const payload = {
     userId,
     purchaseType: 'credits',
     credits: params.credits,
   };
 
-  logger.payment.info('Chamando edge function create-payment', { url, payload });
+  logger.payment.info('Chamando edge function create-velana-payment', { url, payload });
 
   try {
     const response = await fetch(url, {
@@ -153,15 +163,113 @@ export const createCreditsPayment = async (params: {
     }
 
     const data = await response.json();
-    logger.payment.info('Pagamento criado com sucesso', { 
-      hasInitPoint: !!data.init_point,
-      preferenceId: data.preferenceId,
+    logger.payment.info('Pagamento PIX Velana criado com sucesso', { 
+      transactionId: data.transactionId,
+      paymentId: data.paymentId,
       amount: data.amount,
+      hasQrCode: !!data.pix?.qrCode,
     });
 
     return data;
   } catch (error) {
     logger.payment.error('Erro ao criar pagamento', { credits: params.credits }, error as Error);
+    throw error;
+  }
+};
+
+export const createSuperChatPayment = async (params: {
+  userId: string;
+  creatorId: string;
+  roomId: string;
+  tier: string;
+  message: string;
+}): Promise<PaymentResponse> => {
+  logger.payment.info('Criando pagamento PIX Velana para SuperChat', params);
+
+  const token = await getAuthToken();
+
+  const url = `${SUPABASE_URL}/functions/v1/create-velana-payment`;
+  const payload = {
+    userId: params.userId,
+    purchaseType: 'superchat',
+    creatorId: params.creatorId,
+    roomId: params.roomId,
+    tier: params.tier,
+    message: params.message,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create SuperChat payment');
+    }
+
+    const data = await response.json();
+    logger.payment.info('SuperChat PIX Velana criado com sucesso', { 
+      transactionId: data.transactionId,
+      paymentId: data.paymentId,
+      amount: data.amount,
+    });
+
+    return data;
+  } catch (error) {
+    logger.payment.error('Erro ao criar pagamento SuperChat', params, error as Error);
+    throw error;
+  }
+};
+
+export const createRegistrationPayment = async (params: {
+  userId: string;
+  referrerId?: string;
+  rootId?: string;
+  customerName?: string;
+  customerEmail?: string;
+}): Promise<PaymentResponse> => {
+  logger.payment.info('Criando pagamento PIX Velana para registro', params);
+
+  const url = `${SUPABASE_URL}/functions/v1/create-velana-payment`;
+  const payload = {
+    userId: params.userId,
+    purchaseType: 'registration',
+    referrerId: params.referrerId,
+    rootId: params.rootId,
+    customerName: params.customerName,
+    customerEmail: params.customerEmail,
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create registration payment');
+    }
+
+    const data = await response.json();
+    logger.payment.info('Registration PIX Velana criado com sucesso', { 
+      transactionId: data.transactionId,
+      paymentId: data.paymentId,
+    });
+
+    return data;
+  } catch (error) {
+    logger.payment.error('Erro ao criar pagamento de registro', params, error as Error);
     throw error;
   }
 };
