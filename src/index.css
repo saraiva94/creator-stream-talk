@@ -116,3 +116,14 @@ button span,
 .safe-area-inset-top {
   padding-top: env(safe-area-inset-top, 0px);
 }
+
+/* Hide caret when inputs are not focused to prevent blinking cursor on page load */
+input:not(:focus),
+textarea:not(:focus) {
+  caret-color: transparent;
+}
+
+input:focus,
+textarea:focus {
+  caret-color: hsl(var(--foreground));
+}
