@@ -9,10 +9,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { Coins } from "lucide-react";
+import { createSuperChatPayment } from "@/lib/supabaseApi";
+import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 
 interface SuperChatDialogProps {
   open: boolean;
@@ -45,6 +46,8 @@ const SuperChatDialog = ({
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { t } = useLanguage();
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
 
   // Update selected tier when initialTier changes (e.g., from suggestion buttons)
   useEffect(() => {
@@ -66,28 +69,30 @@ const SuperChatDialog = ({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("create-superchat-payment", {
-        body: {
-          creatorId,
-          userId,
-          roomId,
-          tier: selectedTier.tier,
-          amount: selectedTier.amount,
-          duration: selectedTier.duration,
-          message: message.trim(),
-        },
+      const response = await createSuperChatPayment({
+        userId,
+        creatorId,
+        roomId,
+        tier: selectedTier.tier,
+        message: message.trim(),
       });
 
-      if (error) throw error;
-
-      if (data?.init_point) {
-        window.open(data.init_point, "_blank");
-        toast({
-          title: t.superchat?.redirecting || "Redirecting to payment",
-          description: t.superchat?.completePayment || "Complete the payment to send your SuperChat",
+      if (response?.pix?.qrCode) {
+        // Show PIX QR code dialog
+        setPixData({
+          qrCode: response.pix.qrCode,
+          qrCodeImage: response.pix.qrCodeImage,
+          expiresAt: response.pix.expiresAt,
+          transactionId: response.transactionId || '',
+          paymentId: response.paymentId,
+          amount: response.amount,
+          eventType: 'SUPERCHAT',
+          description: `SuperChat ${selectedTier.tier.charAt(0).toUpperCase() + selectedTier.tier.slice(1)}`,
         });
+        setPixDialogOpen(true);
         onOpenChange(false);
-        setMessage("");
+      } else {
+        throw new Error("Could not generate PIX QR Code");
       }
     } catch (error: unknown) {
       const description = error instanceof Error ? error.message : (t.superchat?.sendError || "Could not send SuperChat");
@@ -99,6 +104,15 @@ const SuperChatDialog = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentConfirmed = () => {
+    setPixDialogOpen(false);
+    setMessage("");
+    toast({
+      title: "SuperChat enviado!",
+      description: "Seu SuperChat será exibido para o criador.",
+    });
   };
 
   return (
@@ -169,6 +183,13 @@ const SuperChatDialog = ({
           </Button>
         </div>
       </DialogContent>
+
+      <PixPaymentDialog
+        open={pixDialogOpen}
+        onOpenChange={setPixDialogOpen}
+        pixData={pixData}
+        onPaymentConfirmed={handlePaymentConfirmed}
+      />
     </Dialog>
   );
 };

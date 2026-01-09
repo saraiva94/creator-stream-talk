@@ -8,6 +8,7 @@ import { fetchCreditsBalance, createCreditsPayment } from "@/lib/supabaseApi";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
 import { logger } from "@/lib/logger";
+import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 
 const formatMinutes = (credits: number) => {
   // 180 credits = 30 minutes
@@ -28,6 +29,8 @@ export const UserCreditsWalletPanel = () => {
   const [error, setError] = useState<string | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(CREDITS_PACKAGES[0]);
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
 
   const fetchBalance = async () => {
     logger.credits.info('UserCreditsWalletPanel: Carregando saldo');
@@ -65,7 +68,7 @@ export const UserCreditsWalletPanel = () => {
   }, []);
 
   const startCheckout = async () => {
-    logger.payment.info('Iniciando checkout de créditos', { 
+    logger.payment.info('Iniciando checkout PIX Velana para créditos', { 
       credits: selectedPackage.credits,
       price: selectedPackage.priceBRL,
     });
@@ -83,25 +86,35 @@ export const UserCreditsWalletPanel = () => {
 
       logger.payment.debug('Usuário autenticado', { userId: user.id });
 
-      const preference = await createCreditsPayment({
+      const response = await createCreditsPayment({
         credits: selectedPackage.credits,
         userId: user.id,
       });
 
-      if (!preference?.init_point) {
-        logger.payment.error('Preferência sem init_point', { preference });
-        throw new Error("Could not start credits purchase");
+      if (response?.pix?.qrCode) {
+        // Show PIX QR code dialog
+        setPixData({
+          qrCode: response.pix.qrCode,
+          qrCodeImage: response.pix.qrCodeImage,
+          expiresAt: response.pix.expiresAt,
+          transactionId: response.transactionId || '',
+          paymentId: response.paymentId,
+          amount: response.amount,
+          eventType: response.eventType || 'CREDITS_PURCHASE',
+          description: `${selectedPackage.credits} créditos (${selectedPackage.label})`,
+        });
+        setPixDialogOpen(true);
+        
+        logger.payment.info('QR Code PIX gerado com sucesso', { 
+          transactionId: response.transactionId,
+          credits: selectedPackage.credits,
+        });
+      } else {
+        logger.payment.error('Resposta sem QR Code PIX', { response });
+        throw new Error("Could not generate PIX QR Code");
       }
-
-      logger.payment.info('Redirecionando para Mercado Pago', { 
-        initPoint: preference.init_point,
-        credits: selectedPackage.credits,
-      });
-      
-      // Use window.location.href for better Safari/iOS compatibility
-      window.location.href = preference.init_point;
     } catch (err) {
-      logger.payment.error('Erro no checkout', { 
+      logger.payment.error('Erro no checkout PIX', { 
         credits: selectedPackage.credits 
       }, err as Error);
       
@@ -115,6 +128,15 @@ export const UserCreditsWalletPanel = () => {
     } finally {
       setCheckoutLoading(false);
     }
+  };
+
+  const handlePaymentConfirmed = () => {
+    setPixDialogOpen(false);
+    fetchBalance();
+    toast({
+      title: "Créditos adicionados!",
+      description: `${selectedPackage.credits} créditos foram adicionados à sua conta.`,
+    });
   };
 
   return (
@@ -189,7 +211,14 @@ export const UserCreditsWalletPanel = () => {
             )}
           </Button>
         </div>
-      </CardContent>
+        </CardContent>
+
+      <PixPaymentDialog
+        open={pixDialogOpen}
+        onOpenChange={setPixDialogOpen}
+        pixData={pixData}
+        onPaymentConfirmed={handlePaymentConfirmed}
+      />
     </Card>
   );
 };
