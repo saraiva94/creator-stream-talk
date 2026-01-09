@@ -29,9 +29,11 @@ type RevenueBreakdown = {
   creditsIncome: number;
   superchatIncome: number;
   registrationIncome: number;
+  liveEarningsIncome: number;
   platformCredits: number;
   platformSuperchat: number;
   platformRegistration: number;
+  platformLiveEarnings: number;
   totalWithdrawals: number;
   platformBalance: number;
 };
@@ -106,9 +108,11 @@ const Admin = () => {
     creditsIncome: 0,
     superchatIncome: 0,
     registrationIncome: 0,
+    liveEarningsIncome: 0,
     platformCredits: 0,
     platformSuperchat: 0,
     platformRegistration: 0,
+    platformLiveEarnings: 0,
     totalWithdrawals: 0,
     platformBalance: 0,
   });
@@ -451,62 +455,90 @@ const Admin = () => {
 
   const fetchRevenueBreakdown = async () => {
     try {
-      const { data: transactions } = await supabase
-        .from("transactions")
-        .select("type, amount, status")
-        .eq("status", "completed");
+      // Fetch from platform_revenue table (the source of truth)
+      const { data: platformRevenue } = await supabase
+        .from("platform_revenue")
+        .select("amount, source_type, metadata");
 
       const { data: withdrawals } = await supabase
         .from("payout_requests")
         .select("amount, status")
         .in("status", ["approved", "paid"]);
 
-      let creditsIncomeCents = 0;
-      let superchatIncomeCents = 0;
-      let registrationIncomeCents = 0;
+      // platform_revenue.amount is stored in centavos
+      let platformCreditsCents = 0;
+      let platformSuperchatCents = 0;
+      let platformRegistrationCents = 0;
+      let platformLiveEarningsCents = 0;
+      
+      // Gross amounts from metadata
+      let grossCreditsCents = 0;
+      let grossSuperchatCents = 0;
+      let grossRegistrationCents = 0;
+      let grossLiveEarningsCents = 0;
 
-      // DEBUG: Log raw transaction data
-      console.log("[Admin Revenue Debug] Raw transactions:", transactions);
+      console.log("[Admin Revenue Debug] Raw platform_revenue:", platformRevenue);
 
-      // transactions.amount is stored as centavos (500.00 = R$5.00)
-      transactions?.forEach((tx) => {
-        const amountCents = Number(tx.amount) || 0;
-        if (tx.type === "credits_purchase") {
-          creditsIncomeCents += amountCents;
-        } else if (tx.type === "superchat") {
-          superchatIncomeCents += amountCents;
-        } else if (tx.type === "registration") {
-          registrationIncomeCents += amountCents;
+      type PlatformRevenueRow = {
+        amount: number | null;
+        source_type: string;
+        metadata: { gross_amount?: number } | null;
+      };
+
+      (platformRevenue as PlatformRevenueRow[] | null)?.forEach((row) => {
+        const amountCents = Number(row.amount) || 0;
+        const grossCents = Number(row.metadata?.gross_amount) || 0;
+        const sourceType = (row.source_type || "").toLowerCase();
+        
+        if (sourceType === "credits_purchase") {
+          platformCreditsCents += amountCents;
+          grossCreditsCents += grossCents || amountCents; // credits: platform = 100%
+        } else if (sourceType === "superchat") {
+          platformSuperchatCents += amountCents;
+          grossSuperchatCents += grossCents;
+        } else if (sourceType === "registration") {
+          platformRegistrationCents += amountCents;
+          grossRegistrationCents += grossCents || 500; // R$5 per registration
+        } else if (sourceType === "live_earnings") {
+          platformLiveEarningsCents += amountCents;
+          grossLiveEarningsCents += grossCents;
         }
       });
 
       // Convert centavos to reais
-      const creditsIncome = creditsIncomeCents / 100;
-      const superchatIncome = superchatIncomeCents / 100;
-      const registrationIncome = registrationIncomeCents / 100;
+      const platformCredits = platformCreditsCents / 100;
+      const platformSuperchat = platformSuperchatCents / 100;
+      const platformRegistration = platformRegistrationCents / 100;
+      const platformLiveEarnings = platformLiveEarningsCents / 100;
+      
+      const creditsIncome = grossCreditsCents / 100;
+      const superchatIncome = grossSuperchatCents / 100;
+      const registrationIncome = grossRegistrationCents / 100;
+      const liveEarningsIncome = grossLiveEarningsCents / 100;
 
-      // DEBUG: Log calculated values
       console.log("[Admin Revenue Debug] Calculated values:", {
-        creditsIncomeCents,
-        superchatIncomeCents,
-        registrationIncomeCents,
+        platformCredits,
+        platformSuperchat,
+        platformRegistration,
+        platformLiveEarnings,
         creditsIncome,
         superchatIncome,
         registrationIncome,
+        liveEarningsIncome,
       });
 
-      const platformCredits = creditsIncome * 0.2;
-      const platformSuperchat = superchatIncome * 0.2;
-      const platformRegistration = (registrationIncome / 5) * 3.5;
-
-      const totalWithdrawals = withdrawals?.reduce((sum, w) => sum + Number(w.amount), 0) || 0;
-      const totalIncome = platformCredits + platformSuperchat + platformRegistration;
+      // payout_requests.amount is also in centavos
+      const totalWithdrawalsCents = withdrawals?.reduce((sum, w) => sum + (Number(w.amount) || 0), 0) || 0;
+      const totalWithdrawals = totalWithdrawalsCents / 100;
+      
+      const totalIncome = platformCredits + platformSuperchat + platformRegistration + platformLiveEarnings;
       const platformBalance = totalIncome - totalWithdrawals;
 
       console.log("[Admin Revenue Debug] Final revenue:", {
         platformCredits,
         platformSuperchat,
         platformRegistration,
+        platformLiveEarnings,
         totalIncome,
         totalWithdrawals,
         platformBalance,
@@ -516,9 +548,11 @@ const Admin = () => {
         creditsIncome,
         superchatIncome,
         registrationIncome,
+        liveEarningsIncome,
         platformCredits,
         platformSuperchat,
         platformRegistration,
+        platformLiveEarnings,
         totalWithdrawals,
         platformBalance,
       });
@@ -540,7 +574,7 @@ const Admin = () => {
     return null;
   }
 
-  const totalPlatformIncome = revenue.platformCredits + revenue.platformSuperchat + revenue.platformRegistration;
+  const totalPlatformIncome = revenue.platformCredits + revenue.platformSuperchat + revenue.platformRegistration + revenue.platformLiveEarnings;
 
   return (
     <AppLayout showSidebar={false}>
@@ -883,10 +917,10 @@ const Admin = () => {
               </Card>
             </div>
 
-            {/* Income Breakdown - 3 Cards */}
+            {/* Income Breakdown - 4 Cards */}
             <div>
               <h4 className="font-semibold mb-3 text-sm sm:text-base">{t.revenue.entriesByType}</h4>
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 <Card style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)' }}>
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3 mb-2">
@@ -910,6 +944,19 @@ const Admin = () => {
                       </div>
                     </div>
                     <p className="font-bold text-2xl text-yellow-500">+{formatBRL(revenue.platformSuperchat)}</p>
+                  </CardContent>
+                </Card>
+
+                <Card style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)', borderColor: 'rgba(168, 85, 247, 0.3)' }}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Activity className="h-5 w-5 text-purple-500" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Consumo Lives</p>
+                        <p className="text-xs text-muted-foreground/70">{t.revenue.gross}: {formatBRL(revenue.liveEarningsIncome)}</p>
+                      </div>
+                    </div>
+                    <p className="font-bold text-2xl text-purple-500">+{formatBRL(revenue.platformLiveEarnings)}</p>
                   </CardContent>
                 </Card>
 
