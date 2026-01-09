@@ -1050,167 +1050,182 @@ const Admin = () => {
           </CardContent>
         </Card>
 
-        {/* Promotional Videos Panel - 3rd position after revenue breakdown */}
-        <PromotionalVideosPanel />
+        {/* ========================================== */}
+        {/* CATEGORIA: MARKETING & CONTEÚDO */}
+        {/* ========================================== */}
+        <section className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Video className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Marketing & Conteúdo</h2>
+          </div>
+          <div className="space-y-4">
+            <PromotionalVideosPanel />
+            <PromoVideoAnalyticsPanel />
+          </div>
+        </section>
 
-        {/* Promo Video Analytics */}
-        <PromoVideoAnalyticsPanel />
+        {/* ========================================== */}
+        {/* CATEGORIA: PAGAMENTOS & FINANCEIRO */}
+        {/* ========================================== */}
+        <section className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Wallet className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Pagamentos & Financeiro</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Process Pending Payment */}
+            <Card className="border-yellow-500/30 bg-yellow-500/5">
+              <CardHeader className="p-4">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CreditCard className="h-5 w-5 text-yellow-500" />
+                  Processar Pagamento
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Processe pagamentos do Mercado Pago manualmente.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="ID do pagamento"
+                    value={pendingPaymentId}
+                    onChange={(e) => setPendingPaymentId(e.target.value)}
+                    className="flex-1 text-sm"
+                  />
+                  <Button 
+                    size="sm"
+                    onClick={handleProcessPendingPayment}
+                    disabled={processingPayment || !pendingPaymentId.trim()}
+                  >
+                    {processingPayment ? (
+                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      "Processar"
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Process Pending Payment */}
-        <Card className="mb-6 sm:mb-8 border-yellow-500/30 bg-yellow-500/5">
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CreditCard className="h-5 w-5 text-yellow-500" />
-              Processar Pagamento Pendente
-            </CardTitle>
-            <CardDescription>
-              Se um pagamento foi feito mas não apareceu no sistema, insira o ID da transação do Mercado Pago para processar manualmente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0">
-            <div className="flex gap-2">
-              <Input
-                placeholder="ID do pagamento (ex: 136354297753)"
-                value={pendingPaymentId}
-                onChange={(e) => setPendingPaymentId(e.target.value)}
-                className="flex-1"
-              />
-              <Button 
-                onClick={handleProcessPendingPayment}
-                disabled={processingPayment || !pendingPaymentId.trim()}
-              >
-                {processingPayment ? (
-                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  "Processar"
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Backfill Platform Revenue */}
-        <Card className="mb-6 sm:mb-8 border-green-500/30 bg-green-500/5">
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              Atualizar Receita da Plataforma
-            </CardTitle>
-            <CardDescription>
-              Processa registros passados que não tiveram o webhook do Mercado Pago executado corretamente e alimenta os índices de receita.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
-            <Button 
-              onClick={handleBackfillRevenue}
-              disabled={backfillLoading}
-              variant="outline"
-              className="border-green-500/50 hover:bg-green-500/10"
-            >
-              {backfillLoading ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                  Processando...
-                </>
-              ) : (
-                "Atualizar Receita Retroativa"
-              )}
-            </Button>
-            
-            {backfillResult && (
-              <div className={`p-4 rounded-lg overflow-hidden ${backfillResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
-                {backfillResult.success ? (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="font-medium text-green-500">Receita Atualizada!</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Processados: {backfillResult.processed} | Ignorados: {backfillResult.skipped}
-                    </p>
-                    {backfillResult.results && backfillResult.results.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-sm font-medium mb-1">Detalhes:</p>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {backfillResult.results.map((r, i) => (
-                            <li key={i} className="break-words">
-                              {r.username}: R$ {(r.platformAmountCents / 100).toFixed(2)} para plataforma
-                            </li>
-                          ))}
-                        </ul>
+            {/* Backfill Platform Revenue */}
+            <Card className="border-green-500/30 bg-green-500/5">
+              <CardHeader className="p-4">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  Receita Retroativa
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Atualiza registros passados sem webhook processado.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                <Button 
+                  size="sm"
+                  onClick={handleBackfillRevenue}
+                  disabled={backfillLoading}
+                  variant="outline"
+                  className="w-full border-green-500/50 hover:bg-green-500/10"
+                >
+                  {backfillLoading ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                      Processando...
+                    </>
+                  ) : (
+                    "Atualizar"
+                  )}
+                </Button>
+                
+                {backfillResult && (
+                  <div className={`p-3 rounded-lg text-xs ${backfillResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                    {backfillResult.success ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                          <span className="font-medium text-green-500">Atualizado!</span>
+                        </div>
+                        <p className="text-muted-foreground">
+                          {backfillResult.processed} processados, {backfillResult.skipped} ignorados
+                        </p>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span className="text-red-500 break-words">{backfillResult.error}</span>
                       </div>
                     )}
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                    <span className="text-red-500 break-words">{backfillResult.error}</span>
                   </div>
                 )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        {/* Webhook Test */}
-        <Card className="mb-6 sm:mb-8 border-blue-500/30 bg-blue-500/5">
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="h-5 w-5 text-blue-500" />
-              Testar Webhook do Mercado Pago
-            </CardTitle>
-            <CardDescription>
-              Verifique se a conexão com o Mercado Pago está funcionando e se o webhook está configurado corretamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
-            <Button 
-              onClick={handleTestWebhook}
-              disabled={testingWebhook}
-              variant="outline"
-            >
-              {testingWebhook ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                  Testando...
-                </>
-              ) : (
-                "Testar Conexão"
-              )}
-            </Button>
-            
-            {webhookTestResult && (
-              <div className={`p-4 rounded-lg overflow-hidden ${webhookTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
-                {webhookTestResult.success ? (
-                  <>
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      <span className="font-medium text-green-500">Conexão OK!</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-2 break-words">
-                      Conta: {webhookTestResult.accountInfo?.email || webhookTestResult.accountInfo?.nickname}
-                    </p>
-                    <p className="text-sm font-medium mb-2">URL do Webhook:</p>
-                    <code className="block p-2 bg-background/50 rounded text-xs break-all overflow-x-auto mb-3">
-                      {webhookTestResult.expectedWebhookUrl}
-                    </code>
-                    <p className="text-sm font-medium mb-1">Como configurar:</p>
-                    <ol className="text-xs text-muted-foreground space-y-1 overflow-hidden">
-                      {webhookTestResult.instructions?.map((instruction, i) => (
-                        <li key={i} className="break-words">{instruction}</li>
-                      ))}
-                    </ol>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                    <span className="text-red-500 break-words">{webhookTestResult.error}</span>
+            {/* Webhook Test */}
+            <Card className="border-blue-500/30 bg-blue-500/5">
+              <CardHeader className="p-4">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Shield className="h-5 w-5 text-blue-500" />
+                  Testar Webhook
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Verifica a conexão com Mercado Pago.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                <Button 
+                  size="sm"
+                  onClick={handleTestWebhook}
+                  disabled={testingWebhook}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {testingWebhook ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                      Testando...
+                    </>
+                  ) : (
+                    "Testar Conexão"
+                  )}
+                </Button>
+                
+                {webhookTestResult && (
+                  <div className={`p-3 rounded-lg text-xs ${webhookTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
+                    {webhookTestResult.success ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                          <span className="font-medium text-green-500">Conexão OK!</span>
+                        </div>
+                        <p className="text-muted-foreground break-words">
+                          {webhookTestResult.accountInfo?.email || webhookTestResult.accountInfo?.nickname}
+                        </p>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span className="text-red-500 break-words">{webhookTestResult.error}</span>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* ========================================== */}
+        {/* CATEGORIA: MODERAÇÃO & LOGS */}
+        {/* ========================================== */}
+        <section className="mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">Moderação & Logs</h2>
+          </div>
+          <div className="space-y-4">
+            <ContentReportsPanel />
+            <WebhookLogsPanel />
+          </div>
+        </section>
 
         {/* Confirmation Dialog */}
         <AlertDialog open={confirmDialog?.open} onOpenChange={(open) => { if (!open) { setConfirmDialog(null); setBanReason(""); } }}>
@@ -1263,12 +1278,6 @@ const Admin = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {/* Content Reports Panel */}
-        <ContentReportsPanel />
-
-        {/* Webhook Logs Panel */}
-        <WebhookLogsPanel />
 
       </main>
     </AppLayout>
