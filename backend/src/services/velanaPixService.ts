@@ -47,16 +47,18 @@ export async function createPixTransfer(
     };
   }
 
-  // Converte centavos para reais (Velana espera valor em reais)
-  const amountBRL = (params.amountCents / 100).toFixed(2);
-
+  // Velana POST /v1/transfers espera amount em CENTAVOS
   // Payload conforme documentação Velana
+  const postbackUrl = process.env.SUPABASE_URL 
+    ? `${process.env.SUPABASE_URL}/functions/v1/velana-webhook`
+    : undefined;
+
   const payload = {
-    amount: parseFloat(amountBRL),
+    amount: params.amountCents, // Velana espera em centavos (integer)
     pixKey: params.pixKey,
-    pixKeyType: params.pixKeyType,
-    description: params.description || 'Saque Stream Live Hub',
+    postbackUrl: postbackUrl,
     externalId: params.correlationId,
+    description: params.description || 'Saque PIX - Stream Star',
   };
 
   try {
@@ -64,12 +66,13 @@ export async function createPixTransfer(
       userId: params.userId,
       amountCents: params.amountCents,
       correlationId: params.correlationId,
+      postbackUrl,
     });
 
     // Velana usa Basic Auth: base64(SECRET_KEY:x)
     const authHeader = `Basic ${Buffer.from(`${config.apiKey}:x`).toString('base64')}`;
 
-    const response = await fetch(`${config.baseUrl}/v1/pix/transfers`, {
+    const response = await fetch(`${config.baseUrl}/v1/transfers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -129,7 +132,7 @@ export async function getPixTransferStatus(
     // Velana usa Basic Auth
     const authHeader = `Basic ${Buffer.from(`${config.apiKey}:x`).toString('base64')}`;
 
-    const response = await fetch(`${config.baseUrl}/v1/pix/transfers/${transferId}`, {
+    const response = await fetch(`${config.baseUrl}/v1/transfers/${transferId}`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,

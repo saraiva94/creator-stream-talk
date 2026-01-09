@@ -323,32 +323,41 @@ serve(async (req) => {
       });
     }
 
-    // 13. Chama API Velana
+    // 13. Chama API Velana - POST /v1/transfers (endpoint correto para cash-out)
     let velanaProcessed = false;
+    let velanaTransferId: string | null = null;
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const postbackUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
     
     console.log('[pix-withdraw] Checking Velana config...', { 
       hasApiKey: !!VELANA_API_KEY, 
-      baseUrl: VELANA_BASE_URL 
+      baseUrl: VELANA_BASE_URL,
+      postbackUrl,
     });
     
     if (VELANA_API_KEY) {
-      const amountBRL = (amountCents / 100).toFixed(2);
-
+      // Velana POST /v1/transfers espera:
+      // - amount: valor em CENTAVOS (integer)
+      // - pixKey: chave PIX de destino
+      // - postbackUrl: URL do webhook para receber atualizações
+      // - externalId: ID externo para correlação (opcional)
+      // - description: descrição da transferência (opcional)
       const velanaPayload = {
-        amount: parseFloat(amountBRL),
+        amount: amountCents, // Velana espera centavos
         pixKey: pixKey,
-        pixKeyType: pixKeyType,
-        description: 'Saque Stream Live Hub',
+        postbackUrl: postbackUrl,
         externalId: correlationId,
+        description: `Saque PIX - Stream Star - ${payoutRequest.id}`,
       };
 
       try {
-        console.log('[pix-withdraw] Calling Velana API...', { 
-          url: `${VELANA_BASE_URL}/v1/pix/transfers`,
+        console.log('[pix-withdraw] Calling Velana POST /v1/transfers...', { 
+          url: `${VELANA_BASE_URL}/v1/transfers`,
           payload: { ...velanaPayload, pixKey: maskPixKey(pixKey) }
         });
         
-        const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/pix/transfers`, {
+        const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/transfers`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -357,33 +366,55 @@ serve(async (req) => {
           body: JSON.stringify(velanaPayload),
         });
 
-        const velanaData = await velanaResponse.json();
+        const responseText = await velanaResponse.text();
+        let velanaData: any;
+        
+        try {
+          velanaData = JSON.parse(responseText);
+        } catch {
+          console.error('[pix-withdraw] Velana returned non-JSON:', responseText.substring(0, 200));
+          velanaData = { error: 'Invalid JSON response', raw: responseText.substring(0, 200) };
+        }
+        
         console.log('[pix-withdraw] Velana response:', { 
           status: velanaResponse.status, 
           ok: velanaResponse.ok,
           data: velanaData 
         });
 
-        if (velanaResponse.ok) {
+        if (velanaResponse.ok && velanaData.id) {
           velanaProcessed = true;
+          velanaTransferId = velanaData.id;
+          
+          // Mapeia status Velana para status interno
+          // pending | bank_processing | success | failed
+          let internalStatus = 'processing';
+          if (velanaData.status === 'success') {
+            internalStatus = 'paid';
+          } else if (velanaData.status === 'failed') {
+            internalStatus = 'failed';
+          } else if (velanaData.status === 'pending' || velanaData.status === 'bank_processing') {
+            internalStatus = 'processing';
+          }
           
           // Atualiza payout_request com dados da Velana
           await supabase
             .from('payout_requests')
             .update({
-              status: 'approved',
+              status: internalStatus,
+              approved_at: new Date().toISOString(),
               psp_transaction_id: velanaData.id,
               psp_response: velanaData,
             })
             .eq('id', payoutRequest.id);
 
-          console.log('[pix-withdraw] Velana transfer created:', velanaData.id);
+          console.log('[pix-withdraw] Velana transfer created:', velanaData.id, 'status:', velanaData.status);
         } else {
           console.error('[pix-withdraw] Velana API error:', velanaData);
           await supabase
             .from('payout_requests')
             .update({
-              admin_notes: `Processamento automático falhou: ${velanaData.message || JSON.stringify(velanaData)}. Aguardando processamento manual.`,
+              admin_notes: `Processamento automático falhou: ${velanaData.message || velanaData.error || JSON.stringify(velanaData)}. Aguardando processamento manual.`,
               psp_response: velanaData,
             })
             .eq('id', payoutRequest.id);
@@ -453,11 +484,12 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         payoutId: payoutRequest.id,
-        status: velanaProcessed ? 'approved' : 'pending',
+        status: velanaProcessed ? 'processing' : 'pending',
         message: velanaProcessed 
-          ? 'Saque processado automaticamente' 
+          ? 'Saque enviado para processamento automático via PIX' 
           : 'Saque solicitado com sucesso. Aguarde processamento.',
         velanaProcessed,
+        velanaTransferId,
       }),
       {
         status: 200,
