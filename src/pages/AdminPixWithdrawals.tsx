@@ -122,7 +122,6 @@ const AdminPixWithdrawals = () => {
             <PixWithdrawalFilters
               value={statusFilter}
               onChange={setStatusFilter}
-              onReset={() => setStatusFilter("pending")}
             />
 
             <PixWithdrawalsTable

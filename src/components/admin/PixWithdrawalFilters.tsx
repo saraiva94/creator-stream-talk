@@ -5,10 +5,9 @@ import { useLanguage } from "@/hooks/useLanguage";
 type Props = {
   value: PixWithdrawalStatus | "all";
   onChange: (value: PixWithdrawalStatus | "all") => void;
-  onReset: () => void;
 };
 
-const PixWithdrawalFilters = ({ value, onChange, onReset }: Props) => {
+const PixWithdrawalFilters = ({ value, onChange }: Props) => {
   const { t } = useLanguage();
 
   const filters: { label: string; value: PixWithdrawalStatus | "all" }[] = [
@@ -31,9 +30,6 @@ const PixWithdrawalFilters = ({ value, onChange, onReset }: Props) => {
           {filter.label}
         </Button>
       ))}
-      <Button size="sm" variant="ghost" onClick={onReset} className="ml-auto">
-        {t.pixWithdrawals.reset}
-      </Button>
     </div>
   );
 };
