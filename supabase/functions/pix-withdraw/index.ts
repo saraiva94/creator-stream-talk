@@ -5,8 +5,15 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const VELANA_API_KEY = Deno.env.get('VELANA_API_KEY');
-const VELANA_BASE_URL = 'https://api.velana.io';
+const VELANA_BASE_URL = 'https://api.velana.com.br';
 const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
+
+// Helper para criar header de autenticação Basic (Velana usa Basic Auth)
+function getVelanaAuthHeader(apiKey: string): string {
+  // Velana espera: Basic base64(SECRET_KEY:x)
+  const credentials = `${apiKey}:x`;
+  return `Basic ${btoa(credentials)}`;
+}
 
 interface PixWithdrawRequest {
   userId: string;
@@ -319,6 +326,11 @@ serve(async (req) => {
     // 13. Chama API Velana
     let velanaProcessed = false;
     
+    console.log('[pix-withdraw] Checking Velana config...', { 
+      hasApiKey: !!VELANA_API_KEY, 
+      baseUrl: VELANA_BASE_URL 
+    });
+    
     if (VELANA_API_KEY) {
       const amountBRL = (amountCents / 100).toFixed(2);
 
@@ -331,18 +343,26 @@ serve(async (req) => {
       };
 
       try {
-        console.log('[pix-withdraw] Calling Velana API...');
+        console.log('[pix-withdraw] Calling Velana API...', { 
+          url: `${VELANA_BASE_URL}/v1/pix/transfers`,
+          payload: { ...velanaPayload, pixKey: maskPixKey(pixKey) }
+        });
         
         const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/pix/transfers`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${VELANA_API_KEY}`,
+            'Authorization': getVelanaAuthHeader(VELANA_API_KEY),
           },
           body: JSON.stringify(velanaPayload),
         });
 
         const velanaData = await velanaResponse.json();
+        console.log('[pix-withdraw] Velana response:', { 
+          status: velanaResponse.status, 
+          ok: velanaResponse.ok,
+          data: velanaData 
+        });
 
         if (velanaResponse.ok) {
           velanaProcessed = true;
@@ -363,17 +383,28 @@ serve(async (req) => {
           await supabase
             .from('payout_requests')
             .update({
-              admin_notes: `Processamento automático falhou: ${velanaData.message || 'Erro na API Velana'}. Aguardando processamento manual.`,
+              admin_notes: `Processamento automático falhou: ${velanaData.message || JSON.stringify(velanaData)}. Aguardando processamento manual.`,
               psp_response: velanaData,
             })
             .eq('id', payoutRequest.id);
         }
       } catch (velanaError) {
         console.error('[pix-withdraw] Velana fetch error:', velanaError);
-        // Mantém status pending para retry manual
+        await supabase
+          .from('payout_requests')
+          .update({
+            admin_notes: `Erro de conexão com API Velana: ${velanaError instanceof Error ? velanaError.message : 'Erro desconhecido'}. Aguardando processamento manual.`,
+          })
+          .eq('id', payoutRequest.id);
       }
     } else {
       console.log('[pix-withdraw] Velana not configured - payout requires manual processing');
+      await supabase
+        .from('payout_requests')
+        .update({
+          admin_notes: 'VELANA_API_KEY não configurada. Processamento manual necessário.',
+        })
+        .eq('id', payoutRequest.id);
     }
 
     // 14. Registrar transação
