@@ -34,10 +34,10 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     const rootEarnings = (logsAsRoot ?? []).reduce((acc, row) => acc + (row.amount_root ?? 0), 0);
     const totalEarningsCents = directEarnings + rootEarnings;
 
-    // Get affiliate_earnings from profiles as source of truth
+    // Get affiliate_earnings and legacy balance from profiles as source of truth
     const { data: profileRow, error: profileError } = await supabase
       .from('profiles')
-      .select('affiliate_earnings')
+      .select('affiliate_earnings, balance')
       .eq('id', profileId)
       .maybeSingle();
 
@@ -46,6 +46,8 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     }
 
     const affiliateEarningsCents = profileRow?.affiliate_earnings ?? 0;
+    // Include legacy balance field (stored as decimal in R$, convert to cents)
+    const legacyBalanceCents = Math.round((profileRow?.balance ?? 0) * 100);
 
     // Get creator wallet balance if user is a creator
     const { data: creatorWallet } = await supabase
@@ -56,8 +58,8 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
 
     const creatorBalanceCents = creatorWallet?.balance_cents ?? 0;
     
-    // Available balance = affiliate earnings + creator wallet balance
-    const availableBalanceCents = affiliateEarningsCents + creatorBalanceCents;
+    // Available balance = affiliate earnings + creator wallet balance + legacy balance
+    const availableBalanceCents = affiliateEarningsCents + creatorBalanceCents + legacyBalanceCents;
 
     // Count DIRECT referrals from profiles (where user is referrer_direct)
     const { count: directProfileCount } = await supabase

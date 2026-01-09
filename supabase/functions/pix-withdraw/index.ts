@@ -11,7 +11,8 @@ const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
 interface PixWithdrawRequest {
   userId: string;
   pixKey: string;
-  amountCents: number;
+  amountCents?: number;
+  action?: 'validate' | 'withdraw';
 }
 
 const corsHeaders = {
@@ -75,15 +76,39 @@ serve(async (req) => {
 
     // 3. Parse do body
     const body: PixWithdrawRequest = await req.json();
-    const { userId, pixKey, amountCents } = body;
+    const { userId, pixKey, amountCents, action } = body;
 
     console.log('[pix-withdraw] Request:', { 
       userId, 
       pixKey: maskPixKey(pixKey), 
-      amountCents 
+      amountCents,
+      action: action || 'withdraw'
     });
 
-    // 4. Validações básicas
+    // 3.5. Handle validation action - just validate the PIX key without requiring amountCents
+    if (action === 'validate') {
+      if (!pixKey) {
+        return new Response(JSON.stringify({ valid: false, error: 'Chave PIX obrigatória' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+      
+      const keyType = detectPixKeyType(pixKey);
+      // For now, just return validation success with detected key type
+      // In production, you could integrate with DICT to validate the key
+      return new Response(JSON.stringify({ 
+        valid: true, 
+        keyType,
+        normalizedKey: pixKey.trim(),
+        holderName: 'Chave válida',
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // 4. Validações básicas (for withdraw action)
     if (!pixKey || !amountCents) {
       return new Response(JSON.stringify({ error: 'Dados incompletos' }), {
         status: 400,
@@ -105,10 +130,10 @@ serve(async (req) => {
       );
     }
 
-    // 5. Busca saldos (afiliado + criador)
+    // 5. Busca saldos (afiliado + criador + legado)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('affiliate_earnings')
+      .select('affiliate_earnings, balance')
       .eq('id', userId)
       .single();
 
@@ -120,9 +145,11 @@ serve(async (req) => {
 
     const affiliateBalance = profile?.affiliate_earnings || 0;
     const creatorBalance = creatorWallet?.balance_cents || 0;
-    const totalAvailable = affiliateBalance + creatorBalance;
+    // Include legacy balance field (stored as decimal in R$, convert to cents)
+    const legacyBalanceCents = Math.round((profile?.balance || 0) * 100);
+    const totalAvailable = affiliateBalance + creatorBalance + legacyBalanceCents;
 
-    console.log('[pix-withdraw] Balances:', { affiliateBalance, creatorBalance, totalAvailable });
+    console.log('[pix-withdraw] Balances:', { affiliateBalance, creatorBalance, legacyBalanceCents, totalAvailable });
 
     // 6. Valida saldo suficiente
     if (totalAvailable < amountCents) {
@@ -137,31 +164,50 @@ serve(async (req) => {
     // 7. Gera ID único (correlationId)
     const correlationId = crypto.randomUUID();
 
-    // 8. Debita saldos (prioriza afiliado, depois criador)
+    // 8. Debita saldos (prioriza afiliado, depois legado, depois criador)
     let remainingDebit = amountCents;
     let newAffiliateBalance = affiliateBalance;
+    let newLegacyBalance = legacyBalanceCents;
     let newCreatorBalance = creatorBalance;
     let deductFromAffiliate = 0;
+    let deductFromLegacy = 0;
     let deductFromCreator = 0;
 
-    if (affiliateBalance > 0) {
+    // First, deduct from affiliate earnings
+    if (affiliateBalance > 0 && remainingDebit > 0) {
       deductFromAffiliate = Math.min(affiliateBalance, remainingDebit);
       newAffiliateBalance -= deductFromAffiliate;
       remainingDebit -= deductFromAffiliate;
     }
 
+    // Second, deduct from legacy balance
+    if (legacyBalanceCents > 0 && remainingDebit > 0) {
+      deductFromLegacy = Math.min(legacyBalanceCents, remainingDebit);
+      newLegacyBalance -= deductFromLegacy;
+      remainingDebit -= deductFromLegacy;
+    }
+
+    // Finally, deduct from creator wallet
     if (remainingDebit > 0) {
       deductFromCreator = remainingDebit;
       newCreatorBalance -= remainingDebit;
     }
 
-    console.log('[pix-withdraw] Deductions:', { deductFromAffiliate, deductFromCreator });
+    console.log('[pix-withdraw] Deductions:', { deductFromAffiliate, deductFromLegacy, deductFromCreator });
 
     // 9. Atualiza saldos no banco
-    if (deductFromAffiliate > 0) {
+    if (deductFromAffiliate > 0 || deductFromLegacy > 0) {
+      const profileUpdate: Record<string, number> = {};
+      if (deductFromAffiliate > 0) {
+        profileUpdate.affiliate_earnings = newAffiliateBalance;
+      }
+      if (deductFromLegacy > 0) {
+        // Convert back to decimal for legacy balance field
+        profileUpdate.balance = newLegacyBalance / 100;
+      }
       await supabase
         .from('profiles')
-        .update({ affiliate_earnings: newAffiliateBalance })
+        .update(profileUpdate)
         .eq('id', userId);
     }
 
@@ -198,10 +244,17 @@ serve(async (req) => {
       console.error('[pix-withdraw] Erro ao criar payout_request:', insertError);
       
       // Rollback saldos
-      if (deductFromAffiliate > 0) {
+      if (deductFromAffiliate > 0 || deductFromLegacy > 0) {
+        const rollbackProfile: Record<string, number> = {};
+        if (deductFromAffiliate > 0) {
+          rollbackProfile.affiliate_earnings = affiliateBalance;
+        }
+        if (deductFromLegacy > 0) {
+          rollbackProfile.balance = legacyBalanceCents / 100;
+        }
         await supabase
           .from('profiles')
-          .update({ affiliate_earnings: affiliateBalance })
+          .update(rollbackProfile)
           .eq('id', userId);
       }
       if (creatorWallet) {
@@ -232,6 +285,20 @@ serve(async (req) => {
         reference_id: payoutRequest.id,
         description: `Saque PIX (afiliado) - R$ ${(deductFromAffiliate / 100).toFixed(2)}`,
         metadata: { action: 'withdrawal.hold', correlationId, source: 'affiliate' },
+      });
+    }
+
+    if (deductFromLegacy > 0) {
+      await supabase.from('wallet_transactions').insert({
+        wallet_type: 'legacy',
+        wallet_id: userId,
+        type: 'hold',
+        amount_cents: -deductFromLegacy,
+        balance_after_cents: newLegacyBalance,
+        reference_type: 'payout_request',
+        reference_id: payoutRequest.id,
+        description: `Saque PIX (saldo legado) - R$ ${(deductFromLegacy / 100).toFixed(2)}`,
+        metadata: { action: 'withdrawal.hold', correlationId, source: 'legacy' },
       });
     }
     
