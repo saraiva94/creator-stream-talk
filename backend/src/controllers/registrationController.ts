@@ -11,9 +11,10 @@ import {
   resolveReferralContext,
   REGISTRATION_PRICE_VALUE,
 } from '../services/affiliateService';
-import { createCheckoutPreference } from '../services/mercadoPagoService';
+import { createPixPayment, REGISTRATION_PRICE_CENTS } from '../services/velanaCashInService';
 import { parseWithZod } from '../validation/utils';
 import { registrationCheckoutSchema } from '../validation/affiliateSchemas';
+import { getEnv } from '../lib/env';
 
 // Helper function to calculate commission cents
 const calculateRegistrationCommissionCents = (
@@ -106,7 +107,7 @@ const maybeCreateSession = async (email?: string, password?: string) => {
 
 export const registrationCheckout = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password, referralCode, referrer_id, free, root } = parseWithZod(
+    const { email, password, referralCode, referrer_id, free, root, customerName, customerCpf } = parseWithZod(
       registrationCheckoutSchema,
       req.body ?? {},
     );
@@ -195,19 +196,35 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
       });
     }
 
-    // paymentId já foi criado acima, apenas criar a preference de pagamento
+    // Create PIX payment via Velana
+    const supabaseUrl = getEnv('SUPABASE_URL');
+    const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
 
-    const preference = await createCheckoutPreference({
-      purchaseType: 'registration',
+    const velanaResult = await createPixPayment({
+      amountCents: REGISTRATION_PRICE_CENTS,
       userId: profile.profileId,
-      price: REGISTRATION_PRICE_VALUE,
-      paymentId,
-      referrerId: effectiveContext.directId,
-      referrerParentId: effectiveContext.rootId,
-      isRootCreator: effectiveContext.isRootCreator,
-      newUserEmail: profile.email,
-      inviteId: effectiveContext.inviteId ?? referralCode ?? null,
+      eventType: 'REGISTRATION',
+      customer: {
+        name: customerName || email?.split('@')[0] || 'Usuário',
+        email: profile.email,
+        cpf: customerCpf || '00000000000',
+      },
+      metadata: {
+        userId: profile.profileId,
+        eventType: 'REGISTRATION',
+        directId: effectiveContext.directId,
+        rootId: effectiveContext.rootId,
+        isRootCreator: effectiveContext.isRootCreator,
+        inviteId: effectiveContext.inviteId,
+      },
+      description: 'StreamStar - Ativação de Conta',
+      webhookUrl,
+      externalReference: paymentId,
     });
+
+    if (!velanaResult.success) {
+      throw new Error(velanaResult.error || 'Falha ao criar pagamento PIX');
+    }
 
     logger.info({
       event: 'registration.checkout.created',
@@ -216,11 +233,15 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
       directReferrer: effectiveContext.directId,
       parentReferrer: effectiveContext.rootId,
       isRootCreator: effectiveContext.isRootCreator,
+      transactionId: velanaResult.transactionId,
     });
 
     return respondSuccess(res, 201, {
-      ...preference,
       paymentId,
+      transactionId: velanaResult.transactionId,
+      secureUrl: velanaResult.secureUrl,
+      pix: velanaResult.pix,
+      amount: REGISTRATION_PRICE_VALUE,
     });
   } catch (error) {
     next(error);

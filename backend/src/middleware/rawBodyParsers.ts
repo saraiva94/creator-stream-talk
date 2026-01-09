@@ -32,4 +32,4 @@ const buildRawBodyMiddleware = (label: string): RequestHandler[] => {
   return [ensureRawBody, attachRawBody];
 };
 
-export const mercadoPagoWebhookParser = buildRawBodyMiddleware('mercadoPagoWebhook');
+export const velanaWebhookParser = buildRawBodyMiddleware('velanaWebhook');

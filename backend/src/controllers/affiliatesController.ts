@@ -9,10 +9,11 @@ import {
   resolveReferralContext,
   REGISTRATION_PRICE_VALUE,
 } from '../services/affiliateService';
-import { createCheckoutPreference } from '../services/mercadoPagoService';
+import { createPixPayment, REGISTRATION_PRICE_CENTS } from '../services/velanaCashInService';
 import { parseWithZod } from '../validation/utils';
 import { affiliateRegisterSchema, referralCodeSchema } from '../validation/affiliateSchemas';
 import { supabase } from '../lib/supabaseClient';
+import { getEnv } from '../lib/env';
 
 export const registerAffiliate = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -23,7 +24,7 @@ export const registerAffiliate = async (req: Request, res: Response, next: NextF
       throw error;
     }
 
-    const { referralCode } = parseWithZod(affiliateRegisterSchema, req.body ?? {});
+    const { referralCode, customerName, customerCpf } = parseWithZod(affiliateRegisterSchema, req.body ?? {});
 
     const { data: profileRow, error: profileError } = await supabase
       .from('profiles')
@@ -40,17 +41,36 @@ export const registerAffiliate = async (req: Request, res: Response, next: NextF
 
     const paymentId = crypto.randomUUID();
     await recordPendingRegistrationReferral(paymentId, profileId, context);
-    const preference = await createCheckoutPreference({
-      purchaseType: 'registration',
+
+    // Create PIX payment via Velana
+    const supabaseUrl = getEnv('SUPABASE_URL');
+    const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
+
+    const velanaResult = await createPixPayment({
+      amountCents: REGISTRATION_PRICE_CENTS,
       userId: profileId,
-      price: REGISTRATION_PRICE_VALUE,
-      paymentId,
-      referrerId: context.directId,
-      referrerParentId: context.rootId,
-      isRootCreator: context.isRootCreator,
-      newUserEmail: profileRow?.email ?? null,
-      inviteId: context.inviteId ?? referralCode ?? null,
+      eventType: 'REGISTRATION',
+      customer: {
+        name: customerName || profileRow?.email?.split('@')[0] || 'Usuário',
+        email: profileRow?.email || '',
+        cpf: customerCpf || '00000000000',
+      },
+      metadata: {
+        userId: profileId,
+        eventType: 'REGISTRATION',
+        directId: context.directId,
+        rootId: context.rootId,
+        isRootCreator: context.isRootCreator,
+        inviteId: context.inviteId ?? referralCode ?? null,
+      },
+      description: 'StreamStar - Ativação de Conta',
+      webhookUrl,
+      externalReference: paymentId,
     });
+
+    if (!velanaResult.success) {
+      throw new Error(velanaResult.error || 'Falha ao criar pagamento PIX');
+    }
 
     logger.info({
       event: 'affiliate.registration.start',
@@ -59,11 +79,14 @@ export const registerAffiliate = async (req: Request, res: Response, next: NextF
       root: context.rootId,
       direct: context.directId,
       paymentId,
+      transactionId: velanaResult.transactionId,
     });
 
     return respondSuccess(res, 201, {
-      ...preference,
       paymentId,
+      transactionId: velanaResult.transactionId,
+      secureUrl: velanaResult.secureUrl,
+      pix: velanaResult.pix,
       referral: context,
       amount: REGISTRATION_PRICE_VALUE,
     });

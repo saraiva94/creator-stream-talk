@@ -86,10 +86,6 @@ const Admin = () => {
   } | null>(null);
   const [banReason, setBanReason] = useState("");
   
-  // Pending payment processing
-  const [pendingPaymentId, setPendingPaymentId] = useState("");
-  const [processingPayment, setProcessingPayment] = useState(false);
-  
   // Backfill revenue
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{
@@ -97,16 +93,6 @@ const Admin = () => {
     processed: number;
     skipped: number;
     results?: Array<{ username: string; platformAmountCents: number }>;
-    error?: string;
-  } | null>(null);
-  
-  // Webhook test
-  const [testingWebhook, setTestingWebhook] = useState(false);
-  const [webhookTestResult, setWebhookTestResult] = useState<{
-    success: boolean;
-    accountInfo?: { id: number; email: string; nickname: string; first_name: string; last_name: string };
-    expectedWebhookUrl?: string;
-    instructions?: string[];
     error?: string;
   } | null>(null);
   
@@ -327,62 +313,6 @@ const Admin = () => {
     }
   };
 
-  // Process pending payment manually
-  const handleProcessPendingPayment = async () => {
-    if (!pendingPaymentId.trim()) {
-      toast({
-        title: "Erro",
-        description: "Insira o ID do pagamento",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setProcessingPayment(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const response = await supabase.functions.invoke("process-pending-payment", {
-        body: { paymentId: pendingPaymentId.trim() },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message || "Failed to process payment");
-      }
-
-      const result = response.data;
-      
-      if (result.duplicate) {
-        toast({
-          title: "Pagamento já processado",
-          description: "Este pagamento já foi processado anteriormente.",
-        });
-      } else if (result.error) {
-        throw new Error(result.error);
-      } else {
-        toast({
-          title: "Pagamento processado!",
-          description: `Tipo: ${result.processed}, Valor: R$ ${result.amount?.toFixed(2)}`,
-        });
-        // Refresh stats
-        fetchStats();
-        fetchRevenueBreakdown();
-      }
-
-      setPendingPaymentId("");
-    } catch (error) {
-      console.error("Error processing payment:", error);
-      toast({
-        title: "Erro ao processar pagamento",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-        variant: "destructive",
-      });
-    } finally {
-      setProcessingPayment(false);
-    }
-  };
-
   // Backfill platform revenue for existing registrations
   const handleBackfillRevenue = async () => {
     setBackfillLoading(true);
@@ -423,46 +353,6 @@ const Admin = () => {
       });
     } finally {
       setBackfillLoading(false);
-    }
-  };
-
-  // Test webhook connection
-  const handleTestWebhook = async () => {
-    setTestingWebhook(true);
-    setWebhookTestResult(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const response = await supabase.functions.invoke("webhook-test");
-
-      if (response.error) {
-        throw new Error(response.error.message || "Failed to test webhook");
-      }
-
-      setWebhookTestResult(response.data);
-      
-      if (response.data.success) {
-        toast({
-          title: "Conexão com Mercado Pago OK!",
-          description: `Conta: ${response.data.accountInfo?.email || response.data.accountInfo?.nickname}`,
-        });
-      } else {
-        toast({
-          title: "Erro na conexão",
-          description: response.data.error,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error testing webhook:", error);
-      toast({
-        title: "Erro ao testar webhook",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-        variant: "destructive",
-      });
-    } finally {
-      setTestingWebhook(false);
     }
   };
 
@@ -1065,48 +955,14 @@ const Admin = () => {
         </section>
 
         {/* ========================================== */}
-        {/* CATEGORIA: PAGAMENTOS & FINANCEIRO */}
+        {/* CATEGORIA: FERRAMENTAS FINANCEIRAS */}
         {/* ========================================== */}
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Wallet className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Pagamentos & Financeiro</h2>
+            <h2 className="text-lg font-semibold">Ferramentas Financeiras</h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Process Pending Payment */}
-            <Card className="border-yellow-500/30 bg-yellow-500/5">
-              <CardHeader className="p-4">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <CreditCard className="h-5 w-5 text-yellow-500" />
-                  Processar Pagamento
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Processe pagamentos do Mercado Pago manualmente.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="ID do pagamento"
-                    value={pendingPaymentId}
-                    onChange={(e) => setPendingPaymentId(e.target.value)}
-                    className="flex-1 text-sm"
-                  />
-                  <Button 
-                    size="sm"
-                    onClick={handleProcessPendingPayment}
-                    disabled={processingPayment || !pendingPaymentId.trim()}
-                  >
-                    {processingPayment ? (
-                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      "Processar"
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
+          <div className="grid gap-4 md:grid-cols-2">
             {/* Backfill Platform Revenue */}
             <Card className="border-green-500/30 bg-green-500/5">
               <CardHeader className="p-4">
@@ -1115,7 +971,7 @@ const Admin = () => {
                   Receita Retroativa
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Atualiza registros passados sem webhook processado.
+                  Atualiza registros passados que não tiveram receita processada.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-3">
@@ -1132,7 +988,7 @@ const Admin = () => {
                       Processando...
                     </>
                   ) : (
-                    "Atualizar"
+                    "Atualizar Receita"
                   )}
                 </Button>
                 
@@ -1159,55 +1015,22 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Webhook Test */}
+            {/* Velana Info */}
             <Card className="border-blue-500/30 bg-blue-500/5">
               <CardHeader className="p-4">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Shield className="h-5 w-5 text-blue-500" />
-                  Testar Webhook
+                  Pagamentos via Velana
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Verifica a conexão com Mercado Pago.
+                  A plataforma usa Velana para pagamentos PIX.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-3">
-                <Button 
-                  size="sm"
-                  onClick={handleTestWebhook}
-                  disabled={testingWebhook}
-                  variant="outline"
-                  className="w-full"
-                >
-                  {testingWebhook ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                      Testando...
-                    </>
-                  ) : (
-                    "Testar Conexão"
-                  )}
-                </Button>
-                
-                {webhookTestResult && (
-                  <div className={`p-3 rounded-lg text-xs ${webhookTestResult.success ? 'bg-green-500/10 border border-green-500/30' : 'bg-red-500/10 border border-red-500/30'}`}>
-                    {webhookTestResult.success ? (
-                      <>
-                        <div className="flex items-center gap-2 mb-1">
-                          <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="font-medium text-green-500">Conexão OK!</span>
-                        </div>
-                        <p className="text-muted-foreground break-words">
-                          {webhookTestResult.accountInfo?.email || webhookTestResult.accountInfo?.nickname}
-                        </p>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                        <span className="text-red-500 break-words">{webhookTestResult.error}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+              <CardContent className="p-4 pt-0">
+                <p className="text-xs text-muted-foreground">
+                  Cash-In e Cash-Out são processados automaticamente via webhooks Velana. 
+                  Consulte os logs de webhook para verificar transações.
+                </p>
               </CardContent>
             </Card>
           </div>
