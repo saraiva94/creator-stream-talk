@@ -110,7 +110,123 @@ serve(async (req) => {
       });
     }
 
-    const adminNotes = payout.admin_notes ? JSON.parse(payout.admin_notes) : {};
+    let adminNotes: Record<string, unknown> = {};
+    try {
+      adminNotes = payout.admin_notes ? JSON.parse(payout.admin_notes) : {};
+    } catch {
+      // Se não for JSON, mantém como string no objeto
+      adminNotes = { originalNotes: payout.admin_notes };
+    }
+
+    // Action: Reprocess via Velana API
+    if (action === 'reprocess_velana') {
+      const VELANA_API_KEY = Deno.env.get('VELANA_API_KEY');
+      const VELANA_BASE_URL = 'https://api.velana.com.br';
+      
+      // Helper para Basic Auth
+      const getVelanaAuthHeader = (apiKey: string): string => {
+        const credentials = `${apiKey}:x`;
+        return `Basic ${btoa(credentials)}`;
+      };
+
+      if (!VELANA_API_KEY) {
+        return new Response(JSON.stringify({ 
+          error: 'VELANA_API_KEY não configurada no servidor' 
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const amountBRL = payout.amount;
+      const correlationId = payout.idempotency_key || crypto.randomUUID();
+
+      const velanaPayload = {
+        amount: amountBRL,
+        pixKey: payout.pix_key,
+        pixKeyType: payout.pix_key_type,
+        description: 'Saque Stream Live Hub',
+        externalId: correlationId,
+      };
+
+      console.log('[process-payout] Reprocessing via Velana:', velanaPayload);
+
+      try {
+        const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/pix/transfers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getVelanaAuthHeader(VELANA_API_KEY),
+          },
+          body: JSON.stringify(velanaPayload),
+        });
+
+        const velanaData = await velanaResponse.json();
+        console.log('[process-payout] Velana response:', { 
+          status: velanaResponse.status, 
+          data: velanaData 
+        });
+
+        if (velanaResponse.ok) {
+          // Sucesso - atualizar payout
+          await supabase
+            .from('payout_requests')
+            .update({
+              status: 'approved',
+              approved_by: user.id,
+              approved_at: new Date().toISOString(),
+              psp_transaction_id: velanaData.id,
+              psp_response: velanaData,
+              admin_notes: `Reprocessado via Velana por admin em ${new Date().toISOString()}`,
+            })
+            .eq('id', payoutId);
+
+          // Notificar usuário
+          await supabase.from('notifications').insert({
+            user_id: payout.creator_id,
+            title: '💰 Saque processado!',
+            message: `Seu saque de R$ ${payout.amount.toFixed(2)} foi processado via PIX automaticamente.`,
+            type: 'withdrawal_completed',
+          });
+
+          return new Response(JSON.stringify({
+            success: true,
+            status: 'approved',
+            velanaTransactionId: velanaData.id,
+            message: 'Saque processado via Velana com sucesso!',
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } else {
+          // Falha na Velana
+          await supabase
+            .from('payout_requests')
+            .update({
+              psp_response: velanaData,
+              admin_notes: `Reprocessamento Velana falhou: ${velanaData.message || JSON.stringify(velanaData)}`,
+            })
+            .eq('id', payoutId);
+
+          return new Response(JSON.stringify({
+            success: false,
+            error: velanaData.message || 'Erro na API Velana',
+            velanaResponse: velanaData,
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } catch (velanaError) {
+        console.error('[process-payout] Velana error:', velanaError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: velanaError instanceof Error ? velanaError.message : 'Erro de conexão com Velana',
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
 
     if (action === 'approve') {
       // Approve the payout (mark as ready for payment)
@@ -144,9 +260,9 @@ serve(async (req) => {
         status: 'approved',
         message: 'Saque aprovado. Realize a transferência PIX manualmente.',
         pixDetails: {
-          key: adminNotes.pix_key,
-          keyType: adminNotes.pix_key_type,
-          amount: adminNotes.net_amount_cents / 100,
+          key: payout.pix_key,
+          keyType: payout.pix_key_type,
+          amount: payout.amount,
         },
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -195,33 +311,34 @@ serve(async (req) => {
 
     } else if (action === 'reject') {
       // Reject and refund balance
-      const amountCents = adminNotes.gross_amount_cents;
-      const balanceSource = adminNotes.balance_source;
+      const amountCents = Math.round(payout.amount * 100);
 
-      if (balanceSource === 'creator_wallet') {
-        const { data: wallet } = await supabase
-          .from('creator_wallet')
-          .select('balance_cents')
-          .eq('creator_id', payout.creator_id)
-          .single();
+      // Refund to creator_wallet first, then affiliate_earnings
+      const { data: wallet } = await supabase
+        .from('creator_wallet')
+        .select('balance_cents, pending_cents')
+        .eq('creator_id', payout.creator_id)
+        .maybeSingle();
 
+      if (wallet) {
         await supabase
           .from('creator_wallet')
           .update({ 
-            balance_cents: (wallet?.balance_cents || 0) + amountCents,
-            pending_cents: 0,
+            balance_cents: (wallet.balance_cents || 0) + amountCents,
+            pending_cents: Math.max(0, (wallet.pending_cents || 0) - amountCents),
           })
           .eq('creator_id', payout.creator_id);
       } else {
+        // Fallback to affiliate_earnings
         const { data: profile } = await supabase
           .from('profiles')
-          .select('balance')
+          .select('affiliate_earnings')
           .eq('id', payout.creator_id)
           .single();
 
         await supabase
           .from('profiles')
-          .update({ balance: (profile?.balance || 0) + (amountCents / 100) })
+          .update({ affiliate_earnings: (profile?.affiliate_earnings || 0) + amountCents })
           .eq('id', payout.creator_id);
       }
 
@@ -229,6 +346,7 @@ serve(async (req) => {
         .from('payout_requests')
         .update({
           status: 'rejected',
+          failure_reason: notes,
           admin_notes: JSON.stringify({
             ...adminNotes,
             rejected_by: user.id,
@@ -242,7 +360,7 @@ serve(async (req) => {
       await supabase
         .from('transactions')
         .update({ status: 'cancelled' })
-        .eq('external_id', payoutId);
+        .eq('metadata->payout_request_id', payoutId);
 
       // Notify user
       await supabase.from('notifications').insert({

@@ -21,10 +21,10 @@ export const getVelanaConfig = (): VelanaConfig => {
     throw new Error('VELANA_API_KEY not configured');
   }
 
-  // URLs da API Velana (baseado na documentação)
+  // URLs da API Velana (baseado na documentação oficial)
   const baseUrl = environment === 'production' 
-    ? 'https://api.velana.io'
-    : 'https://sandbox.velana.io';
+    ? 'https://api.velana.com.br'
+    : 'https://sandbox.velana.com.br';
 
   return {
     apiKey,

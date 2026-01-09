@@ -66,11 +66,14 @@ export async function createPixTransfer(
       correlationId: params.correlationId,
     });
 
+    // Velana usa Basic Auth: base64(SECRET_KEY:x)
+    const authHeader = `Basic ${Buffer.from(`${config.apiKey}:x`).toString('base64')}`;
+
     const response = await fetch(`${config.baseUrl}/v1/pix/transfers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': authHeader,
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(VELANA_CONSTANTS.API_TIMEOUT_MS),
@@ -123,10 +126,13 @@ export async function getPixTransferStatus(
   const config = getVelanaConfig();
 
   try {
+    // Velana usa Basic Auth
+    const authHeader = `Basic ${Buffer.from(`${config.apiKey}:x`).toString('base64')}`;
+
     const response = await fetch(`${config.baseUrl}/v1/pix/transfers/${transferId}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
+        'Authorization': authHeader,
       },
       signal: AbortSignal.timeout(VELANA_CONSTANTS.API_TIMEOUT_MS),
     });
