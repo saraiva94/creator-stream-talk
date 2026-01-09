@@ -482,12 +482,13 @@ const Admin = () => {
       type PlatformRevenueRow = {
         amount: number | null;
         source_type: string;
-        metadata: { gross_amount?: number } | null;
+        metadata: { gross_amount?: number; creator_amount?: number } | null;
       };
 
       (platformRevenue as PlatformRevenueRow[] | null)?.forEach((row) => {
         const amountCents = Number(row.amount) || 0;
         const grossCents = Number(row.metadata?.gross_amount) || 0;
+        const creatorAmount = Number(row.metadata?.creator_amount) || 0;
         const sourceType = (row.source_type || "").toLowerCase();
         
         if (sourceType === "credits_purchase") {
@@ -495,13 +496,15 @@ const Admin = () => {
           grossCreditsCents += grossCents || amountCents; // credits: platform = 100%
         } else if (sourceType === "superchat") {
           platformSuperchatCents += amountCents;
-          grossSuperchatCents += grossCents;
+          // superchat: gross = platform (20%) + creator (80%), so gross = platform * 5
+          grossSuperchatCents += grossCents || (amountCents * 5);
         } else if (sourceType === "registration") {
           platformRegistrationCents += amountCents;
           grossRegistrationCents += grossCents || 500; // R$5 per registration
         } else if (sourceType === "live_earnings") {
           platformLiveEarningsCents += amountCents;
-          grossLiveEarningsCents += grossCents;
+          // live_earnings: gross = platform + creator
+          grossLiveEarningsCents += grossCents || (amountCents + creatorAmount);
         }
       });
 
