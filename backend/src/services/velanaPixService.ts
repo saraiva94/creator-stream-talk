@@ -1,7 +1,7 @@
 // backend/src/services/velanaPixService.ts
 
 import { getVelanaConfig, VELANA_CONSTANTS } from '../config/velanaConfig';
-import logger from '../lib/logger';
+import { logger } from '../lib/logger';
 
 export type PixKeyType = 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'RANDOM';
 
@@ -60,8 +60,7 @@ export async function createPixTransfer(
   };
 
   try {
-    logger.info({
-      event: 'velana.pix.transfer.request',
+    logger.info('[VelanaPix] Creating transfer', {
       userId: params.userId,
       amountCents: params.amountCents,
       correlationId: params.correlationId,
@@ -80,8 +79,7 @@ export async function createPixTransfer(
     const data = await response.json();
 
     if (!response.ok) {
-      logger.error({
-        event: 'velana.pix.transfer.failed',
+      logger.error('[VelanaPix] Transfer failed', {
         status: response.status,
         error: data,
       });
@@ -93,8 +91,7 @@ export async function createPixTransfer(
       };
     }
 
-    logger.info({
-      event: 'velana.pix.transfer.success',
+    logger.info('[VelanaPix] Transfer success', {
       transferId: data.id,
       status: data.status,
     });
@@ -106,8 +103,7 @@ export async function createPixTransfer(
       rawResponse: data,
     };
   } catch (error) {
-    logger.error({
-      event: 'velana.pix.transfer.exception',
+    logger.error('[VelanaPix] Transfer exception', {
       error: error instanceof Error ? error.message : 'Unknown error',
     });
 

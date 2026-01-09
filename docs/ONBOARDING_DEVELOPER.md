@@ -136,7 +136,7 @@
 | # | Seção | O que você vai aprender |
 |---|-------|------------------------|
 | 11 | [Serverless Functions](#11-serverless-functions) | Edge Functions, Deno, como criar endpoints |
-| 12 | [Webhooks](#12-webhooks-e-integrações) | Mercado Pago, Woovi, receber notificações |
+| 12 | [Webhooks](#12-webhooks-e-integrações) | Mercado Pago, Velana, receber notificações |
 
 ### Parte 6: Fluxos e Boas Práticas
 | # | Seção | O que você vai aprender |
@@ -325,8 +325,8 @@ type ApiResponse<T> = {
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       SERVIÇOS EXTERNOS                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                     │
-│  │  LiveKit    │  │ Mercado Pago│  │   Woovi     │                     │
-│  │  (WebRTC)   │  │  (Payments) │  │   (PIX)     │                     │
+│  │  LiveKit    │  │ Mercado Pago│  │   Velana    │                     │
+│  │  (WebRTC)   │  │  (Payments) │  │ (PIX Out)   │                     │
 │  └─────────────┘  └─────────────┘  └─────────────┘                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```

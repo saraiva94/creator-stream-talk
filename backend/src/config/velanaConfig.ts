@@ -2,7 +2,6 @@
 
 export interface VelanaConfig {
   apiKey: string;
-  publicKey: string;
   baseUrl: string;
   environment: 'production' | 'sandbox';
 }
@@ -16,11 +15,10 @@ export const VELANA_CONSTANTS = {
 
 export const getVelanaConfig = (): VelanaConfig => {
   const apiKey = process.env.VELANA_API_KEY;
-  const publicKey = process.env.VELANA_PUBLIC_KEY;
   const environment = (process.env.VELANA_ENVIRONMENT || 'production') as 'production' | 'sandbox';
 
-  if (!apiKey || !publicKey) {
-    throw new Error('Velana credentials not configured');
+  if (!apiKey) {
+    throw new Error('VELANA_API_KEY not configured');
   }
 
   // URLs da API Velana (baseado na documentação)
@@ -30,12 +28,11 @@ export const getVelanaConfig = (): VelanaConfig => {
 
   return {
     apiKey,
-    publicKey,
     baseUrl,
     environment,
   };
 };
 
 export const isVelanaEnabled = (): boolean => {
-  return !!(process.env.VELANA_API_KEY && process.env.VELANA_PUBLIC_KEY);
+  return !!process.env.VELANA_API_KEY;
 };
