@@ -34,10 +34,10 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     const rootEarnings = (logsAsRoot ?? []).reduce((acc, row) => acc + (row.amount_root ?? 0), 0);
     const totalEarningsCents = directEarnings + rootEarnings;
 
-    // Also get from profiles.affiliate_earnings as source of truth
+    // Get affiliate_earnings from profiles as source of truth
     const { data: profileRow, error: profileError } = await supabase
       .from('profiles')
-      .select('affiliate_earnings, balance')
+      .select('affiliate_earnings')
       .eq('id', profileId)
       .maybeSingle();
 
@@ -46,7 +46,18 @@ export const getAffiliateOverview = async (req: Request, res: Response, next: Ne
     }
 
     const affiliateEarningsCents = profileRow?.affiliate_earnings ?? 0;
-    const availableBalanceCents = Math.round(((profileRow?.balance as number | null) ?? 0) * 100);
+
+    // Get creator wallet balance if user is a creator
+    const { data: creatorWallet } = await supabase
+      .from('creator_wallet')
+      .select('balance_cents')
+      .eq('creator_id', profileId)
+      .maybeSingle();
+
+    const creatorBalanceCents = creatorWallet?.balance_cents ?? 0;
+    
+    // Available balance = affiliate earnings + creator wallet balance
+    const availableBalanceCents = affiliateEarningsCents + creatorBalanceCents;
 
     // Count DIRECT referrals from profiles (where user is referrer_direct)
     const { count: directProfileCount } = await supabase
