@@ -1,14 +1,14 @@
 /**
  * Serviço de Saques via PIX
  * 
- * Centraliza toda a lógica de saques PIX usando a Woovi/OpenPix como PSP.
+ * Centraliza toda a lógica de saques PIX usando a Velana como PSP.
  * Garante consistência do ledger e tratamento correto de falhas.
  */
 
 import { supabaseAdmin } from '../lib/supabaseClient';
 import { logger } from '../lib/logger';
-import { WOOVI_CONSTANTS } from '../config/wooviConfig';
-import { createPixPayment, detectPixKeyType, type PixKeyType } from './wooviPixService';
+import { VELANA_CONSTANTS } from '../config/velanaConfig';
+import { createPixTransfer, detectPixKeyType, type PixKeyType } from './velanaPixService';
 import {
   recordWithdrawalHold,
   recordWithdrawalRelease,
@@ -75,7 +75,7 @@ async function checkRecentDuplicate(
   }
 
   // Busca por saque recente com mesmos parâmetros (janela de 60 segundos)
-  const windowStart = new Date(Date.now() - WOOVI_CONSTANTS.IDEMPOTENCY_WINDOW_SECONDS * 1000).toISOString();
+  const windowStart = new Date(Date.now() - VELANA_CONSTANTS.IDEMPOTENCY_WINDOW_SECONDS * 1000).toISOString();
   
   const { data } = await supabaseAdmin
     .from('payout_requests')
@@ -232,9 +232,9 @@ async function creditWalletBalance(
 }
 
 /**
- * Processa saque via PIX usando Woovi/OpenPix
+ * Processa saque via PIX usando Velana
  */
-export async function sendPixPaymentViaWoovi(
+export async function sendPixPaymentViaVelana(
   params: PixWithdrawalParams
 ): Promise<PixWithdrawalResult> {
   const {
@@ -249,7 +249,7 @@ export async function sendPixPaymentViaWoovi(
   const detectedPixKeyType = (pixKeyType?.toUpperCase() as PixKeyType) || detectPixKeyType(pixKey);
   const walletType = sourceType === 'creator' ? 'creator' : 'affiliate';
 
-  logger.info('[PixDisbursement] Processing withdrawal request via Woovi', {
+  logger.info('[PixDisbursement] Processing withdrawal request via Velana', {
     userId,
     amountCents,
     pixKey: maskPixKey(pixKey),
@@ -257,10 +257,10 @@ export async function sendPixPaymentViaWoovi(
   });
 
   // 1. Validar valor mínimo
-  if (amountCents < WOOVI_CONSTANTS.MIN_WITHDRAW_CENTS) {
+  if (amountCents < VELANA_CONSTANTS.MIN_WITHDRAW_CENTS) {
     return {
       success: false,
-      message: `Valor mínimo para saque é de R$ ${(WOOVI_CONSTANTS.MIN_WITHDRAW_CENTS / 100).toFixed(2)}`,
+      message: `Valor mínimo para saque é de R$ ${(VELANA_CONSTANTS.MIN_WITHDRAW_CENTS / 100).toFixed(2)}`,
     };
   }
 
@@ -351,31 +351,74 @@ export async function sendPixPaymentViaWoovi(
     // Continua mesmo se falhar o log do ledger
   }
 
-  // 8. Chamar API da Woovi
+  // 8. Chamar API da Velana
   try {
-    const wooviResponse = await createPixPayment({
+    const velanaResponse = await createPixTransfer({
       userId,
       amountCents,
       pixKey,
       pixKeyType: detectedPixKeyType,
       correlationId,
-      comment: `Saque Stream Live Hub - ${payoutRequest.id.substring(0, 8)}`,
+      description: `Saque Stream Live Hub - ${payoutRequest.id.substring(0, 8)}`,
     });
+
+    if (!velanaResponse.success) {
+      // Falha na Velana - reverter tudo
+      logger.error('[PixDisbursement] Velana call failed', { error: velanaResponse.error, payoutId: payoutRequest.id });
+
+      const refundedBalance = await creditWalletBalance(userId, amountCents, sourceType);
+
+      await supabaseAdmin
+        .from('payout_requests')
+        .update({
+          status: 'failed',
+          failure_reason: velanaResponse.error || 'Erro ao processar PIX',
+          psp_response: velanaResponse.rawResponse as Record<string, unknown> || null,
+        })
+        .eq('id', payoutRequest.id);
+
+      try {
+        await recordWithdrawalRefund(
+          walletType,
+          userId,
+          amountCents,
+          refundedBalance,
+          payoutRequest.id,
+          'Falha na comunicação com PSP'
+        );
+      } catch (ledgerError) {
+        logger.error('[PixDisbursement] Failed to record refund in ledger', { error: ledgerError });
+      }
+
+      await supabaseAdmin.from('notifications').insert({
+        user_id: userId,
+        type: 'withdrawal',
+        title: 'Falha no saque',
+        message: `Seu saque de R$ ${(amountCents / 100).toFixed(2)} falhou. O valor foi devolvido ao seu saldo.`,
+      });
+
+      return {
+        success: false,
+        payoutRequestId: payoutRequest.id,
+        status: 'failed',
+        message: 'Falha ao processar saque. Valor devolvido ao saldo.',
+      };
+    }
 
     // 9. Atualizar payout_request com resposta do PSP
     await supabaseAdmin
       .from('payout_requests')
       .update({
-        psp_transaction_id: correlationId,
-        psp_response: wooviResponse.rawResponse as Record<string, unknown>,
+        psp_transaction_id: velanaResponse.transferId || correlationId,
+        psp_response: velanaResponse.rawResponse as Record<string, unknown>,
         status: 'processing', // Aguarda webhook para confirmar
       })
       .eq('id', payoutRequest.id);
 
-    logger.info('[PixDisbursement] PIX payment sent to Woovi', {
+    logger.info('[PixDisbursement] PIX payment sent to Velana', {
       payoutId: payoutRequest.id,
-      correlationId,
-      status: wooviResponse.status,
+      transferId: velanaResponse.transferId,
+      status: velanaResponse.status,
     });
 
     // Enviar notificação ao usuário
@@ -391,11 +434,11 @@ export async function sendPixPaymentViaWoovi(
       payoutRequestId: payoutRequest.id,
       status: 'processing',
       message: 'Saque enviado para processamento',
-      pspTransactionId: correlationId,
+      pspTransactionId: velanaResponse.transferId || correlationId,
     };
   } catch (error) {
     // Falha ao chamar PSP - reverter tudo
-    logger.error('[PixDisbursement] Woovi call failed, reverting', { error, payoutId: payoutRequest.id });
+    logger.error('[PixDisbursement] Velana call exception, reverting', { error, payoutId: payoutRequest.id });
 
     // Reverter débito
     const refundedBalance = await creditWalletBalance(userId, amountCents, sourceType);
@@ -441,7 +484,7 @@ export async function sendPixPaymentViaWoovi(
 }
 
 /**
- * Processa confirmação de sucesso do webhook Woovi
+ * Processa confirmação de sucesso do webhook Velana
  */
 export async function handlePixDisbursementSuccess(
   correlationId: string,
@@ -522,7 +565,7 @@ export async function handlePixDisbursementSuccess(
 }
 
 /**
- * Processa falha do webhook Woovi
+ * Processa falha do webhook Velana
  */
 export async function handlePixDisbursementFailure(
   correlationId: string,
@@ -621,3 +664,6 @@ export async function handlePixDisbursementFailure(
 
   logger.info('[PixDisbursement] Payout marked as FAILED, balance refunded', { payoutId: payout.id });
 }
+
+// Alias para manter compatibilidade com código existente
+export const sendPixPaymentViaWoovi = sendPixPaymentViaVelana;
