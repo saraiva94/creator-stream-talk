@@ -113,7 +113,7 @@ export const createCreatorEarningsService = ({ client }: { client: SupabaseClien
 
     const { data: existing, error: fetchError } = await client
       .from('creator_earnings')
-      .select('id, status, net_cents')
+      .select('id, status, creator_amount_cents')
       .eq('live_id', liveId)
       .maybeSingle();
 
@@ -138,16 +138,16 @@ export const createCreatorEarningsService = ({ client }: { client: SupabaseClien
         };
       }
 
-      const previousNet = existing.net_cents ?? 0;
+      const previousNet = existing.creator_amount_cents ?? 0;
       walletDelta = Math.max(0, netCents - previousNet);
 
       const { error: updateError } = await client
         .from('creator_earnings')
         .update({
           credits_consumed: totalCreditsConsumed,
-          gross_cents: grossCents,
-          net_cents: netCents,
-          platform_cents: platformCents,
+          gross_amount_cents: grossCents,
+          creator_amount_cents: netCents,
+          platform_amount_cents: platformCents,
           status: 'pending',
           settled_at: null,
         })
@@ -163,9 +163,9 @@ export const createCreatorEarningsService = ({ client }: { client: SupabaseClien
           creator_id: creatorId,
           live_id: liveId,
           credits_consumed: totalCreditsConsumed,
-          gross_cents: grossCents,
-          net_cents: netCents,
-          platform_cents: platformCents,
+          gross_amount_cents: grossCents,
+          creator_amount_cents: netCents,
+          platform_amount_cents: platformCents,
           status: 'pending',
           created_at: nowIso,
         })
