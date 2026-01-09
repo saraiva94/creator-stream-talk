@@ -381,7 +381,7 @@ export interface WithdrawalRecord {
 export interface DiagnosticsSnapshot {
   success: true;
   supabase: 'ok' | 'error';
-  mercadopago: 'ok' | 'error';
+  velana: 'ok' | 'error';
   resend: 'ok' | 'error';
   env: {
     ok: boolean;
@@ -413,7 +413,7 @@ export interface DiagnosticsSnapshot {
   };
   urlConsistency: {
     canonicalBase: string | null;
-    mercadopagoWebhook: {
+    velanaWebhook: {
       expectedUrl: string | null;
       configuredUrl: string | null;
       match: boolean;

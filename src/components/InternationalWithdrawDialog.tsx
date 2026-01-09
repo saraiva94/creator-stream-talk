@@ -20,13 +20,6 @@ const InternationalWithdrawDialog = ({
 }: InternationalWithdrawDialogProps) => {
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  const handleProceed = () => {
-    // Open Mercado Pago international transfer page
-    window.open("https://www.mercadopago.com.br/money-out/bank-transfer", "_blank");
-    setShowConfirmation(false);
-    onOpenChange(false);
-  };
-
   const handleClose = () => {
     setShowConfirmation(false);
     onOpenChange(false);
@@ -46,20 +39,11 @@ const InternationalWithdrawDialog = ({
           <div className="space-y-4 py-4">
             <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
               <p className="text-sm text-yellow-500 font-medium text-center">
-                Saques internacionais sujeitos a taxas. Faça uma conta em bancos ou bancos digitais brasileiros para evitar taxas.
+                Saques internacionais sujeitos a taxas. Faça uma conta em bancos digitais brasileiros para evitar taxas.
               </p>
             </div>
 
             <div className="flex flex-col gap-3">
-              <Button
-                onClick={handleProceed}
-                variant="outline"
-                className="w-full border-primary/50 hover:bg-primary/10"
-              >
-                <Globe className="h-4 w-4 mr-2" />
-                Prefiro sacar pro meu banco internacional
-              </Button>
-              
               <Button
                 onClick={handleClose}
                 className="w-full bg-green-600 hover:bg-green-700"
@@ -70,7 +54,7 @@ const InternationalWithdrawDialog = ({
             </div>
 
             <p className="text-xs text-muted-foreground text-center">
-              Recomendamos criar uma conta em bancos digitais brasileiros como Nubank, Inter, C6 ou Mercado Pago para saques sem taxas via PIX.
+              Recomendamos criar uma conta em bancos digitais brasileiros como Nubank, Inter ou C6 para saques sem taxas via PIX.
             </p>
           </div>
         </DialogContent>
@@ -93,14 +77,23 @@ const InternationalWithdrawDialog = ({
 
         <div className="space-y-4 py-4">
           <p className="text-sm text-muted-foreground">
-            Se você não possui uma conta bancária brasileira, pode realizar saques via transferência bancária internacional através do Mercado Pago.
+            Se você não possui uma conta bancária brasileira, recomendamos criar uma conta em um banco digital brasileiro para receber saques via PIX sem taxas.
           </p>
+
+          <div className="bg-primary/10 border border-primary/30 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <Banknote className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-primary">
+                Bancos digitais como Nubank, Inter e C6 permitem abertura de conta para estrangeiros com documentação válida.
+              </p>
+            </div>
+          </div>
 
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-yellow-500">
-                Taxas de transferência internacional podem ser aplicadas pelo banco de destino.
+                Saques PIX são processados apenas para contas bancárias brasileiras.
               </p>
             </div>
           </div>
@@ -111,7 +104,7 @@ const InternationalWithdrawDialog = ({
             variant="outline"
           >
             <Globe className="h-4 w-4 mr-2" />
-            Continuar com saque internacional
+            Entendi, vou abrir uma conta brasileira
           </Button>
         </div>
       </DialogContent>
