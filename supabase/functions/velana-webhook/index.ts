@@ -600,19 +600,27 @@ async function processPaymentTransaction(supabase: any, payload: any): Promise<a
 
     const { data: creatorWallet } = await supabase
       .from('creator_wallet')
-      .select('balance_cents')
+      .select('balance_cents, total_earned_cents')
       .eq('creator_id', creatorId)
       .maybeSingle();
 
     if (creatorWallet) {
       await supabase
         .from('creator_wallet')
-        .update({ balance_cents: (creatorWallet.balance_cents || 0) + creatorAmountCents })
+        .update({ 
+          balance_cents: (creatorWallet.balance_cents || 0) + creatorAmountCents,
+          total_earned_cents: (creatorWallet.total_earned_cents || 0) + creatorAmountCents,
+          updated_at: new Date().toISOString(),
+        })
         .eq('creator_id', creatorId);
     } else {
       await supabase
         .from('creator_wallet')
-        .insert({ creator_id: creatorId, balance_cents: creatorAmountCents });
+        .insert({ 
+          creator_id: creatorId, 
+          balance_cents: creatorAmountCents,
+          total_earned_cents: creatorAmountCents,
+        });
     }
 
     await supabase.from('platform_revenue').insert({

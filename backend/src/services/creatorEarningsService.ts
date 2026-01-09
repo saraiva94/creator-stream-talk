@@ -25,7 +25,7 @@ const ensureCreatorWallet = async (
 ): Promise<CreatorWalletRow> => {
   const { data, error } = await client
     .from('creator_wallet')
-    .select('creator_id, balance_cents, pending_cents, updated_at')
+    .select('creator_id, balance_cents, pending_cents, total_earned_cents, updated_at')
     .eq('creator_id', creatorId)
     .maybeSingle();
 
@@ -37,8 +37,8 @@ const ensureCreatorWallet = async (
 
   const { data: inserted, error: insertError } = await client
     .from('creator_wallet')
-    .insert({ creator_id: creatorId, balance_cents: 0, pending_cents: 0, updated_at: nowIso })
-    .select('creator_id, balance_cents, pending_cents, updated_at')
+    .insert({ creator_id: creatorId, balance_cents: 0, pending_cents: 0, total_earned_cents: 0, updated_at: nowIso })
+    .select('creator_id, balance_cents, pending_cents, total_earned_cents, updated_at')
     .maybeSingle();
 
   if (insertError || !inserted) {
@@ -181,11 +181,16 @@ export const createCreatorEarningsService = ({ client }: { client: SupabaseClien
 
     if (walletDelta > 0) {
       const wallet = await ensureCreatorWallet(client, creatorId, nowIso);
-      const nextBalance = wallet.balance_cents + walletDelta;
+      const nextBalance = (wallet.balance_cents ?? 0) + walletDelta;
+      const nextTotalEarned = (wallet.total_earned_cents ?? 0) + walletDelta;
 
       const { error: walletError } = await client
         .from('creator_wallet')
-        .update({ balance_cents: nextBalance, updated_at: nowIso })
+        .update({ 
+          balance_cents: nextBalance, 
+          total_earned_cents: nextTotalEarned,
+          updated_at: nowIso 
+        })
         .eq('creator_id', creatorId);
 
       if (walletError) {
