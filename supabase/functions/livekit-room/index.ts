@@ -271,7 +271,7 @@ serve(async (req) => {
             // Update creator wallet
             const { data: wallet } = await supabaseAdmin
               .from('creator_wallet')
-              .select('balance_cents')
+              .select('balance_cents, total_earned_cents')
               .eq('creator_id', body.creatorId)
               .maybeSingle();
 
@@ -280,6 +280,7 @@ serve(async (req) => {
                 .from('creator_wallet')
                 .update({ 
                   balance_cents: (wallet.balance_cents || 0) + creatorCents,
+                  total_earned_cents: (wallet.total_earned_cents || 0) + creatorCents,
                   updated_at: nowIso,
                 })
                 .eq('creator_id', body.creatorId);
