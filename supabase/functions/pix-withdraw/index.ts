@@ -382,6 +382,50 @@ serve(async (req) => {
           data: velanaData 
         });
 
+        // ⚠️ TRATAMENTO DE ERRO 412 - IP não autorizado
+        if (velanaResponse.status === 412) {
+          console.error('[pix-withdraw] ❌ ERRO 412: IP não autorizado na Velana');
+          
+          // Marca como rejected
+          await supabase.from('payout_requests').update({
+            status: 'rejected',
+            failure_reason: 'IP não autorizado na Velana. Configure em: Configurações → Segurança',
+            psp_response: velanaData,
+          }).eq('id', payoutRequest.id);
+
+          // 🔄 DEVOLVE O SALDO DO USUÁRIO
+          if (deductFromAffiliate > 0 || deductFromLegacy > 0) {
+            const rollbackProfile: Record<string, number> = {};
+            if (deductFromAffiliate > 0) {
+              rollbackProfile.affiliate_earnings = affiliateBalance;
+            }
+            if (deductFromLegacy > 0) {
+              rollbackProfile.balance = legacyBalanceCents / 100;
+            }
+            await supabase.from('profiles').update(rollbackProfile).eq('id', userId);
+          }
+          
+          if (creatorWallet) {
+            await supabase.from('creator_wallet').update({
+              balance_cents: creatorBalance,
+              pending_cents: creatorWallet.pending_cents || 0,
+            }).eq('creator_id', userId);
+          }
+
+          // 🚨 RETORNA ERRO CLARO PARA O FRONTEND
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Erro na configuração de segurança. O administrador foi notificado. Seu saldo foi devolvido.',
+              details: 'A Velana exige autorização de IP. Contate o suporte.',
+            }),
+            {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            }
+          );
+        }
+
         if (velanaResponse.ok && velanaData.id) {
           velanaProcessed = true;
           velanaTransferId = velanaData.id;
@@ -392,7 +436,7 @@ serve(async (req) => {
           if (velanaData.status === 'success') {
             internalStatus = 'paid';
           } else if (velanaData.status === 'failed') {
-            internalStatus = 'failed';
+            internalStatus = 'rejected';
           } else if (velanaData.status === 'pending' || velanaData.status === 'bank_processing') {
             internalStatus = 'processing';
           }
@@ -411,22 +455,81 @@ serve(async (req) => {
           console.log('[pix-withdraw] Velana transfer created:', velanaData.id, 'status:', velanaData.status);
         } else {
           console.error('[pix-withdraw] Velana API error:', velanaData);
-          await supabase
-            .from('payout_requests')
-            .update({
-              admin_notes: `Processamento automático falhou: ${velanaData.message || velanaData.error || JSON.stringify(velanaData)}. Aguardando processamento manual.`,
-              psp_response: velanaData,
-            })
-            .eq('id', payoutRequest.id);
+          
+          // ⚠️ ERRO DA VELANA - DEVOLVE SALDO
+          await supabase.from('payout_requests').update({
+            status: 'rejected',
+            failure_reason: velanaData.message || velanaData.error || JSON.stringify(velanaData),
+            psp_response: velanaData,
+          }).eq('id', payoutRequest.id);
+
+          // Devolve saldo
+          if (deductFromAffiliate > 0 || deductFromLegacy > 0) {
+            const rollbackProfile: Record<string, number> = {};
+            if (deductFromAffiliate > 0) {
+              rollbackProfile.affiliate_earnings = affiliateBalance;
+            }
+            if (deductFromLegacy > 0) {
+              rollbackProfile.balance = legacyBalanceCents / 100;
+            }
+            await supabase.from('profiles').update(rollbackProfile).eq('id', userId);
+          }
+          
+          if (creatorWallet) {
+            await supabase.from('creator_wallet').update({
+              balance_cents: creatorBalance,
+              pending_cents: creatorWallet.pending_cents || 0,
+            }).eq('creator_id', userId);
+          }
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Erro ao processar saque: ${velanaData.message || 'Tente novamente mais tarde'}`,
+            }),
+            {
+              status: 500,
+              headers: { 'Content-Type': 'application/json', ...corsHeaders },
+            }
+          );
         }
       } catch (velanaError) {
         console.error('[pix-withdraw] Velana fetch error:', velanaError);
-        await supabase
-          .from('payout_requests')
-          .update({
-            admin_notes: `Erro de conexão com API Velana: ${velanaError instanceof Error ? velanaError.message : 'Erro desconhecido'}. Aguardando processamento manual.`,
-          })
-          .eq('id', payoutRequest.id);
+        
+        // Devolve saldo em caso de erro de conexão
+        if (deductFromAffiliate > 0 || deductFromLegacy > 0) {
+          const rollbackProfile: Record<string, number> = {};
+          if (deductFromAffiliate > 0) {
+            rollbackProfile.affiliate_earnings = affiliateBalance;
+          }
+          if (deductFromLegacy > 0) {
+            rollbackProfile.balance = legacyBalanceCents / 100;
+          }
+          await supabase.from('profiles').update(rollbackProfile).eq('id', userId);
+        }
+        
+        if (creatorWallet) {
+          await supabase.from('creator_wallet').update({
+            balance_cents: creatorBalance,
+            pending_cents: creatorWallet.pending_cents || 0,
+          }).eq('creator_id', userId);
+        }
+        
+        await supabase.from('payout_requests').update({
+          status: 'rejected',
+          failure_reason: `Erro de conexão com API Velana: ${velanaError instanceof Error ? velanaError.message : 'Erro desconhecido'}`,
+        }).eq('id', payoutRequest.id);
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Erro ao conectar com o sistema de pagamentos. Tente novamente.',
+          }),
+          {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          }
+        );
       }
     } else {
       console.log('[pix-withdraw] Velana not configured - payout requires manual processing');
