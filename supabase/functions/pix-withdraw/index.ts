@@ -29,6 +29,17 @@ const corsHeaders = {
 };
 
 /**
+ * Limpa chave PIX removendo formatação (pontos, traços, etc.)
+ * Mantém @ e . para emails, + para telefones internacionais
+ */
+function cleanPixKey(pixKey: string, keyType: string): string {
+  if (keyType === 'EMAIL') return pixKey.trim().toLowerCase();
+  if (keyType === 'PHONE') return pixKey.replace(/[^+\d]/g, '');
+  if (keyType === 'CPF' || keyType === 'CNPJ') return pixKey.replace(/\D/g, '');
+  return pixKey.trim(); // RANDOM key - keep as is
+}
+
+/**
  * Detecta tipo de chave PIX automaticamente
  */
 function detectPixKeyType(pixKey: string): string {
@@ -339,13 +350,16 @@ serve(async (req) => {
     if (VELANA_API_KEY) {
       // Velana POST /v1/transfers espera:
       // - amount: valor em CENTAVOS (integer)
-      // - pixKey: chave PIX de destino
+      // - pixKey: chave PIX de destino (LIMPA, sem formatação)
       // - postbackUrl: URL do webhook para receber atualizações
       // - externalId: ID externo para correlação (opcional)
       // - description: descrição da transferência (opcional)
+      const cleanedPixKey = cleanPixKey(pixKey, pixKeyType);
+      console.log('[pix-withdraw] PIX key cleaned:', { original: maskPixKey(pixKey), cleaned: maskPixKey(cleanedPixKey), type: pixKeyType });
+      
       const velanaPayload = {
         amount: amountCents, // Velana espera centavos
-        pixKey: pixKey,
+        pixKey: cleanedPixKey, // ✅ CHAVE LIMPA SEM FORMATAÇÃO
         postbackUrl: postbackUrl,
         externalId: correlationId,
         description: `Saque PIX - Stream Star - ${payoutRequest.id}`,
