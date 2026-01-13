@@ -290,7 +290,14 @@ const PixWithdrawDialog = ({
   };
 
   const handleConfirmWithdraw = async () => {
+    console.log('🔥 [PIX-WITHDRAW] handleConfirmWithdraw FOI CHAMADO!');
+    console.log('🔥 [PIX-WITHDRAW] Step atual:', step);
+    console.log('🔥 [PIX-WITHDRAW] Amount state:', amount);
+    console.log('🔥 [PIX-WITHDRAW] PixKey state:', pixKey);
+    console.log('🔥 [PIX-WITHDRAW] Loading state:', loading);
+    
     const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
+    console.log('🔥 [PIX-WITHDRAW] AmountCents calculado:', amountCents);
     
     setLoading(true);
     try {
@@ -313,7 +320,7 @@ const PixWithdrawDialog = ({
         } : undefined,
       };
       
-      console.log('🚀 [PIX-WITHDRAW] Iniciando saque...');
+      console.log('🚀 [PIX-WITHDRAW] Iniciando chamada à API...');
       console.log('📦 [PIX-WITHDRAW] Payload:', JSON.stringify(withdrawPayload, null, 2));
       console.log('🔑 [PIX-WITHDRAW] UserId:', userId);
       console.log('💰 [PIX-WITHDRAW] Amount (cents):', amountCents);
