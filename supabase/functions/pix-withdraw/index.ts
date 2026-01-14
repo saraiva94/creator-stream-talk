@@ -60,6 +60,23 @@ function maskPixKey(key: string): string {
   return key.substring(0, 4) + '***' + key.substring(key.length - 3);
 }
 
+/**
+ * Tenta descobrir o IP de saída (egress) do runtime para whitelist na Velana.
+ * (Melhor esforço — pode falhar dependendo de rede/CF.)
+ */
+async function getEgressIp(): Promise<string | null> {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json', {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.ip === 'string' ? data.ip : null;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   // CORS headers
   if (req.method === 'OPTIONS') {
@@ -399,7 +416,12 @@ serve(async (req) => {
         // ⚠️ TRATAMENTO DE ERRO 412 - Segurança/IP (mensagem vem da Velana)
         if (velanaResponse.status === 412) {
           const velanaMessage = velanaData?.message || 'Velana retornou 412 (pré-condição não atendida).';
-          console.error('[pix-withdraw] ❌ Velana 412:', velanaMessage);
+          const egressIp = await getEgressIp();
+
+          console.error('[pix-withdraw] ❌ Velana 412:', {
+            message: velanaMessage,
+            egressIp: egressIp ?? 'unknown',
+          });
 
           // Marca como rejected
           await supabase.from('payout_requests').update({
@@ -427,13 +449,16 @@ serve(async (req) => {
             }).eq('creator_id', userId);
           }
 
-          // Retorna erro sem mascarar (não usar 500 aqui)
+          // Retorna 412 + melhor pista possível para whitelist
           return new Response(
             JSON.stringify({
               success: false,
               error: velanaMessage,
               code: 'VELANA_PRECONDITION_FAILED',
-              details: 'A Velana recusou a requisição. Verifique regras de segurança/IP e se a chave pertence ao mesmo ambiente/conta.',
+              egressIp, // se vier preenchido, adicione este IP na whitelist da Velana
+              details: egressIp
+                ? `A Velana está exigindo whitelist de IP. Adicione este IP (egress) em Configurações → Segurança: ${egressIp}`
+                : 'A Velana está exigindo whitelist de IP, mas não consegui detectar o IP de saída automaticamente. Gere um log/diagnóstico com o suporte da Velana para identificar o IP de origem do seu provedor serverless.',
             }),
             {
               status: 412,
