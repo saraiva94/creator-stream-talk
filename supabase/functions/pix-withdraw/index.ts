@@ -392,7 +392,7 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            authorization: getVelanaAuthHeader(VELANA_API_KEY),
+            'Authorization': getVelanaAuthHeader(VELANA_API_KEY), // ✅ Capitalizado corretamente
           },
           body: JSON.stringify(velanaPayload),
         });
