@@ -8,18 +8,11 @@ const VELANA_API_KEY = Deno.env.get('VELANA_API_KEY');
 const VELANA_BASE_URL = 'https://api.velana.com.br'; // URL correta da Velana
 const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
 
-// Debug: log primeiros caracteres da chave para verificar formato
-console.log('[pix-withdraw] API Key check:', { 
-  exists: !!VELANA_API_KEY, 
-  length: VELANA_API_KEY?.length,
-  prefix: VELANA_API_KEY?.substring(0, 10) + '...',
-  hasSpaces: VELANA_API_KEY?.includes(' '),
-  hasNewlines: VELANA_API_KEY?.includes('\n'),
-});
-
-// Helper para criar header de autenticação Bearer (Velana usa Bearer Token)
+// Helper para criar header de autenticação Basic (Velana usa Basic Auth)
 function getVelanaAuthHeader(apiKey: string): string {
-  return `Bearer ${apiKey}`;
+  // Velana espera: Basic base64(SECRET_KEY:x)
+  const credentials = `${apiKey}:x`;
+  return `Basic ${btoa(credentials)}`;
 }
 
 interface PixWithdrawRequest {
@@ -382,7 +375,7 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': getVelanaAuthHeader(VELANA_API_KEY),
+            authorization: getVelanaAuthHeader(VELANA_API_KEY),
           },
           body: JSON.stringify(velanaPayload),
         });
