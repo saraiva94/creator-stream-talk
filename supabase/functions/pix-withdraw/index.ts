@@ -413,22 +413,36 @@ serve(async (req) => {
           data: velanaData 
         });
 
-        // ⚠️ TRATAMENTO DE ERRO 412 - Segurança/IP (mensagem vem da Velana)
-        if (velanaResponse.status === 412) {
-          const velanaMessage = velanaData?.message || 'Velana retornou 412 (pré-condição não atendida).';
+        // ⚠️ TRATAMENTO DE ERRO DE SEGURANÇA/IP (a Velana pode retornar 412/401/403)
+        const velanaMessage =
+          velanaData?.message || velanaData?.error || 'Erro de segurança/IP retornado pela Velana.';
+
+        const isVelanaSecurityIpError =
+          velanaResponse.status === 412 ||
+          velanaResponse.status === 401 ||
+          velanaResponse.status === 403 ||
+          /ip\s+n[aã]o\s+autoriz/i.test(velanaMessage) ||
+          /Configurações\s*->\s*Segurança/i.test(velanaMessage) ||
+          /whitelist/i.test(velanaMessage);
+
+        if (isVelanaSecurityIpError) {
           const egressIp = await getEgressIp();
 
-          console.error('[pix-withdraw] ❌ Velana 412:', {
+          console.error('[pix-withdraw] ❌ Velana segurança/IP:', {
+            status: velanaResponse.status,
             message: velanaMessage,
             egressIp: egressIp ?? 'unknown',
           });
 
           // Marca como rejected
-          await supabase.from('payout_requests').update({
-            status: 'rejected',
-            failure_reason: velanaMessage,
-            psp_response: velanaData,
-          }).eq('id', payoutRequest.id);
+          await supabase
+            .from('payout_requests')
+            .update({
+              status: 'rejected',
+              failure_reason: velanaMessage,
+              psp_response: velanaData,
+            })
+            .eq('id', payoutRequest.id);
 
           // 🔄 DEVOLVE O SALDO DO USUÁRIO
           if (deductFromAffiliate > 0 || deductFromLegacy > 0) {
@@ -443,10 +457,13 @@ serve(async (req) => {
           }
 
           if (creatorWallet) {
-            await supabase.from('creator_wallet').update({
-              balance_cents: creatorBalance,
-              pending_cents: creatorWallet.pending_cents || 0,
-            }).eq('creator_id', userId);
+            await supabase
+              .from('creator_wallet')
+              .update({
+                balance_cents: creatorBalance,
+                pending_cents: creatorWallet.pending_cents || 0,
+              })
+              .eq('creator_id', userId);
           }
 
           // Retorna 412 + melhor pista possível para whitelist
@@ -455,6 +472,7 @@ serve(async (req) => {
               success: false,
               error: velanaMessage,
               code: 'VELANA_PRECONDITION_FAILED',
+              velanaStatus: velanaResponse.status,
               egressIp, // se vier preenchido, adicione este IP na whitelist da Velana
               details: egressIp
                 ? `A Velana está exigindo whitelist de IP. Adicione este IP (egress) em Configurações → Segurança: ${egressIp}`
