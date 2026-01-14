@@ -396,14 +396,15 @@ serve(async (req) => {
           data: velanaData 
         });
 
-        // ⚠️ TRATAMENTO DE ERRO 412 - IP não autorizado
+        // ⚠️ TRATAMENTO DE ERRO 412 - Segurança/IP (mensagem vem da Velana)
         if (velanaResponse.status === 412) {
-          console.error('[pix-withdraw] ❌ ERRO 412: IP não autorizado na Velana');
-          
+          const velanaMessage = velanaData?.message || 'Velana retornou 412 (pré-condição não atendida).';
+          console.error('[pix-withdraw] ❌ Velana 412:', velanaMessage);
+
           // Marca como rejected
           await supabase.from('payout_requests').update({
             status: 'rejected',
-            failure_reason: 'IP não autorizado na Velana. Configure em: Configurações → Segurança',
+            failure_reason: velanaMessage,
             psp_response: velanaData,
           }).eq('id', payoutRequest.id);
 
@@ -418,7 +419,7 @@ serve(async (req) => {
             }
             await supabase.from('profiles').update(rollbackProfile).eq('id', userId);
           }
-          
+
           if (creatorWallet) {
             await supabase.from('creator_wallet').update({
               balance_cents: creatorBalance,
@@ -426,15 +427,16 @@ serve(async (req) => {
             }).eq('creator_id', userId);
           }
 
-          // 🚨 RETORNA ERRO CLARO PARA O FRONTEND
+          // Retorna erro sem mascarar (não usar 500 aqui)
           return new Response(
             JSON.stringify({
               success: false,
-              error: 'Erro na configuração de segurança. O administrador foi notificado. Seu saldo foi devolvido.',
-              details: 'A Velana exige autorização de IP. Contate o suporte.',
+              error: velanaMessage,
+              code: 'VELANA_PRECONDITION_FAILED',
+              details: 'A Velana recusou a requisição. Verifique regras de segurança/IP e se a chave pertence ao mesmo ambiente/conta.',
             }),
             {
-              status: 500,
+              status: 412,
               headers: { 'Content-Type': 'application/json', ...corsHeaders },
             }
           );
