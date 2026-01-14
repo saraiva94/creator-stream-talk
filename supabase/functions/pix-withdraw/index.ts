@@ -383,18 +383,33 @@ serve(async (req) => {
       };
 
       try {
-        console.log('[pix-withdraw] Calling Velana POST /v1/transfers...', { 
-          url: `${VELANA_BASE_URL}/v1/transfers`,
-          payload: { ...velanaPayload, pixKey: maskPixKey(pixKey) }
+        // ✅ PROXY CLOUDFLARE - IP FIXO WHITELISTADO NA VELANA
+        const CLOUDFLARE_PROXY_URL = 'https://velana-pix-proxy.jhonatansilvere.workers.dev';
+        const CLOUDFLARE_PROXY_SECRET = Deno.env.get('CLOUDFLARE_PROXY_SECRET');
+        
+        if (!CLOUDFLARE_PROXY_SECRET) {
+          throw new Error('CLOUDFLARE_PROXY_SECRET não configurado');
+        }
+        
+        console.log('[pix-withdraw] Calling Cloudflare Worker proxy...', { 
+          url: CLOUDFLARE_PROXY_URL,
+          payload: { ...velanaPayload, pixKey: maskPixKey(pixKey), apiKey: '***' }
         });
         
-        const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/transfers`, {
+        const velanaResponse = await fetch(CLOUDFLARE_PROXY_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': getVelanaAuthHeader(VELANA_API_KEY), // ✅ Capitalizado corretamente
+            'X-Proxy-Secret': CLOUDFLARE_PROXY_SECRET,
           },
-          body: JSON.stringify(velanaPayload),
+          body: JSON.stringify({
+            apiKey: VELANA_API_KEY,
+            amount: amountCents,
+            pixKey: cleanedPixKey,
+            postbackUrl: postbackUrl,
+            externalId: correlationId,
+            description: `Saque PIX - Stream Star - ${payoutRequest.id}`,
+          }),
         });
 
         const responseText = await velanaResponse.text();
@@ -403,11 +418,11 @@ serve(async (req) => {
         try {
           velanaData = JSON.parse(responseText);
         } catch {
-          console.error('[pix-withdraw] Velana returned non-JSON:', responseText.substring(0, 200));
+          console.error('[pix-withdraw] Proxy returned non-JSON:', responseText.substring(0, 200));
           velanaData = { error: 'Invalid JSON response', raw: responseText.substring(0, 200) };
         }
         
-        console.log('[pix-withdraw] Velana response:', { 
+        console.log('[pix-withdraw] Proxy/Velana response:', { 
           status: velanaResponse.status, 
           ok: velanaResponse.ok,
           data: velanaData 
