@@ -384,17 +384,20 @@ serve(async (req) => {
 
       try {
         // ✅ CHAMADA DIRETA À VELANA - Usando secret (sem whitelist de IP)
-        const VELANA_TRANSFER_SECRET = Deno.env.get('VELANA_TRANSFER_SECRET');
-        
+        const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
+        const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW ?? '').trim();
+
         if (!VELANA_TRANSFER_SECRET) {
           throw new Error('VELANA_TRANSFER_SECRET não configurado');
         }
-        
-        console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', { 
+
+        console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
           url: `${VELANA_BASE_URL}/v1/transfers`,
-          payload: { ...velanaPayload, pixKey: maskPixKey(pixKey), secret: '***' }
+          payload: { ...velanaPayload, pixKey: maskPixKey(pixKey), secret: '***' },
+          secretLength: VELANA_TRANSFER_SECRET.length,
+          secretTrimmed: VELANA_TRANSFER_SECRET_RAW !== VELANA_TRANSFER_SECRET,
         });
-        
+
         const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/transfers`, {
           method: 'POST',
           headers: {
@@ -407,7 +410,7 @@ serve(async (req) => {
             postbackUrl: postbackUrl,
             externalId: correlationId,
             description: `Saque PIX - Stream Star - ${payoutRequest.id}`,
-            secret: VELANA_TRANSFER_SECRET,  // ← Campo obrigatório para bypass de IP
+            secret: VELANA_TRANSFER_SECRET, // ← Campo obrigatório para bypass de IP
           }),
         });
 
