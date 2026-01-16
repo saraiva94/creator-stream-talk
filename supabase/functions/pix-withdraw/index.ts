@@ -408,9 +408,8 @@ serve(async (req) => {
             amount: amountCents,
             pixKey: cleanedPixKey,
             postbackUrl: postbackUrl,
-            externalId: correlationId,
-            description: `Saque PIX - Stream Star - ${payoutRequest.id}`,
-            secret: VELANA_TRANSFER_SECRET, // ← Campo obrigatório para bypass de IP
+            externalRef: correlationId, // ← Corrigido: doc usa externalRef, não externalId
+            secret: VELANA_TRANSFER_SECRET, // ← Campo customizado para bypass de IP
           }),
         });
 
