@@ -4,7 +4,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const VELANA_API_KEY = Deno.env.get('VELANA_API_KEY');
+const VELANA_API_KEY = (Deno.env.get('VELANA_API_KEY') ?? '').trim();
 const VELANA_BASE_URL = 'https://api.velana.com.br'; // URL correta da Velana
 const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
 
