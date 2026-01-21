@@ -8,7 +8,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const VELANA_SK_LIVE = (Deno.env.get('VELANA_API_KEY') ?? '').trim();
 const VELANA_TK_SECRET = (Deno.env.get('VELANA_TRANSFER_SECRET') ?? '').trim();
 const VELANA_BASE_URL = 'https://api.velana.com.br';
-const MIN_WITHDRAW_CENTS = 500; // R$ 5,00
+const MIN_WITHDRAW_CENTS = 100; // R$ 1,00 mínimo (sem limite, usuário pode sacar qualquer valor)
+const WITHDRAWAL_FEE_CENTS = 500; // R$ 5,00 taxa por saque
 
 // Fallback caso env var esteja truncada
 const VELANA_TK_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
@@ -204,21 +205,24 @@ serve(async (req) => {
 
     console.log('[pix-withdraw] Balances:', { affiliateBalance, creatorBalance, legacyBalanceCents, totalAvailable });
 
-    // 6. Valida saldo suficiente
-    if (totalAvailable < amountCents) {
+    // 6. Calcula total a debitar (valor + taxa)
+    const totalToDebit = amountCents + WITHDRAWAL_FEE_CENTS;
+
+    // 7. Valida saldo suficiente para valor + taxa
+    if (totalAvailable < totalToDebit) {
       return new Response(
         JSON.stringify({
-          error: `Saldo insuficiente. Disponível: R$ ${(totalAvailable / 100).toFixed(2)}`,
+          error: `Saldo insuficiente. Você precisa de ${(totalToDebit / 100).toFixed(2).replace('.', ',')} (${(amountCents / 100).toFixed(2).replace('.', ',')} + R$ 5,00 de taxa) mas tem apenas R$ ${(totalAvailable / 100).toFixed(2).replace('.', ',')}`,
         }),
         { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }
 
-    // 7. Gera ID único (correlationId)
+    // 8. Gera ID único (correlationId)
     const correlationId = crypto.randomUUID();
 
-    // 8. Debita saldos (prioriza afiliado, depois legado, depois criador)
-    let remainingDebit = amountCents;
+    // 9. Debita saldos (prioriza afiliado, depois legado, depois criador) - TOTAL = valor + taxa
+    let remainingDebit = totalToDebit;
     let newAffiliateBalance = affiliateBalance;
     let newLegacyBalance = legacyBalanceCents;
     let newCreatorBalance = creatorBalance;

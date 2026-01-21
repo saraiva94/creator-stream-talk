@@ -32,6 +32,31 @@ interface PixWithdrawDialogProps {
 
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
 
+// Taxa de saque fixa
+const WITHDRAWAL_FEE_CENTS = 500; // R$ 5,00
+
+// Formata valor enquanto digita (auto-complete de centavos)
+const formatAmountOnChange = (value: string): string => {
+  // Remove tudo exceto números
+  const digitsOnly = value.replace(/\D/g, '');
+  
+  if (!digitsOnly) return '';
+  
+  // Converte para centavos e depois para reais
+  const cents = parseInt(digitsOnly, 10);
+  const reais = cents / 100;
+  
+  // Formata com 2 casas decimais
+  return reais.toFixed(2).replace('.', ',');
+};
+
+// Parse amount string para centavos
+const parseAmountToCents = (value: string): number => {
+  if (!value) return 0;
+  const cleaned = value.replace(/\D/g, '');
+  return parseInt(cleaned, 10) || 0;
+};
+
 // Bancos compatíveis com Woovi/OpenPix para transferência
 const SUPPORTED_BANKS = [
   { code: "001", name: "Banco do Brasil" },
@@ -182,8 +207,16 @@ const PixWithdrawDialog = ({
     setDetectedKeyType(type);
   };
 
+  // Handler para valor com auto-format (usuário digita apenas números)
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const formatted = formatAmountOnChange(rawValue);
+    setAmount(formatted);
+  };
+
   const handleValidateAndProceed = async () => {
-    const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
+    const amountCents = parseAmountToCents(amount);
+    const totalWithFee = amountCents + WITHDRAWAL_FEE_CENTS;
     
     if (method === "pix") {
       if (!pixKey.trim()) {
@@ -205,7 +238,7 @@ const PixWithdrawDialog = ({
       }
     }
 
-    if (isNaN(amountCents) || amountCents <= 0) {
+    if (amountCents <= 0) {
       toast({
         title: t.pix?.invalidAmount || "Valor inválido",
         description: t.pix?.invalidAmountDesc || "Informe um valor maior que zero",
@@ -214,10 +247,11 @@ const PixWithdrawDialog = ({
       return;
     }
 
-    if (amountCents > availableBalanceCents) {
+    // Valida se tem saldo suficiente para valor + taxa
+    if (totalWithFee > availableBalanceCents) {
       toast({
         title: t.pix?.insufficientBalance || "Saldo insuficiente",
-        description: `${t.pix?.insufficientBalanceDesc || "Seu saldo disponível é"} ${formatBRL(availableBalanceCents)}`,
+        description: `Valor + taxa (${formatBRL(totalWithFee)}) excede seu saldo de ${formatBRL(availableBalanceCents)}`,
         variant: "destructive",
       });
       return;
@@ -296,8 +330,10 @@ const PixWithdrawDialog = ({
     console.log('🔥 [PIX-WITHDRAW] PixKey state:', pixKey);
     console.log('🔥 [PIX-WITHDRAW] Loading state:', loading);
     
-    const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
-    console.log('🔥 [PIX-WITHDRAW] AmountCents calculado:', amountCents);
+    // Calcula valor + taxa (taxa é cobrada do saldo, não enviada via API)
+    const amountCents = parseAmountToCents(amount);
+    const totalDeducted = amountCents + WITHDRAWAL_FEE_CENTS;
+    console.log('🔥 [PIX-WITHDRAW] AmountCents calculado:', amountCents, 'Total com taxa:', totalDeducted);
     
     setLoading(true);
     try {
@@ -395,7 +431,9 @@ const PixWithdrawDialog = ({
   };
 
   const handleWithdrawAll = () => {
-    setAmount((availableBalanceCents / 100).toFixed(2).replace('.', ','));
+    // Saca tudo descontando a taxa
+    const maxWithdrawCents = Math.max(0, availableBalanceCents - WITHDRAWAL_FEE_CENTS);
+    setAmount(formatAmountOnChange(String(maxWithdrawCents)));
   };
 
   const handleBack = () => {
@@ -424,7 +462,9 @@ const PixWithdrawDialog = ({
 
   // Tela de confirmação
   if (step === "confirm") {
-    const amountCents = Math.round(parseFloat(amount.replace(",", ".")) * 100);
+    const amountCents = parseAmountToCents(amount);
+    const totalWithFee = amountCents + WITHDRAWAL_FEE_CENTS;
+    const remainingBalance = availableBalanceCents - totalWithFee;
     const selectedBank = SUPPORTED_BANKS.find(b => b.code === bankCode);
     
     return (
@@ -488,18 +528,39 @@ const PixWithdrawDialog = ({
               )}
             </div>
 
-            {/* Valor do saque */}
-            <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium">Valor do saque:</span>
-                <span className="text-xl font-bold text-green-500">{formatBRL(amountCents)}</span>
+            {/* Breakdown de valores */}
+            <div className="border border-border rounded-lg overflow-hidden">
+              {/* Valor que você recebe */}
+              <div className="flex justify-between items-center p-3 bg-emerald-500/10">
+                <span className="text-sm font-medium">Você recebe:</span>
+                <span className="text-xl font-bold text-emerald-500">{formatBRL(amountCents)}</span>
+              </div>
+              
+              {/* Taxa de saque */}
+              <div className="flex justify-between items-center p-3 border-t border-border">
+                <span className="text-sm text-muted-foreground">Taxa de saque:</span>
+                <span className="text-sm font-medium text-destructive">- {formatBRL(WITHDRAWAL_FEE_CENTS)}</span>
+              </div>
+              
+              {/* Total debitado */}
+              <div className="flex justify-between items-center p-3 border-t border-border bg-muted/50">
+                <span className="text-sm font-medium">Total debitado:</span>
+                <span className="text-sm font-bold">{formatBRL(totalWithFee)}</span>
+              </div>
+              
+              {/* Saldo restante */}
+              <div className="flex justify-between items-center p-3 border-t border-border">
+                <span className="text-sm text-muted-foreground">Saldo após saque:</span>
+                <span className={`text-sm font-medium ${remainingBalance >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                  {formatBRL(remainingBalance)}
+                </span>
               </div>
             </div>
 
             {/* Aviso */}
-            <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-yellow-600 dark:text-yellow-400">
+            <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-600 dark:text-amber-400">
                 Verifique se os dados estão corretos. Após confirmar, o saque será processado e não poderá ser cancelado.
               </p>
             </div>
@@ -685,17 +746,24 @@ const PixWithdrawDialog = ({
             </div>
           )}
 
-          {/* Valor */}
+          {/* Valor - com auto-format de moeda */}
           <div className="space-y-2">
-            <Label htmlFor="amount">{t.pix?.amount || "Valor"} (R$)</Label>
-            <Input
-              id="amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={t.pix?.amountPlaceholder || "Ex: 15,00"}
-              type="text"
-              inputMode="decimal"
-            />
+            <Label htmlFor="amount">{t.pix?.amount || "Valor a receber"} (R$)</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
+              <Input
+                id="amount"
+                value={amount}
+                onChange={handleAmountChange}
+                placeholder="0,00"
+                type="text"
+                inputMode="numeric"
+                className="pl-10 text-lg font-medium"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Taxa de saque: {formatBRL(WITHDRAWAL_FEE_CENTS)} por transação
+            </p>
           </div>
 
           {/* Botão de validar e continuar */}

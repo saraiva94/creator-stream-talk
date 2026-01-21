@@ -194,8 +194,8 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="rounded-md border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
-            Sem taxa de saque: voce recebe 100% do valor solicitado.
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
+            <strong>Taxa de saque:</strong> R$ 5,00 por transação. O valor será descontado do seu saldo.
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Chave PIX</label>

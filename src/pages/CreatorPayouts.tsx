@@ -205,7 +205,7 @@ const CreatorPayouts = () => {
           <div>
             <h1 className="text-3xl font-bold">Payouts</h1>
             <p className="text-muted-foreground text-sm">
-              Solicite saques via PIX sem taxa e acompanhe seu historico de pagamentos.
+              Solicite saques via PIX e acompanhe seu histórico de pagamentos. Taxa: R$ 5,00 por saque.
             </p>
           </div>
         </div>
