@@ -17,30 +17,36 @@ export interface CreditBalanceResponse {
 export interface PaymentResponse {
   success?: boolean;
   transactionId?: string;
+  externalRef?: string;
   secureUrl?: string;
   paymentId: string;
+  amountCents?: number;
   amount: number;
   credits?: number;
   eventType?: string;
+  purchaseType?: string;
   pix?: {
     qrCode: string;
     qrCodeImage?: string;
     expiresAt: string;
   };
-  // Legacy MP fields (for backwards compatibility)
-  init_point?: string;
-  preferenceId?: string;
 }
 
 export interface RegistrationResponse {
-  init_point?: string;
-  preferenceId?: string;
   paymentId?: string;
+  transactionId?: string;
+  externalRef?: string;
+  secureUrl?: string;
   amount?: number;
   status?: string;
   profileId?: string;
   token?: string | null;
   refresh_token?: string | null;
+  pix?: {
+    qrCode: string;
+    qrCodeImage?: string;
+    expiresAt: string;
+  };
 }
 
 // Helper to get auth token

@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Copy, CheckCircle, Loader2, QrCode, Clock, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import { supabase } from "@/integrations/supabase/client";
+import { usePaymentStatus, PaymentIntent } from "@/hooks/usePaymentStatus";
 
 export interface PixPaymentData {
   qrCode: string;
@@ -22,6 +22,7 @@ export interface PixPaymentData {
   amount: number;
   eventType: string;
   description?: string;
+  externalRef?: string; // New: use this for realtime tracking
 }
 
 interface PixPaymentDialogProps {
@@ -43,12 +44,46 @@ export const PixPaymentDialog = ({
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [status, setStatus] = useState<'pending' | 'confirmed' | 'expired'>('pending');
+  const [localStatus, setLocalStatus] = useState<'pending' | 'confirmed' | 'expired'>('pending');
   const [checking, setChecking] = useState(false);
+
+  // Use the realtime hook for payment status
+  const externalRef = pixData?.externalRef || pixData?.paymentId || null;
+  
+  const handlePaid = useCallback((intent: PaymentIntent) => {
+    setLocalStatus('confirmed');
+    toast({
+      title: "Pagamento confirmado! ✅",
+      description: "Seu pagamento foi processado com sucesso.",
+    });
+    onPaymentConfirmed?.();
+  }, [onPaymentConfirmed, toast]);
+
+  const handleFailed = useCallback((intent: PaymentIntent) => {
+    if (intent.status === 'expired') {
+      setLocalStatus('expired');
+      onPaymentExpired?.();
+    }
+  }, [onPaymentExpired]);
+
+  const { status: paymentStatus, isPaid, refetch } = usePaymentStatus({
+    externalRef: open ? externalRef : null,
+    onPaid: handlePaid,
+    onFailed: handleFailed,
+    pollingIntervalMs: 3000,
+    maxPollingDurationMs: 180000,
+  });
+
+  // Reset status when dialog opens with new data
+  useEffect(() => {
+    if (open && pixData) {
+      setLocalStatus('pending');
+    }
+  }, [open, pixData?.paymentId]);
 
   // Calculate time left
   useEffect(() => {
-    if (!pixData?.expiresAt) return;
+    if (!pixData?.expiresAt || !open) return;
 
     const calculateTimeLeft = () => {
       const now = new Date().getTime();
@@ -56,8 +91,8 @@ export const PixPaymentDialog = ({
       const diff = Math.max(0, Math.floor((expiresAt - now) / 1000));
       setTimeLeft(diff);
 
-      if (diff === 0 && status === 'pending') {
-        setStatus('expired');
+      if (diff === 0 && localStatus === 'pending') {
+        setLocalStatus('expired');
         onPaymentExpired?.();
       }
     };
@@ -66,42 +101,17 @@ export const PixPaymentDialog = ({
     const interval = setInterval(calculateTimeLeft, 1000);
 
     return () => clearInterval(interval);
-  }, [pixData?.expiresAt, status, onPaymentExpired]);
+  }, [pixData?.expiresAt, localStatus, onPaymentExpired, open]);
 
-  // Check payment status periodically
+  // Manual check payment status
   const checkPaymentStatus = useCallback(async () => {
-    if (!pixData?.paymentId || status !== 'pending') return;
-
     setChecking(true);
     try {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('status')
-        .eq('external_id', pixData.paymentId)
-        .maybeSingle();
-
-      if (!error && data?.status === 'completed') {
-        setStatus('confirmed');
-        toast({
-          title: "Pagamento confirmado!",
-          description: "Seu pagamento foi processado com sucesso.",
-        });
-        onPaymentConfirmed?.();
-      }
-    } catch (err) {
-      console.error('[PixPaymentDialog] Error checking status:', err);
+      await refetch();
     } finally {
       setChecking(false);
     }
-  }, [pixData?.paymentId, status, onPaymentConfirmed, t, toast]);
-
-  // Auto-check every 5 seconds
-  useEffect(() => {
-    if (status !== 'pending' || !open) return;
-
-    const interval = setInterval(checkPaymentStatus, 5000);
-    return () => clearInterval(interval);
-  }, [checkPaymentStatus, status, open]);
+  }, [refetch]);
 
   const handleCopyCode = async () => {
     if (!pixData?.qrCode) return;
@@ -139,6 +149,8 @@ export const PixPaymentDialog = ({
 
   if (!pixData) return null;
 
+  const displayStatus = isPaid ? 'confirmed' : localStatus;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -161,7 +173,7 @@ export const PixPaymentDialog = ({
           </div>
 
           {/* Status indicators */}
-          {status === 'confirmed' && (
+          {displayStatus === 'confirmed' && (
             <Alert className="bg-green-500/10 border-green-500/50">
               <CheckCircle className="h-4 w-4 text-green-500" />
               <AlertDescription className="text-green-600">
@@ -170,7 +182,7 @@ export const PixPaymentDialog = ({
             </Alert>
           )}
 
-          {status === 'expired' && (
+          {displayStatus === 'expired' && (
             <Alert variant="destructive">
               <Clock className="h-4 w-4" />
               <AlertDescription>
@@ -180,7 +192,7 @@ export const PixPaymentDialog = ({
           )}
 
           {/* QR Code */}
-          {status === 'pending' && (
+          {displayStatus === 'pending' && (
             <>
               <div className="flex justify-center">
                 <div className="bg-white p-4 rounded-lg">
@@ -240,6 +252,12 @@ export const PixPaymentDialog = ({
                 </div>
               </div>
 
+              {/* Waiting indicator */}
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Aguardando confirmação do pagamento...
+              </div>
+
               {/* Check status button */}
               <Button
                 variant="outline"
@@ -263,7 +281,7 @@ export const PixPaymentDialog = ({
           )}
 
           {/* Close button */}
-          {status !== 'pending' && (
+          {displayStatus !== 'pending' && (
             <Button className="w-full" onClick={() => onOpenChange(false)}>
               Fechar
             </Button>

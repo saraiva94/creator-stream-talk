@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { api, ApiError, type RegistrationCheckoutPayload } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 import type { User } from "@supabase/supabase-js";
 
 const REGISTRATION_PRICE = 5.0;
@@ -22,6 +23,10 @@ const RegistrationCheckoutPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  
+  // PIX payment state
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
 
   const referrerId = params.get("ref");
   const isFree = params.get("free") === "1";
@@ -49,6 +54,18 @@ const RegistrationCheckoutPage = () => {
     return "Creator registration";
   }, [isFree, referrerId]);
 
+  // Handle PIX payment confirmation
+  const handlePaymentConfirmed = useCallback(() => {
+    setPixDialogOpen(false);
+    toast({
+      title: "Pagamento confirmado!",
+      description: "Sua conta foi ativada com sucesso. Redirecionando...",
+    });
+    setTimeout(() => {
+      navigate("/auth");
+    }, 2000);
+  }, [navigate, toast]);
+
   const handleCheckout = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
@@ -70,6 +87,7 @@ const RegistrationCheckoutPage = () => {
 
       const response = await api.registration.checkout(payload);
 
+      // Free registration - token received directly
       if (response.token && response.refresh_token) {
         await supabase.auth.setSession({
           access_token: response.token,
@@ -86,8 +104,27 @@ const RegistrationCheckoutPage = () => {
         return;
       }
 
-      if (response.init_point) {
-        window.location.href = response.init_point;
+      // Paid registration - show PIX QR Code
+      const pixResponse = response as any;
+      if (pixResponse.pix?.qrCode) {
+        setPixData({
+          qrCode: pixResponse.pix.qrCode,
+          qrCodeImage: pixResponse.pix.qrCodeImage,
+          expiresAt: pixResponse.pix.expiresAt,
+          transactionId: pixResponse.transactionId || '',
+          paymentId: pixResponse.paymentId,
+          externalRef: pixResponse.externalRef || pixResponse.paymentId,
+          amount: pixResponse.amount || REGISTRATION_PRICE,
+          eventType: 'REGISTRATION',
+          description: 'Account Activation - R$ 5.00',
+        });
+        setPixDialogOpen(true);
+        return;
+      }
+
+      // Fallback to secureUrl redirect
+      if (pixResponse.secureUrl) {
+        window.location.href = pixResponse.secureUrl;
         return;
       }
 
@@ -167,6 +204,14 @@ const RegistrationCheckoutPage = () => {
           </CardContent>
         </Card>
       </div>
+      
+      {/* PIX Payment Dialog */}
+      <PixPaymentDialog
+        open={pixDialogOpen}
+        onOpenChange={setPixDialogOpen}
+        pixData={pixData}
+        onPaymentConfirmed={handlePaymentConfirmed}
+      />
     </div>
   );
 };
