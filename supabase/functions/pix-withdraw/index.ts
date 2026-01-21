@@ -6,7 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const VELANA_API_KEY = (Deno.env.get('VELANA_API_KEY') ?? '').trim();
 const VELANA_BASE_URL = 'https://api.velana.com.br'; // URL correta da Velana
-const MIN_WITHDRAW_CENTS = 1000; // R$ 10,00
+const MIN_WITHDRAW_CENTS = 500; // R$ 5,00
 
 // Helper para criar header de autenticação Basic (Velana usa Basic Auth)
 function getVelanaAuthHeader(apiKey: string): string {
