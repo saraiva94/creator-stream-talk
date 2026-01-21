@@ -374,12 +374,13 @@ serve(async (req) => {
       const cleanedPixKey = cleanPixKey(pixKey, pixKeyType);
       console.log('[pix-withdraw] PIX key cleaned:', { original: maskPixKey(pixKey), cleaned: maskPixKey(cleanedPixKey), type: pixKeyType });
       
-      const velanaPayload = {
-        amount: amountCents, // Velana espera centavos
-        pixKey: cleanedPixKey, // ✅ CHAVE LIMPA SEM FORMATAÇÃO
+      // Payload para log (debug) - NÃO é o que é enviado
+      const velanaPayloadForLog = {
+        amount: amountCents,
+        pixKey: maskPixKey(cleanedPixKey),
         postbackUrl: postbackUrl,
-        externalId: correlationId,
-        description: `Saque PIX - Stream Star - ${payoutRequest.id}`,
+        externalRef: correlationId,
+        // SEM description conforme documentação Velana
       };
 
       try {
