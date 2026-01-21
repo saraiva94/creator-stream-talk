@@ -128,6 +128,12 @@ serve(async (req) => {
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });
       }
+
+       // Debug seguro (não expõe o secret): apenas confirma comprimento e se houve trim
+       const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
+       const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW ?? '').trim();
+       const secretLength = VELANA_TRANSFER_SECRET.length;
+       const secretTrimmed = VELANA_TRANSFER_SECRET_RAW !== VELANA_TRANSFER_SECRET;
       
       const keyType = detectPixKeyType(pixKey);
       // For now, just return validation success with detected key type
@@ -137,6 +143,8 @@ serve(async (req) => {
         keyType,
         normalizedKey: pixKey.trim(),
         holderName: 'Chave válida',
+         secretLength,
+         secretTrimmed,
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -392,9 +400,9 @@ serve(async (req) => {
           throw new Error('VELANA_TRANSFER_SECRET não configurado');
         }
 
-        console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
+         console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
           url: `${VELANA_BASE_URL}/v1/transfers`,
-          payload: { ...velanaPayload, pixKey: maskPixKey(pixKey), secret: '***' },
+           payload: { ...velanaPayloadForLog, secret: '***' },
           secretLength: VELANA_TRANSFER_SECRET.length,
           secretTrimmed: VELANA_TRANSFER_SECRET_RAW !== VELANA_TRANSFER_SECRET,
         });
