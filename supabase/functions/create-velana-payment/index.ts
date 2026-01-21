@@ -226,20 +226,21 @@ serve(async (req) => {
     // Log FULL Velana response for debugging
     console.log('[create-velana-payment] Velana FULL response:', JSON.stringify(velanaData, null, 2));
 
-    // Extract PIX QR code data from multiple possible locations
-    // Velana may return pix data at root level or nested
-    const pixData = velanaData.pix || velanaData.pixQrCode || {};
-    const qrCode = pixData.qrCode || pixData.qr_code || pixData.code || 
-                   velanaData.pixQrCode || velanaData.pix_qr_code || velanaData.qrCode ||
-                   velanaData.pixCopyPaste || velanaData.pix_copy_paste || velanaData.copyPaste || '';
-    const qrCodeImage = pixData.qrCodeImage || pixData.qr_code_image || pixData.image ||
-                        velanaData.pixQrCodeImage || velanaData.pix_qr_code_image || 
-                        velanaData.qrCodeImage || '';
+    // Extract PIX QR code data - Velana uses lowercase "qrcode" field
+    const pixData = velanaData.pix || {};
+    // The PIX copy-paste string is in pix.qrcode (lowercase!)
+    const qrCode = pixData.qrcode || pixData.qrCode || pixData.qr_code || '';
+    // Velana doesn't return a QR code image, so we leave it empty (frontend can generate from string)
+    const qrCodeImage = pixData.qrCodeImage || pixData.qr_code_image || pixData.image || '';
+    // Expiration date
+    const expiresAt = pixData.expirationDate || pixData.expiresAt || pixData.expires_at || 
+                      new Date(Date.now() + 3600000).toISOString();
     
     console.log('[create-velana-payment] Extracted PIX data:', {
       hasPixObject: !!velanaData.pix,
       qrCodeLength: qrCode?.length || 0,
-      hasQrCodeImage: !!qrCodeImage,
+      qrCodePreview: qrCode?.substring(0, 50) + '...',
+      expiresAt,
       secureUrl: velanaData.secureUrl,
     });
 
@@ -281,7 +282,7 @@ serve(async (req) => {
       pix: {
         qrCode: qrCode || null,
         qrCodeImage: qrCodeImage || null,
-        expiresAt: pixData.expiresAt || pixData.expires_at || velanaData.expiresAt || new Date(Date.now() + 3600000).toISOString(),
+        expiresAt: expiresAt,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
