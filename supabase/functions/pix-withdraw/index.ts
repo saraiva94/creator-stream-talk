@@ -132,11 +132,12 @@ serve(async (req) => {
        // Debug seguro (não expõe o secret): apenas confirma comprimento e se houve trim
        const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
        const VELANA_TRANSFER_SECRET_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
-       const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 44) 
+       // Secret correto tem 43 caracteres
+       const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 43) 
          ? VELANA_TRANSFER_SECRET_RAW.trim() 
          : VELANA_TRANSFER_SECRET_FALLBACK;
        const secretLength = VELANA_TRANSFER_SECRET.length;
-       const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 44;
+       const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 43;
       
       const keyType = detectPixKeyType(pixKey);
       // For now, just return validation success with detected key type
@@ -398,19 +399,21 @@ serve(async (req) => {
         // ✅ CHAMADA DIRETA À VELANA - Usando secret (sem whitelist de IP)
         const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
         const VELANA_TRANSFER_SECRET_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
-        const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 44) 
+        // Secret correto tem 43 caracteres
+        const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 43) 
           ? VELANA_TRANSFER_SECRET_RAW.trim() 
           : VELANA_TRANSFER_SECRET_FALLBACK;
-        const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 44;
+        const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 43;
 
         console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
           url: `${VELANA_BASE_URL}/v1/transfers`,
-          payload: { ...velanaPayloadForLog, secret: '***' },
+          payload: { amount: amountCents, pixKey: maskPixKey(cleanedPixKey), secret: '***' },
           secretLength: VELANA_TRANSFER_SECRET.length,
           usedFallback,
           envSecretLength: VELANA_TRANSFER_SECRET_RAW?.trim().length ?? 0,
         });
 
+        // Payload EXATAMENTE igual ao Postman - apenas amount, pixKey, secret
         const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/transfers`, {
           method: 'POST',
           headers: {
@@ -420,9 +423,7 @@ serve(async (req) => {
           body: JSON.stringify({
             amount: amountCents,
             pixKey: cleanedPixKey,
-            postbackUrl: postbackUrl,
-            externalRef: correlationId, // ← Corrigido: doc usa externalRef, não externalId
-            secret: VELANA_TRANSFER_SECRET, // ← Campo customizado para bypass de IP
+            secret: VELANA_TRANSFER_SECRET,
           }),
         });
 
