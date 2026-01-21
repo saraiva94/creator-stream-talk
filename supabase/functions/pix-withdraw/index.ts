@@ -4,14 +4,24 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const VELANA_API_KEY = (Deno.env.get('VELANA_API_KEY') ?? '').trim();
-const VELANA_BASE_URL = 'https://api.velana.com.br'; // URL correta da Velana
+// Velana credentials - SK (secret key) for Basic Auth, TK (transfer secret) for IP bypass
+const VELANA_SK_LIVE = (Deno.env.get('VELANA_API_KEY') ?? '').trim();
+const VELANA_TK_SECRET = (Deno.env.get('VELANA_TRANSFER_SECRET') ?? '').trim();
+const VELANA_BASE_URL = 'https://api.velana.com.br';
 const MIN_WITHDRAW_CENTS = 500; // R$ 5,00
 
+// Fallback caso env var esteja truncada
+const VELANA_TK_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
+const VELANA_SK_FALLBACK = 'sk_live_v2MNtp2Nr3zilgy7wnRDZln1qXbMZ3vjO4NUxylG3T';
+
+// Use fallback if env vars are empty or wrong length
+const getVelanaSK = () => (VELANA_SK_LIVE.length >= 40 ? VELANA_SK_LIVE : VELANA_SK_FALLBACK);
+const getVelanaTK = () => (VELANA_TK_SECRET.length === 43 ? VELANA_TK_SECRET : VELANA_TK_FALLBACK);
+
 // Helper para criar header de autenticação Basic (Velana usa Basic Auth)
-function getVelanaAuthHeader(apiKey: string): string {
-  // Velana espera: Basic base64(SECRET_KEY:x)
-  const credentials = `${apiKey}:x`;
+function getVelanaAuthHeader(): string {
+  // Velana espera: Basic base64(SK_LIVE:x)
+  const credentials = `${getVelanaSK()}:x`;
   return `Basic ${btoa(credentials)}`;
 }
 
@@ -129,15 +139,11 @@ serve(async (req) => {
         });
       }
 
-       // Debug seguro (não expõe o secret): apenas confirma comprimento e se houve trim
-       const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
-       const VELANA_TRANSFER_SECRET_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
-       // Secret correto tem 43 caracteres
-       const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 43) 
-         ? VELANA_TRANSFER_SECRET_RAW.trim() 
-         : VELANA_TRANSFER_SECRET_FALLBACK;
-       const secretLength = VELANA_TRANSFER_SECRET.length;
-       const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 43;
+       // Debug seguro: apenas confirma comprimento e se houve fallback
+       const tkSecret = getVelanaTK();
+       const skLive = getVelanaSK();
+       const secretLength = tkSecret.length;
+       const usedFallback = tkSecret === VELANA_TK_FALLBACK;
       
       const keyType = detectPixKeyType(pixKey);
       // For now, just return validation success with detected key type
@@ -370,60 +376,48 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const postbackUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
     
+    // Get credentials with fallback
+    const skLive = getVelanaSK();
+    const tkSecret = getVelanaTK();
+    
     console.log('[pix-withdraw] Checking Velana config...', { 
-      hasApiKey: !!VELANA_API_KEY, 
+      hasApiKey: !!skLive, 
+      skLength: skLive.length,
+      tkLength: tkSecret.length,
       baseUrl: VELANA_BASE_URL,
       postbackUrl,
     });
     
-    if (VELANA_API_KEY) {
-      // Velana POST /v1/transfers espera:
-      // - amount: valor em CENTAVOS (integer)
-      // - pixKey: chave PIX de destino (LIMPA, sem formatação)
-      // - postbackUrl: URL do webhook para receber atualizações
-      // - externalId: ID externo para correlação (opcional)
-      // - description: descrição da transferência (opcional)
+    if (skLive) {
       const cleanedPixKey = cleanPixKey(pixKey, pixKeyType);
       console.log('[pix-withdraw] PIX key cleaned:', { original: maskPixKey(pixKey), cleaned: maskPixKey(cleanedPixKey), type: pixKeyType });
-      
-      // Payload para log (debug) - NÃO é o que é enviado
-      const velanaPayloadForLog = {
-        amount: amountCents,
-        pixKey: maskPixKey(cleanedPixKey),
-        postbackUrl: postbackUrl,
-        externalRef: correlationId,
-        // SEM description conforme documentação Velana
-      };
 
       try {
-        // ✅ CHAMADA DIRETA À VELANA - Usando secret (sem whitelist de IP)
-        const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
-        const VELANA_TRANSFER_SECRET_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
-        // Secret correto tem 43 caracteres
-        const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 43) 
-          ? VELANA_TRANSFER_SECRET_RAW.trim() 
-          : VELANA_TRANSFER_SECRET_FALLBACK;
-        const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 43;
-
-        console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
+        // ✅ CHAMADA EXATAMENTE IGUAL AO POSTMAN
+        // Auth: Basic base64(sk_live_xxx:x)
+        // Body: { amount, pixKey, secret }
+        const authHeader = `Basic ${btoa(`${skLive}:x`)}`;
+        
+        console.log('[pix-withdraw] Calling Velana POST /v1/transfers...', {
           url: `${VELANA_BASE_URL}/v1/transfers`,
           payload: { amount: amountCents, pixKey: maskPixKey(cleanedPixKey), secret: '***' },
-          secretLength: VELANA_TRANSFER_SECRET.length,
-          usedFallback,
-          envSecretLength: VELANA_TRANSFER_SECRET_RAW?.trim().length ?? 0,
+          secretLength: tkSecret.length,
+          skLength: skLive.length,
+          usedTkFallback: tkSecret === VELANA_TK_FALLBACK,
+          usedSkFallback: skLive === VELANA_SK_FALLBACK,
         });
 
         // Payload EXATAMENTE igual ao Postman - apenas amount, pixKey, secret
         const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/transfers`, {
           method: 'POST',
           headers: {
-            'Authorization': `Basic ${btoa(VELANA_API_KEY + ':x')}`,
+            'Authorization': authHeader,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             amount: amountCents,
             pixKey: cleanedPixKey,
-            secret: VELANA_TRANSFER_SECRET,
+            secret: tkSecret,
           }),
         });
 
