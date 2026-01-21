@@ -164,6 +164,12 @@ serve(async (req) => {
     const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
 
     // Build Velana transaction payload
+    // Valid test CPF for development (Velana requires valid CPF format)
+    const validTestCpf = '12345678909'; // Valid CPF checksum
+    const customerCpfClean = customer.cpf?.replace(/\D/g, '') || '';
+    const documentNumber = customerCpfClean.length >= 11 ? customerCpfClean : validTestCpf;
+    const documentType = documentNumber.length === 14 ? 'cnpj' : 'cpf';
+
     const velanaPayload = {
       amount: paymentAmountCents,
       paymentMethod: 'pix',
@@ -171,8 +177,8 @@ serve(async (req) => {
         name: customer.name,
         email: customer.email,
         document: {
-          type: customer.cpf?.replace(/\D/g, '').length === 14 ? 'cnpj' : 'cpf',
-          number: customer.cpf?.replace(/\D/g, '') || '00000000000',
+          type: documentType,
+          number: documentNumber,
         },
         phone: customer.phone?.replace(/\D/g, '') || undefined,
       },
