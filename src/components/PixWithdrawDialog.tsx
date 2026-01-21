@@ -35,6 +35,9 @@ const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.',
 // Taxa de saque fixa
 const WITHDRAWAL_FEE_CENTS = 500; // R$ 5,00
 
+// Saldo mínimo para saque (inclui taxa)
+const MIN_BALANCE_FOR_WITHDRAWAL_CENTS = 1500; // R$ 15,00 (mínimo R$ 10 saque + R$ 5 taxa)
+
 // Formata valor enquanto digita (auto-complete de centavos)
 const formatAmountOnChange = (value: string): string => {
   // Remove tudo exceto números
@@ -431,10 +434,19 @@ const PixWithdrawDialog = ({
   };
 
   const handleWithdrawAll = () => {
-    // Saca tudo descontando a taxa
+    // Saca tudo descontando a taxa - converte centavos para string de centavos
     const maxWithdrawCents = Math.max(0, availableBalanceCents - WITHDRAWAL_FEE_CENTS);
-    setAmount(formatAmountOnChange(String(maxWithdrawCents)));
+    // formatAmountOnChange espera uma string que será dividida por 100
+    // Então passamos o valor em centavos como string
+    const formattedValue = (maxWithdrawCents / 100).toFixed(2).replace('.', ',');
+    setAmount(formattedValue);
   };
+  
+  // Verifica se tem saldo mínimo para saque
+  const hasMinimumBalance = availableBalanceCents >= MIN_BALANCE_FOR_WITHDRAWAL_CENTS;
+  const amountCentsInput = parseAmountToCents(amount);
+  const totalWithFeeInput = amountCentsInput + WITHDRAWAL_FEE_CENTS;
+  const canProceed = hasMinimumBalance && amountCentsInput > 0 && totalWithFeeInput <= availableBalanceCents;
 
   const handleBack = () => {
     setStep("input");
@@ -617,9 +629,19 @@ const PixWithdrawDialog = ({
         <div className="space-y-4 pt-4">
           {/* Saldo disponível */}
           <div className="bg-secondary p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">{t.pix?.availableBalance || "Saldo disponível"}</p>
-            <p className="text-2xl font-bold text-green-500">{formatBRL(availableBalanceCents)}</p>
-            {availableBalanceCents > 0 && (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">{t.pix?.availableBalance || "Saldo disponível"}</p>
+                <p className="text-2xl font-bold text-green-500">{formatBRL(availableBalanceCents)}</p>
+              </div>
+              {!hasMinimumBalance && (
+                <div className="flex items-center gap-1.5 text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-lg">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-xs font-medium">Mínimo: {formatBRL(MIN_BALANCE_FOR_WITHDRAWAL_CENTS)}</span>
+                </div>
+              )}
+            </div>
+            {hasMinimumBalance && availableBalanceCents > WITHDRAWAL_FEE_CENTS && (
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -769,8 +791,8 @@ const PixWithdrawDialog = ({
           {/* Botão de validar e continuar */}
           <Button
             onClick={handleValidateAndProceed}
-            disabled={validating || availableBalanceCents <= 0}
-            className="w-full bg-green-600 hover:bg-green-700"
+            disabled={validating || !canProceed}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50"
           >
             {validating ? (
               <>
@@ -784,6 +806,12 @@ const PixWithdrawDialog = ({
               </>
             )}
           </Button>
+          
+          {!hasMinimumBalance && (
+            <p className="text-xs text-amber-500 text-center font-medium">
+              Saldo mínimo para saque: {formatBRL(MIN_BALANCE_FOR_WITHDRAWAL_CENTS)}
+            </p>
+          )}
 
           <p className="text-xs text-muted-foreground text-center">
             {method === "pix" 
