@@ -885,6 +885,51 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_intents: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          error_message: string | null
+          external_ref: string
+          id: string
+          metadata: Json | null
+          paid_at: string | null
+          purchase_type: string
+          status: string
+          updated_at: string
+          user_id: string
+          velana_transaction_id: string | null
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          error_message?: string | null
+          external_ref: string
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          purchase_type: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          velana_transaction_id?: string | null
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          error_message?: string | null
+          external_ref?: string
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          purchase_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          velana_transaction_id?: string | null
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number

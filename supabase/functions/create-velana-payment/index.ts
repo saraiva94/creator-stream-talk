@@ -162,7 +162,6 @@ serve(async (req) => {
     metadata.payment_id = externalReference;
 
     const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
-    const origin = req.headers.get('origin') || 'https://enacciilzvifhqpenhlz.lovableproject.com';
 
     // Build Velana transaction payload
     const velanaPayload = {
@@ -228,14 +227,41 @@ serve(async (req) => {
     // Extract PIX QR code data
     const pixData = velanaData.pix || {};
 
+    // Register payment_intent for tracking and realtime updates
+    const { error: intentError } = await supabase
+      .from('payment_intents')
+      .insert({
+        user_id: userId,
+        external_ref: externalReference,
+        velana_transaction_id: String(velanaData.id),
+        purchase_type: normalizedPurchaseType || 'live_access',
+        amount_cents: paymentAmountCents,
+        status: 'pending',
+        metadata: {
+          ...metadata,
+          credits: creditsToGrant || undefined,
+          velana_status: velanaData.status,
+        },
+      });
+
+    if (intentError) {
+      console.error('[create-velana-payment] Failed to create payment_intent:', intentError);
+      // Don't fail the request, just log the error
+    } else {
+      console.log('[create-velana-payment] Payment intent created:', externalReference);
+    }
+
     return new Response(JSON.stringify({
       success: true,
+      purchaseType: normalizedPurchaseType || 'live_access',
       transactionId: String(velanaData.id),
-      secureUrl: velanaData.secureUrl,
+      externalRef: externalReference,
       paymentId: externalReference,
+      amountCents: paymentAmountCents,
       amount: paymentAmountCents / 100,
       credits: creditsToGrant || undefined,
       eventType,
+      secureUrl: velanaData.secureUrl,
       pix: {
         qrCode: pixData.qrCode || pixData.qr_code || pixData.code,
         qrCodeImage: pixData.qrCodeImage || pixData.qr_code_image || pixData.image,

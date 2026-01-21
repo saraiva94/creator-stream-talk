@@ -290,11 +290,11 @@ export interface LiveHeartbeatResponse {
   remainingCredits: number;
 }
 
+/** @deprecated Mercado Pago discontinued - use Velana PIX */
 export interface PaymentPreferenceResponse {
-  init_point?: string;
-  preferenceId?: string;
-  amount?: number;
+  secureUrl?: string;
   paymentId?: string;
+  amount?: number;
   currency?: string | null;
 }
 
@@ -324,14 +324,20 @@ export interface RegistrationCheckoutPayload {
 }
 
 export interface RegistrationCheckoutResponse {
-  init_point?: string;
-  preferenceId?: string;
-  amount?: number;
   paymentId?: string;
+  transactionId?: string;
+  externalRef?: string;
+  secureUrl?: string;
+  amount?: number;
   status?: string;
   token?: string | null;
   refresh_token?: string | null;
   profileId?: string;
+  pix?: {
+    qrCode: string;
+    qrCodeImage?: string;
+    expiresAt: string;
+  };
 }
 
 export interface LiveAnalyticsSnapshot {

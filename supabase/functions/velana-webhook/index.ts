@@ -431,7 +431,7 @@ async function processPaymentTransaction(supabase: any, payload: any): Promise<a
 
   console.log('[velana-webhook] Processing payment:', { eventType, userId, amount, externalRef });
 
-  // Idempotency check
+  // Idempotency check via transactions table
   const { data: existingPayment } = await supabase
     .from('transactions')
     .select('id')
@@ -439,8 +439,30 @@ async function processPaymentTransaction(supabase: any, payload: any): Promise<a
     .maybeSingle();
 
   if (existingPayment) {
-    console.log('[velana-webhook] Duplicate, skipping:', externalRef);
+    console.log('[velana-webhook] Duplicate transaction, skipping:', externalRef);
+    // Still update payment_intent to 'paid' in case it wasn't updated before
+    await supabase
+      .from('payment_intents')
+      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .eq('external_ref', externalRef);
     return { success: true, duplicate: true };
+  }
+
+  // Update payment_intent status to 'paid' for realtime updates
+  const { error: intentUpdateError } = await supabase
+    .from('payment_intents')
+    .update({ 
+      status: 'paid', 
+      paid_at: new Date().toISOString(),
+      velana_transaction_id: transactionId,
+    })
+    .eq('external_ref', externalRef);
+
+  if (intentUpdateError) {
+    console.warn('[velana-webhook] Failed to update payment_intent:', intentUpdateError.message);
+    // Don't fail the webhook, continue processing
+  } else {
+    console.log('[velana-webhook] Payment intent updated to paid:', externalRef);
   }
 
   // Helper function to notify admins

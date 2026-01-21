@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { Check, Eye, EyeOff, X } from "lucide-react";
@@ -16,6 +16,7 @@ import { logger } from "@/lib/logger";
 import { TermsDialog } from "@/components/TermsDialog";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
 import { useLanguage } from "@/hooks/useLanguage";
+import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -39,10 +40,27 @@ const Subscribe = () => {
   const [birthDay, setBirthDay] = useState("");
   const [birthMonth, setBirthMonth] = useState("");
   const [birthYear, setBirthYear] = useState("");
+  
+  // PIX payment state
+  const [pixDialogOpen, setPixDialogOpen] = useState(false);
+  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
 
   // Password validation state
   const passwordValidation = validatePasswordStrength(password);
   const passwordsMatch = password && confirmPassword && password === confirmPassword;
+  
+  // Handle PIX payment confirmation
+  const handlePaymentConfirmed = useCallback(() => {
+    setPixDialogOpen(false);
+    toast({
+      title: "Pagamento confirmado!",
+      description: "Sua conta foi ativada com sucesso. Redirecionando...",
+    });
+    // Attempt to sign in and redirect
+    setTimeout(() => {
+      navigate("/auth");
+    }, 2000);
+  }, [navigate, toast]);
 
   useEffect(() => {
     logger.register.info('Página de cadastro carregada');
@@ -199,7 +217,7 @@ const Subscribe = () => {
       logger.register.info('Resposta do checkout recebida', {
         hasToken: !!response.token,
         hasRefreshToken: !!response.refresh_token,
-        hasInitPoint: !!response.init_point,
+        hasPix: !!(response as any).pix?.qrCode,
         status: response.status,
         profileId: response.profileId,
       });
@@ -217,17 +235,38 @@ const Subscribe = () => {
         return;
       }
 
-      // Registro pago - redireciona para Mercado Pago
-      if (response.init_point) {
-        logger.payment.info('Redirecionando para Mercado Pago', { 
-          initPoint: response.init_point,
+      // Registro pago - mostrar QR Code PIX
+      const pixResponse = response as any;
+      if (pixResponse.pix?.qrCode) {
+        logger.payment.info('Exibindo QR Code PIX para pagamento', { 
+          paymentId: pixResponse.paymentId,
+          amount: pixResponse.amount,
         });
-        // Use window.location.href for better Safari/iOS compatibility
-        window.location.href = response.init_point;
+        setPixData({
+          qrCode: pixResponse.pix.qrCode,
+          qrCodeImage: pixResponse.pix.qrCodeImage,
+          expiresAt: pixResponse.pix.expiresAt,
+          transactionId: pixResponse.transactionId || '',
+          paymentId: pixResponse.paymentId,
+          externalRef: pixResponse.externalRef || pixResponse.paymentId,
+          amount: pixResponse.amount || 5.00,
+          eventType: 'REGISTRATION',
+          description: 'Ativação de conta - R$ 5,00',
+        });
+        setPixDialogOpen(true);
         return;
       }
 
-      logger.register.warn('Resposta do checkout sem token nem init_point', { response });
+      // Fallback para secureUrl (redirect)
+      if (pixResponse.secureUrl) {
+        logger.payment.info('Redirecionando para página de pagamento segura', { 
+          secureUrl: pixResponse.secureUrl,
+        });
+        window.location.href = pixResponse.secureUrl;
+        return;
+      }
+
+      logger.register.warn('Resposta do checkout sem token nem pix', { response });
       toast({
         title: "Cadastro enviado",
         description: "Se houver pagamento, você será redirecionado.",
@@ -528,6 +567,14 @@ const Subscribe = () => {
           </Card>
         </div>
       </main>
+      
+      {/* PIX Payment Dialog */}
+      <PixPaymentDialog
+        open={pixDialogOpen}
+        onOpenChange={setPixDialogOpen}
+        pixData={pixData}
+        onPaymentConfirmed={handlePaymentConfirmed}
+      />
     </div>
   );
 };
