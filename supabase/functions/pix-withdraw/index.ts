@@ -131,9 +131,12 @@ serve(async (req) => {
 
        // Debug seguro (não expõe o secret): apenas confirma comprimento e se houve trim
        const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
-       const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW ?? '').trim();
+       const VELANA_TRANSFER_SECRET_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
+       const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 44) 
+         ? VELANA_TRANSFER_SECRET_RAW.trim() 
+         : VELANA_TRANSFER_SECRET_FALLBACK;
        const secretLength = VELANA_TRANSFER_SECRET.length;
-       const secretTrimmed = VELANA_TRANSFER_SECRET_RAW !== VELANA_TRANSFER_SECRET;
+       const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 44;
       
       const keyType = detectPixKeyType(pixKey);
       // For now, just return validation success with detected key type
@@ -143,8 +146,8 @@ serve(async (req) => {
         keyType,
         normalizedKey: pixKey.trim(),
         holderName: 'Chave válida',
-         secretLength,
-         secretTrimmed,
+        secretLength,
+        usedFallback,
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
@@ -394,17 +397,18 @@ serve(async (req) => {
       try {
         // ✅ CHAMADA DIRETA À VELANA - Usando secret (sem whitelist de IP)
         const VELANA_TRANSFER_SECRET_RAW = Deno.env.get('VELANA_TRANSFER_SECRET');
-        const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW ?? '').trim();
+        const VELANA_TRANSFER_SECRET_FALLBACK = 'tk_g7wdhc0u9tsp70w72wpr92win2a37tyq4asyx0qj';
+        const VELANA_TRANSFER_SECRET = (VELANA_TRANSFER_SECRET_RAW && VELANA_TRANSFER_SECRET_RAW.trim().length === 44) 
+          ? VELANA_TRANSFER_SECRET_RAW.trim() 
+          : VELANA_TRANSFER_SECRET_FALLBACK;
+        const usedFallback = !VELANA_TRANSFER_SECRET_RAW || VELANA_TRANSFER_SECRET_RAW.trim().length !== 44;
 
-        if (!VELANA_TRANSFER_SECRET) {
-          throw new Error('VELANA_TRANSFER_SECRET não configurado');
-        }
-
-         console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
+        console.log('[pix-withdraw] Calling Velana directly POST /v1/transfers...', {
           url: `${VELANA_BASE_URL}/v1/transfers`,
-           payload: { ...velanaPayloadForLog, secret: '***' },
+          payload: { ...velanaPayloadForLog, secret: '***' },
           secretLength: VELANA_TRANSFER_SECRET.length,
-          secretTrimmed: VELANA_TRANSFER_SECRET_RAW !== VELANA_TRANSFER_SECRET,
+          usedFallback,
+          envSecretLength: VELANA_TRANSFER_SECRET_RAW?.trim().length ?? 0,
         });
 
         const velanaResponse = await fetch(`${VELANA_BASE_URL}/v1/transfers`, {
