@@ -5,8 +5,8 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
 ## 1) Stack & Arquitetura
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui (`src/`), roteado em `src/App.tsx`, cliente Supabase em `src/integrations/supabase/client.ts`.
 - **Backend:** Node/Express + TypeScript (`backend/`), Supabase Auth via middleware `requireAuth`, rotas em `backend/src/routes/`, serviços em `backend/src/services/`.
-- **Supabase:** Postgres com RLS, migrações SQL em `supabase/migrations/`, Edge Function `monitor-lives` (cron em `supabase/config.toml`), funções auxiliares (create-payment, mercadopago-webhook, livekit-room).
-- **Mercado Pago:** Checkout preference + webhook (`/payments/webhook`) para creditar acessos, créditos e afiliados.
+- **Supabase:** Postgres com RLS, migrações SQL em `supabase/migrations/`, Edge Function `monitor-lives` (cron em `supabase/config.toml`), funções auxiliares (create-velana-payment, velana-webhook, livekit-room).
+- **Velana:** Gateway de pagamentos PIX para recebimento (credits, registration, superchat) e envio (withdrawals) via Edge Functions `create-velana-payment` e `velana-webhook`.
 - **LiveKit:** Video streaming via WebRTC, Edge Function `livekit-room` gera tokens JWT, components em `src/components/webrtc/`.
 - **Créditos:** Armazenados como inteiros em `credits_wallet`; ledger em `credit_purchases`; consumo por sessão em `live_consumption`; earnings em `creator_earnings`; wallets em `creator_wallet`.
 
@@ -63,8 +63,8 @@ Este documento consolida stack, setup e fluxos críticos (créditos, monetizaç�
    - Em dev, pode chamar manualmente via Supabase Functions ou HTTP (POST/GET) para validar ciclo.
 
 ## 3) Fluxo de Créditos
-- **Compra:** frontend chama `/payments/create-preference` com `purchaseType: 'credits'`; usuário paga no Mercado Pago.
-- **Webhook:** `/payments/webhook` valida e chama `registerCreditPurchase` → insere em `credit_purchases` (idempotente por `payment_id`) e incrementa `credits_wallet.balance_credits`.
+- **Compra:** frontend chama Edge Function `create-velana-payment` com `purchaseType: 'credits'`; usuário paga via PIX.
+- **Webhook Velana:** `velana-webhook` valida e chama `registerCreditPurchase` → insere em `credit_purchases` (idempotente por `payment_id`) e incrementa `credits_wallet.balance_credits`.
 - **Sessão de live:** ao entrar, cria/usa `live_consumption` (live_id, user_id, session_token).
 - **Heartbeats (monitor-lives):** soma `seconds_watched`, calcula ticks de 10s (1 crédito = 10s), debita wallet. Se acabar crédito, encerra sessão, seta `ended_at` e remove `live_access`.
 - **Settlement:** ao encerrar live, `creatorEarningsService` soma `credits_consumed`, converte (500 cents ↔ 180 créditos; 80/20 split), insere/atualiza `creator_earnings` e credita `creator_wallet.balance_cents`.

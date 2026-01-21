@@ -600,12 +600,11 @@ export const apiClient = {
     return data as LiveHeartbeatResponse;
   },
 
-  createPaymentPreference: (payload: CreatePaymentPayload) =>
-    request<PaymentPreferenceResponse>('/payments/create-preference', {
-      method: 'POST',
-      body: payload,
-      auth: 'required',
-    }),
+  /** @deprecated Use createCreditsPayment from supabaseApi.ts instead - Mercado Pago discontinued */
+  createPaymentPreference: async (_payload: CreatePaymentPayload): Promise<PaymentPreferenceResponse> => {
+    console.warn('[api] createPaymentPreference deprecated - use Velana PIX via supabaseApi.ts');
+    throw new ApiError('Mercado Pago discontinued. Use PIX via Velana.', 410);
+  },
 
   getCreatorBalance: () =>
     request<CreatorBalanceSnapshot>('/creators/balance', { method: 'GET', auth: 'required' }),
@@ -658,12 +657,11 @@ export const apiClient = {
 
   resolveUsername: (username: string) => resolveUsernameToEmail(username),
 
-  createRegistrationPreference: (payload: { userId: string; parentId: string }) =>
-    request<PaymentPreferenceResponse>('/payments/create-registration-preference', {
-      method: 'POST',
-      body: payload,
-      auth: 'optional',
-    }),
+  /** @deprecated Use createRegistrationPayment from supabaseApi.ts instead - Mercado Pago discontinued */
+  createRegistrationPreference: async (_payload: { userId: string; parentId: string }): Promise<PaymentPreferenceResponse> => {
+    console.warn('[api] createRegistrationPreference deprecated - use Velana PIX via supabaseApi.ts');
+    throw new ApiError('Mercado Pago discontinued. Use PIX via Velana.', 410);
+  },
 
   getCreditBalance: async () => {
     const data = await withFallback(
@@ -686,18 +684,11 @@ export const apiClient = {
     };
   },
 
-  purchaseCredits: (payload: { userId: string; price: number; credits?: number; liveId?: string }) =>
-    request<PaymentPreferenceResponse>('/payments/create-preference', {
-      method: 'POST',
-      auth: 'required',
-      body: {
-        liveId: payload.liveId ?? 'credits-package',
-        userId: payload.userId,
-        price: payload.price,
-        purchaseType: 'credits',
-        metadata: payload.credits ? { credits: payload.credits } : undefined,
-      },
-    }),
+  /** @deprecated Use createCreditsPayment from supabaseApi.ts instead - Mercado Pago discontinued */
+  purchaseCredits: async (_payload: { userId: string; price: number; credits?: number; liveId?: string }): Promise<PaymentPreferenceResponse> => {
+    console.warn('[api] purchaseCredits deprecated - use createCreditsPayment from supabaseApi.ts');
+    throw new ApiError('Mercado Pago discontinued. Use PIX via Velana.', 410);
+  },
 
   consumeCredits: async (_amount: number) => {
     console.warn('[api] consumeCredits not implemented; backend endpoint missing');
