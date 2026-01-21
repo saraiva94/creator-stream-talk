@@ -163,24 +163,23 @@ serve(async (req) => {
 
     const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
 
-    // Build Velana transaction payload
-    // Valid test CPF for development (Velana requires valid CPF format)
-    const validTestCpf = '12345678909'; // Valid CPF checksum
-    const customerCpfClean = customer.cpf?.replace(/\D/g, '') || '';
-    const documentNumber = customerCpfClean.length >= 11 ? customerCpfClean : validTestCpf;
-    const documentType = documentNumber.length === 14 ? 'cnpj' : 'cpf';
+    // Fixed owner data for all PIX cash-in transactions
+    // Users don't need to provide CPF - platform owner data is used
+    const OWNER_DATA = {
+      cpf: '10285418726',
+      name: 'Stream Star Pagamentos',
+    };
 
     const velanaPayload = {
       amount: paymentAmountCents,
       paymentMethod: 'pix',
       customer: {
-        name: customer.name,
+        name: OWNER_DATA.name,
         email: customer.email,
         document: {
-          type: documentType,
-          number: documentNumber,
+          type: 'cpf',
+          number: OWNER_DATA.cpf,
         },
-        phone: customer.phone?.replace(/\D/g, '') || undefined,
       },
       items: [
         {
