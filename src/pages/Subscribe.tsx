@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasswordStrength } from "@/lib/password";
-import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
+import { createRegistrationPayment, validateAffiliateCode } from "@/lib/supabaseApi";
 import { logger } from "@/lib/logger";
 import { TermsDialog } from "@/components/TermsDialog";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
@@ -199,57 +199,54 @@ const Subscribe = () => {
         return;
       }
 
-      // Chamar checkout de registro
-      logger.register.info('Iniciando checkout de registro', {
-        fullName: fullName.trim(),
+      // Criar usuário (Auth) e gerar PIX de ativação
+      logger.register.info('Criando conta (Auth) para iniciar pagamento', {
         email,
         referralCode: trimmedReferral,
       });
 
-      const response = await registrationCheckout({
-        fullName: fullName.trim(),
+      const signUpResult = await supabase.auth.signUp({
         email,
         password,
-        referralCode: trimmedReferral,
-        acceptTerms,
+        options: {
+          data: {
+            username: fullName.trim(),
+            referrer_id: (validation as any).ownerId,
+            referral_code: trimmedReferral,
+          },
+        },
       });
 
-      logger.register.info('Resposta do checkout recebida', {
-        hasToken: !!response.token,
-        hasRefreshToken: !!response.refresh_token,
-        hasPix: !!(response as any).pix?.qrCode,
-        status: response.status,
-        profileId: response.profileId,
-      });
-
-      // Registro gratuito (com token direto)
-      if (response.token && response.refresh_token) {
-        logger.auth.info('Registro gratuito - configurando sessão');
-        await supabase.auth.setSession({
-          access_token: response.token,
-          refresh_token: response.refresh_token,
-        });
-        logger.auth.info('Sessão configurada com sucesso');
-        toast({ title: "Cadastro concluído", description: "Bem-vindo!" });
-        navigate("/dashboard");
-        return;
+      if (signUpResult.error) {
+        throw signUpResult.error;
       }
 
-      // Registro pago - mostrar QR Code PIX
-      const pixResponse = response as any;
-      if (pixResponse.pix?.qrCode) {
-        logger.payment.info('Exibindo QR Code PIX para pagamento', { 
-          paymentId: pixResponse.paymentId,
-          amount: pixResponse.amount,
-        });
+      const createdUserId = signUpResult.data.user?.id;
+      if (!createdUserId) {
+        throw new Error('Falha ao criar usuário');
+      }
+
+      logger.payment.info('Criando pagamento PIX de ativação', {
+        userId: createdUserId,
+        referrerId: (validation as any).ownerId,
+      });
+
+      const payment = await createRegistrationPayment({
+        userId: createdUserId,
+        referrerId: (validation as any).ownerId || undefined,
+        customerName: fullName.trim(),
+        customerEmail: email,
+      });
+
+      if (payment?.pix?.qrCode) {
         setPixData({
-          qrCode: pixResponse.pix.qrCode,
-          qrCodeImage: pixResponse.pix.qrCodeImage,
-          expiresAt: pixResponse.pix.expiresAt,
-          transactionId: pixResponse.transactionId || '',
-          paymentId: pixResponse.paymentId,
-          externalRef: pixResponse.externalRef || pixResponse.paymentId,
-          amount: pixResponse.amount || 5.00,
+          qrCode: payment.pix.qrCode,
+          qrCodeImage: payment.pix.qrCodeImage,
+          expiresAt: payment.pix.expiresAt,
+          transactionId: payment.transactionId || '',
+          paymentId: payment.paymentId,
+          externalRef: payment.externalRef || payment.paymentId,
+          amount: payment.amount || 5.0,
           eventType: 'REGISTRATION',
           description: 'Ativação de conta - R$ 5,00',
         });
@@ -257,20 +254,12 @@ const Subscribe = () => {
         return;
       }
 
-      // Fallback para secureUrl (redirect)
-      if (pixResponse.secureUrl) {
-        logger.payment.info('Redirecionando para página de pagamento segura', { 
-          secureUrl: pixResponse.secureUrl,
-        });
-        window.location.href = pixResponse.secureUrl;
+      if (payment?.secureUrl) {
+        window.location.href = payment.secureUrl;
         return;
       }
 
-      logger.register.warn('Resposta do checkout sem token nem pix', { response });
-      toast({
-        title: "Cadastro enviado",
-        description: "Se houver pagamento, você será redirecionado.",
-      });
+      throw new Error('Não foi possível gerar o QR Code PIX');
     } catch (error: unknown) {
       logger.register.error('Erro no processo de cadastro', {}, error as Error);
       const err = error as Error;
