@@ -164,10 +164,11 @@ serve(async (req) => {
     const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
 
     // Fixed owner data for all PIX cash-in transactions
-    // Users don't need to provide CPF - platform owner data is used
+    // Users don't need to provide CPF or phone - platform owner data is used
     const OWNER_DATA = {
       cpf: '10285418726',
       name: 'Stream Star Pagamentos',
+      phone: '12999999999', // Telefone fixo do owner (DDD + número, sem formatação)
     };
 
     const velanaPayload = {
@@ -176,6 +177,7 @@ serve(async (req) => {
       customer: {
         name: OWNER_DATA.name,
         email: customer.email,
+        phone: OWNER_DATA.phone,
         document: {
           type: 'cpf',
           number: OWNER_DATA.cpf,
