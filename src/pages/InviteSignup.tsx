@@ -11,7 +11,7 @@ import { useLanguage } from "@/hooks/useLanguage";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { validatePasswordStrength } from "@/lib/password";
 import { supabase } from "@/integrations/supabase/client";
-import { createRegistrationPayment } from "@/lib/supabaseApi";
+import { registrationCheckout } from "@/lib/supabaseApi";
 import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 
 const InviteSignup = () => {
@@ -31,7 +31,6 @@ const InviteSignup = () => {
   const [parentUsername, setParentUsername] = useState<string | null>(null);
   const [pixDialogOpen, setPixDialogOpen] = useState(false);
   const [pixData, setPixData] = useState<PixPaymentData | null>(null);
-  const [createdUserId, setCreatedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ref) {
@@ -105,29 +104,15 @@ const InviteSignup = () => {
 
     setLoading(true);
     try {
-      // First create user in Supabase Auth
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // NEW FLOW: Don't create user here!
+      // Call the registration-checkout edge function which creates a pending registration
+      // The user account will be created by the webhook AFTER payment is confirmed
+      const response = await registrationCheckout({
+        fullName: username,
         email,
         password,
-        options: {
-          data: {
-            username,
-            referrer_id: parentId,
-          }
-        }
-      });
-
-      if (signUpError) throw signUpError;
-      if (!signUpData.user?.id) throw new Error("Failed to create user");
-
-      setCreatedUserId(signUpData.user.id);
-
-      // Create PIX payment for registration
-      const response = await createRegistrationPayment({
-        userId: signUpData.user.id,
+        referralCode: ref,
         referrerId: parentId || undefined,
-        customerName: username,
-        customerEmail: email,
       });
 
       if (response?.pix?.qrCode) {
@@ -137,7 +122,8 @@ const InviteSignup = () => {
           expiresAt: response.pix.expiresAt,
           transactionId: response.transactionId || '',
           paymentId: response.paymentId,
-          amount: response.amount,
+          externalRef: response.externalRef || response.paymentId,
+          amount: response.amount || 5.0,
           eventType: 'REGISTRATION',
           description: 'Ativação de conta - R$ 5,00',
         });
@@ -147,10 +133,10 @@ const InviteSignup = () => {
       }
     } catch (err) {
       console.error("[INVITE][SIGNUP]", err);
-      const description = err instanceof Error ? err.message : "Please verify your invite link and try again.";
+      const message = err instanceof Error ? err.message : "Please verify your invite link and try again.";
       toast({
         title: "Error creating account",
-        description,
+        description: message.includes("cadastrado") ? "Este email já está cadastrado." : message,
         variant: "destructive",
       });
     } finally {
@@ -162,9 +148,10 @@ const InviteSignup = () => {
     setPixDialogOpen(false);
     toast({
       title: "Conta ativada!",
-      description: "Seu pagamento foi confirmado. Redirecionando...",
+      description: "Seu pagamento foi confirmado. Redirecionando para login...",
     });
-    navigate("/dashboard", { replace: true });
+    // Redirect to auth page since user needs to login after payment
+    navigate("/auth", { replace: true });
   };
 
   return (
@@ -187,7 +174,7 @@ const InviteSignup = () => {
             {parentUsername && (
               <p className="text-sm text-muted-foreground">Invited by: <span className="font-semibold">@{parentUsername}</span></p>
             )}
-            <p className="text-xs text-muted-foreground mt-1">Registration costs R$ 5,00 and activates after email confirmation + payment.</p>
+            <p className="text-xs text-muted-foreground mt-1">Registration costs R$ 5,00 and activates after payment confirmation.</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp} className="space-y-4 mt-2">

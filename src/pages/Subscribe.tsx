@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { validatePasswordStrength } from "@/lib/password";
-import { createRegistrationPayment, validateAffiliateCode } from "@/lib/supabaseApi";
+import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
 import { logger } from "@/lib/logger";
 import { TermsDialog } from "@/components/TermsDialog";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
@@ -199,46 +199,25 @@ const Subscribe = () => {
         return;
       }
 
-      // Criar usuário (Auth) e gerar PIX de ativação
-      logger.register.info('Criando conta (Auth) para iniciar pagamento', {
+      // NOVO FLUXO: Não criar usuário aqui!
+      // Apenas chamar a edge function que cria registro pendente e gera PIX
+      // O usuário será criado pelo webhook APÓS confirmação do pagamento
+      logger.register.info('Iniciando checkout - usuário será criado após pagamento', {
         email,
         referralCode: trimmedReferral,
-      });
-
-      const signUpResult = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: fullName.trim(),
-            referrer_id: (validation as any).ownerId,
-            referral_code: trimmedReferral,
-          },
-        },
-      });
-
-      if (signUpResult.error) {
-        throw signUpResult.error;
-      }
-
-      const createdUserId = signUpResult.data.user?.id;
-      if (!createdUserId) {
-        throw new Error('Falha ao criar usuário');
-      }
-
-      logger.payment.info('Criando pagamento PIX de ativação', {
-        userId: createdUserId,
         referrerId: (validation as any).ownerId,
       });
 
-      const payment = await createRegistrationPayment({
-        userId: createdUserId,
+      const payment = await registrationCheckout({
+        fullName: fullName.trim(),
+        email,
+        password,
+        referralCode: trimmedReferral,
         referrerId: (validation as any).ownerId || undefined,
-        customerName: fullName.trim(),
-        customerEmail: email,
       });
 
       if (payment?.pix?.qrCode) {
+        logger.payment.info('QR Code PIX recebido', { paymentId: payment.paymentId });
         setPixData({
           qrCode: payment.pix.qrCode,
           qrCodeImage: payment.pix.qrCodeImage,
@@ -264,7 +243,7 @@ const Subscribe = () => {
       logger.register.error('Erro no processo de cadastro', {}, error as Error);
       const err = error as Error;
       const message =
-        err?.message?.includes("email") || err?.message?.includes("already")
+        err?.message?.includes("email") || err?.message?.includes("cadastrado")
           ? "E-mail já cadastrado."
           : err?.message || "Erro ao processar pagamento. Tente novamente em alguns instantes.";
       toast({
