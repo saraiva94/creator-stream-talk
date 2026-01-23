@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { api, ApiError, type RegistrationCheckoutPayload } from "@/lib/api";
+import { registrationCheckout } from "@/lib/supabaseApi";
 import { useToast } from "@/hooks/use-toast";
 import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 import type { User } from "@supabase/supabase-js";
@@ -59,7 +59,7 @@ const RegistrationCheckoutPage = () => {
     setPixDialogOpen(false);
     toast({
       title: "Pagamento confirmado!",
-      description: "Sua conta foi ativada com sucesso. Redirecionando...",
+      description: "Sua conta foi ativada com sucesso. Redirecionando para login...",
     });
     setTimeout(() => {
       navigate("/auth");
@@ -71,50 +71,33 @@ const RegistrationCheckoutPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const payload: RegistrationCheckoutPayload & { referrer_id?: string; root?: boolean } = {
+      // Use the new registration-checkout flow that creates user AFTER payment
+      const response = await registrationCheckout({
+        fullName: email.split('@')[0],
         email,
         password,
-      };
-      if (referrerId) {
-        payload.referrer_id = referrerId;
-      }
-      if (isFree) {
-        payload.free = true;
-      }
-      if (isRoot || (!referrerId && !isFree)) {
-        payload.root = true;
-      }
+        referrerId: referrerId || undefined,
+        free: isFree,
+        root: isRoot || (!referrerId && !isFree),
+      });
 
-      const response = await api.registration.checkout(payload);
-
-      // Free registration - token received directly
-      if (response.token && response.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: response.token,
-          refresh_token: response.refresh_token,
-        });
-        toast({ title: "Registration complete", description: "Welcome!" });
-        navigate("/dashboard");
-        return;
-      }
-
-      if (response.status === "ok") {
-        toast({ title: "Registration complete", description: "You are now logged in." });
-        navigate("/dashboard");
+      // Free registration - should redirect to auth (user was created by backend)
+      if (isFree && response.success) {
+        toast({ title: "Registration complete", description: "Your account has been created. Please login." });
+        navigate("/auth");
         return;
       }
 
       // Paid registration - show PIX QR Code
-      const pixResponse = response as any;
-      if (pixResponse.pix?.qrCode) {
+      if (response.pix?.qrCode) {
         setPixData({
-          qrCode: pixResponse.pix.qrCode,
-          qrCodeImage: pixResponse.pix.qrCodeImage,
-          expiresAt: pixResponse.pix.expiresAt,
-          transactionId: pixResponse.transactionId || '',
-          paymentId: pixResponse.paymentId,
-          externalRef: pixResponse.externalRef || pixResponse.paymentId,
-          amount: pixResponse.amount || REGISTRATION_PRICE,
+          qrCode: response.pix.qrCode,
+          qrCodeImage: response.pix.qrCodeImage,
+          expiresAt: response.pix.expiresAt,
+          transactionId: response.transactionId || '',
+          paymentId: response.paymentId,
+          externalRef: response.externalRef || response.paymentId,
+          amount: response.amount || REGISTRATION_PRICE,
           eventType: 'REGISTRATION',
           description: 'Account Activation - R$ 5.00',
         });
@@ -122,26 +105,17 @@ const RegistrationCheckoutPage = () => {
         return;
       }
 
-      // Fallback to secureUrl redirect
-      if (pixResponse.secureUrl) {
-        window.location.href = pixResponse.secureUrl;
-        return;
-      }
-
       toast({
         title: "Registration submitted",
-        description: "If payment is required, you will be redirected shortly.",
+        description: "If payment is required, you will see a QR code shortly.",
       });
     } catch (err: unknown) {
-      const apiError = err as ApiError;
-      const message =
-        apiError?.message === "Referral not found"
-          ? "This link is not valid"
-          : apiError?.message?.includes("email")
-          ? "This email is already registered"
-          : apiError?.message || "Registration failed";
-      setError(message);
-      toast({ title: "Registration error", description: message, variant: "destructive" });
+      const message = err instanceof Error ? err.message : "Registration failed";
+      const displayMessage = message.includes("cadastrado") 
+        ? "This email is already registered"
+        : message;
+      setError(displayMessage);
+      toast({ title: "Registration error", description: displayMessage, variant: "destructive" });
     } finally {
       setLoading(false);
     }

@@ -1281,11 +1281,14 @@ export type Database = {
           id: string
           is_free: boolean | null
           is_root_creator: boolean | null
+          password_hash: string | null
           payment_id: string
           referrer_id: string | null
           referrer_parent_id: string | null
+          registration_data: Json | null
           status: string | null
           user_id: string
+          username: string | null
         }
         Insert: {
           completed_at?: string | null
@@ -1294,11 +1297,14 @@ export type Database = {
           id?: string
           is_free?: boolean | null
           is_root_creator?: boolean | null
+          password_hash?: string | null
           payment_id: string
           referrer_id?: string | null
           referrer_parent_id?: string | null
+          registration_data?: Json | null
           status?: string | null
           user_id: string
+          username?: string | null
         }
         Update: {
           completed_at?: string | null
@@ -1307,11 +1313,14 @@ export type Database = {
           id?: string
           is_free?: boolean | null
           is_root_creator?: boolean | null
+          password_hash?: string | null
           payment_id?: string
           referrer_id?: string | null
           referrer_parent_id?: string | null
+          registration_data?: Json | null
           status?: string | null
           user_id?: string
+          username?: string | null
         }
         Relationships: []
       }

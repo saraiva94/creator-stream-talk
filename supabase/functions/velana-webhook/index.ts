@@ -533,34 +533,89 @@ async function processPaymentTransaction(supabase: any, payload: any): Promise<a
     console.log('[velana-webhook] Credits added:', { userId, credits });
 
   } else if (eventType === 'REGISTRATION') {
-    let directId = metadata.direct_id || metadata.directId;
-    let rootId = metadata.root_id || metadata.rootId;
+    // NEW FLOW: User account is created HERE after payment confirmation
+    // Get pending registration data
+    const { data: pendingReg } = await supabase
+      .from('registration_referrals')
+      .select('*')
+      .eq('payment_id', externalRef)
+      .eq('status', 'pending')
+      .maybeSingle();
 
-    console.log('[velana-webhook] Processing registration:', { userId, directId, rootId });
-
-    if (!directId && externalRef) {
-      const { data: pendingRef } = await supabase
-        .from('registration_referrals')
-        .select('referrer_id, referrer_parent_id')
-        .eq('payment_id', externalRef)
-        .maybeSingle();
-
-      if (pendingRef) {
-        directId = pendingRef.referrer_id;
-        rootId = pendingRef.referrer_parent_id;
-      }
+    if (!pendingReg) {
+      console.error('[velana-webhook] Pending registration not found:', externalRef);
+      throw new Error('Pending registration not found');
     }
 
+    const registrationData = pendingReg.registration_data || {};
+    const email = registrationData.email || pendingReg.email;
+    const username = registrationData.username || pendingReg.username || email?.split('@')[0];
+    const passwordEncoded = pendingReg.password_hash;
+    let directId = pendingReg.referrer_id;
+    let rootId = pendingReg.referrer_parent_id;
+    const isRootCreator = pendingReg.is_root_creator;
+
+    console.log('[velana-webhook] Processing registration payment:', { 
+      email, username, directId, rootId, isRootCreator, paymentId: externalRef 
+    });
+
+    if (!email || !passwordEncoded) {
+      console.error('[velana-webhook] Missing email or password in pending registration');
+      throw new Error('Invalid pending registration data');
+    }
+
+    // Decode password
+    const password = atob(passwordEncoded);
+
+    // CREATE USER NOW - after payment is confirmed
+    const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        username,
+        referrer_id: directId,
+        referral_code: registrationData.referral_code,
+      },
+    });
+
+    if (createError) {
+      console.error('[velana-webhook] Failed to create user:', createError);
+      throw new Error(`Failed to create user: ${createError.message}`);
+    }
+
+    const newUserId = newUser.user?.id;
+    if (!newUserId) {
+      throw new Error('User ID not returned after creation');
+    }
+
+    console.log('[velana-webhook] User created successfully:', newUserId);
+
+    // Update profile with all registration data
     await supabase
       .from('profiles')
       .update({
         status: 'active',
         is_subscribed: true,
+        is_root_creator: isRootCreator,
         referred_by: directId,
         referrer_direct: directId,
         referrer_root: rootId,
       })
-      .eq('id', userId);
+      .eq('id', newUserId);
+
+    // Update registration_referrals with real user ID
+    await supabase
+      .from('registration_referrals')
+      .update({ 
+        user_id: newUserId,
+        status: 'completed', 
+        completed_at: new Date().toISOString(),
+      })
+      .eq('payment_id', externalRef);
+
+    // Use the new user ID for the rest of the processing
+    const userId = newUserId;
 
     let platformAmountCents = amount;
 

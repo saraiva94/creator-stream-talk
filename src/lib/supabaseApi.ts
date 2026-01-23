@@ -33,6 +33,7 @@ export interface PaymentResponse {
 }
 
 export interface RegistrationResponse {
+  success?: boolean;
   paymentId?: string;
   transactionId?: string;
   externalRef?: string;
@@ -282,28 +283,41 @@ export const createRegistrationPayment = async (params: {
 
 // ==================== REGISTRATION ====================
 
+/**
+ * Creates a pending registration and generates PIX payment.
+ * The user account is created ONLY after payment confirmation via webhook.
+ * This prevents orphan accounts when users don't complete payment.
+ */
 export const registrationCheckout = async (params: {
   fullName: string;
   email: string;
   password: string;
   referralCode?: string;
-  acceptTerms: boolean;
+  referrerId?: string;
+  acceptTerms?: boolean;
   free?: boolean;
   root?: boolean;
 }): Promise<RegistrationResponse> => {
-  logger.register.info('Iniciando registration-checkout', {
-    fullName: params.fullName,
+  logger.register.info('Iniciando registration-checkout (pagamento primeiro)', {
     email: params.email,
     referralCode: params.referralCode ?? 'SEM_CODIGO',
-    free: params.free,
-    root: params.root,
+    referrerId: params.referrerId ?? 'SEM_REFERRER',
   });
 
   const url = `${SUPABASE_URL}/functions/v1/registration-checkout`;
   
+  // Map params to edge function expected format
+  const payload = {
+    email: params.email,
+    password: params.password,
+    username: params.fullName,
+    referralCode: params.referralCode,
+    referrerId: params.referrerId,
+  };
+
   logger.register.debug('Chamando edge function', { 
     url,
-    payload: { ...params, password: '***REDACTED***' },
+    payload: { ...payload, password: '***REDACTED***' },
   });
 
   try {
@@ -313,7 +327,7 @@ export const registrationCheckout = async (params: {
         'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(params),
+      body: JSON.stringify(payload),
     });
 
     logger.register.debug('Resposta recebida', { 
@@ -333,11 +347,9 @@ export const registrationCheckout = async (params: {
 
     const data = await response.json();
     logger.register.info('Registration-checkout concluído', { 
-      hasToken: !!data.token,
-      hasRefreshToken: !!data.refresh_token,
-      hasInitPoint: !!data.init_point,
-      status: data.status,
-      profileId: data.profileId,
+      success: data.success,
+      paymentId: data.paymentId,
+      hasPix: !!data.pix?.qrCode,
     });
 
     return data;
