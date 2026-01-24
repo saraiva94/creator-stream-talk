@@ -326,8 +326,19 @@ async function processCashOutEvent(supabase: any, payload: any, webhookLogId: st
 // ========== CASH-IN (Payments / Transactions) ==========
 
 async function processCashInTransaction(supabase: any, payload: any, webhookLogId: string | null): Promise<any> {
-  const transactionId = payload.id || payload.transactionId;
-  const status = payload.status;
+  // Velana sends webhooks in two formats:
+  // 1. Nested: { id, type: "transaction", objectId, data: { id, status, ... } }
+  // 2. Flat: { id, status, ... }
+  const transactionData = payload.data || payload;
+  const transactionId = transactionData.id || payload.objectId || payload.transactionId;
+  const status = transactionData.status || payload.status;
+
+  console.log('[velana-webhook] Parsed transaction:', { 
+    transactionId, 
+    status, 
+    hasNestedData: !!payload.data,
+    payloadType: payload.type 
+  });
 
   if (!transactionId) {
     console.log('[velana-webhook] No transaction ID');
@@ -367,7 +378,8 @@ async function processCashInTransaction(supabase: any, payload: any, webhookLogI
           .eq('id', webhookLogId);
       }
 
-      const result = await processPaymentTransaction(supabase, payload);
+      // Pass the unwrapped transaction data
+      const result = await processPaymentTransaction(supabase, transactionData);
 
       if (webhookLogId) {
         await supabase
