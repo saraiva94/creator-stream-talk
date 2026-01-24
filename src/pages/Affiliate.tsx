@@ -77,25 +77,25 @@ const Affiliate = () => {
     // Available balance = affiliate earnings + creator wallet balance
     setAvailableBalanceCents(affiliateEarnings + creatorBalance);
 
-    const { data: withdrawals } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("type", "pix_withdraw")
-      .order("created_at", { ascending: false })
-      .limit(20);
+        // Fetch from payout_requests table (actual withdrawals)
+        const { data: payoutRequests } = await supabase
+          .from("payout_requests")
+          .select("id, amount, status, created_at, pix_key, paid_at")
+          .eq("creator_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
 
-    if (withdrawals) {
-      const entries: WithdrawalHistoryEntry[] = withdrawals.map((w) => ({
-        id: w.id,
-        createdAt: w.created_at,
-        amountCents: Math.abs(Math.round((w.amount ?? 0) * 100)),
-        status: w.status,
-        pixKeyMasked: (w.metadata as Record<string, unknown>)?.pix_key_masked as string || "***",
-      }));
-      setWithdrawalHistory(entries);
-    }
-  };
+        if (payoutRequests) {
+          const entries: WithdrawalHistoryEntry[] = payoutRequests.map((p) => ({
+            id: p.id,
+            createdAt: p.created_at,
+            amountCents: Math.round(Number(p.amount) ?? 0),
+            status: p.status,
+            pixKeyMasked: p.pix_key ? `***${p.pix_key.slice(-4)}` : "***",
+          }));
+          setWithdrawalHistory(entries);
+        }
+      };
 
   useEffect(() => {
     const load = async () => {
@@ -178,21 +178,21 @@ const Affiliate = () => {
           setHistory(historyEntries);
         }
 
-        const { data: withdrawals } = await supabase
-          .from("transactions")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .eq("type", "pix_withdraw")
+        // Fetch from payout_requests table (actual withdrawals)
+        const { data: payoutRequests } = await supabase
+          .from("payout_requests")
+          .select("id, amount, status, created_at, pix_key, paid_at")
+          .eq("creator_id", session.user.id)
           .order("created_at", { ascending: false })
           .limit(20);
 
-        if (withdrawals) {
-          const withdrawalEntries: WithdrawalHistoryEntry[] = withdrawals.map((w) => ({
-            id: w.id,
-            createdAt: w.created_at,
-            amountCents: Math.abs(Math.round((w.amount ?? 0) * 100)),
-            status: w.status,
-            pixKeyMasked: (w.metadata as Record<string, unknown>)?.pix_key_masked as string || "***",
+        if (payoutRequests) {
+          const withdrawalEntries: WithdrawalHistoryEntry[] = payoutRequests.map((p) => ({
+            id: p.id,
+            createdAt: p.created_at,
+            amountCents: Math.round(Number(p.amount) ?? 0),
+            status: p.status,
+            pixKeyMasked: p.pix_key ? `***${p.pix_key.slice(-4)}` : "***",
           }));
           setWithdrawalHistory(withdrawalEntries);
         }
