@@ -155,7 +155,11 @@ const LiveManagement = () => {
   useEffect(() => {
     if (!user || streamPhase !== "live") return;
 
-    // Use sendBeacon for reliable cleanup on page unload
+    // IMPORTANT: We NO LONGER auto-end the live on pagehide/beforeunload
+    // This was causing lives to end when the creator just minimized the app or switched tabs
+    // Instead, we rely on the monitor-lives cron job to detect zombie streams (no heartbeat for 2+ minutes)
+    
+    // Only use sendBeacon when the page is truly being unloaded (not just hidden)
     const sendEndLiveBeacon = () => {
       const payload = JSON.stringify({
         action: 'end-live',
@@ -172,63 +176,26 @@ const LiveManagement = () => {
       console.log('[LiveManagement] sendBeacon result:', beaconSent);
     };
 
-    // Direct async end - for in-app navigation
-    const endLiveDirectly = async () => {
-      console.log('[LiveManagement] Ending live directly via Supabase...');
-      try {
-        // End the live
-        await supabase
-          .from("lives")
-          .update({ 
-            is_active: false, 
-            status: "ended",
-            ended_at: new Date().toISOString() 
-          })
-          .eq("creator_id", user.id)
-          .eq("is_active", true);
-        
-        // Update creator profile
-        await supabase
-          .from("creator_profiles")
-          .update({ is_streaming: false })
-          .eq("id", user.id);
-
-        // End room if exists
-        if (room?.id) {
-          await supabase
-            .from("rooms")
-            .update({ is_active: false, ended_at: new Date().toISOString() })
-            .eq("id", room.id);
-        }
-
-        console.log('[LiveManagement] Live ended successfully');
-      } catch (e) {
-        console.error('[LiveManagement] Error ending live:', e);
-      }
-    };
-
-    // Handle browser close/reload - use sendBeacon for reliability
-    const handleBeforeUnload = () => {
+    // Handle browser close/reload ONLY - use sendBeacon for reliability
+    // beforeunload fires on actual page navigation/close, which is what we want
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only send end-live beacon if the page is truly unloading
+      // Check if this is a real navigation away (not just a visibility change)
       sendEndLiveBeacon();
     };
 
-    // Handle mobile page hide (only send beacon, don't end - user might return)
-    const handlePageHide = () => {
-      // pagehide is more reliable than beforeunload on mobile
-      sendEndLiveBeacon();
-    };
+    // REMOVED: pagehide handler - this was firing on tab switches and app minimization
+    // causing lives to end prematurely. The cron job handles zombie detection.
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handlePageHide);
 
-    // Cleanup on unmount (SPA navigation within app)
+    // REMOVED: Cleanup on unmount no longer ends the live automatically
+    // This was causing issues when navigating within the app
+    // The cron job will clean up any orphaned lives after 2 minutes of no heartbeat
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handlePageHide);
-      
-      // For SPA navigation, end live directly (async but fire-and-forget)
-      // This is more reliable than sendBeacon for in-app navigation
-      endLiveDirectly();
+      // Don't end live on unmount - let the cron handle it if the creator really left
+      console.log('[LiveManagement] Unmount - live will be handled by heartbeat monitor if creator left');
     };
   }, [user, streamPhase, currentLiveId, room?.id]);
 
