@@ -37,6 +37,8 @@ const SuperChatQueue = ({ roomId, creatorId, onSelectSuperchat }: SuperChatQueue
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('[SuperChatQueue] Fetching queue for roomId:', roomId);
+    
     const fetchQueue = async () => {
       const { data, error } = await supabase
         .from("superchats")
@@ -44,6 +46,8 @@ const SuperChatQueue = ({ roomId, creatorId, onSelectSuperchat }: SuperChatQueue
         .eq("room_id", roomId)
         .eq("status", "pending")
         .order("created_at", { ascending: true });
+
+      console.log('[SuperChatQueue] Query result:', { data, error, roomId });
 
       if (error) {
         console.error("Error fetching superchat queue:", error);
