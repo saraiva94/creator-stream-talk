@@ -70,6 +70,62 @@ serve(async (req) => {
 
     console.log(`[viewer-heartbeat] Processing heartbeat for user ${userId}, live ${liveId}`);
 
+    // CRITICAL: Check if the live is still active before charging credits
+    const { data: liveData, error: liveError } = await supabase
+      .from("lives")
+      .select("id, is_active, creator_id")
+      .eq("id", liveId)
+      .maybeSingle();
+
+    if (liveError) {
+      console.error("[viewer-heartbeat] Error fetching live:", liveError.message);
+      return new Response(
+        JSON.stringify({ error: "Failed to verify live status" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!liveData) {
+      console.log(`[viewer-heartbeat] Live ${liveId} not found`);
+      return new Response(
+        JSON.stringify({ 
+          status: "LIVE_ENDED",
+          error: "Live not found",
+          secondsWatched: 0,
+          creditsConsumed: 0,
+          creditsChargedThisTick: 0,
+          ranOutOfCredits: false,
+          remainingCredits: 0,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If live is not active, don't charge credits - just return status
+    if (!liveData.is_active) {
+      console.log(`[viewer-heartbeat] Live ${liveId} is not active, skipping credit consumption`);
+      
+      // Get remaining credits for response
+      const { data: walletCheck } = await supabase
+        .from("credits_wallet")
+        .select("balance_credits")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      return new Response(
+        JSON.stringify({
+          status: "LIVE_ENDED",
+          secondsWatched: 0,
+          creditsConsumed: 0,
+          creditsChargedThisTick: 0,
+          ranOutOfCredits: false,
+          remainingCredits: walletCheck?.balance_credits ?? 0,
+          liveEnded: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Check if user has live access
     const { data: accessData } = await supabase
       .from("live_access")
