@@ -100,27 +100,34 @@ const LiveManagement = () => {
       setCreatorStatus("approved");
 
       // Check for existing active room
-      const { data: existingRoom } = await supabase
+      const { data: existingRoom, error: roomError } = await supabase
         .from("rooms")
-        .select("*")
+        .select("id, creator_id, title, is_active")
         .eq("creator_id", session.user.id)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
+
+      console.log("[LiveManagement] Existing room check:", { existingRoom, roomError });
 
       if (existingRoom) {
         setRoom(existingRoom);
+        console.log("[LiveManagement] Room state set:", existingRoom.id);
+        
         // Check if there's an active live to determine phase
         const { data: activeLive } = await supabase
           .from("lives")
-          .select("id")
+          .select("id, chat_room_id")
           .eq("creator_id", session.user.id)
           .eq("is_active", true)
           .maybeSingle();
+        
+        console.log("[LiveManagement] Active live check:", activeLive);
         
         if (activeLive) {
           setStreamPhase("live");
           setIsStreaming(true);
           setCurrentLiveId(activeLive.id);
+          console.log("[LiveManagement] Stream phase set to live, chat_room_id:", activeLive.chat_room_id);
         } else {
           // Room exists but no active live - go back to idle
           setStreamPhase("idle");
