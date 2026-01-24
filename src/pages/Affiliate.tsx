@@ -114,7 +114,6 @@ const Affiliate = () => {
 
         const affiliateEarningsCents = profile?.affiliate_earnings ?? 0;
         setCode(profile?.referral_code ?? "");
-        setTotalEarningsCents(affiliateEarningsCents);
         
         // Fetch creator wallet balance (if user is a creator)
         const { data: creatorWallet } = await supabase
@@ -161,17 +160,21 @@ const Affiliate = () => {
           .limit(50);
 
         if (logs) {
+          let totalHistoricalEarnings = 0;
           const historyEntries: AffiliateHistoryEntry[] = logs.map((log) => {
             const isDirectReferrer = log.direct_referrer === session.user.id;
+            const amount = isDirectReferrer ? (log.amount_direct ?? 0) : (log.amount_root ?? 0);
+            totalHistoricalEarnings += amount;
             return {
               id: log.id,
               createdAt: log.created_at ?? new Date().toISOString(),
-              amountCents: isDirectReferrer ? (log.amount_direct ?? 0) : (log.amount_root ?? 0),
+              amountCents: amount,
               level: isDirectReferrer ? 1 : 2,
               referredUserId: log.new_user,
               eventType: log.event_type,
             };
           });
+          setTotalEarningsCents(totalHistoricalEarnings);
           setHistory(historyEntries);
         }
 
