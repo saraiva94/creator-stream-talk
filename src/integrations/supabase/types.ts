@@ -2087,6 +2087,10 @@ export type Database = {
       }
     }
     Functions: {
+      decrement_viewer_count: {
+        Args: { p_creator_id: string }
+        Returns: number
+      }
       get_or_create_creator_wallet: {
         Args: { p_creator_id: string }
         Returns: {
@@ -2124,10 +2128,15 @@ export type Database = {
         Args: { p_amount_cents: number; p_creator_id: string }
         Returns: undefined
       }
+      increment_viewer_count: {
+        Args: { p_creator_id: string }
+        Returns: number
+      }
       is_subscribed_to_creator: {
         Args: { _creator_id: string; _user_id: string }
         Returns: boolean
       }
+      reset_viewer_count: { Args: { p_creator_id: string }; Returns: undefined }
       validate_referral_code: { Args: { p_code: string }; Returns: string }
     }
     Enums: {

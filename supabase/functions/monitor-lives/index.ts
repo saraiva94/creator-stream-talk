@@ -146,10 +146,10 @@ const endZombieLive = async (live: { id: string; creator_id: string }) => {
     .update({ is_active: false, status: 'ended', ended_at: endedAt })
     .eq('id', live.id);
 
-  // Update creator_profiles
+  // Update creator_profiles - reset viewer_count to 0 when live ends
   await supabase
     .from('creator_profiles')
-    .update({ is_streaming: false })
+    .update({ is_streaming: false, viewer_count: 0 })
     .eq('id', live.creator_id);
 
   // Update rooms if linked
