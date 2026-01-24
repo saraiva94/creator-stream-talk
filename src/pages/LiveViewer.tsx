@@ -623,35 +623,76 @@ const LiveViewer: React.FC = () => {
   }, []);
 
   // Viewer connect/disconnect tracking using atomic RPC functions
+  // Use refs to avoid stale closure issues with callbacks passed to WebRTCViewer
+  const viewerConnectedRef = useRef(false);
+  const creatorIdRef = useRef<string | null>(null);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    creatorIdRef.current = liveData?.creator_id || null;
+  }, [liveData?.creator_id]);
+
   const handleViewerConnect = useCallback(async () => {
-    if (!liveData?.creator_id || viewerConnected) return;
+    const creatorId = creatorIdRef.current;
+    console.log('[LiveViewer] handleViewerConnect called, creatorId:', creatorId, 'alreadyConnected:', viewerConnectedRef.current);
+    
+    if (!creatorId) {
+      console.warn('[LiveViewer] No creator_id available for viewer connect');
+      return;
+    }
+    
+    if (viewerConnectedRef.current) {
+      console.log('[LiveViewer] Already connected, skipping increment');
+      return;
+    }
+    
+    viewerConnectedRef.current = true;
     setViewerConnected(true);
     
     // Increment viewer count atomically
     try {
+      console.log('[LiveViewer] Calling increment_viewer_count RPC for:', creatorId);
       const { data: newCount, error } = await supabase.rpc('increment_viewer_count', { 
-        p_creator_id: liveData.creator_id 
+        p_creator_id: creatorId 
       });
       
       if (error) {
         console.error('[LiveViewer] Error incrementing viewer count:', error);
+        viewerConnectedRef.current = false;
+        setViewerConnected(false);
       } else {
         console.log('[LiveViewer] Viewer connected, new count:', newCount);
         setViewerCount(newCount || 0);
       }
     } catch (err) {
       console.error('[LiveViewer] Error tracking viewer connect:', err);
+      viewerConnectedRef.current = false;
+      setViewerConnected(false);
     }
-  }, [liveData?.creator_id, viewerConnected]);
+  }, []);
 
   const handleViewerDisconnect = useCallback(async () => {
-    if (!liveData?.creator_id || !viewerConnected) return;
+    const creatorId = creatorIdRef.current;
+    console.log('[LiveViewer] handleViewerDisconnect called, creatorId:', creatorId, 'wasConnected:', viewerConnectedRef.current);
+    
+    if (!creatorId) {
+      console.warn('[LiveViewer] No creator_id available for viewer disconnect');
+      return;
+    }
+    
+    if (!viewerConnectedRef.current) {
+      console.log('[LiveViewer] Not connected, skipping decrement');
+      return;
+    }
+    
+    viewerConnectedRef.current = false;
     setViewerConnected(false);
     
     // Decrement viewer count atomically
     try {
+      console.log('[LiveViewer] Calling decrement_viewer_count RPC for:', creatorId);
       const { data: newCount, error } = await supabase.rpc('decrement_viewer_count', { 
-        p_creator_id: liveData.creator_id 
+        p_creator_id: creatorId 
       });
       
       if (error) {
@@ -662,23 +703,31 @@ const LiveViewer: React.FC = () => {
     } catch (err) {
       console.error('[LiveViewer] Error tracking viewer disconnect:', err);
     }
-  }, [liveData?.creator_id, viewerConnected]);
+  }, []);
 
-  // Cleanup viewer count on unmount using atomic RPC
+  // Cleanup viewer count on unmount using atomic RPC with refs
   useEffect(() => {
     return () => {
-      if (viewerConnected && liveData?.creator_id) {
+      const creatorId = creatorIdRef.current;
+      const wasConnected = viewerConnectedRef.current;
+      
+      console.log('[LiveViewer] Unmount cleanup, wasConnected:', wasConnected, 'creatorId:', creatorId);
+      
+      if (wasConnected && creatorId) {
         // Fire and forget decrement on unmount using atomic function
+        viewerConnectedRef.current = false;
         supabase.rpc('decrement_viewer_count', { 
-          p_creator_id: liveData.creator_id 
+          p_creator_id: creatorId 
         }).then(({ error }) => {
           if (error) {
             console.error('[LiveViewer] Cleanup decrement failed:', error);
+          } else {
+            console.log('[LiveViewer] Cleanup decrement successful');
           }
         });
       }
     };
-  }, [viewerConnected, liveData?.creator_id]);
+  }, []);
 
   // Loading state
   if (isLoading) {
