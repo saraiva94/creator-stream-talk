@@ -622,32 +622,22 @@ const LiveViewer: React.FC = () => {
     console.log("[LiveViewer] Waiting for host...");
   }, []);
 
-  // Viewer connect/disconnect tracking
+  // Viewer connect/disconnect tracking using atomic RPC functions
   const handleViewerConnect = useCallback(async () => {
     if (!liveData?.creator_id || viewerConnected) return;
     setViewerConnected(true);
     
-    // Increment viewer count
+    // Increment viewer count atomically
     try {
-      await supabase.rpc('increment_balance', { 
-        _user_id: liveData.creator_id, 
-        _amount: 0 // We're not using this RPC for money, just trigger
-      }).then(() => {});
+      const { data: newCount, error } = await supabase.rpc('increment_viewer_count', { 
+        p_creator_id: liveData.creator_id 
+      });
       
-      // Actually increment viewer_count in creator_profiles
-      const { data: profile } = await supabase
-        .from('creator_profiles')
-        .select('viewer_count')
-        .eq('id', liveData.creator_id)
-        .maybeSingle();
-      
-      if (profile) {
-        await supabase
-          .from('creator_profiles')
-          .update({ viewer_count: (profile.viewer_count || 0) + 1 })
-          .eq('id', liveData.creator_id);
-        
-        setViewerCount((profile.viewer_count || 0) + 1);
+      if (error) {
+        console.error('[LiveViewer] Error incrementing viewer count:', error);
+      } else {
+        console.log('[LiveViewer] Viewer connected, new count:', newCount);
+        setViewerCount(newCount || 0);
       }
     } catch (err) {
       console.error('[LiveViewer] Error tracking viewer connect:', err);
@@ -658,43 +648,34 @@ const LiveViewer: React.FC = () => {
     if (!liveData?.creator_id || !viewerConnected) return;
     setViewerConnected(false);
     
-    // Decrement viewer count
+    // Decrement viewer count atomically
     try {
-      const { data: profile } = await supabase
-        .from('creator_profiles')
-        .select('viewer_count')
-        .eq('id', liveData.creator_id)
-        .maybeSingle();
+      const { data: newCount, error } = await supabase.rpc('decrement_viewer_count', { 
+        p_creator_id: liveData.creator_id 
+      });
       
-      if (profile && profile.viewer_count > 0) {
-        await supabase
-          .from('creator_profiles')
-          .update({ viewer_count: Math.max(0, (profile.viewer_count || 1) - 1) })
-          .eq('id', liveData.creator_id);
+      if (error) {
+        console.error('[LiveViewer] Error decrementing viewer count:', error);
+      } else {
+        console.log('[LiveViewer] Viewer disconnected, new count:', newCount);
       }
     } catch (err) {
       console.error('[LiveViewer] Error tracking viewer disconnect:', err);
     }
   }, [liveData?.creator_id, viewerConnected]);
 
-  // Cleanup viewer count on unmount
+  // Cleanup viewer count on unmount using atomic RPC
   useEffect(() => {
     return () => {
       if (viewerConnected && liveData?.creator_id) {
-        // Fire and forget decrement on unmount
-        supabase
-          .from('creator_profiles')
-          .select('viewer_count')
-          .eq('id', liveData.creator_id)
-          .maybeSingle()
-          .then(({ data: profile }) => {
-            if (profile && profile.viewer_count > 0) {
-              supabase
-                .from('creator_profiles')
-                .update({ viewer_count: Math.max(0, (profile.viewer_count || 1) - 1) })
-                .eq('id', liveData.creator_id);
-            }
-          });
+        // Fire and forget decrement on unmount using atomic function
+        supabase.rpc('decrement_viewer_count', { 
+          p_creator_id: liveData.creator_id 
+        }).then(({ error }) => {
+          if (error) {
+            console.error('[LiveViewer] Cleanup decrement failed:', error);
+          }
+        });
       }
     };
   }, [viewerConnected, liveData?.creator_id]);
