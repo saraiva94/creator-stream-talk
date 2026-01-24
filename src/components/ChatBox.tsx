@@ -207,6 +207,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
   const messagesLoadedRef = useRef(false);
   
   useEffect(() => {
+    console.log("[ChatBox] Effect triggered, roomId:", roomId, "messagesLoaded:", messagesLoadedRef.current);
     if (!roomId || messagesLoadedRef.current) return;
     
     const fetchMessages = async () => {
@@ -253,6 +254,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
     fetchMessages();
 
     // Set up realtime subscription
+    console.log("[ChatBox] Setting up realtime subscription for roomId:", roomId);
     const channel = supabase
       .channel(`messages:${roomId}`)
       .on(
@@ -264,6 +266,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
           filter: `room_id=eq.${roomId}`,
         },
         async (payload) => {
+          console.log("[ChatBox] Realtime message received:", payload.new);
           const newMsg = payload.new as {
             id: string;
             content: string;
@@ -296,9 +299,12 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
           ]);
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("[ChatBox] Realtime subscription status:", status, "for roomId:", roomId);
+      });
 
     return () => {
+      console.log("[ChatBox] Cleanup - removing channel for roomId:", roomId);
       supabase.removeChannel(channel);
       messagesLoadedRef.current = false;
     };
