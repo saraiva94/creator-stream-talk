@@ -172,11 +172,11 @@ const Auth = () => {
   const renderLoginForm = () => (
     <form onSubmit={handleSignIn} className="space-y-4 mt-4">
       <div className="space-y-2">
-        <Label htmlFor="login-email">Email</Label>
+        <Label htmlFor="login-email">{t.auth.emailOrNickname || "Email ou nome de usuário"}</Label>
         <Input
           id="login-email"
           type="text"
-          placeholder="seu@email.com"
+          placeholder={t.auth.emailOrNicknamePlaceholder || "seu@email.com ou seu_usuario"}
           value={loginInput}
           onChange={(e) => setLoginInput(e.target.value)}
           disabled={loading}
