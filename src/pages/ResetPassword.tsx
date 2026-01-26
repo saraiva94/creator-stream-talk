@@ -174,10 +174,10 @@ const ResetPassword = () => {
         // For email, we can't validate without backend, so we'll proceed and let Supabase handle it
       }
 
-      // ALWAYS use edge function with Resend for password reset
-      // This ensures reliable email delivery via our configured Resend API
+      // Resolve email if username was provided
+      let emailToReset = input;
       if (!isEmail) {
-        // For username: resolve to user ID first
+        // For username: get the user's email from auth.users via edge function or profiles
         const { data: profile } = await supabase
           .from("profiles")
           .select("id")
@@ -190,6 +190,7 @@ const ResetPassword = () => {
           return;
         }
 
+        // We need to get the email for this user - use admin API via edge function
         const { data, error } = await supabase.functions.invoke("password-reset", {
           body: { userId: profile.id, redirectTo },
         });
@@ -200,18 +201,20 @@ const ResetPassword = () => {
         } else {
           setRequestMessage(data?.message || "Link de recuperação enviado com sucesso!");
         }
-      } else {
-        // For email: use edge function directly with email
-        const { data, error } = await supabase.functions.invoke("password-reset", {
-          body: { email: input, redirectTo },
-        });
+        setRequesting(false);
+        return;
+      }
 
-        if (error) {
-          console.error("[AUTH][RESET_LINK] Edge function error:", error);
-          setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
-        } else {
-          setRequestMessage(data?.message || "Link de recuperação enviado com sucesso!");
-        }
+      // For email: use native Supabase Auth
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
+        redirectTo,
+      });
+
+      if (error) {
+        console.error("[AUTH][RESET_NATIVE]", error);
+        setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
+      } else {
+        setRequestMessage("Link de recuperação enviado com sucesso!");
       }
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
