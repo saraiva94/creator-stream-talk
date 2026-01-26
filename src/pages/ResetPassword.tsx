@@ -172,8 +172,9 @@ const ResetPassword = () => {
     try {
       const redirectTo = `${siteUrl}/update-password`;
       const isEmail = /\S+@\S+\.\S+/.test(input);
+      let emailToReset = input;
 
-      // Para username: resolver o ID via profile
+      // Para username: resolver o email via profile + auth
       if (!isEmail) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -187,7 +188,7 @@ const ResetPassword = () => {
           return;
         }
 
-        // Enviar via edge function (que envia email via Resend)
+        // Buscar email do usuário via edge function (admin API)
         const { data, error } = await supabase.functions.invoke("password-reset", {
           body: { userId: profile.id, redirectTo },
         });
@@ -196,7 +197,6 @@ const ResetPassword = () => {
           console.error("[AUTH][RESET_LINK] Edge function error:", error || data?.error);
           const errorMsg = data?.error || "Erro ao enviar link de recuperação. Tente novamente.";
           
-          // Verificar se é rate limit - só mostrar contador se já enviou uma vez
           if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit")) {
             if (hasSentOnce) {
               startRateLimitCooldown(errorMsg);
@@ -210,24 +210,23 @@ const ResetPassword = () => {
           return;
         }
 
-        // Sucesso no primeiro envio
+        // Sucesso
         setRequestMessage("Link de recuperação enviado para seu email!");
         setHasSentOnce(true);
-        startRateLimitCooldown(); // Iniciar cooldown silencioso
+        startRateLimitCooldown();
         setRequesting(false);
         return;
       }
 
-      // Para email: enviar diretamente via edge function
-      const { data, error } = await supabase.functions.invoke("password-reset", {
-        body: { email: input, redirectTo },
+      // Para email: usar Supabase Auth diretamente
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
+        redirectTo,
       });
 
-      if (error || data?.error) {
-        console.error("[AUTH][RESET_EMAIL] Edge function error:", error || data?.error);
-        const errorMsg = data?.error || "Erro ao enviar link de recuperação. Tente novamente.";
+      if (error) {
+        console.error("[AUTH][RESET_EMAIL] Supabase error:", error);
+        const errorMsg = error.message || "Erro ao enviar link de recuperação. Tente novamente.";
         
-        // Verificar se é rate limit - só mostrar contador se já enviou uma vez
         if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit")) {
           if (hasSentOnce) {
             startRateLimitCooldown(errorMsg);
@@ -241,10 +240,10 @@ const ResetPassword = () => {
         return;
       }
 
-      // Sucesso no primeiro envio
+      // Sucesso
       setRequestMessage("Link de recuperação enviado para seu email!");
       setHasSentOnce(true);
-      startRateLimitCooldown(); // Iniciar cooldown silencioso
+      startRateLimitCooldown();
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
