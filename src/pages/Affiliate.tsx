@@ -230,7 +230,8 @@ const Affiliate = () => {
           const withdrawalEntries: WithdrawalHistoryEntry[] = payoutRequests.map((p) => ({
             id: p.id,
             createdAt: p.created_at,
-            amountCents: Math.round(Number(p.amount) ?? 0),
+            // payout_requests.amount is stored in BRL (reais), convert to cents for display
+            amountCents: Math.round((Number(p.amount) ?? 0) * 100),
             status: p.status,
             pixKeyMasked: p.pix_key ? `***${p.pix_key.slice(-4)}` : "***",
           }));
@@ -502,8 +503,16 @@ const Affiliate = () => {
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <p className="font-bold text-red-500 text-sm sm:text-base">-{formatBRL(entry.amountCents)}</p>
-                      <p className={`text-xs ${entry.status === 'completed' ? 'text-green-500' : 'text-yellow-500'}`}>
-                        {entry.status === 'completed' ? t.common.success : t.common.loading}
+                      <p className={`text-xs ${
+                        entry.status === 'completed' ? 'text-green-500' : 
+                        entry.status === 'rejected' ? 'text-red-400' : 
+                        entry.status === 'approved' ? 'text-blue-500' : 
+                        'text-yellow-500'
+                      }`}>
+                        {entry.status === 'completed' ? (t.common.success || 'Concluído') : 
+                         entry.status === 'rejected' ? 'Rejeitado' : 
+                         entry.status === 'approved' ? 'Aprovado' : 
+                         'Pendente'}
                       </p>
                     </div>
                   </div>
