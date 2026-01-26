@@ -310,7 +310,7 @@ serve(async (req) => {
     
     // Determine the correct redirect URL based on action type
     // Use the production site URL
-    const siteUrl = "https://streamstar.vercel.app";
+    const siteUrl = "https://streamstar.lovable.app";
     let finalRedirectTo = redirect_to;
     
     // If redirect_to is empty or invalid, use defaults based on action type
