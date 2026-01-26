@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Check, Eye, EyeOff, X } from "lucide-react";
+import { Check, Eye, EyeOff, X, Loader2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { TermsDialog } from "@/components/TermsDialog";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
 import { useLanguage } from "@/hooks/useLanguage";
 import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
+import { useNicknameValidator } from "@/hooks/useNicknameValidator";
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -44,6 +45,9 @@ const Subscribe = () => {
   // PIX payment state
   const [pixDialogOpen, setPixDialogOpen] = useState(false);
   const [pixData, setPixData] = useState<PixPaymentData | null>(null);
+
+  // Nickname validation
+  const { nickname, setNickname, validation: nicknameValidation, isReady: nicknameReady } = useNicknameValidator();
 
   // Password validation state
   const passwordValidation = validatePasswordStrength(password);
@@ -210,6 +214,7 @@ const Subscribe = () => {
 
       const payment = await registrationCheckout({
         fullName: fullName.trim(),
+        nickname: nickname,
         email,
         password,
         referralCode: trimmedReferral,
@@ -287,6 +292,50 @@ const Subscribe = () => {
                   disabled={loading}
                 />
               </div>
+              
+              {/* Nickname field */}
+              <div className="space-y-2">
+                <Label htmlFor="nickname">{t.subscribe.nickname} *</Label>
+                <div className="relative">
+                  <Input
+                    id="nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                    placeholder={t.subscribe.nicknamePlaceholder}
+                    disabled={loading}
+                    className={nickname && !nicknameValidation.isChecking ? (nicknameReady ? "border-green-500" : "border-destructive") : ""}
+                  />
+                  {nicknameValidation.isChecking && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  {!nicknameValidation.isChecking && nickname && nicknameReady && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Check className="h-4 w-4 text-green-500" />
+                    </div>
+                  )}
+                  {!nicknameValidation.isChecking && nickname && !nicknameReady && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <X className="h-4 w-4 text-destructive" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{t.subscribe.nicknameHint}</p>
+                {nicknameValidation.isChecking && (
+                  <p className="text-xs text-muted-foreground">{t.subscribe.nicknameChecking}</p>
+                )}
+                {!nicknameValidation.isChecking && nickname && nicknameReady && (
+                  <p className="text-xs text-green-500">{t.subscribe.nicknameAvailable}</p>
+                )}
+                {!nicknameValidation.isChecking && nickname && nicknameValidation.isAvailable === false && (
+                  <p className="text-xs text-destructive">{t.subscribe.nicknameUnavailable}</p>
+                )}
+                {nicknameValidation.error && !nicknameValidation.isChecking && (
+                  <p className="text-xs text-destructive">{nicknameValidation.error}</p>
+                )}
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="email">{t.subscribe.email} *</Label>
                 <Input
@@ -527,7 +576,7 @@ const Subscribe = () => {
               <Button 
                 className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" 
                 onClick={handleSubscribe} 
-                disabled={loading || !fullName.trim() || !isValidEmail(email) || !passwordValidation.valid || !passwordsMatch || !referralCode.trim() || !acceptTerms || !birthDay || !birthMonth || !birthYear}
+                disabled={loading || !fullName.trim() || !nicknameReady || !isValidEmail(email) || !passwordValidation.valid || !passwordsMatch || !referralCode.trim() || !acceptTerms || !birthDay || !birthMonth || !birthYear}
               >
                 {loading ? t.subscribe.processing : t.subscribe.subscribeNow}
               </Button>

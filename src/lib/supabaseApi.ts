@@ -290,6 +290,7 @@ export const createRegistrationPayment = async (params: {
  */
 export const registrationCheckout = async (params: {
   fullName: string;
+  nickname?: string;
   email: string;
   password: string;
   referralCode?: string;
@@ -300,6 +301,7 @@ export const registrationCheckout = async (params: {
 }): Promise<RegistrationResponse> => {
   logger.register.info('Iniciando registration-checkout (pagamento primeiro)', {
     email: params.email,
+    nickname: params.nickname ?? 'SEM_NICKNAME',
     referralCode: params.referralCode ?? 'SEM_CODIGO',
     referrerId: params.referrerId ?? 'SEM_REFERRER',
   });
@@ -310,7 +312,8 @@ export const registrationCheckout = async (params: {
   const payload = {
     email: params.email,
     password: params.password,
-    username: params.fullName,
+    username: params.nickname || params.fullName,
+    fullName: params.fullName,
     referralCode: params.referralCode,
     referrerId: params.referrerId,
   };

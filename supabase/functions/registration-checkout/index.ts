@@ -68,6 +68,21 @@ serve(async (req) => {
       }
     }
 
+    // Check if username already exists in profiles
+    const finalUsername = username || email.split('@')[0];
+    const { data: existingUsername } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('username', finalUsername)
+      .maybeSingle();
+
+    if (existingUsername) {
+      return new Response(JSON.stringify({ error: 'Este nome de usuário já está em uso' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Check if email has a pending registration
     const { data: pendingReg } = await supabase
       .from('registration_referrals')

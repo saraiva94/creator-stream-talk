@@ -603,10 +603,11 @@ async function processPaymentTransaction(supabase: any, payload: any): Promise<a
 
     console.log('[velana-webhook] User created successfully:', newUserId);
 
-    // Update profile with all registration data
+    // Update profile with all registration data including username
     await supabase
       .from('profiles')
       .update({
+        username: username,
         status: 'active',
         is_subscribed: true,
         is_root_creator: isRootCreator,
