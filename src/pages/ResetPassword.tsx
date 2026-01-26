@@ -167,7 +167,7 @@ const ResetPassword = () => {
       const redirectTo = `${siteUrl}/update-password`;
       const isEmail = /\S+@\S+\.\S+/.test(input);
 
-      // Para username: resolver o ID e validar via edge function
+      // Para username: resolver o ID via profile
       if (!isEmail) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -181,69 +181,50 @@ const ResetPassword = () => {
           return;
         }
 
-        // Validar e obter email via edge function
+        // Enviar via edge function (que envia email via Resend)
         const { data, error } = await supabase.functions.invoke("password-reset", {
           body: { userId: profile.id, redirectTo },
         });
 
         if (error || data?.error) {
           console.error("[AUTH][RESET_LINK] Edge function error:", error || data?.error);
-          setRequestError(data?.error || "Erro ao enviar link de recuperação. Tente novamente.");
+          const errorMsg = data?.error || "Erro ao enviar link de recuperação. Tente novamente.";
+          
+          // Verificar se é rate limit
+          if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit")) {
+            startRateLimitCooldown(errorMsg);
+          } else {
+            setRequestError(errorMsg);
+          }
           setRequesting(false);
           return;
         }
 
-        // Se validado, usar o email retornado para enviar via Supabase nativo
-        if (data?.validated && data?.email) {
-          const { error: resetError } = await supabase.auth.resetPasswordForEmail(data.email, {
-            redirectTo,
-          });
-
-          if (resetError) {
-            console.error("[AUTH][RESET_NATIVE]", resetError);
-            if (resetError.message?.includes("security purposes") || resetError.status === 429) {
-              startRateLimitCooldown(resetError.message);
-            } else {
-              setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
-            }
-          } else {
-            setRequestMessage("Link de recuperação enviado para seu email!");
-          }
-        } else {
-          setRequestMessage(data?.message || "Link de recuperação enviado com sucesso!");
-        }
+        setRequestMessage(data?.message || "Link de recuperação enviado para seu email!");
         setRequesting(false);
         return;
       }
 
-      // Para email: validar primeiro via edge function
+      // Para email: enviar diretamente via edge function
       const { data, error } = await supabase.functions.invoke("password-reset", {
         body: { email: input, redirectTo },
       });
 
       if (error || data?.error) {
-        console.error("[AUTH][RESET_VALIDATE] Validation error:", error || data?.error);
-        setRequestError(data?.error || "E-mail não cadastrado. Verifique o endereço informado.");
+        console.error("[AUTH][RESET_EMAIL] Edge function error:", error || data?.error);
+        const errorMsg = data?.error || "Erro ao enviar link de recuperação. Tente novamente.";
+        
+        // Verificar se é rate limit
+        if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit")) {
+          startRateLimitCooldown(errorMsg);
+        } else {
+          setRequestError(errorMsg);
+        }
         setRequesting(false);
         return;
       }
 
-      // Email validado, enviar via Supabase Auth nativo
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(input, {
-        redirectTo,
-      });
-
-      if (resetError) {
-        console.error("[AUTH][RESET_NATIVE]", resetError);
-        // Tratar rate limiting especificamente
-        if (resetError.message?.includes("security purposes") || resetError.status === 429) {
-          startRateLimitCooldown(resetError.message);
-        } else {
-          setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
-        }
-      } else {
-        setRequestMessage("Link de recuperação enviado para seu email!");
-      }
+      setRequestMessage(data?.message || "Link de recuperação enviado para seu email!");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
