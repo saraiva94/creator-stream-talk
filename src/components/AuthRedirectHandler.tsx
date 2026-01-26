@@ -11,34 +11,40 @@ export const AuthRedirectHandler = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Check for recovery token in URL hash on mount
-    const hash = window.location.hash;
     const currentPath = location.pathname;
-    
-    console.log("[AUTH_REDIRECT] Checking hash on path:", currentPath, "hash:", hash?.substring(0, 50) + "...");
-    
-    // If we're already on update-password, don't redirect (let the page handle it)
+
+    const search = window.location.search || "";
+    const hash = window.location.hash || "";
+
+    // Detect recovery by hash (implicit) OR by query (PKCE)
+    const hasRecoveryInHash =
+      hash.includes("type=recovery") || hash.includes("access_token=") || hash.includes("refresh_token=");
+    const hasCodeInQuery = new URLSearchParams(search).has("code");
+
+    console.log("[AUTH_REDIRECT] path:", currentPath, "hasRecoveryInHash:", hasRecoveryInHash, "hasCodeInQuery:", hasCodeInQuery);
+
+    // If already on /update-password, skip redirect (let the page process tokens/code)
     if (currentPath === "/update-password") {
-      console.log("[AUTH_REDIRECT] Already on update-password, skipping redirect");
-      return;
-    }
-    
-    // Check if hash contains recovery tokens
-    if (hash && hash.includes("type=recovery")) {
-      console.log("[AUTH_REDIRECT] Recovery token detected in URL hash, redirecting to /update-password");
-      // Navigate to update-password, keeping the hash for the page to process
-      navigate("/update-password" + hash, { replace: true });
+      console.log("[AUTH_REDIRECT] On /update-password, skipping redirect");
       return;
     }
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // If recovery detected outside the page, redirect preserving search + hash
+    if (hasRecoveryInHash || hasCodeInQuery) {
+      console.log("[AUTH_REDIRECT] Recovery detected outside /update-password. Redirecting with preserved URL parts.");
+      navigate(`/update-password${search}${hash}`, { replace: true });
+      return;
+    }
+
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       console.log("[AUTH_REDIRECT] Auth state changed:", event);
-      
-      // Only redirect if we're not already on update-password
-      if (event === "PASSWORD_RECOVERY" && currentPath !== "/update-password") {
-        console.log("[AUTH_REDIRECT] PASSWORD_RECOVERY event detected, redirecting to /update-password");
-        navigate("/update-password", { replace: true });
+
+      if (event === "PASSWORD_RECOVERY") {
+        // Preserve whatever exists (may be code or hash)
+        const s = window.location.search || "";
+        const h = window.location.hash || "";
+        navigate(`/update-password${s}${h}`, { replace: true });
       }
     });
 

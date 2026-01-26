@@ -47,74 +47,117 @@ const UpdatePassword = () => {
 
   useEffect(() => {
     const hydrateRecoverySession = async () => {
-      // Check URL hash and query params for recovery token
-      const fullHash = window.location.hash;
-      const hashParams = new URLSearchParams(fullHash.replace(/^#/, ""));
+      // Parse hash
+      const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+      const hashParams = new URLSearchParams(hash);
       
-      // Try to get tokens from hash first, then query params
-      const accessToken = hashParams.get("access_token") ?? searchParams.get("access_token");
-      const refreshToken = hashParams.get("refresh_token") ?? searchParams.get("refresh_token");
-      const type = hashParams.get("type") ?? searchParams.get("type");
-      const errorCode = hashParams.get("error_code") ?? searchParams.get("error_code");
-      const errorDescription = hashParams.get("error_description") ?? searchParams.get("error_description");
+      // Parse query
+      const url = new URL(window.location.href);
+      const queryParams = url.searchParams;
+      
+      // Extract variables from hash and query
+      const accessToken = hashParams.get("access_token") ?? queryParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token") ?? queryParams.get("refresh_token");
+      const type = hashParams.get("type") ?? queryParams.get("type");
+      const code = queryParams.get("code");
+      const errorCode = hashParams.get("error_code") ?? queryParams.get("error_code");
+      const errorDescription = hashParams.get("error_description") ?? queryParams.get("error_description");
 
+      // Debug logs (without printing full tokens)
       console.log("[UPDATE_PASSWORD] URL analysis:", { 
-        fullUrl: window.location.href,
-        hash: fullHash,
-        hasAccessToken: !!accessToken, 
+        href: window.location.href,
+        hashLength: window.location.hash.length,
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        hasCode: !!code,
         type,
-        errorCode,
-        errorDescription,
-        hashLength: fullHash.length 
+        errorCode
       });
 
       // Check for Supabase error in redirect
-      if (errorCode || errorDescription) {
+      if (errorCode) {
         console.error("[UPDATE_PASSWORD] Supabase redirect error:", { errorCode, errorDescription });
         setTokenError(`O link expirou ou é inválido. ${errorDescription || "Solicite um novo link de recuperação."}`);
         setChecking(false);
         return;
       }
 
-      // If hash is just "#" or empty, no token was provided
-      if (!accessToken) {
-        // Check if there's an active session already (user might have been redirected with session)
-        const { data: { session } } = await supabase.auth.getSession();
+      // PKCE flow: code in query
+      if (code) {
+        console.log("[UPDATE_PASSWORD] PKCE flow detected, exchanging code for session");
+        try {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error("[UPDATE_PASSWORD] Code exchange error:", exchangeError);
+            setTokenError("O link expirou ou já foi utilizado. Solicite um novo link de recuperação.");
+            setChecking(false);
+            return;
+          }
+          
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.log("[UPDATE_PASSWORD] PKCE session established successfully");
+            setHasValidSession(true);
+          } else {
+            setTokenError("Não foi possível estabelecer a sessão. Solicite um novo link.");
+          }
+        } catch (err) {
+          console.error("[UPDATE_PASSWORD] PKCE exchange error:", err);
+          setTokenError("Erro ao processar o link. Tente novamente.");
+        }
+        setChecking(false);
+        return;
+      }
+
+      // Implicit flow: tokens in hash
+      if (accessToken) {
+        console.log("[UPDATE_PASSWORD] Implicit flow detected");
         
-        if (session) {
-          console.log("[UPDATE_PASSWORD] Found active session, allowing password update");
-          setHasValidSession(true);
+        // Require refresh_token - no fallback
+        if (!refreshToken) {
+          console.error("[UPDATE_PASSWORD] Missing refresh_token in implicit flow");
+          setTokenError("O link de redefinição está incompleto (falta refresh_token). Solicite um novo link.");
           setChecking(false);
           return;
         }
-        
-        setTokenError("O link de redefinição está incompleto ou foi cortado. Por favor, clique diretamente no botão do email ou copie o link completo.");
-        setChecking(false);
-        return;
-      }
 
-      if (type !== "recovery") {
-        setTokenError("Este link não é válido para redefinição de senha. Solicite um novo link de recuperação.");
-        setChecking(false);
-        return;
-      }
-
-      try {
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken ?? accessToken,
-        });
-
-        if (error) {
-          console.error("[UPDATE_PASSWORD] Session error:", error);
-          setTokenError("O link expirou ou já foi utilizado. Os links de recuperação são válidos por tempo limitado. Solicite um novo link.");
-        } else {
-          console.log("[UPDATE_PASSWORD] Session established successfully");
-          setHasValidSession(true);
+        if (type !== "recovery") {
+          setTokenError("Este link não é válido para redefinição de senha. Solicite um novo link de recuperação.");
+          setChecking(false);
+          return;
         }
-      } catch (err) {
-        console.error("[UPDATE_PASSWORD] Unexpected error:", err);
-        setTokenError("Erro ao validar o link. Tente novamente.");
+
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) {
+            console.error("[UPDATE_PASSWORD] Session error:", error);
+            setTokenError("O link expirou ou já foi utilizado. Solicite um novo link.");
+          } else {
+            console.log("[UPDATE_PASSWORD] Implicit session established successfully");
+            setHasValidSession(true);
+          }
+        } catch (err) {
+          console.error("[UPDATE_PASSWORD] Unexpected error:", err);
+          setTokenError("Erro ao validar o link. Tente novamente.");
+        }
+        setChecking(false);
+        return;
+      }
+
+      // No tokens and no code - wait 400ms to avoid race condition where supabase-js processes URL first
+      console.log("[UPDATE_PASSWORD] No tokens/code found, waiting 400ms then checking session");
+      await new Promise(resolve => setTimeout(resolve, 400));
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log("[UPDATE_PASSWORD] Found active session after wait, allowing password update");
+        setHasValidSession(true);
+      } else {
+        setTokenError("O link de redefinição está incompleto ou foi cortado. Por favor, clique diretamente no botão do email ou copie o link completo.");
       }
       
       setChecking(false);
