@@ -26,6 +26,8 @@ interface AffiliateHistoryEntry {
   level: number | null;
   referredUserId: string | null;
   eventType: string;
+  referredUserName?: string;
+  referredUserEmail?: string;
 }
 
 interface WithdrawalHistoryEntry {
@@ -160,11 +162,47 @@ const Affiliate = () => {
           .limit(50);
 
         if (logs) {
+          // Get unique referred user IDs to fetch their profiles
+          const referredUserIds = [...new Set(logs.map(log => log.new_user).filter(Boolean))] as string[];
+          
+          // Fetch profiles for referred users
+          let profilesMap: Record<string, { username: string; email?: string }> = {};
+          if (referredUserIds.length > 0) {
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("id, username")
+              .in("id", referredUserIds);
+            
+            if (profiles) {
+              profilesMap = profiles.reduce((acc, p) => {
+                acc[p.id] = { username: p.username };
+                return acc;
+              }, {} as Record<string, { username: string; email?: string }>);
+            }
+          }
+
+          // Fetch emails from auth (via registration_referrals if available)
+          if (referredUserIds.length > 0) {
+            const { data: regReferrals } = await supabase
+              .from("registration_referrals")
+              .select("user_id, email")
+              .in("user_id", referredUserIds);
+            
+            if (regReferrals) {
+              regReferrals.forEach(rr => {
+                if (rr.user_id && profilesMap[rr.user_id]) {
+                  profilesMap[rr.user_id].email = rr.email ?? undefined;
+                }
+              });
+            }
+          }
+
           let totalHistoricalEarnings = 0;
           const historyEntries: AffiliateHistoryEntry[] = logs.map((log) => {
             const isDirectReferrer = log.direct_referrer === session.user.id;
             const amount = isDirectReferrer ? (log.amount_direct ?? 0) : (log.amount_root ?? 0);
             totalHistoricalEarnings += amount;
+            const referredProfile = log.new_user ? profilesMap[log.new_user] : undefined;
             return {
               id: log.id,
               createdAt: log.created_at ?? new Date().toISOString(),
@@ -172,6 +210,8 @@ const Affiliate = () => {
               level: isDirectReferrer ? 1 : 2,
               referredUserId: log.new_user,
               eventType: log.event_type,
+              referredUserName: referredProfile?.username,
+              referredUserEmail: referredProfile?.email,
             };
           });
           setTotalEarningsCents(totalHistoricalEarnings);
@@ -419,8 +459,13 @@ const Affiliate = () => {
                 {history.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm sm:text-base truncate">{entry.eventType === "REGISTRATION" ? t.affiliate.newRegistration : entry.eventType}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)}</p>
+                      <p className="font-semibold text-sm sm:text-base truncate">
+                        {entry.referredUserName || entry.eventType === "REGISTRATION" ? entry.referredUserName || "Usuário" : entry.eventType}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {entry.referredUserEmail && <span className="block">{entry.referredUserEmail}</span>}
+                        <span>{formatDate(entry.createdAt)} • {entry.level === 1 ? t.affiliate.direct || "Direta" : t.affiliate.indirect || "Indireta"}</span>
+                      </p>
                     </div>
                     <div className="text-right flex-shrink-0 ml-2">
                       <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
