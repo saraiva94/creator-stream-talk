@@ -10,7 +10,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const REGISTRATION_PRICE_CENTS = 500; // R$ 5.00
+const REGISTRATION_PRICE_CENTS = 700; // R$ 7.00
 const VELANA_API_BASE = 'https://api.velana.com.br';
 
 // Fixed owner data for all PIX cash-in transactions

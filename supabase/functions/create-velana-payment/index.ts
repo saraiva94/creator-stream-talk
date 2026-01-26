@@ -21,7 +21,7 @@ const SUPERCHAT_TIERS: Record<string, { amountCents: number; duration: number }>
   red: { amountCents: 800, duration: 180 },
 };
 
-const REGISTRATION_PRICE_CENTS = 500; // R$ 5.00
+const REGISTRATION_PRICE_CENTS = 700; // R$ 7.00
 
 // Velana API Base URL
 const VELANA_API_BASE = 'https://api.velana.com.br';
