@@ -175,9 +175,13 @@ const ResetPassword = () => {
 
           if (resetError) {
             console.error("[AUTH][RESET_NATIVE]", resetError);
-            setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
+            if (resetError.message?.includes("security purposes") || resetError.status === 429) {
+              setRequestError("Aguarde alguns segundos antes de solicitar outro link de recuperação.");
+            } else {
+              setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
+            }
           } else {
-            setRequestMessage("Link de recuperação enviado com sucesso!");
+            setRequestMessage("Link de recuperação enviado para seu email!");
           }
         } else {
           setRequestMessage(data?.message || "Link de recuperação enviado com sucesso!");
@@ -205,9 +209,14 @@ const ResetPassword = () => {
 
       if (resetError) {
         console.error("[AUTH][RESET_NATIVE]", resetError);
-        setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
+        // Tratar rate limiting especificamente
+        if (resetError.message?.includes("security purposes") || resetError.status === 429) {
+          setRequestError("Aguarde alguns segundos antes de solicitar outro link de recuperação.");
+        } else {
+          setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
+        }
       } else {
-        setRequestMessage("Link de recuperação enviado com sucesso!");
+        setRequestMessage("Link de recuperação enviado para seu email!");
       }
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
