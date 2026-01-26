@@ -310,14 +310,14 @@ serve(async (req) => {
     
     // Determine the correct redirect URL based on action type
     // Use the production site URL
-    const siteUrl = "https://creator-stream-talk.vercel.app";
+    const siteUrl = "https://streamstar.vercel.app";
     let finalRedirectTo = redirect_to;
     
     // If redirect_to is empty or invalid, use defaults based on action type
     if (!redirect_to || redirect_to === "" || redirect_to === "undefined") {
       switch (email_action_type) {
         case "recovery":
-          finalRedirectTo = `${siteUrl}/reset-password`;
+          finalRedirectTo = `${siteUrl}/update-password`;
           break;
         case "signup":
         case "email_change":
