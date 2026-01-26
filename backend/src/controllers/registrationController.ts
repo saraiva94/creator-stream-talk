@@ -28,7 +28,7 @@ const calculateRegistrationCommissionCents = (
   const directAmountCents = directId ? 100 : 0; // R$1.00
   const effectiveRootId = rootId && rootId !== directId ? rootId : null;
   const rootAmountCents = effectiveRootId ? 50 : 0; // R$0.50
-  const platformAmountCents = Math.max(0, 500 - directAmountCents - rootAmountCents);
+  const platformAmountCents = Math.max(0, 700 - directAmountCents - rootAmountCents);
   return { directAmountCents, rootAmountCents, platformAmountCents };
 };
 

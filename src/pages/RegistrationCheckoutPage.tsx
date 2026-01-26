@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
 import type { User } from "@supabase/supabase-js";
 
-const REGISTRATION_PRICE = 5.0;
+const REGISTRATION_PRICE = 7.0;
 
 const RegistrationCheckoutPage = () => {
   const navigate = useNavigate();
@@ -99,7 +99,7 @@ const RegistrationCheckoutPage = () => {
           externalRef: response.externalRef || response.paymentId,
           amount: response.amount || REGISTRATION_PRICE,
           eventType: 'REGISTRATION',
-          description: 'Account Activation - R$ 5.00',
+          description: 'Account Activation - R$ 7.00',
         });
         setPixDialogOpen(true);
         return;

@@ -281,7 +281,7 @@ export const SUPERCHAT_TIERS = {
 } as const;
 
 // Registration price in cents
-export const REGISTRATION_PRICE_CENTS = 500; // R$ 5.00
+export const REGISTRATION_PRICE_CENTS = 700; // R$ 7.00
 
 /**
  * Calculate credits from amount in cents

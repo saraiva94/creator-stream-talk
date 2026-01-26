@@ -77,8 +77,8 @@ const PlatformRevenueDashboard = () => {
           } else if (sourceType === "registration") {
             // Registros: plataforma recebe o que sobra após comissões
             registrationIncome += amountReais;
-            // Gross é R$5.00 por registro (500 centavos = R$5)
-            registrationGross += 5;
+            // Gross é R$7.00 por registro (700 centavos = R$7)
+            registrationGross += 7;
           }
         });
 

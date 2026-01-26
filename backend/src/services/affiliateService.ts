@@ -12,7 +12,7 @@ export interface RegistrationReferralContext {
   isFree?: boolean;
 }
 
-export const REGISTRATION_PRICE_VALUE = 5;
+export const REGISTRATION_PRICE_VALUE = 7;
 export const DIRECT_COMMISSION_VALUE = 1;
 export const ROOT_COMMISSION_VALUE = 0.5;
 

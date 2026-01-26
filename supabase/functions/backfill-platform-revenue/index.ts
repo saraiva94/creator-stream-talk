@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Registration price and commission structure (in BRL)
-const REGISTRATION_PRICE_CENTS = 500; // R$5.00
+const REGISTRATION_PRICE_CENTS = 700; // R$7.00
 const DIRECT_COMMISSION_CENTS = 100;  // R$1.00
 const ROOT_COMMISSION_CENTS = 50;     // R$0.50
 
