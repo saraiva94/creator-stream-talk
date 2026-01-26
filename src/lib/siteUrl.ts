@@ -4,7 +4,7 @@ type ViteMetaEnv = {
 
 // URL de produção para redirects de autenticação
 // IMPORTANTE: Esta é a URL principal da aplicação publicada
-const PRODUCTION_URL = "https://streamstar.lovable.app";
+const PRODUCTION_URL = "https://streamstar.vercel.app";
 
 export function getSiteUrl(): string {
   const env = (import.meta as unknown as { env?: ViteMetaEnv }).env;
