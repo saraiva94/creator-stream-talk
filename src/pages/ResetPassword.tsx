@@ -22,9 +22,35 @@ const ResetPassword = () => {
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    
+    const timer = setInterval(() => {
+      setCooldownSeconds((prev) => {
+        if (prev <= 1) {
+          setRequestError(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
+
+  // Helper to start rate limit cooldown
+  const startRateLimitCooldown = (errorMessage?: string) => {
+    // Extract seconds from error message if available, default to 60
+    const match = errorMessage?.match(/after (\d+) seconds/);
+    const seconds = match ? parseInt(match[1], 10) : 60;
+    setCooldownSeconds(seconds);
+  };
 
   useEffect(() => {
     const hydrateRecoverySession = async () => {
@@ -176,7 +202,7 @@ const ResetPassword = () => {
           if (resetError) {
             console.error("[AUTH][RESET_NATIVE]", resetError);
             if (resetError.message?.includes("security purposes") || resetError.status === 429) {
-              setRequestError("Aguarde alguns segundos antes de solicitar outro link de recuperação.");
+              startRateLimitCooldown(resetError.message);
             } else {
               setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
             }
@@ -211,7 +237,7 @@ const ResetPassword = () => {
         console.error("[AUTH][RESET_NATIVE]", resetError);
         // Tratar rate limiting especificamente
         if (resetError.message?.includes("security purposes") || resetError.status === 429) {
-          setRequestError("Aguarde alguns segundos antes de solicitar outro link de recuperação.");
+          startRateLimitCooldown(resetError.message);
         } else {
           setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
         }
@@ -305,10 +331,18 @@ const ResetPassword = () => {
                   />
                 </div>
                 {tokenError ? <p className="text-sm text-destructive">{tokenError}</p> : null}
-                {requestError ? <p className="text-sm text-destructive">{requestError}</p> : null}
+                {cooldownSeconds > 0 ? (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                    <p className="text-sm text-destructive font-medium">
+                      Aguarde <span className="font-bold tabular-nums">{cooldownSeconds}s</span> para solicitar novo link
+                    </p>
+                  </div>
+                ) : requestError ? (
+                  <p className="text-sm text-destructive">{requestError}</p>
+                ) : null}
                 {requestMessage ? <p className="text-sm text-success">{requestMessage}</p> : null}
-                <Button type="submit" className="w-full" disabled={requesting}>
-                  {requesting ? "Enviando..." : "Enviar link de recuperação"}
+                <Button type="submit" className="w-full" disabled={requesting || cooldownSeconds > 0}>
+                  {requesting ? "Enviando..." : cooldownSeconds > 0 ? `Aguarde ${cooldownSeconds}s` : "Enviar link de recuperação"}
                 </Button>
               </form>
             )}
