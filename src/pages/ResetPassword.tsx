@@ -10,6 +10,7 @@ import { ArrowLeft } from "lucide-react";
 import { StreamStarLogo } from "@/components/StreamStarLogo";
 import { validatePasswordStrength } from "@/lib/password";
 import { siteUrl } from "@/lib/siteUrl";
+import { apiClient } from "@/lib/api";
 
 const ResetPassword = () => {
   const [newPassword, setNewPassword] = useState("");
@@ -141,46 +142,79 @@ const ResetPassword = () => {
       const redirectTo = `${siteUrl}/update-password`;
       const isEmail = /\S+@\S+\.\S+/.test(input);
 
-      let emailToReset = input;
+      // First, validate if the credential exists using our backend API
+      try {
+        const validationResult = await apiClient.validateResetCredential(input);
+        
+        if (!validationResult.exists) {
+          setRequestError(isEmail 
+            ? "E-mail não cadastrado. Verifique o endereço informado." 
+            : "Usuário não cadastrado. Verifique o nome de usuário informado."
+          );
+          setRequesting(false);
+          return;
+        }
+      } catch (validationError) {
+        console.warn("[AUTH][RESET] Backend validation failed, falling back to local check", validationError);
+        
+        // Fallback: check locally if username exists in profiles
+        if (!isEmail) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("id")
+            .ilike("username", input)
+            .maybeSingle();
 
-      // Se for username, buscar email associado
+          if (profileError || !profile) {
+            setRequestError("Usuário não cadastrado. Verifique o nome de usuário informado.");
+            setRequesting(false);
+            return;
+          }
+        }
+        // For email, we can't validate without backend, so we'll proceed and let Supabase handle it
+      }
+
+      // If it's a username, use edge function to resolve and send
       if (!isEmail) {
-        const { data: profile, error: profileError } = await supabase
+        const { data: profile } = await supabase
           .from("profiles")
           .select("id")
-          .eq("username", input)
+          .ilike("username", input)
           .maybeSingle();
 
-        if (profileError || !profile) {
-          setRequestMessage("Se o e-mail ou usuário estiver cadastrado, você receberá um link de recuperação.");
+        if (!profile) {
+          setRequestError("Usuário não cadastrado. Verifique o nome de usuário informado.");
           setRequesting(false);
           return;
         }
 
-        // Usar edge function apenas para resolver username -> email
+        // Use edge function to send email for username
         const { data, error } = await supabase.functions.invoke("password-reset", {
           body: { userId: profile.id, redirectTo },
         });
 
         if (error) {
           console.error("[AUTH][RESET_LINK] Edge function error:", error);
+          setRequestError("Erro ao enviar link de recuperação. Tente novamente.");
+        } else {
+          setRequestMessage(data?.message || "Link de recuperação enviado com sucesso!");
         }
-        
-        setRequestMessage(data?.message || "Se o e-mail ou usuário estiver cadastrado, você receberá um link de recuperação.");
         setRequesting(false);
         return;
       }
 
-      // Para email, usar Supabase nativo (funciona sem Resend)
-      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
+      // For email, use Supabase native
+      const { error } = await supabase.auth.resetPasswordForEmail(input, {
         redirectTo,
       });
 
       if (error) {
         console.error("[AUTH][RESET_NATIVE]", error);
+        // Supabase returns success even for non-existent emails for security
+        // But we already validated above, so if we reach here, the email exists
       }
 
-      setRequestMessage("Se o e-mail ou usuário estiver cadastrado, você receberá um link de recuperação.");
+      setRequestMessage("Link de recuperação enviado com sucesso!");
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");

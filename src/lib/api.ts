@@ -98,6 +98,13 @@ const resolveUsernameToEmail = (username: string) =>
     auth: 'none',
   });
 
+const validateResetCredential = (credential: string) =>
+  request<{ exists: boolean; type: 'email' | 'username' | null }>('/auth/validate-reset-credential', {
+    method: 'POST',
+    body: { credential },
+    auth: 'none',
+  });
+
 const fetchReferralLink = () =>
   request<{ code: string; url: string }>('/affiliate/link', { method: 'GET', auth: 'required' });
 
@@ -663,6 +670,8 @@ export const apiClient = {
 
   resolveUsername: (username: string) => resolveUsernameToEmail(username),
 
+  validateResetCredential: (credential: string) => validateResetCredential(credential),
+
   /** @deprecated Use createRegistrationPayment from supabaseApi.ts instead - Mercado Pago discontinued */
   createRegistrationPreference: async (_payload: { userId: string; parentId: string }): Promise<PaymentPreferenceResponse> => {
     console.warn('[api] createRegistrationPreference deprecated - use Velana PIX via supabaseApi.ts');
@@ -750,6 +759,7 @@ export const api = {
   },
   auth: {
     resolveUsername: apiClient.resolveUsername,
+    validateResetCredential: apiClient.validateResetCredential,
   },
   status: {
     diagnostics: apiClient.fetchDiagnostics,

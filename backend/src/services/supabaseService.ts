@@ -762,9 +762,10 @@ export const getProfileById = async (profileId: string) => {
 };
 
 export const getProfileByUsername = async (username: string) => {
-  const { data, error } = await supabase
+  // First get the profile by username
+  const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, email, username')
+    .select('id, username')
     .ilike('username', username)
     .maybeSingle();
 
@@ -772,7 +773,88 @@ export const getProfileByUsername = async (username: string) => {
     throw new Error(`Failed to load profile by username: ${error.message}`);
   }
 
-  return data;
+  if (!profile) {
+    return null;
+  }
+
+  // Then get the email from auth.users using admin API
+  const { data: userData, error: userError } = await supabase.auth.admin.getUserById(profile.id);
+  
+  if (userError || !userData?.user?.email) {
+    logger.warn({ event: 'getProfileByUsername.noEmail', profileId: profile.id, error: userError?.message });
+    return { ...profile, email: null };
+  }
+
+  return { ...profile, email: userData.user.email };
+};
+
+/**
+ * Check if an email exists in auth.users
+ */
+export const checkEmailExists = async (email: string): Promise<boolean> => {
+  // Use admin API to list users with this email
+  const { data, error } = await supabase.auth.admin.listUsers({
+    perPage: 1,
+  });
+
+  if (error) {
+    logger.error({ event: 'checkEmailExists.error', error: error.message });
+    throw new Error(`Failed to check email: ${error.message}`);
+  }
+
+  // Search through users - admin.listUsers doesn't support email filter directly
+  // So we need to use a different approach: try to get user by email via RPC
+  const { data: authData } = await supabase
+    .rpc('get_user_id_by_email', { p_email: email });
+  
+  // If RPC doesn't exist, fallback to checking profiles + auth lookup
+  if (authData === undefined) {
+    // Alternative: query auth.users directly (only works with service role)
+    const { data: users } = await supabase
+      .from('auth.users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+    
+    return !!users;
+  }
+
+  return !!authData;
+};
+
+/**
+ * Check if email or username exists for password reset validation
+ * Returns: { exists: boolean, type: 'email' | 'username' | null }
+ */
+export const validateResetCredential = async (input: string): Promise<{ exists: boolean; type: 'email' | 'username' | null; userId?: string }> => {
+  const isEmail = /\S+@\S+\.\S+/.test(input);
+  
+  if (isEmail) {
+    // Check if email exists in auth.users using admin API
+    const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    
+    if (error) {
+      logger.error({ event: 'validateResetCredential.listUsers.error', error: error.message });
+      return { exists: false, type: null };
+    }
+    
+    const user = data.users.find(u => u.email?.toLowerCase() === input.toLowerCase());
+    
+    if (user) {
+      return { exists: true, type: 'email', userId: user.id };
+    }
+    
+    return { exists: false, type: 'email' };
+  } else {
+    // Check if username exists
+    const profile = await getProfileByUsername(input);
+    
+    if (profile) {
+      return { exists: true, type: 'username', userId: profile.id };
+    }
+    
+    return { exists: false, type: 'username' };
+  }
 };
 
 export const ensureCreatorOwnsLive = async (liveId: string, profileId: string) => {
