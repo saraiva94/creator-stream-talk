@@ -85,12 +85,12 @@ const Affiliate = () => {
     // Available balance = affiliate earnings + creator wallet balance
     setAvailableBalanceCents(affiliateEarnings + creatorBalance);
 
-        // Fetch from payout_requests table (actual withdrawals) - exclude rejected
+        // Fetch from payout_requests table - ONLY completed/paid withdrawals
         const { data: payoutRequests } = await supabase
           .from("payout_requests")
           .select("id, amount, status, created_at, pix_key, paid_at")
           .eq("creator_id", user.id)
-          .neq("status", "rejected")
+          .eq("status", "paid")
           .order("created_at", { ascending: false })
           .limit(100);
 
@@ -225,12 +225,12 @@ const Affiliate = () => {
           setHistory(historyEntries);
         }
 
-        // Fetch from payout_requests table (actual withdrawals) - exclude rejected
+        // Fetch from payout_requests table - ONLY completed/paid withdrawals
         const { data: payoutRequests } = await supabase
           .from("payout_requests")
           .select("id, amount, status, created_at, pix_key, paid_at")
           .eq("creator_id", session.user.id)
-          .neq("status", "rejected")
+          .eq("status", "paid")
           .order("created_at", { ascending: false })
           .limit(100);
 

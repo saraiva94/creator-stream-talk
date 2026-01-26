@@ -524,7 +524,11 @@ const Subscribe = () => {
                 </div>
               </Card>
 
-              <Button className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" onClick={handleSubscribe} disabled={loading}>
+              <Button 
+                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" 
+                onClick={handleSubscribe} 
+                disabled={loading || !fullName.trim() || !isValidEmail(email) || !passwordValidation.valid || !passwordsMatch || !referralCode.trim() || !acceptTerms || !birthDay || !birthMonth || !birthYear}
+              >
                 {loading ? t.subscribe.processing : t.subscribe.subscribeNow}
               </Button>
 

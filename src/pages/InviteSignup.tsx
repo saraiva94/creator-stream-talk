@@ -241,7 +241,7 @@ const InviteSignup = () => {
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full" disabled={loading || !parentId}>
+              <Button type="submit" className="w-full" disabled={loading || !parentId || !email.trim() || !password.trim() || !confirmPassword.trim() || !username.trim()}>
                 {loading ? t.auth.loading : "Create account"}
               </Button>
               <p className="text-xs text-muted-foreground">
