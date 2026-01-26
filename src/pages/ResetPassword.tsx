@@ -23,6 +23,7 @@ const ResetPassword = () => {
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [hasSentOnce, setHasSentOnce] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -162,6 +163,11 @@ const ResetPassword = () => {
       return;
     }
 
+    // Se já enviou uma vez e está em cooldown, mostrar contador
+    if (hasSentOnce && cooldownSeconds > 0) {
+      return;
+    }
+
     setRequesting(true);
     try {
       const redirectTo = `${siteUrl}/update-password`;
@@ -190,9 +196,13 @@ const ResetPassword = () => {
           console.error("[AUTH][RESET_LINK] Edge function error:", error || data?.error);
           const errorMsg = data?.error || "Erro ao enviar link de recuperação. Tente novamente.";
           
-          // Verificar se é rate limit
+          // Verificar se é rate limit - só mostrar contador se já enviou uma vez
           if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit")) {
-            startRateLimitCooldown(errorMsg);
+            if (hasSentOnce) {
+              startRateLimitCooldown(errorMsg);
+            } else {
+              setRequestError(errorMsg);
+            }
           } else {
             setRequestError(errorMsg);
           }
@@ -200,7 +210,10 @@ const ResetPassword = () => {
           return;
         }
 
-        setRequestMessage(data?.message || "Link de recuperação enviado para seu email!");
+        // Sucesso no primeiro envio
+        setRequestMessage("Link de recuperação enviado para seu email!");
+        setHasSentOnce(true);
+        startRateLimitCooldown(); // Iniciar cooldown silencioso
         setRequesting(false);
         return;
       }
@@ -214,9 +227,13 @@ const ResetPassword = () => {
         console.error("[AUTH][RESET_EMAIL] Edge function error:", error || data?.error);
         const errorMsg = data?.error || "Erro ao enviar link de recuperação. Tente novamente.";
         
-        // Verificar se é rate limit
+        // Verificar se é rate limit - só mostrar contador se já enviou uma vez
         if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit")) {
-          startRateLimitCooldown(errorMsg);
+          if (hasSentOnce) {
+            startRateLimitCooldown(errorMsg);
+          } else {
+            setRequestError(errorMsg);
+          }
         } else {
           setRequestError(errorMsg);
         }
@@ -224,7 +241,10 @@ const ResetPassword = () => {
         return;
       }
 
-      setRequestMessage(data?.message || "Link de recuperação enviado para seu email!");
+      // Sucesso no primeiro envio
+      setRequestMessage("Link de recuperação enviado para seu email!");
+      setHasSentOnce(true);
+      startRateLimitCooldown(); // Iniciar cooldown silencioso
     } catch (error) {
       console.error("[AUTH][RESET_LINK]", error);
       setRequestError("Não foi possível enviar o link de recuperação. Tente novamente.");
@@ -312,7 +332,7 @@ const ResetPassword = () => {
                   />
                 </div>
                 {tokenError ? <p className="text-sm text-destructive">{tokenError}</p> : null}
-                {cooldownSeconds > 0 ? (
+                {hasSentOnce && cooldownSeconds > 0 ? (
                   <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
                     <p className="text-sm text-destructive font-medium">
                       Aguarde <span className="font-bold tabular-nums">{cooldownSeconds}s</span> para solicitar novo link
@@ -322,7 +342,7 @@ const ResetPassword = () => {
                   <p className="text-sm text-destructive">{requestError}</p>
                 ) : null}
                 {requestMessage ? <p className="text-sm text-success">{requestMessage}</p> : null}
-                <Button type="submit" className="w-full" disabled={requesting || cooldownSeconds > 0}>
+                <Button type="submit" className="w-full" disabled={requesting || (hasSentOnce && cooldownSeconds > 0)}>
                   {requesting ? "Enviando..." : "Enviar link de recuperação"}
                 </Button>
               </form>
