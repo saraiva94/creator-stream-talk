@@ -171,7 +171,7 @@ const RegistrationCheckoutPage = () => {
                 />
                 <p className="text-xs text-muted-foreground">At least 8 characters with letters and numbers.</p>
               </div>
-              <Button type="submit" disabled={loading} className="w-full">
+              <Button type="submit" disabled={loading || !email.trim() || !password.trim() || password.length < 8} className="w-full">
                 {loading ? "Processing..." : isFree ? "Activate free registration" : "Continue to checkout"}
               </Button>
             </form>
