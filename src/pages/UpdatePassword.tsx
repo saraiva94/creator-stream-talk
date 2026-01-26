@@ -48,18 +48,46 @@ const UpdatePassword = () => {
   useEffect(() => {
     const hydrateRecoverySession = async () => {
       // Check URL hash and query params for recovery token
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const fullHash = window.location.hash;
+      const hashParams = new URLSearchParams(fullHash.replace(/^#/, ""));
+      
+      // Try to get tokens from hash first, then query params
       const accessToken = hashParams.get("access_token") ?? searchParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token") ?? searchParams.get("refresh_token");
       const type = hashParams.get("type") ?? searchParams.get("type");
+      const errorCode = hashParams.get("error_code") ?? searchParams.get("error_code");
+      const errorDescription = hashParams.get("error_description") ?? searchParams.get("error_description");
 
-      console.log("[UPDATE_PASSWORD] Checking token:", { 
+      console.log("[UPDATE_PASSWORD] URL analysis:", { 
+        fullUrl: window.location.href,
+        hash: fullHash,
         hasAccessToken: !!accessToken, 
         type,
-        hashLength: window.location.hash.length 
+        errorCode,
+        errorDescription,
+        hashLength: fullHash.length 
       });
 
+      // Check for Supabase error in redirect
+      if (errorCode || errorDescription) {
+        console.error("[UPDATE_PASSWORD] Supabase redirect error:", { errorCode, errorDescription });
+        setTokenError(`O link expirou ou é inválido. ${errorDescription || "Solicite um novo link de recuperação."}`);
+        setChecking(false);
+        return;
+      }
+
+      // If hash is just "#" or empty, no token was provided
       if (!accessToken) {
+        // Check if there's an active session already (user might have been redirected with session)
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          console.log("[UPDATE_PASSWORD] Found active session, allowing password update");
+          setHasValidSession(true);
+          setChecking(false);
+          return;
+        }
+        
         setTokenError("O link de redefinição está incompleto ou foi cortado. Por favor, clique diretamente no botão do email ou copie o link completo.");
         setChecking(false);
         return;
