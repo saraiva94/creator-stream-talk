@@ -60,13 +60,13 @@ const UpdatePassword = () => {
       });
 
       if (!accessToken) {
-        setTokenError("Link de redefinição inválido. Solicite um novo link.");
+        setTokenError("O link de redefinição está incompleto ou foi cortado. Por favor, clique diretamente no botão do email ou copie o link completo.");
         setChecking(false);
         return;
       }
 
       if (type !== "recovery") {
-        setTokenError("Este link não é válido para redefinição de senha.");
+        setTokenError("Este link não é válido para redefinição de senha. Solicite um novo link de recuperação.");
         setChecking(false);
         return;
       }
@@ -79,7 +79,7 @@ const UpdatePassword = () => {
 
         if (error) {
           console.error("[UPDATE_PASSWORD] Session error:", error);
-          setTokenError("Link expirado ou inválido. Solicite um novo link de recuperação.");
+          setTokenError("O link expirou ou já foi utilizado. Os links de recuperação são válidos por tempo limitado. Solicite um novo link.");
         } else {
           console.log("[UPDATE_PASSWORD] Session established successfully");
           setHasValidSession(true);
