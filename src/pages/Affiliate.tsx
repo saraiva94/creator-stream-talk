@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2 } from "lucide-react";
+import { Users, TrendingUp, Link as LinkIcon, Save, Loader2, Copy, Banknote, Wallet, Share2, ChevronLeft, ChevronRight } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import HowToMonetizeDialog from "@/components/affiliate/HowToMonetizeDialog";
 const CODE_REGEX = /^[a-zA-Z0-9_-]{4,32}$/;
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace('.', ',')}`;
 const formatDate = (value: string) => new Date(value).toLocaleDateString("pt-BR");
+
+const ITEMS_PER_PAGE = 10;
 
 interface AffiliateHistoryEntry {
   id: string;
@@ -58,6 +60,10 @@ const Affiliate = () => {
   const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   
   const [showShareDialog, setShowShareDialog] = useState(false);
+  
+  // Pagination states
+  const [historyPage, setHistoryPage] = useState(1);
+  const [withdrawalPage, setWithdrawalPage] = useState(1);
 
   const refreshBalance = async () => {
     if (!user) return;
@@ -79,19 +85,20 @@ const Affiliate = () => {
     // Available balance = affiliate earnings + creator wallet balance
     setAvailableBalanceCents(affiliateEarnings + creatorBalance);
 
-        // Fetch from payout_requests table (actual withdrawals)
+        // Fetch from payout_requests table (actual withdrawals) - exclude rejected
         const { data: payoutRequests } = await supabase
           .from("payout_requests")
           .select("id, amount, status, created_at, pix_key, paid_at")
           .eq("creator_id", user.id)
+          .neq("status", "rejected")
           .order("created_at", { ascending: false })
-          .limit(20);
+          .limit(100);
 
         if (payoutRequests) {
           const entries: WithdrawalHistoryEntry[] = payoutRequests.map((p) => ({
             id: p.id,
             createdAt: p.created_at,
-            amountCents: Math.round(Number(p.amount) ?? 0),
+            amountCents: Math.round((Number(p.amount) ?? 0) * 100),
             status: p.status,
             pixKeyMasked: p.pix_key ? `***${p.pix_key.slice(-4)}` : "***",
           }));
@@ -159,7 +166,7 @@ const Affiliate = () => {
           .select("*")
           .or(`direct_referrer.eq.${session.user.id},root_creator.eq.${session.user.id}`)
           .order("created_at", { ascending: false })
-          .limit(50);
+          .limit(200);
 
         if (logs) {
           // Get unique referred user IDs to fetch their profiles
@@ -218,13 +225,14 @@ const Affiliate = () => {
           setHistory(historyEntries);
         }
 
-        // Fetch from payout_requests table (actual withdrawals)
+        // Fetch from payout_requests table (actual withdrawals) - exclude rejected
         const { data: payoutRequests } = await supabase
           .from("payout_requests")
           .select("id, amount, status, created_at, pix_key, paid_at")
           .eq("creator_id", session.user.id)
+          .neq("status", "rejected")
           .order("created_at", { ascending: false })
-          .limit(20);
+          .limit(100);
 
         if (payoutRequests) {
           const withdrawalEntries: WithdrawalHistoryEntry[] = payoutRequests.map((p) => ({
@@ -456,24 +464,58 @@ const Affiliate = () => {
                 <p className="text-xs sm:text-sm">{t.affiliate.shareCodeStart}</p>
               </div>
             ) : (
-              <div className="space-y-2 sm:space-y-3">
-                {history.map((entry) => (
-                  <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm sm:text-base truncate">
-                        {entry.referredUserName || entry.eventType === "REGISTRATION" ? entry.referredUserName || "Usuário" : entry.eventType}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {entry.referredUserEmail && <span className="block">{entry.referredUserEmail}</span>}
-                        <span>{formatDate(entry.createdAt)} • {entry.level === 1 ? t.affiliate.direct || "Direta" : t.affiliate.indirect || "Indireta"}</span>
-                      </p>
+              <>
+                <div className="space-y-2 sm:space-y-3">
+                  {history
+                    .slice((historyPage - 1) * ITEMS_PER_PAGE, historyPage * ITEMS_PER_PAGE)
+                    .map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm sm:text-base truncate">
+                          {entry.referredUserName || entry.eventType === "REGISTRATION" ? entry.referredUserName || "Usuário" : entry.eventType}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {entry.referredUserEmail && <span className="block">{entry.referredUserEmail}</span>}
+                          <span>{formatDate(entry.createdAt)} • {entry.level === 1 ? t.affiliate.direct || "Direta" : t.affiliate.indirect || "Indireta"}</span>
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
+                      </div>
                     </div>
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <p className="font-bold text-green-500 text-sm sm:text-base">+{formatBRL(entry.amountCents)}</p>
+                  ))}
+                </div>
+                {history.length > ITEMS_PER_PAGE && (
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+                    <span className="text-xs text-muted-foreground">
+                      {((historyPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(historyPage * ITEMS_PER_PAGE, history.length)} de {history.length}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                        disabled={historyPage === 1}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground min-w-[60px] text-center">
+                        {historyPage} / {Math.ceil(history.length / ITEMS_PER_PAGE)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setHistoryPage(p => Math.min(Math.ceil(history.length / ITEMS_PER_PAGE), p + 1))}
+                        disabled={historyPage >= Math.ceil(history.length / ITEMS_PER_PAGE)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -494,30 +536,62 @@ const Affiliate = () => {
                 <p className="text-xs sm:text-sm">{t.affiliate.trackWithdrawals}</p>
               </div>
             ) : (
-              <div className="space-y-2 sm:space-y-3">
-                {withdrawalHistory.map((entry) => (
-                  <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm sm:text-base">{t.affiliate.withdrawViaPix}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)} • {entry.pixKeyMasked}</p>
+              <>
+                <div className="space-y-2 sm:space-y-3">
+                  {withdrawalHistory
+                    .slice((withdrawalPage - 1) * ITEMS_PER_PAGE, withdrawalPage * ITEMS_PER_PAGE)
+                    .map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between p-2 sm:p-3 bg-secondary rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-sm sm:text-base">{t.affiliate.withdrawViaPix}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(entry.createdAt)} • {entry.pixKeyMasked}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <p className="font-bold text-red-500 text-sm sm:text-base">-{formatBRL(entry.amountCents)}</p>
+                        <p className={`text-xs ${
+                          entry.status === 'completed' ? 'text-green-500' : 
+                          entry.status === 'approved' ? 'text-blue-500' : 
+                          'text-yellow-500'
+                        }`}>
+                          {entry.status === 'completed' ? (t.common.success || 'Concluído') : 
+                           entry.status === 'approved' ? 'Aprovado' : 
+                           'Pendente'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <p className="font-bold text-red-500 text-sm sm:text-base">-{formatBRL(entry.amountCents)}</p>
-                      <p className={`text-xs ${
-                        entry.status === 'completed' ? 'text-green-500' : 
-                        entry.status === 'rejected' ? 'text-red-400' : 
-                        entry.status === 'approved' ? 'text-blue-500' : 
-                        'text-yellow-500'
-                      }`}>
-                        {entry.status === 'completed' ? (t.common.success || 'Concluído') : 
-                         entry.status === 'rejected' ? 'Rejeitado' : 
-                         entry.status === 'approved' ? 'Aprovado' : 
-                         'Pendente'}
-                      </p>
+                  ))}
+                </div>
+                {withdrawalHistory.length > ITEMS_PER_PAGE && (
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+                    <span className="text-xs text-muted-foreground">
+                      {((withdrawalPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(withdrawalPage * ITEMS_PER_PAGE, withdrawalHistory.length)} de {withdrawalHistory.length}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWithdrawalPage(p => Math.max(1, p - 1))}
+                        disabled={withdrawalPage === 1}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-xs text-muted-foreground min-w-[60px] text-center">
+                        {withdrawalPage} / {Math.ceil(withdrawalHistory.length / ITEMS_PER_PAGE)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWithdrawalPage(p => Math.min(Math.ceil(withdrawalHistory.length / ITEMS_PER_PAGE), p + 1))}
+                        disabled={withdrawalPage >= Math.ceil(withdrawalHistory.length / ITEMS_PER_PAGE)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
