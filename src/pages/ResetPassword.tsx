@@ -342,7 +342,7 @@ const ResetPassword = () => {
                 ) : null}
                 {requestMessage ? <p className="text-sm text-success">{requestMessage}</p> : null}
                 <Button type="submit" className="w-full" disabled={requesting || cooldownSeconds > 0}>
-                  {requesting ? "Enviando..." : cooldownSeconds > 0 ? `Aguarde ${cooldownSeconds}s` : "Enviar link de recuperação"}
+                  {requesting ? "Enviando..." : "Enviar link de recuperação"}
                 </Button>
               </form>
             )}
