@@ -308,29 +308,36 @@ serve(async (req) => {
     // Build confirmation URL
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     
-    // Determine the correct redirect URL based on action type
     // Use the production site URL
     const siteUrl = "https://streamstar.lovable.app";
-    let finalRedirectTo = redirect_to;
     
-    // If redirect_to is empty or invalid, use defaults based on action type
-    if (!redirect_to || redirect_to === "" || redirect_to === "undefined") {
-      switch (email_action_type) {
-        case "recovery":
-          finalRedirectTo = `${siteUrl}/update-password`;
-          break;
-        case "signup":
-        case "email_change":
-          finalRedirectTo = `${siteUrl}/`;
-          break;
-        default:
-          finalRedirectTo = `${siteUrl}/`;
+    let confirmationUrl: string;
+    
+    // For recovery, build URL with tokens directly in hash for the UpdatePassword page
+    if (email_action_type === "recovery") {
+      // The UpdatePassword page expects access_token, refresh_token and type in the hash
+      // We'll use the Supabase verify endpoint which will redirect with proper tokens
+      confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(`${siteUrl}/update-password`)}`;
+      console.log(`[AUTH-EMAIL-HOOK] Recovery URL: ${confirmationUrl}`);
+    } else {
+      // For other types, use standard flow
+      let finalRedirectTo = redirect_to;
+      
+      if (!redirect_to || redirect_to === "" || redirect_to === "undefined") {
+        switch (email_action_type) {
+          case "signup":
+          case "email_change":
+            finalRedirectTo = `${siteUrl}/`;
+            break;
+          default:
+            finalRedirectTo = `${siteUrl}/`;
+        }
       }
+      
+      confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(finalRedirectTo)}`;
     }
     
-    console.log(`[AUTH-EMAIL-HOOK] Final redirect_to: ${finalRedirectTo}`);
-    
-    const confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(finalRedirectTo)}`;
+    console.log(`[AUTH-EMAIL-HOOK] Final confirmation URL: ${confirmationUrl}`);
 
     const subject = getEmailSubject(email_action_type);
     const html = getEmailHtml(email_action_type, confirmationUrl, token);
