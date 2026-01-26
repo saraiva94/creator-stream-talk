@@ -149,9 +149,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("[password-reset] Action link generated, sending email via Resend");
 
-    // Enviar email via Resend
+    // Enviar email via Resend (usando domínio padrão do Resend até verificar domínio próprio)
     const emailResult = await resend.emails.send({
-      from: "StreamStar <noreply@streamstar.lovable.app>",
+      from: "StreamStar <onboarding@resend.dev>",
       to: [userEmail],
       subject: "Redefinição de Senha - StreamStar",
       html: `
