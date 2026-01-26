@@ -54,3 +54,6 @@ verify_jwt = false
 
 [functions.create-velana-payment]
 verify_jwt = false
+
+[functions.activate-pending-registration]
+verify_jwt = false
