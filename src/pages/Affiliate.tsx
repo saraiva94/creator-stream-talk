@@ -172,7 +172,7 @@ const Affiliate = () => {
           // Get unique referred user IDs to fetch their profiles
           const referredUserIds = [...new Set(logs.map(log => log.new_user).filter(Boolean))] as string[];
           
-          // Fetch profiles for referred users
+          // Fetch profiles for referred users - include username for display
           let profilesMap: Record<string, { username: string; email?: string }> = {};
           if (referredUserIds.length > 0) {
             const { data: profiles } = await supabase
@@ -182,23 +182,38 @@ const Affiliate = () => {
             
             if (profiles) {
               profilesMap = profiles.reduce((acc, p) => {
-                acc[p.id] = { username: p.username };
+                // O username deve sempre estar preenchido (é obrigatório no cadastro)
+                // Mas como fallback, usamos parte do ID
+                const displayName = p.username && p.username !== "usuário" 
+                  ? p.username 
+                  : `Usuário ${p.id.substring(0, 6)}`;
+                acc[p.id] = { username: displayName };
                 return acc;
               }, {} as Record<string, { username: string; email?: string }>);
             }
           }
 
-          // Fetch emails from auth (via registration_referrals if available)
+          // Fetch emails and names from registration_referrals (fallback for missing profiles)
           if (referredUserIds.length > 0) {
             const { data: regReferrals } = await supabase
               .from("registration_referrals")
-              .select("user_id, email")
+              .select("user_id, email, username")
               .in("user_id", referredUserIds);
             
             if (regReferrals) {
               regReferrals.forEach(rr => {
-                if (rr.user_id && profilesMap[rr.user_id]) {
-                  profilesMap[rr.user_id].email = rr.email ?? undefined;
+                if (rr.user_id) {
+                  if (profilesMap[rr.user_id]) {
+                    // Atualizar email se não existir
+                    profilesMap[rr.user_id].email = rr.email ?? undefined;
+                  } else {
+                    // Criar entrada para usuários que não têm perfil (cadastro incompleto)
+                    const displayName = rr.username || (rr.email ? rr.email.split("@")[0] : null);
+                    profilesMap[rr.user_id] = { 
+                      username: displayName || `Usuário ${rr.user_id.substring(0, 6)}`,
+                      email: rr.email ?? undefined 
+                    };
+                  }
                 }
               });
             }
