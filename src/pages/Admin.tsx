@@ -41,6 +41,7 @@ type RevenueBreakdown = {
 type UserProfile = {
   id: string;
   username: string;
+  email?: string | null;
   avatar_url: string | null;
   created_at: string;
   status: string | null;
@@ -127,12 +128,30 @@ const Admin = () => {
     }
     setLoadingUsers(true);
     try {
+      // Buscar profiles com email de auth.users via função ou diretamente
       const { data } = await supabase
         .from("profiles")
         .select("id, username, avatar_url, created_at, status")
         .order("created_at", { ascending: false })
         .limit(100);
-      setUsersList((data as UserProfile[]) || []);
+      
+      // Buscar emails da tabela registration_referrals como fallback
+      const userIds = (data || []).map(u => u.id);
+      const { data: regData } = await supabase
+        .from("registration_referrals")
+        .select("user_id, email")
+        .in("user_id", userIds);
+      
+      const emailMap = (regData || []).reduce((acc, r) => {
+        if (r.user_id && r.email) acc[r.user_id] = r.email;
+        return acc;
+      }, {} as Record<string, string>);
+      
+      const usersWithEmail = (data || []).map(u => ({
+        ...u,
+        email: emailMap[u.id] || null
+      }));
+      setUsersList(usersWithEmail as UserProfile[]);
       setShowUsersList(true);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -179,7 +198,10 @@ const Admin = () => {
   const filteredUsers = useMemo(() => {
     if (!usersSearch.trim()) return usersList;
     const search = usersSearch.toLowerCase();
-    return usersList.filter((u) => u.username?.toLowerCase().includes(search));
+    return usersList.filter((u) => 
+      u.username?.toLowerCase().includes(search) ||
+      u.email?.toLowerCase().includes(search)
+    );
   }, [usersList, usersSearch]);
 
   const filteredCreators = useMemo(() => {
@@ -695,22 +717,31 @@ const Admin = () => {
             <CardContent className="p-4 sm:p-6 pt-0">
               <div className="space-y-2">
                 {paginatedUsers.map((profile) => (
-                  <div key={profile.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={profile.avatar_url || undefined} />
-                      <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{profile.username}</p>
-                        {profile.status === "banned" && (
-                          <Badge variant="destructive" className="text-xs">{t.admin.banned}</Badge>
-                        )}
+                  <div 
+                    key={profile.id} 
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border cursor-pointer group"
+                  >
+                    <Link 
+                      to={`/u/${profile.username}`} 
+                      className="flex items-center gap-3 flex-1 min-w-0"
+                    >
+                      <Avatar className="h-10 w-10 group-hover:ring-2 ring-primary transition-all">
+                        <AvatarImage src={profile.avatar_url || undefined} />
+                        <AvatarFallback>{profile.username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{profile.username}</p>
+                          {profile.status === "banned" && (
+                            <Badge variant="destructive" className="text-xs">{t.admin.banned}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {profile.email && <span className="mr-2">{profile.email}</span>}
+                          <span>{new Date(profile.created_at).toLocaleDateString("pt-BR")}</span>
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(profile.created_at).toLocaleDateString("pt-BR")}
-                      </p>
-                    </div>
+                    </Link>
                     <Button
                       size="sm"
                       variant={profile.status === "banned" ? "outline" : "destructive"}
