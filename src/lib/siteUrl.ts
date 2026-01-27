@@ -12,11 +12,16 @@ export function getSiteUrl(): string {
   
   // Se estiver em ambiente de preview/dev, SEMPRE usar URL de produção para redirects de auth
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  
+  // Detectar QUALQUER ambiente que não seja produção
   const isPreview = origin.includes("lovableproject.com") || 
                     origin.includes("localhost") || 
-                    origin.includes("lovable.app/preview");
+                    origin.includes("id-preview--") ||
+                    origin.includes("-preview--") ||
+                    (origin.includes("lovable.app") && origin !== PRODUCTION_URL);
   
   if (isPreview) {
+    console.log("[SITE_URL] Preview detected, using production URL:", PRODUCTION_URL);
     return PRODUCTION_URL;
   }
   
