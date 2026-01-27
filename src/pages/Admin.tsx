@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Users, Video, TrendingUp, UserCheck, Wallet, CreditCard, MessageSquare, UserPlus, ArrowDownCircle, Shield, ChevronDown, ChevronUp, Search, Ban, CheckCircle, XCircle, ChevronLeft, ChevronRight, Activity } from "lucide-react";
-import { WebhookLogsPanel } from "@/components/admin/WebhookLogsPanel";
+
 import PromotionalVideosPanel from "@/components/admin/PromotionalVideosPanel";
 import PromoVideoAnalyticsPanel from "@/components/admin/PromoVideoAnalyticsPanel";
 import { ContentReportsPanel } from "@/components/admin/ContentReportsPanel";
@@ -1127,7 +1127,6 @@ const Admin = () => {
           </div>
           <div className="space-y-4">
             <ContentReportsPanel />
-            <WebhookLogsPanel />
           </div>
         </section>
 
