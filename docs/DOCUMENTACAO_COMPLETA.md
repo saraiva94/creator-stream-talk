@@ -18,6 +18,7 @@
 8. [Credenciais e Acessos](#8-credenciais-e-acessos)
 9. [Problemas Conhecidos e Soluções](#9-problemas-conhecidos-e-soluções)
 10. [Contatos e Suporte](#10-contatos-e-suporte)
+11. [Guia do Gestor (Admin)](#11-guia-do-gestor-admin)
 
 ---
 
@@ -634,6 +635,46 @@ headers: {
 | Taxa de saque | R$ 5,00 por transação |
 | Mínimo de saque | R$ 5,00 |
 | Saldo mínimo para saque | R$ 15,00 |
+
+---
+
+## 11. Guia do Gestor (Admin)
+
+Esta seção é para administradores não-técnicos que precisam operar o painel.
+
+### Papéis do Sistema
+
+| Papel | O que faz |
+|-------|-----------|
+| **Usuário** | Compra créditos e assiste lives |
+| **Criador** | Faz lives e recebe parte dos créditos consumidos |
+| **Admin** | Aprova criadores, libera/nega saques, acompanha receita |
+
+### Operações do Painel Admin
+
+| Ação | Rota | Descrição |
+|------|------|-----------|
+| **Aprovar criadores** | `/admin/creators` | Ver lista de criadores e Aprovar/Revogar permissão de live |
+| **Processar saques** | `/admin/payouts` | Ver solicitações pendentes e aprovar/rejeitar pagamentos |
+| **Ver receita** | Dashboard admin | Conferir métricas e pagamentos da plataforma |
+
+### Fluxo do Dinheiro (Simplificado)
+
+1. **Usuário** compra créditos (PIX)
+2. Cada período na live **consome créditos**
+3. **80%** vira saldo do criador, **20%** fica com a plataforma
+4. **Criador** solicita saque
+5. **Admin** aprova ou rejeita o saque
+6. **Afiliados** ganham R$1,00 (direto) + R$0,50 (avô) quando trazem novos usuários
+
+### Passo a Passo Rápido
+
+| Tarefa | Como fazer |
+|--------|------------|
+| Liberar criador para live | Acessar `/admin/creators` → clicar em "Aprovar" |
+| Pagar saque de criador | Ir em `/admin/payouts` → clicar em "Aprovar" |
+| Ver afiliados funcionando | Pedir que um usuário copie seu link em Profile, criar novo usuário via link, verificar comissão |
+| Testar como usuário | Comprar créditos, entrar em live, ver créditos sendo consumidos |
 
 ---
 
