@@ -64,20 +64,42 @@ const Auth = () => {
     try {
       let emailToUse = loginInput;
       
-      // If input doesn't look like email, try to resolve username
+      // If input doesn't look like email, try to resolve username to email
       if (!loginInput.includes("@")) {
+        let resolved = false;
+        
+        // Try backend API first
         try {
-          const resolved = await api.auth.resolveUsername(loginInput);
-          emailToUse = resolved.email;
+          const result = await api.auth.resolveUsername(loginInput);
+          emailToUse = result.email;
+          resolved = true;
         } catch {
-          // Fallback: query profiles table directly for username
-          const { data: profileData, error: profileError } = await supabase
+          // API failed, will try fallback below
+        }
+        
+        // Fallback: query registration_referrals for email (since profiles doesn't store email)
+        if (!resolved) {
+          const { data: regData } = await supabase
+            .from("registration_referrals")
+            .select("email")
+            .ilike("username", loginInput)
+            .maybeSingle();
+          
+          if (regData?.email) {
+            emailToUse = regData.email;
+            resolved = true;
+          }
+        }
+        
+        // If still not resolved, check if username exists
+        if (!resolved) {
+          const { data: profileData } = await supabase
             .from("profiles")
             .select("id")
             .ilike("username", loginInput)
             .maybeSingle();
           
-          if (profileError || !profileData) {
+          if (!profileData) {
             toast({
               title: "Usuário não encontrado",
               description: "Verifique o nome de usuário e tente novamente.",
@@ -87,6 +109,7 @@ const Auth = () => {
             return;
           }
           
+          // Username exists but we couldn't find email - ask user to use email
           toast({
             title: "Use seu email",
             description: "Por favor, faça login usando seu endereço de email.",
