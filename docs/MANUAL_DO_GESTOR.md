@@ -169,7 +169,7 @@ Isso requer acesso ao banco de dados. Peça ao desenvolvedor para inserir na tab
 ### Como funciona?
 
 1. Todo usuário tem um **código de indicação** único
-2. Ele compartilha o link: `streamstar.lovable.app/subscribe?ref=CODIGO`
+2. Ele compartilha o link: `streamstar.vercel.app/subscribe?ref=CODIGO`
 3. Quando alguém se cadastra pelo link e paga R$ 7,00:
 
 | Destino | Valor |
