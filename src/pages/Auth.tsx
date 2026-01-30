@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
 import { AuthApiError } from "@supabase/supabase-js";
-import { ApiError, api } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { getReturnTo, clearReturnTo } from "@/components/ProtectedRoute";
 
@@ -62,71 +62,74 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      let emailToUse = loginInput;
-      
-      // If input doesn't look like email, try to resolve username to email
-      if (!loginInput.includes("@")) {
-        let resolved = false;
-        
-        // Try backend API first
-        try {
-          const result = await api.auth.resolveUsername(loginInput);
-          emailToUse = result.email;
-          resolved = true;
-        } catch {
-          // API failed, will try fallback below
-        }
-        
-        // Fallback: query registration_referrals for email (since profiles doesn't store email)
-        if (!resolved) {
-          const { data: regData } = await supabase
-            .from("registration_referrals")
-            .select("email")
-            .ilike("username", loginInput)
-            .maybeSingle();
-          
-          if (regData?.email) {
-            emailToUse = regData.email;
-            resolved = true;
-          }
-        }
-        
-        // If still not resolved, check if username exists
-        if (!resolved) {
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("id")
-            .ilike("username", loginInput)
-            .maybeSingle();
-          
-          if (!profileData) {
+      const credential = loginInput.trim();
+
+      // Email login stays client-side.
+      if (credential.includes("@")) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: credential,
+          password,
+        });
+
+        if (error) throw error;
+      } else {
+        // Username login goes through a backend function so we don't depend on public email lookups.
+        const { data, error } = await supabase.functions.invoke("login-with-credential", {
+          body: { credential, password },
+        });
+
+        const payload = data as
+          | {
+              access_token?: string;
+              refresh_token?: string;
+              error?: string;
+              error_description?: string;
+            }
+          | null;
+
+        if (error || payload?.error) {
+          const code = payload?.error;
+
+          if (code === "USER_NOT_FOUND") {
             toast({
               title: "Usuário não encontrado",
               description: "Verifique o nome de usuário e tente novamente.",
               variant: "destructive",
             });
-            setLoading(false);
             return;
           }
-          
-          // Username exists but we couldn't find email - ask user to use email
+
+          if (code === "email_not_confirmed") {
+            toast({
+              title: "E-mail não confirmado",
+              description: "Verifique seu e-mail para ativar a conta antes de entrar.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Default invalid credentials
           toast({
-            title: "Use seu email",
-            description: "Por favor, faça login usando seu endereço de email.",
+            title: "E-mail ou senha inválidos",
+            description: "Confira as credenciais e tente novamente.",
             variant: "destructive",
           });
-          setLoading(false);
           return;
         }
-      }
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: emailToUse,
-        password,
-      });
+        const access_token = payload?.access_token;
+        const refresh_token = payload?.refresh_token;
 
-      if (error) {
-        throw error;
+        if (!access_token || !refresh_token) {
+          throw new Error("Resposta inválida do servidor.");
+        }
+
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+
+        if (setSessionError) throw setSessionError;
       }
 
       toast({
@@ -143,7 +146,6 @@ const Auth = () => {
           description: message,
           variant: "destructive",
         });
-        setLoading(false);
         return;
       }
       if (error instanceof AuthApiError) {
@@ -156,7 +158,6 @@ const Auth = () => {
             description: "Verifique seu e-mail para ativar a conta antes de entrar.",
             variant: "destructive",
           });
-          setLoading(false);
           return;
         }
 
@@ -166,7 +167,6 @@ const Auth = () => {
             description: "Confira as credenciais e tente novamente.",
             variant: "destructive",
           });
-          setLoading(false);
           return;
         }
       }
