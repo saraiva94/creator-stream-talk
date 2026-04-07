@@ -75,17 +75,11 @@ const Home = () => {
 
   // Realtime subscription for lives changes - CRITICAL for live updates
   useEffect(() => {
-    console.log('[Home] 🚀 Setting up realtime subscriptions...');
-    
-    const handleLivesChange = (payload: any) => {
-      console.log('[Home] 🟢 LIVES REALTIME EVENT:', payload.eventType, payload.new, payload.old);
-      // Immediate refresh on any lives table change
+    const handleLivesChange = () => {
       fetchLives();
     };
 
-    const handleCreatorProfilesChange = (payload: any) => {
-      console.log('[Home] 🔵 CREATOR_PROFILES REALTIME EVENT:', payload.eventType, payload.new, payload.old);
-      // Immediate refresh on any creator_profiles table change
+    const handleCreatorProfilesChange = () => {
       fetchLives();
     };
     
@@ -136,17 +130,9 @@ const Home = () => {
         },
         handleCreatorProfilesChange
       )
-      .subscribe((status, err) => {
-        console.log('[Home] 📡 Realtime subscription status:', status, err || '');
-        if (status === 'SUBSCRIBED') {
-          console.log('[Home] ✅ Realtime SUBSCRIBED successfully!');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Home] ❌ Realtime CHANNEL_ERROR:', err);
-        }
-      });
+      .subscribe();
 
     return () => {
-      console.log('[Home] 🔌 Removing realtime channel');
       supabase.removeChannel(channel);
     };
   }, []);
@@ -253,7 +239,6 @@ const Home = () => {
   }, [displayedCount, isLoadingMore, hasReachedEnd, loading, lives.length, getDisplayLimits]);
 
   const fetchLives = async () => {
-    console.log('[Home] 📡 Fetching lives from Supabase...');
     try {
       // Fetch ACTIVE lives directly from Supabase (same as sidebar for consistency)
       const { data: activeLives, error: activeError } = await supabase
@@ -329,7 +314,6 @@ const Home = () => {
         return true;
       });
 
-      console.log('[Home] ✅ Fetched lives:', enrichedLives.length, 'deduped:', dedupedLives.length, 'online:', dedupedLives.filter((l: any) => l.is_active && l.status === 'live').length);
       setLives(dedupedLives);
     } catch (err: unknown) {
       console.error("[Home] Error fetching lives:", err);

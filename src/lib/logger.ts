@@ -243,10 +243,6 @@ export const logger = {
   exposeGlobally: () => {
     if (typeof window !== 'undefined') {
       (window as unknown as { __streamLogs: typeof logger }).__streamLogs = logger;
-      console.log('%c🔧 Logger disponível globalmente como window.streamLogs', 'color: #4CAF50; font-weight: bold;');
-      console.log('   - streamLogs.getHistory() → Ver histórico de logs');
-      console.log('   - streamLogs.exportLogs() → Exportar logs como JSON');
-      console.log('   - streamLogs.clearHistory() → Limpar histórico');
     }
   },
 };

@@ -32,7 +32,11 @@ const VideoCarousel = ({ userId }: VideoCarouselProps) => {
   const [promoWatchTime, setPromoWatchTime] = useState(0);
   const [maxVisibleCards, setMaxVisibleCards] = useState<number | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const sessionIdRef = useRef<string>(crypto.randomUUID());
+  const sessionIdRef = useRef<string>(
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2)
+  );
 
   // Fetch promotional videos and settings
   useEffect(() => {
