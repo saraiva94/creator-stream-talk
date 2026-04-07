@@ -79,7 +79,7 @@ const MobileFullscreenPlayer: React.FC<MobileFullscreenPlayerProps> = ({
             muted={effectiveMuted}
             blurred={blurred}
             volume={userVolume}
-            onHostNotReady={() => console.log("[MobileFullscreenPlayer] Waiting for host...")}
+            onHostNotReady={() => {}}
             onViewerConnect={onViewerConnect}
             onViewerDisconnect={onViewerDisconnect}
             className="w-full h-full"

@@ -158,16 +158,6 @@ export const approvePayoutRequest = async ({ requestId, adminId }: { requestId: 
     throw new Error('Failed to approve payout request: concurrent modification detected');
   }
 
-  console.log(
-    JSON.stringify({
-      event: 'payout.approved',
-      requestId,
-      creatorId,
-      amountCents,
-      status: payoutUpdate.status,
-    }),
-  );
-
   return {
     requestId,
     creatorId,
@@ -242,16 +232,6 @@ export const rejectPayoutRequest = async ({
   if (!payoutUpdate) {
     throw new Error('Failed to reject payout request: concurrent modification detected');
   }
-
-  console.log(
-    JSON.stringify({
-      event: 'payout.rejected',
-      requestId,
-      creatorId,
-      amountCents,
-      status: payoutUpdate.status,
-    }),
-  );
 
   return {
     requestId,

@@ -269,19 +269,11 @@ const PixWithdrawDialog = ({
           userId,
           pixKey: pixKey.trim(),
         };
-        console.log('🔍 [PIX-VALIDATE] Iniciando validação...');
-        console.log('📦 [PIX-VALIDATE] Payload:', JSON.stringify(validatePayload, null, 2));
-        
         const response = await supabase.functions.invoke("pix-withdraw", {
           body: validatePayload,
         });
-        
-        console.log('📥 [PIX-VALIDATE] Response completo:', response);
-        console.log('📊 [PIX-VALIDATE] Data:', JSON.stringify(response.data, null, 2));
-        console.log('❌ [PIX-VALIDATE] Error:', response.error);
 
         if (response.error) {
-          console.error('💥 [PIX-VALIDATE] Erro detectado:', response.error);
           throw new Error(response.error.message || "Erro ao validar chave PIX");
         }
 
@@ -304,7 +296,6 @@ const PixWithdrawDialog = ({
 
         setStep("confirm");
       } catch (error: unknown) {
-        console.error('💥 [PIX-VALIDATE] Exception:', error);
         const message = error instanceof Error ? error.message : "Erro ao validar chave";
         toast({
           title: "Erro de validação",
@@ -327,16 +318,9 @@ const PixWithdrawDialog = ({
   };
 
   const handleConfirmWithdraw = async () => {
-    console.log('🔥 [PIX-WITHDRAW] handleConfirmWithdraw FOI CHAMADO!');
-    console.log('🔥 [PIX-WITHDRAW] Step atual:', step);
-    console.log('🔥 [PIX-WITHDRAW] Amount state:', amount);
-    console.log('🔥 [PIX-WITHDRAW] PixKey state:', pixKey);
-    console.log('🔥 [PIX-WITHDRAW] Loading state:', loading);
-    
     // Calcula valor + taxa (taxa é cobrada do saldo, não enviada via API)
     const amountCents = parseAmountToCents(amount);
     const totalDeducted = amountCents + WITHDRAWAL_FEE_CENTS;
-    console.log('🔥 [PIX-WITHDRAW] AmountCents calculado:', amountCents, 'Total com taxa:', totalDeducted);
     
     setLoading(true);
     try {
@@ -359,26 +343,11 @@ const PixWithdrawDialog = ({
         } : undefined,
       };
       
-      console.log('🚀 [PIX-WITHDRAW] Iniciando chamada à API...');
-      console.log('📦 [PIX-WITHDRAW] Payload:', JSON.stringify(withdrawPayload, null, 2));
-      console.log('🔑 [PIX-WITHDRAW] UserId:', userId);
-      console.log('💰 [PIX-WITHDRAW] Amount (cents):', amountCents);
-
       const response = await supabase.functions.invoke("pix-withdraw", {
         body: withdrawPayload,
       });
 
-      console.log('📥 [PIX-WITHDRAW] Response completo:', response);
-      console.log('📊 [PIX-WITHDRAW] Data:', JSON.stringify(response.data, null, 2));
-      console.log('❌ [PIX-WITHDRAW] Error object:', response.error);
-      
       if (response.error) {
-        console.error('💥 [PIX-WITHDRAW] Erro detectado:', {
-          message: response.error.message,
-          name: response.error.name,
-          context: response.error.context,
-          status: response.error.status,
-        });
         const errorMessage = response.data?.error || response.error.message || "Erro ao processar saque";
         throw new Error(errorMessage);
       }
@@ -405,11 +374,9 @@ const PixWithdrawDialog = ({
           onOpenChange(false);
         }, 3000);
       } else {
-        console.error('💥 [PIX-WITHDRAW] Resposta sem success:', response.data);
         throw new Error(response.data?.error || "Erro ao processar saque");
       }
     } catch (error: unknown) {
-      console.error('💥 [PIX-WITHDRAW] Exception capturada:', error);
       const description = error instanceof Error ? error.message : "Não foi possível processar o saque";
       toast({
         title: "Erro ao sacar",

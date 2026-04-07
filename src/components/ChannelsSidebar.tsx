@@ -175,8 +175,7 @@ export const ChannelsSidebar = () => {
     fetchChannels();
 
     // Subscribe to realtime updates for lives table specifically
-    const handleChange = (payload: any) => {
-      console.log('[Sidebar] 🔄 Realtime change detected:', payload.eventType, payload);
+    const handleChange = () => {
       fetchChannels();
     };
 
@@ -202,12 +201,9 @@ export const ChannelsSidebar = () => {
         { event: "UPDATE", schema: "public", table: "creator_profiles" },
         handleChange
       )
-      .subscribe((status, err) => {
-        console.log('[Sidebar] 📡 Realtime subscription status:', status, err || '');
-      });
+      .subscribe();
 
     return () => {
-      console.log('[Sidebar] 🔌 Removing realtime channel');
       supabase.removeChannel(channel);
     };
   }, [currentUserId]);

@@ -37,33 +37,24 @@ export const LiveKitDebugPanel: React.FC = () => {
     setError(null);
     setResult(null);
 
-    console.log('[LiveKitDebugPanel] Starting debug request...');
-
     try {
       const { data, error: invokeError } = await supabase.functions.invoke('livekit-room', {
         body: { action: 'debug' }
       });
 
-      console.log('[LiveKitDebugPanel] Edge function response:', { data, error: invokeError });
-
       if (invokeError) {
-        const errMsg = invokeError.message || 'Edge function error';
-        console.error('[LiveKitDebugPanel] Invoke error:', invokeError);
-        setError(errMsg);
+        setError(invokeError.message || 'Edge function error');
         return;
       }
 
       if (data?.error) {
-        console.error('[LiveKitDebugPanel] Data error:', data.error);
         setError(data.error);
         return;
       }
 
       setResult(data);
-      console.log('[LiveKitDebugPanel] Debug result:', JSON.stringify(data, null, 2));
 
     } catch (err: any) {
-      console.error('[LiveKitDebugPanel] Exception:', err);
       setError(err.message || 'Unknown error');
     } finally {
       setIsLoading(false);

@@ -36,16 +36,6 @@ export const createWithdrawal = async (req: Request, res: Response, next: NextFu
 
     const result = await createWithdrawalRequest({ creatorId, amountCents, pixKey: pixKeyRaw });
 
-    console.log(
-      JSON.stringify({
-        event: 'withdrawal.request.created',
-        creatorId,
-        requestId: result.requestId,
-        amountCents: result.amountCents,
-        pixKey: result.pixKey,
-      }),
-    );
-
     return respondSuccess(res, 201, {
       requestId: result.requestId,
       amount_cents: result.amountCents,

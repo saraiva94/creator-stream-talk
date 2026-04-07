@@ -34,8 +34,6 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
 
   // Cleanup function
   const cleanup = useCallback(() => {
-    console.log('[WebRTCPublisher] Cleaning up...');
-    
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
       heartbeatRef.current = null;
@@ -49,8 +47,8 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
     if (roomRef.current) {
       try {
         roomRef.current.disconnect();
-      } catch (e) {
-        console.warn('[WebRTCPublisher] Error disconnecting:', e);
+      } catch {
+        // disconnect failed silently
       }
       roomRef.current = null;
     }
@@ -59,7 +57,6 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
   // Connect to LiveKit
   const connect = useCallback(async () => {
     if (connectionState === 'connecting' || connectionState === 'connected') {
-      console.log('[WebRTCPublisher] Already connecting/connected');
       return;
     }
 
@@ -67,8 +64,6 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
     setErrorMessage(null);
 
     try {
-      console.log('[WebRTCPublisher] Requesting host token for live:', liveId);
-      
       // Get host token from edge function
       const { data, error } = await supabase.functions.invoke('livekit-room', {
         body: { action: 'host-token', liveId }
@@ -79,16 +74,7 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
       }
 
       const { token, roomName, livekitUrl: rawLivekitUrl } = data;
-      
-      console.log('[WebRTCPublisher] Edge function response:', { 
-        hasToken: !!token, 
-        tokenLength: token?.length,
-        roomName, 
-        rawLivekitUrl 
-      });
-      
-      // === URL SANITIZATION ===
-      console.log('[WebRTCPublisher] rawLivekitUrl:', JSON.stringify(rawLivekitUrl));
+      void roomName;
       
       if (!rawLivekitUrl || typeof rawLivekitUrl !== 'string') {
         throw new Error('LiveKit URL inválida (wsUrl vazio)');
@@ -132,8 +118,6 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
         livekitUrl = `wss://${livekitUrl}`;
       }
       
-      console.log('[WebRTCPublisher] sanitizedLivekitUrl:', livekitUrl, 'room:', roomName, 'isSecureSite:', isSecureSite);
-
       // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720, facingMode },
@@ -165,19 +149,16 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
 
       // Set up event listeners
       room.on(RoomEvent.Connected, () => {
-        console.log('[WebRTCPublisher] Connected to room');
         setConnectionState('connected');
         onReady?.();
       });
 
       room.on(RoomEvent.Disconnected, () => {
-        console.log('[WebRTCPublisher] Disconnected from room');
         setConnectionState('disconnected');
         onDisconnect?.();
       });
 
       room.on(RoomEvent.MediaDevicesError, (e: Error) => {
-        console.error('[WebRTCPublisher] Media devices error:', e);
         setErrorMessage(e.message);
         onError?.(e.message);
       });
@@ -189,43 +170,19 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0];
 
-      console.log('[WebRTCPublisher] Local tracks:', {
-        hasVideo: !!videoTrack,
-        hasAudio: !!audioTrack,
-        videoEnabled: videoTrack?.enabled,
-        audioEnabled: audioTrack?.enabled,
-        videoReadyState: videoTrack?.readyState,
-        audioReadyState: audioTrack?.readyState,
-      });
-
       if (videoTrack) {
-        console.log('[WebRTCPublisher] Publishing video track...');
         await room.localParticipant.publishTrack(videoTrack, {
           name: 'camera',
           source: Track.Source.Camera
         });
-        console.log('[WebRTCPublisher] Video track published');
       }
 
       if (audioTrack) {
-        console.log('[WebRTCPublisher] Publishing audio track...');
         await room.localParticipant.publishTrack(audioTrack, {
           name: 'microphone',
           source: Track.Source.Microphone
         });
-        console.log('[WebRTCPublisher] Audio track published');
       }
-
-      // Log participant publications
-      console.log('[WebRTCPublisher] Publications after publish:', 
-        Array.from(room.localParticipant.trackPublications.values()).map((p: any) => ({
-          trackSid: p.trackSid,
-          source: p.source,
-          kind: p.track?.kind,
-        }))
-      );
-
-      console.log('[WebRTCPublisher] Tracks published successfully');
 
       // Start heartbeat
       heartbeatRef.current = setInterval(async () => {
@@ -233,23 +190,12 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
           await supabase.functions.invoke('livekit-room', {
             body: { action: 'heartbeat', liveId }
           });
-          console.log('[WebRTCPublisher] Heartbeat sent');
-        } catch (e) {
-          console.warn('[WebRTCPublisher] Heartbeat failed:', e);
+        } catch {
+          // heartbeat failed — will retry on next interval
         }
       }, 15000); // Every 15 seconds
 
     } catch (err: any) {
-      // Detailed error logging for debugging
-      console.error('[WebRTCPublisher] Connection error details:', {
-        name: err.name,
-        message: err.message,
-        stack: err.stack,
-        wsUrl: 'check previous log',
-        tokenLength: 'check previous log'
-      });
-      console.error('[WebRTCPublisher] Full error object:', err);
-      
       setConnectionState('error');
       setErrorMessage(err.message);
       onError?.(err.message);
@@ -270,8 +216,6 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
         return;
       }
 
-      console.log('[WebRTCPublisher] Switching camera to:', facingMode);
-
       try {
         // Get new stream with different facingMode
         const newStream = await navigator.mediaDevices.getUserMedia({
@@ -281,7 +225,6 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
 
         const newVideoTrack = newStream.getVideoTracks()[0];
         if (!newVideoTrack) {
-          console.error('[WebRTCPublisher] Failed to get new video track');
           return;
         }
 
@@ -320,9 +263,8 @@ export const WebRTCPublisher: React.FC<WebRTCPublisherProps> = ({
           source: Track.Source.Camera
         });
 
-        console.log('[WebRTCPublisher] Camera switched successfully');
-      } catch (err) {
-        console.error('[WebRTCPublisher] Failed to switch camera:', err);
+      } catch {
+        // camera switch failed
       }
     };
 

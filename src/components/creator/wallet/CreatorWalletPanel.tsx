@@ -112,30 +112,15 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
         isCreator: true,
       };
       
-      console.log('🚀 [CREATOR-WALLET] Iniciando saque...');
-      console.log('📦 [CREATOR-WALLET] Payload:', JSON.stringify(withdrawPayload, null, 2));
-      console.log('🔑 [CREATOR-WALLET] CreatorId:', creatorId);
-      console.log('💰 [CREATOR-WALLET] Amount (cents):', amountCents);
-
       const { data, error: invokeError } = await supabase.functions.invoke("pix-withdraw", {
         body: withdrawPayload,
       });
 
-      console.log('📥 [CREATOR-WALLET] Response data:', JSON.stringify(data, null, 2));
-      console.log('❌ [CREATOR-WALLET] Error:', invokeError);
-
       if (invokeError) {
-        console.error('💥 [CREATOR-WALLET] InvokeError detalhado:', {
-          message: invokeError.message,
-          name: invokeError.name,
-          context: invokeError.context,
-          status: invokeError.status,
-        });
         throw new Error(invokeError.message);
       }
 
       if (!data?.success) {
-        console.error('💥 [CREATOR-WALLET] Resposta sem success:', data);
         throw new Error(data?.error || "Nao foi possivel solicitar o saque");
       }
 
@@ -149,7 +134,6 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
       setPixKey("");
       setSuccess("Saque solicitado. O valor foi reservado e está em processamento.");
     } catch (err) {
-      console.error('💥 [CREATOR-WALLET] Exception:', err);
       setError((err as Error).message);
     } finally {
       setIsSubmitting(false);

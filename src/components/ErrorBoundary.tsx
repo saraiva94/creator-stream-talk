@@ -15,9 +15,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-     
-    console.debug("[ErrorBoundary] Caught render error", { error, info });
+  componentDidCatch(_error: Error, _info: React.ErrorInfo) {
+    // Error captured — UI fallback is rendered via getDerivedStateFromError
   }
 
   handleReload = () => {

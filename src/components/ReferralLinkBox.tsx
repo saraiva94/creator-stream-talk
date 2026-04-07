@@ -29,8 +29,7 @@ const ReferralLinkBox: React.FC<ReferralLinkBoxProps> = ({ referralCode, loading
       .then(() => {
         toast({ title: "Copiado!", description: "Link copiado para a área de transferência" });
       })
-      .catch((error) => {
-        console.debug("[referral-link] copy failed", error);
+      .catch(() => {
         toast({ title: "Erro ao copiar", description: "Tente novamente", variant: "destructive" });
       })
       .finally(() => setCopying(false));

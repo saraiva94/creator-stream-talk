@@ -92,13 +92,12 @@ export const WebhookLogsPanel = () => {
         }
       );
 
-      const result = await response.json();
-      console.log('Retry result:', result);
-      
+      await response.json();
+
       // Refresh logs
       fetchLogs();
     } catch (error) {
-      console.error('Error retrying webhook:', error);
+      // retry failed silently
     }
   };
 

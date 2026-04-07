@@ -188,8 +188,8 @@ export const CreatorMobileFullscreen: React.FC<CreatorMobileFullscreenProps> = (
               liveId={liveId}
               facingMode={facingMode}
               className="w-full h-full rounded-none"
-              onReady={() => console.log("[CreatorMobile] WebRTC Publisher ready")}
-              onError={(err) => console.error("[CreatorMobile] WebRTC error:", err)}
+              onReady={() => {}}
+              onError={() => {}}
             />
           ) : previewError ? (
             <div className="w-full h-full bg-secondary/50 flex flex-col items-center justify-center text-muted-foreground gap-4">
