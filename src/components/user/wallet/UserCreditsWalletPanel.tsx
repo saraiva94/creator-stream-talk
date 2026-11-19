@@ -3,12 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, RefreshCcw, ShoppingBag } from "lucide-react";
-import { fetchCreditsBalance, createCreditsPayment } from "@/lib/supabaseApi";
-import { useToast } from "@/hooks/use-toast";
+import { Loader2, RefreshCcw } from "lucide-react";
+import { fetchCreditsBalance } from "@/lib/supabaseApi";
 import { useLanguage } from "@/hooks/useLanguage";
 import { logger } from "@/lib/logger";
-import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
+import { openMercadoPagoCheckout } from "@/lib/mercadoPago";
 
 const formatMinutes = (credits: number) => {
   // 180 credits = 30 minutes
@@ -16,21 +15,23 @@ const formatMinutes = (credits: number) => {
   return `${minutes} min`;
 };
 
-const CREDITS_PACKAGES = [
-  { credits: 180, priceBRL: 5, label: "30min" },
-  { credits: 360, priceBRL: 9, label: "1h" },
-];
-
 export const UserCreditsWalletPanel = () => {
-  const { toast } = useToast();
   const { t } = useLanguage();
   const [balanceCredits, setBalanceCredits] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState(CREDITS_PACKAGES[0]);
-  const [pixDialogOpen, setPixDialogOpen] = useState(false);
-  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
+  const [checkoutPackage, setCheckoutPackage] = useState<number | null>(null);
+
+  const buyCredits = async (credits: number) => {
+    setCheckoutPackage(credits);
+    setError(null);
+    try {
+      await openMercadoPagoCheckout("create-payment", { credits });
+    } catch (error) {
+      setError((error as Error).message);
+      setCheckoutPackage(null);
+    }
+  };
 
   const fetchBalance = async () => {
     logger.credits.info('UserCreditsWalletPanel: Carregando saldo');
@@ -67,78 +68,6 @@ export const UserCreditsWalletPanel = () => {
     fetchBalance();
   }, []);
 
-  const startCheckout = async () => {
-    logger.payment.info('Iniciando checkout PIX Velana para créditos', { 
-      credits: selectedPackage.credits,
-      price: selectedPackage.priceBRL,
-    });
-    
-    setCheckoutLoading(true);
-    setError(null);
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user?.id) {
-        logger.payment.error('Usuário não autenticado para checkout');
-        throw new Error("User not authenticated");
-      }
-
-      logger.payment.debug('Usuário autenticado', { userId: user.id });
-
-      const response = await createCreditsPayment({
-        credits: selectedPackage.credits,
-        userId: user.id,
-      });
-
-      if (response?.pix?.qrCode) {
-        // Show PIX QR code dialog
-        setPixData({
-          qrCode: response.pix.qrCode,
-          qrCodeImage: response.pix.qrCodeImage,
-          expiresAt: response.pix.expiresAt,
-          transactionId: response.transactionId || '',
-          paymentId: response.paymentId,
-          amount: response.amount,
-          eventType: response.eventType || 'CREDITS_PURCHASE',
-          description: `${selectedPackage.credits} créditos (${selectedPackage.label})`,
-        });
-        setPixDialogOpen(true);
-        
-        logger.payment.info('QR Code PIX gerado com sucesso', { 
-          transactionId: response.transactionId,
-          credits: selectedPackage.credits,
-        });
-      } else {
-        logger.payment.error('Resposta sem QR Code PIX', { response });
-        throw new Error("Could not generate PIX QR Code");
-      }
-    } catch (err) {
-      logger.payment.error('Erro no checkout PIX', { 
-        credits: selectedPackage.credits 
-      }, err as Error);
-      
-      const message = err instanceof Error ? err.message : "Could not start purchase";
-      setError(message);
-      toast({
-        title: t.common.error,
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setCheckoutLoading(false);
-    }
-  };
-
-  const handlePaymentConfirmed = () => {
-    setPixDialogOpen(false);
-    fetchBalance();
-    toast({
-      title: "Créditos adicionados!",
-      description: `${selectedPackage.credits} créditos foram adicionados à sua conta.`,
-    });
-  };
-
   return (
     <Card className="border-border/60">
       <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6">
@@ -173,52 +102,15 @@ export const UserCreditsWalletPanel = () => {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 p-3 sm:p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <ShoppingBag className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-sm font-medium">{t.credits.buyCredits}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {CREDITS_PACKAGES.map((pkg) => (
-              <button
-                key={pkg.credits}
-                onClick={() => {
-                  logger.payment.debug('Pacote selecionado', { credits: pkg.credits, price: pkg.priceBRL });
-                  setSelectedPackage(pkg);
-                }}
-                className={`rounded-md border p-2 sm:p-3 text-sm transition-colors ${
-                  selectedPackage.credits === pkg.credits
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:border-primary/50"
-                }`}
-              >
-                <div className="font-medium text-xs sm:text-sm">{pkg.label}</div>
-                <div className="text-xs text-muted-foreground">
-                  R$ {pkg.priceBRL.toFixed(2)}
-                </div>
-              </button>
-            ))}
-          </div>
-          <Button onClick={startCheckout} disabled={checkoutLoading} className="w-full text-sm">
-            {checkoutLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t.credits.processing}
-              </>
-            ) : (
-              `${t.credits.buy} - R$ ${selectedPackage.priceBRL.toFixed(2)}`
-            )}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button variant="outline" onClick={() => buyCredits(180)} disabled={checkoutPackage !== null}>
+            {t.credits.buy} 180 {t.credits.credits.toLowerCase()} · R$ 5,00
+          </Button>
+          <Button variant="outline" onClick={() => buyCredits(360)} disabled={checkoutPackage !== null}>
+            {t.credits.buy} 360 {t.credits.credits.toLowerCase()} · R$ 9,00
           </Button>
         </div>
-        </CardContent>
-
-      <PixPaymentDialog
-        open={pixDialogOpen}
-        onOpenChange={setPixDialogOpen}
-        pixData={pixData}
-        onPaymentConfirmed={handlePaymentConfirmed}
-      />
+      </CardContent>
     </Card>
   );
 };

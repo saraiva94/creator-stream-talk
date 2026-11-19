@@ -151,7 +151,7 @@ const Navbar = ({ user, isAdmin = false }: NavbarProps) => {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-4">
             <LanguageSelector />
-            {user && <NotificationBell user={user} />}
+            {user && <NotificationBell user={user} showPaymentNotifications={isAdmin} />}
             {user ? (
               <>
                 {isAdmin && (
@@ -214,7 +214,7 @@ const Navbar = ({ user, isAdmin = false }: NavbarProps) => {
             {/* Language selector - always visible on mobile */}
             <LanguageSelector />
             {/* Notification bell in external navbar */}
-            {user && <NotificationBell user={user} />}
+            {user && <NotificationBell user={user} showPaymentNotifications={isAdmin} />}
             <div className="flex-shrink-0">
               <InstallPWAButton />
             </div>

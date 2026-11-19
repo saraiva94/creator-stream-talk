@@ -1,601 +1,170 @@
-import { useEffect, useState, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import type { User } from "@supabase/supabase-js";
-import { Check, Eye, EyeOff, X, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { validatePasswordStrength } from "@/lib/password";
-import { registrationCheckout, validateAffiliateCode } from "@/lib/supabaseApi";
-import { logger } from "@/lib/logger";
-import { TermsDialog } from "@/components/TermsDialog";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
+import { TermsDialog } from "@/components/TermsDialog";
+import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
-import { PixPaymentDialog, PixPaymentData } from "@/components/pix/PixPaymentDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { openMercadoPagoCheckout } from "@/lib/mercadoPago";
+import { validatePasswordStrength } from "@/lib/password";
+import { validateAffiliateCode } from "@/lib/supabaseApi";
+import { siteUrl } from "@/lib/siteUrl";
 import { useNicknameValidator } from "@/hooks/useNicknameValidator";
 
 const Subscribe = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+  const { user, isAdmin, isLoading } = useAuth();
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { inviteCode } = useParams();
   const [searchParams] = useSearchParams();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [referralCode, setReferralCode] = useState("");
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [errors, setErrors] = useState<{ referral?: string; age?: string }>({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  // Date of birth
-  const [birthDay, setBirthDay] = useState("");
-  const [birthMonth, setBirthMonth] = useState("");
-  const [birthYear, setBirthYear] = useState("");
-  
-  // PIX payment state
-  const [pixDialogOpen, setPixDialogOpen] = useState(false);
-  const [pixData, setPixData] = useState<PixPaymentData | null>(null);
+  const returnedFromPayment = searchParams.get("checkout") === "returned";
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const code = referralCode ?? inviteCode ?? searchParams.get("ref") ?? user?.user_metadata?.referral_code ?? "";
+  const [birth, setBirth] = useState({ day: "", month: "", year: "" });
+  const { nickname, setNickname, validation, isReady } = useNicknameValidator();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
+  const profile = useQuery({
+    queryKey: ["registration-status", user?.id],
+    enabled: Boolean(user),
+    staleTime: 0,
+    refetchInterval: (query) => returnedFromPayment && query.state.data?.status === "pending_payment" ? 5000 : false,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles")
+        .select("status, is_subscribed").eq("id", user!.id).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const pending = profile.data?.status === "pending_payment" && !profile.data.is_subscribed;
 
-  // Nickname validation
-  const { nickname, setNickname, validation: nicknameValidation, isReady: nicknameReady } = useNicknameValidator();
-
-  // Password validation state
-  const passwordValidation = validatePasswordStrength(password);
-  const passwordsMatch = password && confirmPassword && password === confirmPassword;
-  
-  // Handle PIX payment confirmation
-  const handlePaymentConfirmed = useCallback(() => {
-    setPixDialogOpen(false);
-    toast({
-      title: "Pagamento confirmado!",
-      description: "Sua conta foi ativada com sucesso. Redirecionando...",
-    });
-    // Attempt to sign in and redirect
-    setTimeout(() => {
-      navigate("/auth");
-    }, 2000);
-  }, [navigate, toast]);
-
-  useEffect(() => {
-    logger.register.info('Página de cadastro carregada');
-    
-    const getUser = async () => {
-      logger.auth.debug('Verificando sessão existente');
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        logger.auth.info('Usuário já logado', { userId: session.user.id, email: session.user.email });
-        
-        // Check admin role
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id);
-        setIsAdmin(roles?.some(r => r.role === "admin") || false);
-      }
-      setUser(session?.user || null);
-    };
-    getUser();
-
-    const ref = searchParams.get("ref");
-    if (ref) {
-      logger.affiliate.info('Código de afiliado detectado na URL', { code: ref });
-      setReferralCode(ref);
-    } else {
-      logger.affiliate.debug('Nenhum código de afiliado na URL');
-    }
-  }, [searchParams]);
-
-  const isValidEmail = (value: string) => /\S+@\S+\.\S+/.test(value);
-
-  const handleSubscribe = async () => {
-    const trimmedReferral = referralCode.trim();
-
-    logger.register.info('Iniciando processo de cadastro', {
-      hasFullName: !!fullName.trim(),
-      email: email,
-      hasPassword: !!password,
-      referralCode: trimmedReferral || 'VAZIO',
-      acceptTerms,
-      birthDate: `${birthDay}/${birthMonth}/${birthYear}`,
-    });
-
-    if (!fullName.trim()) {
-      logger.register.warn('Validação falhou: Nome vazio');
-      toast({ title: "Nome obrigatório", description: "Preencha seu nome completo.", variant: "destructive" });
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      logger.register.warn('Validação falhou: Email inválido', { email });
-      toast({ title: "E-mail inválido", description: "Informe um e-mail válido.", variant: "destructive" });
-      return;
-    }
-
-    // Validate age (18+)
-    const ageValidation = validateAge(birthDay, birthMonth, birthYear);
-    if (!birthDay || !birthMonth || !birthYear) {
-      logger.register.warn('Validação falhou: Data de nascimento incompleta');
-      setErrors(prev => ({ ...prev, age: "Preencha sua data de nascimento completa." }));
-      toast({ title: "Data de nascimento obrigatória", description: "Preencha dia, mês e ano de nascimento.", variant: "destructive" });
-      return;
-    }
-    
-    if (!ageValidation.valid) {
-      logger.register.warn('Validação falhou: Usuário menor de 18 anos', { age: ageValidation.age });
-      setErrors(prev => ({ ...prev, age: "Você deve ter 18 anos completos para se cadastrar." }));
-      toast({ 
-        title: "Idade mínima não atingida", 
-        description: "Você precisa ter 18 anos completos para se cadastrar na plataforma.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-    setErrors(prev => ({ ...prev, age: undefined }));
-
-    const passwordCheck = validatePasswordStrength(password);
-    if (!passwordCheck.valid) {
-      logger.register.warn('Validação falhou: Senha fraca', { errors: passwordCheck.errors });
-      toast({
-        title: "Senha não atende aos requisitos",
-        description: passwordCheck.errors.join(" "),
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      logger.register.warn('Validação falhou: Senhas não conferem');
-      toast({
-        title: "As senhas não conferem",
-        description: "Confirme a senha corretamente antes de continuar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!trimmedReferral) {
-      logger.register.warn('Validação falhou: Código de afiliado obrigatório não informado');
-      setErrors(prev => ({ ...prev, referral: "Você precisa de um código de indicação para se cadastrar." }));
-      return;
-    }
-
-    setErrors(prev => ({ ...prev, referral: undefined }));
-
-    if (!acceptTerms) {
-      logger.register.warn('Validação falhou: Termos não aceitos');
-      toast({
-        title: "Confirme os termos",
-        description: "É necessário aceitar os termos e condições para continuar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    logger.register.info('Validações locais OK, iniciando validação do código de afiliado');
-    setLoading(true);
-    
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const referral = String(code).trim().toUpperCase();
+    setError("");
+    setSubmitting(true);
+    let redirecting = false;
     try {
-      // Validar código de afiliado
-      logger.affiliate.info('Validando código de afiliado', { code: trimmedReferral });
-      const validation = await validateAffiliateCode(trimmedReferral);
-      
-      logger.affiliate.info('Resultado da validação', { 
-        code: trimmedReferral, 
-        valid: validation.valid,
-        ownerId: (validation as { valid: boolean; ownerId?: string }).ownerId,
-      });
-
-      if (!validation.valid) {
-        logger.affiliate.error('Código de afiliado inválido', { code: trimmedReferral });
-        setErrors(prev => ({ ...prev, referral: "Código de indicação inválido." }));
-        setLoading(false);
+      if (user) {
+        await openMercadoPagoCheckout("registration-checkout", { referralCode: referral });
+        redirecting = true;
         return;
       }
 
-      // NOVO FLUXO: Não criar usuário aqui!
-      // Apenas chamar a edge function que cria registro pendente e gera PIX
-      // O usuário será criado pelo webhook APÓS confirmação do pagamento
-      logger.register.info('Iniciando checkout - usuário será criado após pagamento', {
-        email,
-        referralCode: trimmedReferral,
-        referrerId: (validation as any).ownerId,
-      });
+      const password = String(form.get("password") ?? "");
+      const passwordCheck = validatePasswordStrength(password);
+      if (!passwordCheck.valid) throw new Error(passwordCheck.errors.join(" "));
+      if (password !== form.get("confirmPassword")) throw new Error(t.subscribe.passwordsNotMatch);
+      if (!birth.day || !birth.month || !birth.year || !validateAge(birth.day, birth.month, birth.year).valid) {
+        throw new Error("Informe uma data de nascimento válida. A idade mínima é 18 anos.");
+      }
+      if (!isReady) throw new Error(validation.error || t.subscribe.nicknameUnavailable);
+      if (!(await validateAffiliateCode(referral)).valid) throw new Error("Código de indicação inválido.");
 
-      const payment = await registrationCheckout({
-        fullName: fullName.trim(),
-        nickname: nickname,
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: String(form.get("email") ?? "").trim(),
         password,
-        referralCode: trimmedReferral,
-        referrerId: (validation as any).ownerId || undefined,
+        options: {
+          emailRedirectTo: `${siteUrl}/subscribe?flow=signup`,
+          data: {
+            full_name: String(form.get("fullName") ?? "").trim(),
+            username: nickname,
+            referral_code: referral,
+          },
+        },
       });
-
-      if (payment?.pix?.qrCode) {
-        logger.payment.info('QR Code PIX recebido', { paymentId: payment.paymentId });
-        setPixData({
-          qrCode: payment.pix.qrCode,
-          qrCodeImage: payment.pix.qrCodeImage,
-          expiresAt: payment.pix.expiresAt,
-          transactionId: payment.transactionId || '',
-          paymentId: payment.paymentId,
-          externalRef: payment.externalRef || payment.paymentId,
-          amount: payment.amount || 5.0,
-          eventType: 'REGISTRATION',
-          description: 'Ativação de conta - R$ 5,00',
-        });
-        setPixDialogOpen(true);
-        return;
+      if (error) throw error;
+      if (data.session && data.user?.email_confirmed_at) {
+        await openMercadoPagoCheckout("registration-checkout", { referralCode: referral });
+        redirecting = true;
+      } else {
+        setNeedsEmailConfirmation(true);
       }
-
-      if (payment?.secureUrl) {
-        window.location.href = payment.secureUrl;
-        return;
-      }
-
-      throw new Error('Não foi possível gerar o QR Code PIX');
-    } catch (error: unknown) {
-      logger.register.error('Erro no processo de cadastro', {}, error as Error);
-      const err = error as Error;
-      const message =
-        err?.message?.includes("email") || err?.message?.includes("cadastrado")
-          ? "E-mail já cadastrado."
-          : err?.message || "Erro ao processar pagamento. Tente novamente em alguns instantes.";
-      toast({
-        title: "Erro ao processar assinatura",
-        description: message,
-        variant: "destructive",
-      });
+    } catch (error) {
+      setError((error as Error).message);
     } finally {
-      setLoading(false);
+      if (!redirecting) setSubmitting(false);
     }
   };
+
+  const signupFields = [
+    { name: "fullName", label: t.subscribe.fullName, type: "text", autoComplete: "name" },
+    { name: "email", label: t.subscribe.email, type: "email", autoComplete: "email" },
+    { name: "password", label: t.subscribe.password, type: "password", autoComplete: "new-password" },
+    { name: "confirmPassword", label: t.subscribe.confirmPassword, type: "password", autoComplete: "new-password" },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar user={user} isAdmin={isAdmin} />
-
-      <main className="container mx-auto px-4 py-16">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-              {t.subscribe.formTitle}
-            </h1>
-            <p className="text-xl text-muted-foreground">
-              {t.subscribe.formSubtitle}
-            </p>
-          </div>
-
-          <Card className="p-6 border-2 border-primary relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-primary to-secondary text-primary-foreground text-sm font-semibold rounded-full">
-              {t.subscribe.formBadge}
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="full-name">{t.subscribe.fullName} *</Label>
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder={t.subscribe.fullNamePlaceholder}
-                  disabled={loading}
-                />
-              </div>
-              
-              {/* Nickname field */}
-              <div className="space-y-2">
-                <Label htmlFor="nickname">{t.subscribe.nickname} *</Label>
-                <div className="relative">
-                  <Input
-                    id="nickname"
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                    placeholder={t.subscribe.nicknamePlaceholder}
-                    disabled={loading}
-                    className={nickname && !nicknameValidation.isChecking ? (nicknameReady ? "border-green-500" : "border-destructive") : ""}
-                  />
-                  {nicknameValidation.isChecking && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      <main className="mx-auto max-w-lg px-4 py-12">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.subscribe.formTitle}</CardTitle>
+            <CardDescription>Ativação da conta por R$ 7,00 via Mercado Pago.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(isLoading || (user && profile.isPending)) && <p role="status">{t.common.loading}</p>}
+            {user && profile.isError && <p role="alert">Não foi possível consultar a ativação da conta.</p>}
+            {user && profile.data && !pending && <p>Sua conta já pode ser usada.</p>}
+            {pending && returnedFromPayment && (
+              <p role="status">Aguardando a confirmação do Mercado Pago para ativar sua conta.</p>
+            )}
+            {!user && needsEmailConfirmation && (
+              <p role="status">Confirme seu e-mail e entre na conta para concluir o pagamento.</p>
+            )}
+            {!isLoading && ((pending && !returnedFromPayment) || (!user && !needsEmailConfirmation)) && (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {!user && (
+                  <>
+                    {signupFields.map(({ name, label, type, autoComplete }) => (
+                      <div key={name} className="space-y-2">
+                        <Label htmlFor={name}>{label}</Label>
+                        <Input id={name} name={name} type={type} autoComplete={autoComplete} required />
+                      </div>
+                    ))}
+                    <div className="space-y-2">
+                      <Label htmlFor="nickname">{t.subscribe.nickname}</Label>
+                      <Input id="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)}
+                        autoComplete="username" required />
+                      {nickname && validation.error && <p className="text-xs text-destructive">{validation.error}</p>}
                     </div>
-                  )}
-                  {!nicknameValidation.isChecking && nickname && nicknameReady && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Check className="h-4 w-4 text-green-500" />
+                    <DateOfBirthSelector {...birth}
+                      onDayChange={(day) => setBirth((value) => ({ ...value, day }))}
+                      onMonthChange={(month) => setBirth((value) => ({ ...value, month }))}
+                      onYearChange={(year) => setBirth((value) => ({ ...value, year }))} />
+                    <div className="flex items-center gap-2">
+                      <input id="acceptTerms" type="checkbox" required />
+                      <Label htmlFor="acceptTerms">{t.subscribe.acceptTerms} {t.subscribe.termsLink}</Label>
+                      <TermsDialog />
                     </div>
-                  )}
-                  {!nicknameValidation.isChecking && nickname && !nicknameReady && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <X className="h-4 w-4 text-destructive" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">{t.subscribe.nicknameHint}</p>
-                {nicknameValidation.isChecking && (
-                  <p className="text-xs text-muted-foreground">{t.subscribe.nicknameChecking}</p>
+                  </>
                 )}
-                {!nicknameValidation.isChecking && nickname && nicknameReady && (
-                  <p className="text-xs text-green-500">{t.subscribe.nicknameAvailable}</p>
-                )}
-                {!nicknameValidation.isChecking && nickname && nicknameValidation.isAvailable === false && (
-                  <p className="text-xs text-destructive">{t.subscribe.nicknameUnavailable}</p>
-                )}
-                {nicknameValidation.error && !nicknameValidation.isChecking && (
-                  <p className="text-xs text-destructive">{nicknameValidation.error}</p>
-                )}
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email">{t.subscribe.email} *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t.subscribe.emailPlaceholder}
-                  disabled={loading}
-                />
-              </div>
-
-              {/* Date of Birth Selector */}
-              <DateOfBirthSelector
-                day={birthDay}
-                month={birthMonth}
-                year={birthYear}
-                onDayChange={setBirthDay}
-                onMonthChange={setBirthMonth}
-                onYearChange={setBirthYear}
-                disabled={loading}
-              />
-              {errors.age && <p className="text-sm text-destructive">{errors.age}</p>}
-
-              {/* Mobile/Tablet: Referral first, then Password, then Confirm Password */}
-              <div className="grid md:grid-cols-2 gap-4">
-                {/* Referral Code - First on mobile, order-1 on desktop */}
-                <div className="space-y-2 order-first md:order-2">
-                  <Label htmlFor="referral">{t.subscribe.referralCode} *</Label>
-                  <Input
-                    id="referral"
-                    value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value)}
-                    placeholder={t.subscribe.referralCodePlaceholder}
-                    disabled={loading}
-                  />
-                  {errors.referral ? <p className="text-sm text-destructive">{errors.referral}</p> : null}
+                <div className="space-y-2">
+                  <Label htmlFor="referralCode">{t.subscribe.referralCode}</Label>
+                  <Input id="referralCode" value={code} onChange={(event) => setReferralCode(event.target.value)} required />
                 </div>
-                
-                {/* Password - Second on mobile */}
-                <div className="space-y-2 order-2 md:order-1">
-                  <Label htmlFor="password">{t.subscribe.password} *</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Digite sua senha"
-                      disabled={loading}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Confirm Password - Third on mobile */}
-                <div className="space-y-2 order-3">
-                  <Label htmlFor="confirm-password">{t.subscribe.confirmPassword} *</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirme sua senha"
-                      disabled={loading}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      tabIndex={-1}
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Password Requirements Card */}
-                <Card className="p-4 border-muted bg-muted/30">
-                  <p className="text-sm font-medium text-muted-foreground mb-2">{t.subscribe.passwordRequirements}</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      {passwordValidation.checks.minLength ? (
-                        <Check className="h-3 w-3 text-green-500" />
-                      ) : (
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span className={passwordValidation.checks.minLength ? "text-green-500" : "text-muted-foreground"}>
-                        {t.subscribe.minChars}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {passwordValidation.checks.hasUppercase ? (
-                        <Check className="h-3 w-3 text-green-500" />
-                      ) : (
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span className={passwordValidation.checks.hasUppercase ? "text-green-500" : "text-muted-foreground"}>
-                        {t.subscribe.uppercase}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {passwordValidation.checks.hasLowercase ? (
-                        <Check className="h-3 w-3 text-green-500" />
-                      ) : (
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span className={passwordValidation.checks.hasLowercase ? "text-green-500" : "text-muted-foreground"}>
-                        {t.subscribe.lowercase}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {passwordValidation.checks.hasNumber ? (
-                        <Check className="h-3 w-3 text-green-500" />
-                      ) : (
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span className={passwordValidation.checks.hasNumber ? "text-green-500" : "text-muted-foreground"}>
-                        {t.subscribe.number}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 col-span-2">
-                      {passwordValidation.checks.hasSymbol ? (
-                        <Check className="h-3 w-3 text-green-500" />
-                      ) : (
-                        <X className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span className={passwordValidation.checks.hasSymbol ? "text-green-500" : "text-muted-foreground"}>
-                        {t.subscribe.symbol}
-                      </span>
-                    </div>
-                  </div>
-                  {confirmPassword && (
-                    <div className="mt-2 pt-2 border-t border-border">
-                      <div className="flex items-center gap-1.5 text-xs">
-                        {passwordsMatch ? (
-                          <Check className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <X className="h-3 w-3 text-destructive" />
-                        )}
-                        <span className={passwordsMatch ? "text-green-500" : "text-destructive"}>
-                          {passwordsMatch ? t.subscribe.passwordsMatch : t.subscribe.passwordsNotMatch}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              </div>
-
-              {/* Terms and Conditions with Info Icon */}
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="accept-terms"
-                  checked={acceptTerms}
-                  onCheckedChange={(checked) => setAcceptTerms(checked === true)}
-                  disabled={loading}
-                />
-                <Label htmlFor="accept-terms" className="text-sm flex items-center gap-1">
-                  {t.subscribe.acceptTerms} <span className="text-primary underline">{t.subscribe.termsLink}</span>
-                  <TermsDialog />
-                </Label>
-              </div>
-
-              {/* Commercial Benefits Card */}
-              <Card className="p-5 border-primary/50 bg-gradient-to-br from-primary/10 via-card to-secondary/10 relative overflow-hidden animate-fade-in">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/20 to-transparent rounded-full blur-2xl animate-pulse" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-secondary/20 to-transparent rounded-full blur-2xl animate-pulse" style={{ animationDelay: "1s" }} />
-                
-                <div className="relative z-10">
-                  <p className="text-sm text-muted-foreground mb-4 animate-fade-in" style={{ animationDelay: "0.15s" }}>
-                    {t.subscribe.unlockPotential}
-                  </p>
-                  
-                  <div className="space-y-3 text-sm">
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.2s" }}>
-                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <Check className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="font-medium text-foreground">{t.subscribe.benefit1Title}</span>
-                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit1Desc}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.3s" }}>
-                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <Check className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="font-medium text-foreground">{t.subscribe.benefit2Title}</span>
-                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit2Desc}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.4s" }}>
-                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <Check className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="font-medium text-foreground">{t.subscribe.benefit3Title}</span>
-                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit3Desc}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.5s" }}>
-                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <Check className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="font-medium text-foreground">{t.subscribe.benefit4Title}</span>
-                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit4Desc}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3 p-2 rounded-lg bg-background/50 animate-fade-in hover-scale" style={{ animationDelay: "0.6s" }}>
-                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                        <Check className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div>
-                        <span className="font-medium text-foreground">{t.subscribe.benefit5Title}</span>
-                        <p className="text-xs text-muted-foreground">{t.subscribe.benefit5Desc}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <Button 
-                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" 
-                onClick={handleSubscribe} 
-                disabled={loading || !fullName.trim() || !nicknameReady || !isValidEmail(email) || !passwordValidation.valid || !passwordsMatch || !referralCode.trim() || !acceptTerms || !birthDay || !birthMonth || !birthYear}
-              >
-                {loading ? t.subscribe.processing : t.subscribe.subscribeNow}
+                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                <Button type="submit" disabled={submitting || (!user && !isReady)} className="w-full">
+                  {submitting ? t.common.loading : user ? "Pagar com Mercado Pago" : t.subscribe.formTitle}
+                </Button>
+              </form>
+            )}
+            {!user && !isLoading && (
+              <Button variant="link" asChild>
+                <Link to="/auth?continue=registration">{t.auth.loginButton}</Link>
               </Button>
-
-              <p className="text-sm text-muted-foreground text-center">
-                {t.subscribe.securePayment}
-              </p>
-            </div>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
-      
-      {/* PIX Payment Dialog */}
-      <PixPaymentDialog
-        open={pixDialogOpen}
-        onOpenChange={setPixDialogOpen}
-        pixData={pixData}
-        onPaymentConfirmed={handlePaymentConfirmed}
-      />
     </div>
   );
 };

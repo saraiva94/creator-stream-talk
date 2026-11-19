@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import logger from '../lib/logger';
-import { respondSuccess } from '../lib/responses';
+import { respondError, respondSuccess } from '../lib/responses';
 import { supabase } from '../lib/supabaseClient';
 import {
   applyRegistrationContextToProfile,
@@ -9,12 +9,9 @@ import {
   recordPendingRegistrationReferral,
   RegistrationReferralContext,
   resolveReferralContext,
-  REGISTRATION_PRICE_VALUE,
 } from '../services/affiliateService';
-import { createPixPayment, REGISTRATION_PRICE_CENTS } from '../services/velanaCashInService';
 import { parseWithZod } from '../validation/utils';
 import { registrationCheckoutSchema } from '../validation/affiliateSchemas';
-import { getEnv } from '../lib/env';
 
 // Helper function to calculate commission cents
 const calculateRegistrationCommissionCents = (
@@ -31,7 +28,6 @@ const calculateRegistrationCommissionCents = (
   const platformAmountCents = Math.max(0, 700 - directAmountCents - rootAmountCents);
   return { directAmountCents, rootAmountCents, platformAmountCents };
 };
-
 
 type RegistrationProfileResult = {
   profileId: string;
@@ -107,10 +103,14 @@ const maybeCreateSession = async (email?: string, password?: string) => {
 
 export const registrationCheckout = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { email, password, referralCode, referrer_id, free, root, customerName, customerCpf } = parseWithZod(
+    const { email, password, referralCode, referrer_id, free, root } = parseWithZod(
       registrationCheckoutSchema,
       req.body ?? {},
     );
+
+    if (!free) {
+      return respondError(res, 410, 'Cadastro pago indisponível.');
+    }
 
     const authProfileId = req.auth?.profileId;
     const profile = await ensureProfileForRegistration(authProfileId, email, password);
@@ -124,124 +124,73 @@ export const registrationCheckout = async (req: Request, res: Response, next: Ne
 
     await applyRegistrationContextToProfile(profile.profileId, effectiveContext);
 
-    // Record pending referral BEFORE creating payment preference
     const paymentId = crypto.randomUUID();
     await recordPendingRegistrationReferral(paymentId, profile.profileId, effectiveContext, {
-      isFree: Boolean(free),
+      isFree: true,
       email: profile.email,
     });
 
-    if (free) {
-      // For free registrations, immediately apply payouts and activate
-      const { directAmountCents, rootAmountCents, platformAmountCents } = calculateRegistrationCommissionCents(
-        effectiveContext.directId,
-        effectiveContext.rootId
-      );
+    // For free registrations, immediately apply payouts and activate
+    const { directAmountCents, rootAmountCents, platformAmountCents } = calculateRegistrationCommissionCents(
+      effectiveContext.directId,
+      effectiveContext.rootId
+    );
 
-      await applyRegistrationAffiliatePayout({
-        newUserId: profile.profileId,
-        directId: effectiveContext.directId,
-        rootId: effectiveContext.rootId,
-        directAmountCents,
-        rootAmountCents,
-        platformAmountCents,
-        paymentId,
-      });
+    await applyRegistrationAffiliatePayout({
+      newUserId: profile.profileId,
+      directId: effectiveContext.directId,
+      rootId: effectiveContext.rootId,
+      directAmountCents,
+      rootAmountCents,
+      platformAmountCents,
+      paymentId,
+    });
 
-      // Record platform revenue for free registration (still counts for tracking)
-      await supabase.from('platform_revenue').insert({
-        source_type: 'registration_free',
-        source_id: paymentId,
-        amount: platformAmountCents,
-        user_id: profile.profileId,
-        metadata: { 
-          direct_id: effectiveContext.directId, 
-          root_id: effectiveContext.rootId, 
-          gross_amount: 500,
-          is_free: true 
-        },
-      });
-
-      // Mark registration as completed
-      await supabase
-        .from('registration_referrals')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
-        .eq('payment_id', paymentId);
-
-      // Activate profile
-      await supabase
-        .from('profiles')
-        .update({ 
-          status: 'active', 
-          is_subscribed: true,
-        })
-        .eq('id', profile.profileId);
-
-      const session = await maybeCreateSession(email, password);
-      logger.info({
-        event: 'registration.free_link.used',
-        profileId: profile.profileId,
-        isRootCreator: effectiveContext.isRootCreator,
-        directId: effectiveContext.directId,
-        rootId: effectiveContext.rootId,
-        directAmountCents,
-        rootAmountCents,
-        platformAmountCents,
-      });
-      return respondSuccess(res, 200, {
-        status: 'ok',
-        profileId: profile.profileId,
-        token: session?.access_token ?? null,
-        refresh_token: session?.refresh_token ?? null,
-      });
-    }
-
-    // Create PIX payment via Velana
-    const supabaseUrl = getEnv('SUPABASE_URL');
-    const webhookUrl = `${supabaseUrl}/functions/v1/velana-webhook`;
-
-    const velanaResult = await createPixPayment({
-      amountCents: REGISTRATION_PRICE_CENTS,
-      userId: profile.profileId,
-      eventType: 'REGISTRATION',
-      customer: {
-        name: customerName || email?.split('@')[0] || 'Usuário',
-        email: profile.email,
-        cpf: customerCpf || '00000000000',
-      },
+    // Record platform revenue for free registration (still counts for tracking)
+    await supabase.from('platform_revenue').insert({
+      source_type: 'registration_free',
+      source_id: paymentId,
+      amount: platformAmountCents,
+      user_id: profile.profileId,
       metadata: {
-        userId: profile.profileId,
-        eventType: 'REGISTRATION',
-        directId: effectiveContext.directId,
-        rootId: effectiveContext.rootId,
-        isRootCreator: effectiveContext.isRootCreator,
-        inviteId: effectiveContext.inviteId,
+        direct_id: effectiveContext.directId,
+        root_id: effectiveContext.rootId,
+        gross_amount: 500,
+        is_free: true
       },
-      description: 'StreamStar - Ativação de Conta',
-      webhookUrl,
-      externalReference: paymentId,
     });
 
-    if (!velanaResult.success) {
-      throw new Error(velanaResult.error || 'Falha ao criar pagamento PIX');
-    }
+    // Mark registration as completed
+    await supabase
+      .from('registration_referrals')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('payment_id', paymentId);
 
+    // Activate profile
+    await supabase
+      .from('profiles')
+      .update({
+        status: 'active',
+        is_subscribed: true,
+      })
+      .eq('id', profile.profileId);
+
+    const session = await maybeCreateSession(email, password);
     logger.info({
-      event: 'registration.checkout.created',
+      event: 'registration.free_link.used',
       profileId: profile.profileId,
-      paymentId,
-      directReferrer: effectiveContext.directId,
-      parentReferrer: effectiveContext.rootId,
       isRootCreator: effectiveContext.isRootCreator,
-      transactionId: velanaResult.transactionId,
+      directId: effectiveContext.directId,
+      rootId: effectiveContext.rootId,
+      directAmountCents,
+      rootAmountCents,
+      platformAmountCents,
     });
-
-    return respondSuccess(res, 201, {
-      paymentId,
-      transactionId: velanaResult.transactionId,
-      secureUrl: velanaResult.secureUrl,
-      pix: velanaResult.pix,
-      amount: REGISTRATION_PRICE_VALUE,
+    return respondSuccess(res, 200, {
+      status: 'ok',
+      profileId: profile.profileId,
+      token: session?.access_token ?? null,
+      refresh_token: session?.refresh_token ?? null,
     });
   } catch (error) {
     next(error);

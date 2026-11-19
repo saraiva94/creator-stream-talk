@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Bell } from "lucide-react";
+import { Bell, CreditCard } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +19,7 @@ import type { User } from "@supabase/supabase-js";
 
 interface NotificationBellProps {
   user: User | null;
+  showPaymentNotifications?: boolean;
 }
 
 interface Notification {
@@ -33,14 +35,32 @@ interface Notification {
   isLiveEnded?: boolean; // Track if live has ended
 }
 
-export const NotificationBell = ({ user }: NotificationBellProps) => {
+export const NotificationBell = ({ user, showPaymentNotifications = false }: NotificationBellProps) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [followedCreatorIds, setFollowedCreatorIds] = useState<string[]>([]);
   const [previousTop5, setPreviousTop5] = useState<string[]>([]);
   const [activeLivesCache, setActiveLivesCache] = useState<Map<string, string>>(new Map());
+  const queryClient = useQueryClient();
+  const paymentQueryKey = ["mercadopago-notifications", user?.id] as const;
+  const { data: paymentNotifications = [] } = useQuery({
+    queryKey: paymentQueryKey,
+    enabled: Boolean(user && showPaymentNotifications),
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("notifications")
+        .select("id, title, message, read")
+        .eq("user_id", user!.id)
+        .eq("type", "mercadopago_payment")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data;
+    },
+  });
+  const unreadCount = notifications.filter((notification) => !notification.read).length +
+    paymentNotifications.filter((notification) => !notification.read).length;
 
   // Fetch followed creators
   const fetchFollowedCreators = useCallback(async () => {
@@ -231,13 +251,16 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
     };
   }, [user, checkNotifications]);
 
-  // Update unread count
-  useEffect(() => {
-    setUnreadCount(notifications.filter((n) => !n.read).length);
-  }, [notifications]);
+  const markPaymentsAsRead = async (ids: string[]) => {
+    if (!user || ids.length === 0) return;
+    const { error } = await supabase.from("notifications").update({ read: true })
+      .eq("user_id", user.id).eq("type", "mercadopago_payment").in("id", ids);
+    if (!error) await queryClient.invalidateQueries({ queryKey: paymentQueryKey });
+  };
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    void markPaymentsAsRead(paymentNotifications.filter((notification) => !notification.read).map(({ id }) => id));
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -312,7 +335,22 @@ export const NotificationBell = ({ user }: NotificationBellProps) => {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         
-        {notifications.length === 0 ? (
+        {paymentNotifications.map((notification) => (
+          <DropdownMenuItem key={notification.id}
+            className={`flex items-start gap-2 p-2 ${notification.read ? "" : "bg-primary/5"}`}
+            onSelect={() => {
+              if (!notification.read) void markPaymentsAsRead([notification.id]);
+              navigate("/admin");
+            }}>
+            <CreditCard className="mt-1 h-4 w-4 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{notification.title}</p>
+              <p className="text-xs text-muted-foreground">{notification.message}</p>
+            </div>
+          </DropdownMenuItem>
+        ))}
+        {paymentNotifications.length > 0 && notifications.length > 0 && <DropdownMenuSeparator />}
+        {notifications.length === 0 && paymentNotifications.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             {t.notifications?.noNotifications || "Nenhuma notificação"}
           </div>

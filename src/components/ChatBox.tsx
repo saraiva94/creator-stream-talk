@@ -3,15 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Coins } from "lucide-react";
+import { Coins, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/useLanguage";
-import SuperChatDialog, { SUPERCHAT_TIERS } from "./SuperChatDialog";
 import SuperChatDisplay from "./SuperChatDisplay";
+import SuperChatDialog from "./SuperChatDialog";
 import { ChatMessage } from "./chat/ChatMessage";
 import { TypingIndicator } from "./chat/TypingIndicator";
 import { EmojiPicker } from "./chat/EmojiPicker";
-import { SuperChatSuggestions } from "./chat/SuperChatSuggestions";
 
 interface Message {
   id: string;
@@ -38,7 +37,6 @@ interface ActiveSuperchat {
 interface ChatBoxProps {
   roomId: string;
   currentUserId?: string | null;
-  creatorId: string;
   isCreator?: boolean;
   disabled?: boolean;
   readOnly?: boolean; // For unauthenticated viewers - can see messages but not send
@@ -49,12 +47,11 @@ interface TypingUser {
   username: string;
 }
 
-const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled = false, readOnly = false }: ChatBoxProps) => {
+const ChatBox = ({ roomId, currentUserId, isCreator = false, disabled = false, readOnly = false }: ChatBoxProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSuperChat, setShowSuperChat] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<"blue" | "yellow" | "red" | null>(null);
   const [activeSuperchats, setActiveSuperchats] = useState<ActiveSuperchat[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [currentUsername, setCurrentUsername] = useState<string>("");
@@ -418,31 +415,13 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
           </div>
         ) : (
           <div className="space-y-2">
-            {/* SuperChat Suggestions - above input for non-creators */}
-            {!isCreator && (
-              <SuperChatSuggestions 
-                onSelect={(tier) => {
-                  setSelectedTier(tier);
-                  setShowSuperChat(true);
-                }}
-              />
-            )}
-            
             <div className="flex items-center gap-1 sm:gap-2">
-              {/* SuperChat button (non-creators only) - hidden on very small screens */}
-              {!isCreator && (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setShowSuperChat(true)}
-                  title="Enviar SuperChat"
-                  className="shrink-0 text-muted-foreground hover:text-yellow-500 h-8 w-8 sm:h-10 sm:w-10"
-                >
-                  <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
+              {!isCreator && currentUserId && (
+                <Button type="button" variant="ghost" size="icon" aria-label="Enviar SuperChat"
+                  onClick={() => setShowSuperChat(true)}>
+                  <Coins className="h-4 w-4" />
                 </Button>
               )}
-
               {/* Emoji picker - hidden on mobile */}
               <div className="hidden sm:block">
                 <EmojiPicker 
@@ -475,18 +454,7 @@ const ChatBox = ({ roomId, currentUserId, creatorId, isCreator = false, disabled
           </div>
         )}
       </form>
-
-      <SuperChatDialog
-        open={showSuperChat}
-        onOpenChange={(open) => {
-          setShowSuperChat(open);
-          if (!open) setSelectedTier(null);
-        }}
-        creatorId={creatorId}
-        userId={currentUserId || ""}
-        roomId={roomId}
-        initialTier={selectedTier}
-      />
+      {showSuperChat && <SuperChatDialog roomId={roomId} onClose={() => setShowSuperChat(false)} />}
     </div>
   );
 };

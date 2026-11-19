@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-export const affiliateRegisterSchema = z.object({
-  referralCode: z.string().trim().optional().nullable(),
-});
-
 export const markRootCreatorSchema = z.object({
   user_id: z.string().uuid(),
 });

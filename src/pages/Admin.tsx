@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import MercadoPagoPanel from "@/components/admin/MercadoPagoPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -1044,6 +1045,7 @@ const Admin = () => {
             <h2 className="text-lg font-semibold">Ferramentas Financeiras</h2>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
+            <MercadoPagoPanel />
             {/* Backfill Platform Revenue */}
             <Card className="border-green-500/30 bg-green-500/5">
               <CardHeader className="p-4">
@@ -1096,24 +1098,6 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* Velana Info */}
-            <Card className="border-blue-500/30 bg-blue-500/5">
-              <CardHeader className="p-4">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-5 w-5 text-blue-500" />
-                  Pagamentos via Velana
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  A plataforma usa Velana para pagamentos PIX.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <p className="text-xs text-muted-foreground">
-                  Cash-In e Cash-Out são processados automaticamente via webhooks Velana. 
-                  Consulte os logs de webhook para verificar transações.
-                </p>
-              </CardContent>
-            </Card>
           </div>
         </section>
 

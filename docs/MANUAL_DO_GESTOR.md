@@ -1,5 +1,7 @@
 # Stream Star - Manual do Gestor
 
+> O checkout de cadastro, créditos e SuperChats usa [Mercado Pago](../README.md#recebimentos-pelo-mercado-pago). As descrições abaixo sobre a Velana registram o fluxo anterior. Saques automáticos estão indisponíveis.
+
 **Versão:** 1.1  
 **Data:** 2025-01-30  
 **Para:** Gestores e Administradores (não-técnicos)

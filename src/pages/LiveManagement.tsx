@@ -695,8 +695,7 @@ const LiveManagement = () => {
               <ChatBox
                 roomId={room.id}
                 currentUserId={user.id}
-                creatorId={user.id}
-                isCreator={true}
+                isCreator
               />
             ) : (
               <Card className="border-border h-full flex items-center justify-center">
@@ -795,8 +794,7 @@ const LiveManagement = () => {
                 <ChatBox
                   roomId={room.id}
                   currentUserId={user.id}
-                  creatorId={user.id}
-                  isCreator={true}
+                  isCreator
                 />
               </div>
             ) : (

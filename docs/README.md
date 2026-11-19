@@ -24,7 +24,7 @@ A documentação técnica completa está em **[docs/DOCUMENTACAO_COMPLETA.md](do
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
 - **Backend:** Supabase Edge Functions (Deno)
 - **Streaming:** LiveKit (WebRTC)
-- **Pagamentos:** Velana (PIX)
+- **Pagamentos:** Mercado Pago Checkout Pro para recebimentos. Saques automáticos indisponíveis.
 - **Hospedagem:** Lovable Cloud
 
 ## 🔗 Links

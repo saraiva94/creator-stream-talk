@@ -15,6 +15,8 @@ export const AuthRedirectHandler = () => {
 
     const search = window.location.search || "";
     const hash = window.location.hash || "";
+    const isSignupReturn = currentPath === "/subscribe" &&
+      new URLSearchParams(search).get("flow") === "signup" && !hash.includes("type=recovery");
 
     // Detect recovery by hash (implicit) OR by query (PKCE)
     const hasRecoveryInHash =
@@ -27,7 +29,7 @@ export const AuthRedirectHandler = () => {
     }
 
     // If recovery detected outside the page, redirect preserving search + hash
-    if (hasRecoveryInHash || hasCodeInQuery) {
+    if (!isSignupReturn && (hasRecoveryInHash || hasCodeInQuery)) {
       navigate(`/update-password${search}${hash}`, { replace: true });
       return;
     }

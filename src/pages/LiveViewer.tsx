@@ -978,8 +978,6 @@ const LiveViewer: React.FC = () => {
               <ChatBox
                 roomId={roomId}
                 currentUserId={currentUserId}
-                creatorId={liveData.creator_id}
-                isCreator={false}
                 disabled={showPaywall}
                 readOnly={!isAuthenticated}
               />

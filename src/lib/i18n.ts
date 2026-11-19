@@ -60,7 +60,11 @@ export const translations = {
       streamChat: "Stream Chat",
       loginToChat: "Login to join the chat",
     },
+    payments: {
+      withdrawalsUnavailable: "Automatic PIX withdrawals are currently unavailable.",
+    },
     auth: {
+      serviceUnavailable: "The sign-in service is temporarily unavailable. Please try again shortly.",
       welcome: "Welcome to Stream Star",
       login: "Login",
       register: "Register",
@@ -827,7 +831,11 @@ export const translations = {
       streamChat: "Chat de la transmisión",
       loginToChat: "Inicia sesión para participar del chat",
     },
+    payments: {
+      withdrawalsUnavailable: "Los retiros automáticos por PIX no están disponibles en este momento.",
+    },
     auth: {
+      serviceUnavailable: "El servicio de inicio de sesión no está disponible temporalmente. Inténtalo de nuevo en unos minutos.",
       welcome: "Bienvenido a Stream Star",
       login: "Iniciar sesión",
       register: "Registrarse",
@@ -1594,7 +1602,11 @@ export const translations = {
       streamChat: "Chat da transmissão",
       loginToChat: "Faça login para participar do chat",
     },
+    payments: {
+      withdrawalsUnavailable: "Os saques automáticos por PIX estão indisponíveis no momento.",
+    },
     auth: {
+      serviceUnavailable: "O serviço de login está temporariamente indisponível. Tente novamente em instantes.",
       welcome: "Bem-vindo ao Stream Star",
       login: "Entrar",
       register: "Registrar",

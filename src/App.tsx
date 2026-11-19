@@ -21,7 +21,6 @@ const Auth = lazy(() => import("./pages/Auth"));
 const Subscribe = lazy(() => import("./pages/Subscribe"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const UpdatePassword = lazy(() => import("./pages/UpdatePassword"));
-const InviteSignup = lazy(() => import("./pages/InviteSignup"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const Profile = lazy(() => import("./pages/Profile"));
@@ -77,8 +76,8 @@ const App = () => (
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/update-password" element={<UpdatePassword />} />
                     <Route path="/auth/reset-password" element={<ResetPassword />} />
-                    <Route path="/invite/:inviteCode" element={<InviteSignup />} />
-                    <Route path="/invite" element={<InviteSignup />} />
+                    <Route path="/invite/:inviteCode" element={<Subscribe />} />
+                    <Route path="/invite" element={<Subscribe />} />
                     <Route path="/u/:username" element={<PublicProfile />} />
                     <Route path="/live/:liveId" element={<LiveViewer />} />
                     <Route path="/room/:creatorId" element={<CreatorRoom />} />

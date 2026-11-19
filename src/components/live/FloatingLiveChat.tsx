@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Sparkles } from "lucide-react";
+import { Coins, Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SuperChatSuggestions } from "@/components/chat/SuperChatSuggestions";
-import SuperChatDialog from "@/components/SuperChatDialog";
 import { useToast } from "@/hooks/use-toast";
+import SuperChatDialog from "@/components/SuperChatDialog";
 
 interface FloatingMessage {
   id: string;
@@ -148,10 +147,9 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
   const [messages, setMessages] = useState<FloatingMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [showSuperChat, setShowSuperChat] = useState(false);
   const [activeSuperchat, setActiveSuperchat] = useState<ActiveSuperchat | null>(null);
   const [superchatQueue, setSuperchatQueue] = useState<ActiveSuperchat[]>([]);
-  const [showSuperChat, setShowSuperChat] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<"blue" | "yellow" | "red">("blue");
   const [chatSettings, setChatSettings] = useState<ChatSettings>({
     slow_mode_enabled: false,
     slow_mode_duration: 5,
@@ -646,16 +644,6 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
         {/* Input area */}
         {isAuthenticated && !disabled ? (
           <div className="space-y-2">
-            {/* SuperChat Suggestions - above input for non-creators */}
-            {!isCreator && (
-              <SuperChatSuggestions 
-                onSelect={(tier) => {
-                  setSelectedTier(tier);
-                  setShowSuperChat(true);
-                }}
-              />
-            )}
-            
             {/* Slow mode indicator */}
             {chatSettings.slow_mode_enabled && slowModeRemaining > 0 && !isCreator && (
               <div className="text-center">
@@ -676,6 +664,12 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
             
             <form onSubmit={handleSend}>
               <div className="flex items-center gap-2">
+                {!isCreator && currentUserId && (
+                  <Button type="button" variant="ghost" size="icon" aria-label="Enviar SuperChat"
+                    className="shrink-0 rounded-full bg-black/40 text-white" onClick={() => setShowSuperChat(true)}>
+                    <Coins className="h-4 w-4" />
+                  </Button>
+                )}
                 <div className="relative flex-1">
                   <Input
                     ref={inputRef}
@@ -713,18 +707,7 @@ const FloatingLiveChat: React.FC<FloatingLiveChatProps> = ({
           </div>
         )}
       </div>
-
-      {/* SuperChat Dialog */}
-      {creatorId && currentUserId && (
-        <SuperChatDialog
-          open={showSuperChat}
-          onOpenChange={setShowSuperChat}
-          creatorId={creatorId}
-          userId={currentUserId}
-          roomId={roomId}
-          initialTier={selectedTier}
-        />
-      )}
+      {showSuperChat && <SuperChatDialog roomId={roomId} onClose={() => setShowSuperChat(false)} />}
     </div>
   );
 };

@@ -20,7 +20,7 @@ O projeto resolve o problema de creators que dependem de multiplas ferramentas d
 | Backend | Node.js + Express 5 + TypeScript | API REST com rate limiting e validacao |
 | Banco de dados | Supabase (PostgreSQL) | Auth, storage, realtime subscriptions e edge functions |
 | Streaming | LiveKit (WebRTC) | Transmissao de audio/video com baixa latencia |
-| Pagamentos | Mercado Pago + PIX (Velana) | Cobranças de creditos e saques automaticos |
+| Pagamentos | Mercado Pago Checkout Pro | Cadastro, créditos e SuperChats com recebimento em uma conta |
 | Email | Resend | Emails transacionais |
 | Logging (backend) | Pino | Logs estruturados em JSON |
 | Logging (frontend) | Logger customizado | Logs por modulo com historico em memoria |
@@ -34,7 +34,7 @@ O projeto resolve o problema de creators que dependem de multiplas ferramentas d
 - Chat global com mensagens de texto, audio, reacoes e mensagens diretas
 - Sistema de creditos: compra via Mercado Pago, consumo em superchats e preview de lives
 - Superchats com tiers visuais, progress bar animado e fila de exibicao
-- Saques via PIX com validacao automatica de chave, taxa fixa e processamento instantaneo
+- Histórico de saques e acompanhamento dos saldos de criadores e afiliados
 - Painel do creator: dashboard de receita, historico de lives, gerenciamento de tags e configuracoes
 - Painel administrativo: gestao de creators, aprovacao/rejeicao de saques e logs de webhooks
 - Sistema de afiliados com codigo de referral, comissoes e dashboard dedicado
@@ -48,6 +48,16 @@ O projeto resolve o problema de creators que dependem de multiplas ferramentas d
 ## Arquitetura
 
 O frontend usa Context API para estado global (auth, creditos, sidebar, tema) e React Query para cache de dados do servidor com `keepPreviousData` para transicoes sem flickering. A comunicacao com o backend passa por um API client centralizado com envelope pattern (`{ success, data, error }`), cache de access token com TTL de 30 segundos e redirect automatico em 401/403. Operacoes de rede criticas usam retry com backoff customizavel e suporte a AbortSignal. O real-time e feito em duas camadas: Supabase Realtime (postgres changes para chat e notificacoes) e LiveKit (WebRTC para streaming de midia). O sistema de logging do frontend organiza logs por modulo (AUTH, PAYMENT, LIVE, API) com cores no console e historico exportavel, enquanto o backend usa Pino para logs estruturados. Pagamentos passam por edge functions do Supabase para processamento de PIX e webhooks do Mercado Pago, com o backend Node servindo como API REST para operacoes CRUD, autorizacao por roles e rate limiting.
+
+## Recebimentos pelo Mercado Pago
+
+O Checkout Pro recebe na conta associada ao token da aplicação. Ao aprovar o pagamento, o Mercado Pago envia um webhook. O StreamStar confere o pedido, registra o recebimento e envia um aviso no sino de notificações dos administradores. Em **Admin → Ferramentas Financeiras**, é possível consultar e reprocessar um pagamento aprovado pelo ID.
+
+1. Aplique a migração `20261119193000_restore_mercadopago.sql` no projeto Supabase.
+2. Em **Edge Functions → Secrets**, configure `MERCADOPAGO_ACCESS_TOKEN` e `MERCADOPAGO_WEBHOOK_SECRET` com os valores da aplicação da conta recebedora. Para outro domínio, configure `SITE_URL` com a URL pública do StreamStar.
+3. Na aplicação do Mercado Pago, ative o evento **Pagamentos** com o endpoint `https://<project-ref>.supabase.co/functions/v1/mercadopago-webhook`. [Documentação de Webhooks do Mercado Pago](https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications)
+4. Em **Supabase Auth → URL Configuration**, permita o retorno de confirmação de e-mail para `https://<domínio-do-streamstar>/subscribe?flow=signup`.
+5. Publique as funções `create-payment`, `create-superchat-payment`, `registration-checkout`, `mercadopago-webhook` e `process-pending-payment`, e publique o frontend.
 
 ## Como rodar localmente
 

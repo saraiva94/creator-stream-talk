@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
+import { useLanguage } from "@/hooks/useLanguage";
 
 type WalletSummary = {
   balance_cents: number;
@@ -13,13 +12,6 @@ type WalletSummary = {
 
 type CreatorWalletPanelProps = {
   onWalletUpdate?: (summary: WalletSummary) => void;
-  onWithdrawalSuccess?: (summary: WalletSummary) => void;
-};
-
-type ApiResponse<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
 };
 
 const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2)}`;
@@ -34,14 +26,11 @@ const getCreatorId = async () => {
   return creatorId;
 };
 
-export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: CreatorWalletPanelProps) => {
+export const CreatorWalletPanel = ({ onWalletUpdate }: CreatorWalletPanelProps) => {
+  const { t } = useLanguage();
   const [summary, setSummary] = useState<WalletSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [amountBRL, setAmountBRL] = useState("");
-  const [pixKey, setPixKey] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   const loadSummary = async () => {
     setIsLoading(true);
@@ -77,69 +66,6 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
     loadSummary();
   }, []);
 
-  const handleWithdrawAll = () => {
-    if (!summary) return;
-    setAmountBRL((summary.balance_cents / 100).toFixed(2));
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    const pix = pixKey.trim();
-    if (!pix) {
-      setError("Informe sua chave PIX.");
-      return;
-    }
-
-    const parsed = parseFloat(amountBRL.replace(",", "."));
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError("Informe um valor valido em reais.");
-      return;
-    }
-
-    const amountCents = Math.round(parsed * 100);
-
-    setIsSubmitting(true);
-    try {
-      const creatorId = await getCreatorId();
-
-      const withdrawPayload = {
-        userId: creatorId,
-        pixKey: pix,
-        amountCents,
-        isCreator: true,
-      };
-      
-      const { data, error: invokeError } = await supabase.functions.invoke("pix-withdraw", {
-        body: withdrawPayload,
-      });
-
-      if (invokeError) {
-        throw new Error(invokeError.message);
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.error || "Nao foi possivel solicitar o saque");
-      }
-
-      await loadSummary();
-      onWithdrawalSuccess?.({
-        balance_cents: (summary?.balance_cents ?? 0) - amountCents,
-        pending_cents: (summary?.pending_cents ?? 0) + amountCents,
-      });
-
-      setAmountBRL("");
-      setPixKey("");
-      setSuccess("Saque solicitado. O valor foi reservado e está em processamento.");
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <Card className="border-border/60">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -170,57 +96,7 @@ export const CreatorWalletPanel = ({ onWalletUpdate, onWithdrawalSuccess }: Crea
           </div>
         ) : null}
 
-        {success && (
-          <Alert>
-            <AlertTitle>Sucesso</AlertTitle>
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-600 dark:text-amber-400">
-            <strong>Taxa de saque:</strong> R$ 5,00 por transação. O valor será descontado do seu saldo.
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Chave PIX</label>
-            <Input
-              type="text"
-              placeholder="CPF, e-mail ou chave aleatoria"
-              value={pixKey}
-              onChange={(e) => setPixKey(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Valor para sacar (R$)</label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Ex: 50.00"
-              value={amountBRL}
-              onChange={(e) => setAmountBRL(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!summary || isSubmitting || isLoading}
-              onClick={handleWithdrawAll}
-            >
-              Sacar tudo
-            </Button>
-            <Button type="submit" disabled={isSubmitting || !summary}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...
-                </>
-              ) : (
-                "Solicitar saque"
-              )}
-            </Button>
-          </div>
-        </form>
+        <p className="text-sm text-muted-foreground">{t.payments.withdrawalsUnavailable}</p>
       </CardContent>
     </Card>
   );

@@ -4,10 +4,17 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
-  // Load env file based on mode
-  const env = loadEnv(mode, process.cwd(), '');
-  
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, process.cwd());
+  const supabaseUrl = env.VITE_SUPABASE_URL?.trim() || "";
+  const supabaseKey = env.VITE_SUPABASE_ANON_KEY?.trim() || env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
+  const urlProjectId = supabaseUrl.match(/^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/i)?.[1];
+  const projectId = env.VITE_SUPABASE_PROJECT_ID?.trim() || urlProjectId || "";
+
+  if (command === "build" && (!supabaseUrl || !supabaseKey)) {
+    throw new Error("Defina VITE_SUPABASE_URL e a chave pública do mesmo projeto antes de compilar.");
+  }
+
   return {
     server: {
       host: "::",
@@ -21,19 +28,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      // Fallback values for Supabase configuration
-      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(
-        env.VITE_SUPABASE_URL || 'https://enacciilzvifhqpenhlz.supabase.co'
-      ),
-      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(
-        env.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYWNjaWlsenZpZmhxcGVuaGx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NTE1MDIsImV4cCI6MjA3ODAyNzUwMn0.klH_no3rPZ1TPQbnfly9HhVogqRMpJf3_dhYfmusIX0'
-      ),
-      'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(
-        env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVuYWNjaWlsenZpZmhxcGVuaGx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NTE1MDIsImV4cCI6MjA3ODAyNzUwMn0.klH_no3rPZ1TPQbnfly9HhVogqRMpJf3_dhYfmusIX0'
-      ),
-      'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(
-        env.VITE_SUPABASE_PROJECT_ID || 'enacciilzvifhqpenhlz'
-      ),
+      "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(supabaseUrl),
+      "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(supabaseKey),
+      "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY": JSON.stringify(supabaseKey),
+      "import.meta.env.VITE_SUPABASE_PROJECT_ID": JSON.stringify(projectId),
     },
     test: {
       globals: true,

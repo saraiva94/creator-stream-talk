@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "@/hooks/useLanguage";
-import { AuthApiError } from "@supabase/supabase-js";
+import {
+  AuthApiError,
+  AuthRetryableFetchError,
+  FunctionsFetchError,
+  FunctionsHttpError,
+  FunctionsRelayError,
+} from "@supabase/supabase-js";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { getReturnTo, clearReturnTo } from "@/components/ProtectedRoute";
@@ -30,12 +36,19 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const isFunctionsUnavailable = (error: unknown) =>
+  error instanceof FunctionsFetchError ||
+  error instanceof FunctionsRelayError ||
+  (error instanceof FunctionsHttpError && error.context.status >= 500);
+
 const Auth = () => {
   const [loginInput, setLoginInput] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const continueRegistration = searchParams.get("continue") === "registration";
   const { toast } = useToast();
   const { t } = useLanguage();
   const { user, isAdmin, isLoading: authLoading } = useAuth();
@@ -45,9 +58,9 @@ const Auth = () => {
     if (!authLoading && user) {
       const returnTo = getReturnTo();
       clearReturnTo();
-      navigate(returnTo || "/", { replace: true });
+      navigate(continueRegistration ? "/subscribe" : returnTo || "/", { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, continueRegistration]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +99,8 @@ const Auth = () => {
               error_description?: string;
             }
           | null;
+
+        if (isFunctionsUnavailable(error)) throw error;
 
         if (error || payload?.error) {
           const code = payload?.error;
@@ -144,6 +159,18 @@ const Auth = () => {
         toast({
           title: "Erro no login",
           description: message,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (
+        error instanceof AuthRetryableFetchError ||
+        (error instanceof AuthApiError && error.status >= 500) ||
+        isFunctionsUnavailable(error)
+      ) {
+        toast({
+          title: "Erro no login",
+          description: t.auth.serviceUnavailable,
           variant: "destructive",
         });
         return;

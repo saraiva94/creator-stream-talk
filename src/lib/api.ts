@@ -297,7 +297,7 @@ export interface LiveHeartbeatResponse {
   remainingCredits: number;
 }
 
-/** @deprecated Mercado Pago discontinued - use Velana PIX */
+/** @deprecated Pagamentos indisponíveis. */
 export interface PaymentPreferenceResponse {
   secureUrl?: string;
   paymentId?: string;
@@ -394,7 +394,6 @@ export interface WithdrawalRecord {
 export interface DiagnosticsSnapshot {
   success: true;
   supabase: 'ok' | 'error';
-  velana: 'ok' | 'error';
   resend: 'ok' | 'error';
   env: {
     ok: boolean;
@@ -426,12 +425,6 @@ export interface DiagnosticsSnapshot {
   };
   urlConsistency: {
     canonicalBase: string | null;
-    velanaWebhook: {
-      expectedUrl: string | null;
-      configuredUrl: string | null;
-      match: boolean;
-      matchesHost: boolean;
-    };
     corsIncludesPublicBase: boolean;
   };
   webhook: {
@@ -613,10 +606,9 @@ export const apiClient = {
     return data as LiveHeartbeatResponse;
   },
 
-  /** @deprecated Use createCreditsPayment from supabaseApi.ts instead - Mercado Pago discontinued */
+  /** @deprecated Pagamentos indisponíveis. */
   createPaymentPreference: async (_payload: CreatePaymentPayload): Promise<PaymentPreferenceResponse> => {
-    console.warn('[api] createPaymentPreference deprecated - use Velana PIX via supabaseApi.ts');
-    throw new ApiError('Mercado Pago discontinued. Use PIX via Velana.', 410);
+    throw new ApiError('Pagamentos indisponíveis.', 410);
   },
 
   getCreatorBalance: () =>
@@ -672,10 +664,9 @@ export const apiClient = {
 
   validateResetCredential: (credential: string) => validateResetCredential(credential),
 
-  /** @deprecated Use createRegistrationPayment from supabaseApi.ts instead - Mercado Pago discontinued */
+  /** @deprecated Cadastro pago indisponível. */
   createRegistrationPreference: async (_payload: { userId: string; parentId: string }): Promise<PaymentPreferenceResponse> => {
-    console.warn('[api] createRegistrationPreference deprecated - use Velana PIX via supabaseApi.ts');
-    throw new ApiError('Mercado Pago discontinued. Use PIX via Velana.', 410);
+    throw new ApiError('Cadastro pago indisponível.', 410);
   },
 
   getCreditBalance: async () => {
@@ -699,10 +690,9 @@ export const apiClient = {
     };
   },
 
-  /** @deprecated Use createCreditsPayment from supabaseApi.ts instead - Mercado Pago discontinued */
+  /** @deprecated Pagamentos indisponíveis. */
   purchaseCredits: async (_payload: { userId: string; price: number; credits?: number; liveId?: string }): Promise<PaymentPreferenceResponse> => {
-    console.warn('[api] purchaseCredits deprecated - use createCreditsPayment from supabaseApi.ts');
-    throw new ApiError('Mercado Pago discontinued. Use PIX via Velana.', 410);
+    throw new ApiError('Pagamentos indisponíveis.', 410);
   },
 
   consumeCredits: async (_amount: number) => {

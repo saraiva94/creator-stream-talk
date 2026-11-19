@@ -187,11 +187,6 @@ const CreatorPayouts = () => {
     setWalletSummary(next);
   };
 
-  const handleWithdrawalSuccess = (next: WalletSummary) => {
-    setWalletSummary(next);
-    fetchPayoutHistory();
-  };
-
   const formatBRL = (cents: number) => `R$ ${(cents / 100).toFixed(2)}`;
   const formatDate = (value: string | null) => {
     if (!value) return "-";
@@ -210,7 +205,7 @@ const CreatorPayouts = () => {
           </div>
         </div>
 
-        <CreatorWalletPanel onWalletUpdate={handleWalletUpdate} onWithdrawalSuccess={handleWithdrawalSuccess} />
+        <CreatorWalletPanel onWalletUpdate={handleWalletUpdate} />
 
         <PayoutsSummary summary={summaryData} isLoading={!walletSummary} />
 

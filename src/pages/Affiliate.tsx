@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
-import PixWithdrawDialog from "@/components/PixWithdrawDialog";
 
 import ShareDialog from "@/components/ShareDialog";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -57,54 +56,12 @@ const Affiliate = () => {
   const [history, setHistory] = useState<AffiliateHistoryEntry[]>([]);
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalHistoryEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
   
   const [showShareDialog, setShowShareDialog] = useState(false);
   
   // Pagination states
   const [historyPage, setHistoryPage] = useState(1);
   const [withdrawalPage, setWithdrawalPage] = useState(1);
-
-  const refreshBalance = async () => {
-    if (!user) return;
-    
-    // Fetch affiliate earnings from profiles
-    const { data: profile } = await supabase.from("profiles").select("affiliate_earnings").eq("id", user.id).single();
-    const affiliateEarnings = profile?.affiliate_earnings ?? 0;
-    
-    // Fetch creator wallet balance (if user is a creator)
-    const { data: creatorWallet } = await supabase
-      .from("creator_wallet")
-      .select("balance_cents")
-      .eq("creator_id", user.id)
-      .maybeSingle();
-    const creatorBalance = creatorWallet?.balance_cents ?? 0;
-    
-    // Update states
-    setCreatorBalanceCents(creatorBalance);
-    // Available balance = affiliate earnings + creator wallet balance
-    setAvailableBalanceCents(affiliateEarnings + creatorBalance);
-
-        // Fetch from payout_requests table - ONLY completed/paid withdrawals
-        const { data: payoutRequests } = await supabase
-          .from("payout_requests")
-          .select("id, amount, status, created_at, pix_key, paid_at")
-          .eq("creator_id", user.id)
-          .eq("status", "paid")
-          .order("created_at", { ascending: false })
-          .limit(100);
-
-        if (payoutRequests) {
-          const entries: WithdrawalHistoryEntry[] = payoutRequests.map((p) => ({
-            id: p.id,
-            createdAt: p.created_at,
-            amountCents: Math.round((Number(p.amount) ?? 0) * 100),
-            status: p.status,
-            pixKeyMasked: p.pix_key ? `***${p.pix_key.slice(-4)}` : "***",
-          }));
-          setWithdrawalHistory(entries);
-        }
-      };
 
   useEffect(() => {
     const load = async () => {
@@ -355,20 +312,7 @@ const Affiliate = () => {
             <h1 className="text-2xl sm:text-3xl font-bold">{t.nav.finances}</h1>
           </div>
           
-          {/* Action button - single withdraw button */}
-          <div className="flex flex-col gap-2">
-            <Button 
-              onClick={() => setShowWithdrawDialog(true)} 
-              className="bg-green-600 hover:bg-green-700 text-sm px-4 w-full" 
-              disabled={availableBalanceCents <= 0}
-            >
-              <Banknote className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>{t.affiliate.withdrawBalance || "Sacar saldo disponível"}</span>
-            </Button>
-            <p className="text-[10px] text-muted-foreground text-center">
-              Via PIX ou transferência bancária
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">{t.payments.withdrawalsUnavailable}</p>
         </div>
 
         {error && <div className="mb-6 text-destructive text-sm">{error}</div>}
@@ -612,7 +556,6 @@ const Affiliate = () => {
         </Card>
       </main>
 
-      <PixWithdrawDialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog} userId={user?.id ?? ""} availableBalanceCents={availableBalanceCents} onSuccess={refreshBalance} />
       
       <ShareDialog isOpen={showShareDialog} onClose={() => setShowShareDialog(false)} link={referralLink} title="Stream Star" />
     </AppLayout>
