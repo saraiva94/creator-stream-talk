@@ -49,6 +49,19 @@ O projeto resolve o problema de creators que dependem de multiplas ferramentas d
 
 O frontend usa Context API para estado global (auth, creditos, sidebar, tema) e React Query para cache de dados do servidor com `keepPreviousData` para transicoes sem flickering. A comunicacao com o backend passa por um API client centralizado com envelope pattern (`{ success, data, error }`), cache de access token com TTL de 30 segundos e redirect automatico em 401/403. Operacoes de rede criticas usam retry com backoff customizavel e suporte a AbortSignal. O real-time e feito em duas camadas: Supabase Realtime (postgres changes para chat e notificacoes) e LiveKit (WebRTC para streaming de midia). O sistema de logging do frontend organiza logs por modulo (AUTH, PAYMENT, LIVE, API) com cores no console e historico exportavel, enquanto o backend usa Pino para logs estruturados. Pagamentos passam por edge functions do Supabase para processamento de PIX e webhooks do Mercado Pago, com o backend Node servindo como API REST para operacoes CRUD, autorizacao por roles e rate limiting.
 
+## E-mails de autenticação
+
+O cadastro exige a confirmação do endereço de e-mail. Para enviar pelo Resend, publique `supabase/functions/auth-email-hook` no projeto de produção e habilite **Send Email Hook** no Supabase Auth. Use a URL HTTPS da Edge Function e o mesmo segredo gerado pelo Supabase nos dois lados. [Configuração do Send Email Hook](https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook)
+
+Configure estes valores em **Edge Functions → Secrets**:
+
+- `RESEND_API_KEY` com a chave do Resend autorizada a enviar.
+- `RESEND_FROM_EMAIL` com o remetente de um domínio verificado no Resend.
+- `SEND_EMAIL_HOOK_SECRET` com o segredo do Send Email Hook.
+- `SITE_URL` com o domínio público do site, caso seja diferente de `https://streamstar.vercel.app`.
+
+Em **Supabase Auth → URL Configuration**, configure o **Site URL** e permita os retornos `/subscribe?flow=signup` e `/update-password` do domínio do StreamStar. O usuário pode reenviar a confirmação após o cadastro ou no login quando a conta ainda está sem confirmação.
+
 ## Recebimentos pelo Mercado Pago
 
 O Checkout Pro recebe na conta associada ao token da aplicação. Ao aprovar o pagamento, o Mercado Pago envia um webhook. O StreamStar confere o pedido, registra o recebimento e envia um aviso no sino de notificações dos administradores. Em **Admin → Ferramentas Financeiras**, é possível consultar e reprocessar um pagamento aprovado pelo ID.

@@ -1,9 +1,5 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
 import { Resend } from "https://esm.sh/resend@4.0.0";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY") as string);
-const hookSecret = Deno.env.get("SEND_EMAIL_HOOK_SECRET") as string;
 
 // Stream Star brand colors
 const brandColors = {
@@ -274,105 +270,77 @@ const getEmailHtml = (
   }
 };
 
-serve(async (req) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+type AuthEmailEvent = {
+  user: { email?: string };
+  email_data: {
+    token: string;
+    token_hash: string;
+    redirect_to?: string;
+    email_action_type: string;
+  };
+};
+
+function authEmailError(status: number, message: string) {
+  return Response.json({ error: { http_code: status, message } }, { status });
+}
+
+function confirmationLink(action: string, tokenHash: string, redirect?: string) {
+  const site = new URL(Deno.env.get("SITE_URL")?.trim() || "https://streamstar.vercel.app");
+  let target = new URL("/", site);
+  if (action === "signup") {
+    target = new URL("/subscribe?flow=signup", site);
+  } else if (action === "recovery") {
+    target = new URL("/update-password", site);
+  } else if (redirect && URL.canParse(redirect)) {
+    const requested = new URL(redirect);
+    if (requested.protocol === "https:" || requested.protocol === "http:") target = requested;
   }
 
-  const payload = await req.text();
-  const headers = Object.fromEntries(req.headers);
+  const verify = new URL("/auth/v1/verify", Deno.env.get("SUPABASE_URL"));
+  verify.search = new URLSearchParams({ token: tokenHash, type: action, redirect_to: target.href }).toString();
+  return verify.href;
+}
 
-  console.log("[AUTH-EMAIL-HOOK] Received webhook request");
+Deno.serve(async (req) => {
+  if (req.method !== "POST") return authEmailError(405, "Method not allowed");
 
-  const wh = new Webhook(hookSecret);
+  const secret = Deno.env.get("SEND_EMAIL_HOOK_SECRET")?.trim().replace(/^v1,whsec_/, "");
+  if (!secret) return authEmailError(503, "Auth email hook is not configured");
 
+  let event: AuthEmailEvent;
   try {
-    const {
-      user,
-      email_data: { token, token_hash, redirect_to, email_action_type },
-    } = wh.verify(payload, headers) as {
-      user: {
-        email: string;
-      };
-      email_data: {
-        token: string;
-        token_hash: string;
-        redirect_to: string;
-        email_action_type: string;
-      };
-    };
+    const verifier = new Webhook(secret);
+    event = verifier.verify(await req.text(), Object.fromEntries(req.headers)) as AuthEmailEvent;
+  } catch {
+    return authEmailError(401, "Invalid auth email hook signature");
+  }
 
-    console.log(`[AUTH-EMAIL-HOOK] Processing ${email_action_type} email for ${user.email}`);
-    console.log(`[AUTH-EMAIL-HOOK] Original redirect_to: ${redirect_to}`);
+  const recipient = event?.user?.email;
+  const email = event?.email_data;
+  if (!recipient || !email?.email_action_type || !email.token) {
+    return authEmailError(400, "Invalid auth email event");
+  }
+  const apiKey = Deno.env.get("RESEND_API_KEY")?.trim();
+  const sender = Deno.env.get("RESEND_FROM_EMAIL")?.trim();
+  if (!apiKey || !sender) return authEmailError(503, "Email provider is not configured");
 
-    // Build confirmation URL
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    
-    // Use the production site URL
-    const siteUrl = "https://streamstar.lovable.app";
-    
-    let confirmationUrl: string;
-    
-    // For recovery, build URL with tokens directly in hash for the UpdatePassword page
-    if (email_action_type === "recovery") {
-      // The UpdatePassword page expects access_token, refresh_token and type in the hash
-      // We'll use the Supabase verify endpoint which will redirect with proper tokens
-      confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(`${siteUrl}/update-password`)}`;
-      console.log(`[AUTH-EMAIL-HOOK] Recovery URL: ${confirmationUrl}`);
-    } else {
-      // For other types, use standard flow
-      let finalRedirectTo = redirect_to;
-      
-      if (!redirect_to || redirect_to === "" || redirect_to === "undefined") {
-        switch (email_action_type) {
-          case "signup":
-          case "email_change":
-            finalRedirectTo = `${siteUrl}/`;
-            break;
-          default:
-            finalRedirectTo = `${siteUrl}/`;
-        }
-      }
-      
-      confirmationUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${encodeURIComponent(finalRedirectTo)}`;
-    }
-    
-    console.log(`[AUTH-EMAIL-HOOK] Final confirmation URL: ${confirmationUrl}`);
-
-    const subject = getEmailSubject(email_action_type);
-    const html = getEmailHtml(email_action_type, confirmationUrl, token);
-
+  const action = email.email_action_type;
+  try {
+    const link = confirmationLink(action, email.token_hash, email.redirect_to);
+    const resend = new Resend(apiKey);
     const { error } = await resend.emails.send({
-      from: "Stream Star <noreply@resend.dev>",
-      to: [user.email],
-      subject,
-      html,
+      from: sender,
+      to: recipient,
+      subject: getEmailSubject(action),
+      html: getEmailHtml(action, link, email.token),
     });
-
     if (error) {
-      console.error("[AUTH-EMAIL-HOOK] Failed to send email:", error);
-      throw error;
+      console.error("[auth-email-hook] Resend rejected the auth email", error.name);
+      return authEmailError(502, "Email provider rejected the request");
     }
-
-    console.log(`[AUTH-EMAIL-HOOK] Successfully sent ${email_action_type} email to ${user.email}`);
-
-    return new Response(JSON.stringify({}), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (error: any) {
-    console.error("[AUTH-EMAIL-HOOK] Error:", error);
-    return new Response(
-      JSON.stringify({
-        error: {
-          http_code: error.code || 500,
-          message: error.message,
-        },
-      }),
-      {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return Response.json({});
+  } catch {
+    console.error("[auth-email-hook] Could not complete email delivery");
+    return authEmailError(502, "Unable to deliver the auth email");
   }
 });

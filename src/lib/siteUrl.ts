@@ -20,3 +20,10 @@ export function getSiteUrl(): string {
 }
 
 export const siteUrl = getSiteUrl();
+
+export function getSignupConfirmationUrl() {
+  const origin = typeof window !== "undefined" && window.location.protocol === "https:"
+    ? window.location.origin
+    : siteUrl;
+  return new URL("/subscribe?flow=signup", origin).href;
+}

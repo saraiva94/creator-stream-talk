@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateOfBirthSelector, validateAge } from "@/components/DateOfBirthSelector";
 import { TermsDialog } from "@/components/TermsDialog";
+import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { supabase } from "@/integrations/supabase/client";
 import { openMercadoPagoCheckout } from "@/lib/mercadoPago";
 import { validatePasswordStrength } from "@/lib/password";
 import { validateAffiliateCode } from "@/lib/supabaseApi";
-import { siteUrl } from "@/lib/siteUrl";
+import { getSignupConfirmationUrl } from "@/lib/siteUrl";
 import { useNicknameValidator } from "@/hooks/useNicknameValidator";
 
 const Subscribe = () => {
@@ -29,7 +30,7 @@ const Subscribe = () => {
   const { nickname, setNickname, validation, isReady } = useNicknameValidator();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const profile = useQuery({
     queryKey: ["registration-status", user?.id],
     enabled: Boolean(user),
@@ -68,11 +69,12 @@ const Subscribe = () => {
       if (!isReady) throw new Error(validation.error || t.subscribe.nicknameUnavailable);
       if (!(await validateAffiliateCode(referral)).valid) throw new Error("Código de indicação inválido.");
 
+      const email = String(form.get("email") ?? "").trim();
       const { data, error } = await supabase.auth.signUp({
-        email: String(form.get("email") ?? "").trim(),
+        email,
         password,
         options: {
-          emailRedirectTo: `${siteUrl}/subscribe?flow=signup`,
+          emailRedirectTo: getSignupConfirmationUrl(),
           data: {
             full_name: String(form.get("fullName") ?? "").trim(),
             username: nickname,
@@ -85,7 +87,7 @@ const Subscribe = () => {
         await openMercadoPagoCheckout("registration-checkout", { referralCode: referral });
         redirecting = true;
       } else {
-        setNeedsEmailConfirmation(true);
+        setPendingEmail(email);
       }
     } catch (error) {
       setError((error as Error).message);
@@ -117,10 +119,13 @@ const Subscribe = () => {
             {pending && returnedFromPayment && (
               <p role="status">Aguardando a confirmação do Mercado Pago para ativar sua conta.</p>
             )}
-            {!user && needsEmailConfirmation && (
-              <p role="status">Confirme seu e-mail e entre na conta para concluir o pagamento.</p>
+            {!user && pendingEmail && (
+              <div className="space-y-3">
+                <p role="status">Confirme seu e-mail e entre na conta para concluir o pagamento.</p>
+                <ResendVerificationButton email={pendingEmail} />
+              </div>
             )}
-            {!isLoading && ((pending && !returnedFromPayment) || (!user && !needsEmailConfirmation)) && (
+            {!isLoading && ((pending && !returnedFromPayment) || (!user && !pendingEmail)) && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 {!user && (
                   <>

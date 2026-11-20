@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Navbar from "@/components/Navbar";
+import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const continueRegistration = searchParams.get("continue") === "registration";
@@ -73,6 +75,7 @@ const Auth = () => {
       return;
     }
 
+    setUnverifiedEmail(null);
     setLoading(true);
     try {
       const credential = loginInput.trim();
@@ -180,6 +183,8 @@ const Auth = () => {
           error.code === "email_not_confirmed" ||
           (error.message && error.message.toLowerCase().includes("confirm"))
         ) {
+          const email = loginInput.trim();
+          if (email.includes("@")) setUnverifiedEmail(email);
           toast({
             title: "E-mail não confirmado",
             description: "Verifique seu e-mail para ativar a conta antes de entrar.",
@@ -228,7 +233,10 @@ const Auth = () => {
           type="text"
           placeholder={t.auth.emailOrNicknamePlaceholder || "seu@email.com ou seu_usuario"}
           value={loginInput}
-          onChange={(e) => setLoginInput(e.target.value)}
+          onChange={(e) => {
+            setLoginInput(e.target.value);
+            setUnverifiedEmail(null);
+          }}
           disabled={loading}
         />
       </div>
@@ -260,6 +268,7 @@ const Auth = () => {
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? t.auth.loading : t.auth.loginButton}
       </Button>
+      {unverifiedEmail && <ResendVerificationButton email={unverifiedEmail} />}
     </form>
   );
 

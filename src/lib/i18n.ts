@@ -64,6 +64,9 @@ export const translations = {
       withdrawalsUnavailable: "Automatic PIX withdrawals are currently unavailable.",
     },
     auth: {
+      resendVerification: "Resend verification email",
+      verificationRequested: "Verification email requested",
+      resendVerificationError: "Unable to resend verification",
       serviceUnavailable: "The sign-in service is temporarily unavailable. Please try again shortly.",
       welcome: "Welcome to Stream Star",
       login: "Login",
@@ -835,6 +838,9 @@ export const translations = {
       withdrawalsUnavailable: "Los retiros automáticos por PIX no están disponibles en este momento.",
     },
     auth: {
+      resendVerification: "Reenviar correo de verificación",
+      verificationRequested: "Correo de verificación solicitado",
+      resendVerificationError: "No se pudo reenviar la verificación",
       serviceUnavailable: "El servicio de inicio de sesión no está disponible temporalmente. Inténtalo de nuevo en unos minutos.",
       welcome: "Bienvenido a Stream Star",
       login: "Iniciar sesión",
@@ -1606,6 +1612,9 @@ export const translations = {
       withdrawalsUnavailable: "Os saques automáticos por PIX estão indisponíveis no momento.",
     },
     auth: {
+      resendVerification: "Reenviar e-mail de verificação",
+      verificationRequested: "E-mail de verificação solicitado",
+      resendVerificationError: "Não foi possível reenviar a verificação",
       serviceUnavailable: "O serviço de login está temporariamente indisponível. Tente novamente em instantes.",
       welcome: "Bem-vindo ao Stream Star",
       login: "Entrar",
